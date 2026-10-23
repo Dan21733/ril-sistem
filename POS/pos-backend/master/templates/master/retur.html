@@ -1,0 +1,18 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Retur barang{% endblock %}
+{% block isi %}
+<h2>Retur barang</h2>
+<p class="sub">Retur dan nota batal (void) yang dicatat kasir. Kasir tidak mengubah stok; stok baru bertambah setelah barangnya diterima di sini.
+  Pilih ditaruh di Toko atau gudang, dan isi jumlah yang rusak (tidak kembali ke stok).</p>
+{% if not tersedia %}<div class="pesan info">Tabel retur kasir belum ada di database ini (database pengembangan lama). Di database kasir yang sebenarnya, daftar ini terisi otomatis.</div>{% endif %}
+<h3 style="margin-top:0">Menunggu diterima ({{ menunggu|length }})</h3>
+{% for e in menunggu %}{% include "master/_retur_event.html" with kembali=request.get_full_path %}{% empty %}<div class="kartu redup">Tidak ada retur yang menunggu.</div>{% endfor %}
+<h3>Sudah diterima (30 terakhir)</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Jenis</th><th>Barang</th><th>Oleh</th></tr>
+  {% for p in sudah %}<tr><td class="kecil">{{ p.waktu|date:"d M Y H:i" }}</td><td>{% if p.jenis == "void" %}Void{% else %}Retur{% endif %}</td>
+    <td class="kecil">{% for b in p.baris.all %}{{ b.item_name }} / {{ b.variant|varian }}: {% if b.masuk %}{{ b.masuk }} ke {{ b.lokasi.nama|default:"Toko" }}{% endif %}{% if b.rusak %} {{ b.rusak }} rusak{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}{% if p.catatan %}<br><span class="redup">{{ p.catatan }}</span>{% endif %}</td>
+    <td>{{ p.nama_pengguna }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="redup" style="padding:22px;text-align:center">Belum ada.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

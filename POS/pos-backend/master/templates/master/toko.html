@@ -1,0 +1,35 @@
+{% extends "master/base.html" %}
+{% block judul %}Toko{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}</style>
+<h2>Toko</h2>
+<p class="sub">Toko yang diurus dari master. Bisa ditambah kapan saja. Status PKP diatur per toko, karena PKP melekat pada pemilik (NPWP) tokonya.</p>
+
+{% for t in semua %}
+<div class="kartu" style="margin-bottom:14px;{% if not t.aktif %}opacity:.6{% endif %}">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <div><b style="font-size:19px">{{ t.nama }}</b> <span class="label netral">{{ t.kode }}</span>
+      {% if t.stok_di_kasir %}<span class="label baik">stok di kasir</span>{% else %}<span class="label netral">belum punya kasir</span>{% endif %}
+      {% if t.pkp %}<span class="label">PKP sejak {{ t.pkp_mulai|date:"d M Y" }}</span>{% else %}<span class="label netral">belum PKP</span>{% endif %}
+      {% if not t.aktif %}<span class="label bahaya">nonaktif</span>{% endif %}
+      <div class="redup kecil" style="margin-top:4px">{% if t.atas_nama %}Atas nama {{ t.atas_nama }}{% endif %}{% if t.alamat %} · {{ t.alamat }}{% endif %}{% if t.telepon %} · {{ t.telepon }}{% endif %}</div></div>
+    <div class="baris">
+      {% if not t.stok_di_kasir and t.aktif %}<form method="post" data-tanya="Jadikan stok di kasir sebagai stok {{ t.nama }}? Toko lain tidak lagi memakai stok kasir.">{% csrf_token %}<input type="hidden" name="aksi" value="stok_kasir"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">Pakai stok kasir</button></form>{% endif %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">{% if t.aktif %}Nonaktifkan{% else %}Aktifkan{% endif %}</button></form>
+    </div>
+  </div>
+  <details style="margin-top:10px"><summary class="kecil" style="cursor:pointer;color:var(--aksen)">Ubah</summary>
+  <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="id" value="{{ t.id }}">
+    {% include "master/_toko_isian.html" with t=t %}
+    <div style="margin-top:14px"><button class="tombol utama" type="submit">Simpan</button></div>
+  </form></details>
+</div>
+{% endfor %}
+
+<details class="lipat" {% if semua|length < 2 %}open{% endif %}><summary>Tambah toko</summary>
+<form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+  {% include "master/_toko_isian.html" with t=None %}
+  <div style="margin-top:14px"><button class="tombol utama" type="submit">Tambah toko</button></div>
+</form></details>
+<p class="redup kecil" style="margin-top:18px">"Stok di kasir": POS sekarang hanya mengenal satu toko, jadi hanya satu toko yang stoknya dihitung sistem. Toko lain tetap bisa punya PO, faktur, hutang, opname, dan transfer; stoknya mulai dihitung saat toko itu punya kasir sendiri.</p>
+{% endblock %}

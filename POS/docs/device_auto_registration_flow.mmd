@@ -1,0 +1,45 @@
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true}}}%%
+flowchart TD
+    subgraph DEVICE["PERANGKAT KASIR — browser POS"]
+        A["Aplikasi kasir dibuka"]
+        B{"Device sudah terdaftar<br/>di penyimpanan lokal?"}
+        C{"Ada koneksi<br/>ke server toko?"}
+        WAIT["Tunggu koneksi.<br/>Otomatis mencoba lagi begitu online"]
+        ASK["Minta pendaftaran otomatis<br/>lewat jaringan toko"]
+        FAIL["Tampilkan alasan gagal<br/>+ tombol Coba Lagi"]
+        DONE["Device siap dipakai:<br/>punya kode nota T01–T99 dan token rahasia"]
+    end
+
+    subgraph PROXY["JARINGAN TOKO — whitelist pemilik"]
+        INJECT["Menyisipkan tanda pengenal toko<br/>(token registrasi, rahasia,<br/>tidak pernah sampai ke browser)"]
+    end
+
+    subgraph SERVER["SERVER TOKO"]
+        VAL{"Tanda pengenal valid?"}
+        NEW["Buat device baru:<br/>pilih kode nota kosong (T01…T99)<br/>+ kunci penomoran nota"]
+        TOK["Terbitkan token rahasia<br/>(berlaku 30 hari)"]
+        SAVE["Simpan identitas device<br/>di penyimpanan lokal perangkat"]
+        RETRY["Registrasi ulang otomatis<br/>saat token kedaluwarsa (30 hari)"]
+    end
+
+    A --> B
+    B -- "Ya" --> DONE
+    B -- "Belum" --> C
+    C -- "Tidak" --> WAIT
+    WAIT -- "Koneksi kembali" --> ASK
+    C -- "Ya" --> ASK
+    ASK --> INJECT
+    INJECT --> VAL
+    VAL -- "Tidak valid" --> FAIL
+    VAL -- "Valid" --> NEW
+    NEW --> TOK
+    TOK --> SAVE
+    SAVE --> DONE
+    FAIL -- "Kasir klik Coba Lagi" --> ASK
+    DONE -.->|"Token kadaluwarsa<br/>setelah 30 hari"| RETRY
+    RETRY --> ASK
+
+    style DONE fill:#2f855a,color:#ffffff
+    style FAIL fill:#c53030,color:#ffffff
+    style WAIT fill:#b7791f,color:#ffffff
+    style INJECT fill:#4a5568,color:#ffffff

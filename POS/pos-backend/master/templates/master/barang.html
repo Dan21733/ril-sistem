@@ -1,0 +1,120 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Daftar barang{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Daftar barang</h2><p class="sub">{{ halaman.paginator.count|ribuan }} barang. Klik barang untuk membukanya.</p></div>
+  <div class="baris">
+    <a class="tombol" href="?{{ qs_export }}{% if qs_export %}&{% endif %}export=1">Export Excel</a>
+    {% if 'ubah_info' in hak and 'ubah_harga' in hak %}<a class="tombol utama" href="{% url 'master:barang_baru' %}">Barang baru</a>{% endif %}
+  </div>
+</div>
+
+<form method="get" class="kartu baris" style="margin-bottom:14px">
+  <div style="flex:2;min-width:200px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}" autofocus></div>
+  <div style="flex:1;min-width:150px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:150px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  {% if daftar_supplier %}<div style="flex:1;min-width:150px"><label>Diambil dari</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>{% endif %}
+  <div style="min-width:120px"><label>Rak</label><select name="rak"><option value="">Semua</option><option value="-" {% if g.rak == "-" %}selected{% endif %}>Belum ada</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}</option>{% endfor %}</select></div>
+  <div style="min-width:170px"><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
+  <div style="min-width:110px"><label>Status</label><select name="aktif"><option value="">Semua</option><option value="ya" {% if g.aktif == "ya" %}selected{% endif %}>Aktif</option><option value="tidak" {% if g.aktif == "tidak" %}selected{% endif %}>Nonaktif</option></select></div>
+  <div style="min-width:130px"><label>Urut</label><select name="urut"><option value="nama">Nama</option><option value="harga" {% if g.urut == "harga" %}selected{% endif %}>Harga tertinggi</option><option value="harga_naik" {% if g.urut == "harga_naik" %}selected{% endif %}>Harga terendah</option><option value="stok" {% if g.urut == "stok" %}selected{% endif %}>Stok terkecil</option></select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:barang' %}">Reset</a></div>
+</form>
+
+<div class="belah" id="belah">
+<div class="kiri">
+<div class="gulir"><table id="tabel-barang">
+  <tr><th>Barang</th><th class="sempit">Kategori</th><th class="sempit">Brand</th><th class="angka">Harga jual</th><th class="angka sempit">Stok</th></tr>
+  {% for d in daftar %}
+  <tr class="baris-item" data-item="{{ d.item_id }}" tabindex="0">
+    <td title="{{ d.item_name }}"><b>{{ d.item_name }}</b>{% if d.nonaktif %} <span class="label netral">{{ d.nonaktif }} nonaktif</span>{% endif %}
+      <span class="masalah-teks">{% for m in d.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
+    <td class="sempit">{{ d.category }}</td>
+    <td class="sempit">{{ d.brand }}</td>
+    <td class="angka" style="white-space:nowrap">{% if d.harga_min == d.harga_max %}{{ d.harga_min|ribuan }}{% else %}{{ d.harga_min|ribuan }} – {{ d.harga_max|ribuan }}{% endif %}</td>
+    <td class="angka sempit">{{ d.stok|ribuan }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="5" class="redup" style="padding:28px;text-align:center">Tidak ada barang yang cocok dengan filter ini.</td></tr>
+  {% endfor %}
+</table></div>
+
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+</div>
+<aside class="kanan" id="panel" hidden></aside>
+</div>
+
+<style>
+.belah{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
+.belah.buka{grid-template-columns:minmax(300px,1fr) minmax(0,2fr)}
+.belah.buka .sempit{display:none}
+.kiri{min-width:0}
+#tabel-barang{table-layout:fixed}
+#tabel-barang th:nth-child(2),#tabel-barang td:nth-child(2){width:17%}
+#tabel-barang th:nth-child(3),#tabel-barang td:nth-child(3){width:15%}
+#tabel-barang th:nth-child(4),#tabel-barang td:nth-child(4){width:230px}
+#tabel-barang th:nth-child(5),#tabel-barang td:nth-child(5){width:150px;padding-right:44px}
+#tabel-barang td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tabel-barang td b{display:block;overflow:hidden;text-overflow:ellipsis}
+#tabel-barang .masalah-teks{overflow:hidden;text-overflow:ellipsis}
+.belah.buka #tabel-barang th:nth-child(4),.belah.buka #tabel-barang td:nth-child(4){width:200px}
+.kanan{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:22px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;min-width:0}
+.kanan h2{font-size:22px}
+.baris-item{cursor:pointer}
+.baris-item.pilih td{background:var(--aksen-lembut)!important}
+.baris-item:focus{outline:2px solid var(--aksen);outline-offset:-2px}
+@media (max-width:1100px){.belah.buka{grid-template-columns:1fr}.belah.buka .kiri{display:none}.kanan{position:static;max-height:none}}
+</style>
+<script>
+(function(){
+  const belah = document.getElementById('belah'), panel = document.getElementById('panel');
+  const dasar = "{% url 'master:barang' %}item/";
+  function alamatDengan(id){
+    const u = new URL(location.href);
+    if (id) u.searchParams.set('buka', id); else u.searchParams.delete('buka');
+    return u;
+  }
+  async function buka(id, gulir){
+    document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
+    const baris = document.querySelector('.baris-item[data-item="'+id+'"]');
+    if (baris) baris.classList.add('pilih');
+    const u = alamatDengan(id);
+    history.replaceState(null, '', u);
+    belah.classList.add('buka'); panel.hidden = false;
+    panel.innerHTML = '<p class="redup">Memuat...</p>';
+    try{
+      const r = await fetch(dasar + id + '/panel/?kembali=' + encodeURIComponent(u.pathname + u.search));
+      if (!r.ok) throw new Error(r.status);
+      panel.innerHTML = await r.text(); panel.scrollTop = 0;
+      if (gulir && baris) baris.scrollIntoView({block:'nearest'});
+    }catch(e){ panel.innerHTML = '<p class="pesan error">Barang tidak bisa dimuat. Coba muat ulang halaman.</p>'; }
+  }
+  function tutup(){
+    belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = '';
+    document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
+    history.replaceState(null, '', alamatDengan(null));
+  }
+  document.getElementById('tabel-barang').addEventListener('click', e => {
+    const baris = e.target.closest('.baris-item'); if (baris && baris.dataset.item) buka(baris.dataset.item);
+  });
+  document.getElementById('tabel-barang').addEventListener('keydown', e => {
+    const baris = e.target.closest('.baris-item'); if (!baris) return;
+    if (e.key === 'Enter'){ buka(baris.dataset.item); }
+    if (e.key === 'ArrowDown' && baris.nextElementSibling){ e.preventDefault(); baris.nextElementSibling.focus(); }
+    if (e.key === 'ArrowUp' && baris.previousElementSibling && baris.previousElementSibling.classList.contains('baris-item')){ e.preventDefault(); baris.previousElementSibling.focus(); }
+  });
+  panel.addEventListener('click', e => { if (e.target.closest('[data-tutup-panel]')) tutup(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !panel.hidden && !e.target.matches('input,textarea,select')) tutup();
+  });
+  const awal = new URL(location.href).searchParams.get('buka');
+  if (awal) buka(awal, true);
+})();
+</script>
+{% endblock %}

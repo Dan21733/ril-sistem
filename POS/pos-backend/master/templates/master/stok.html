@@ -1,0 +1,71 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Stok barang{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:flex-start"><h2>Stok barang</h2><div class="baris" style="gap:8px;align-items:center"><a class="tombol" href="{% url 'master:stok_lokasi' %}?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&amp;{% endif %}export=1">Export Excel</a>{% if 'ubah_stok' in hak or 'kelola_lokasi' in hak %}<a class="tombol" href="{% url 'master:stok_impor' %}">Import Excel</a>{% endif %}</div></div>
+<p class="sub">{{ halaman.paginator.count|ribuan }} varian. <a href="?stok=habis">{{ jumlah_habis|ribuan }} habis</a> · <a href="?stok=menipis">{{ jumlah_menipis|ribuan }} menipis</a></p>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:160px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Rak</label><select name="rak"><option value="">Semua</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Keadaan stok</label><select name="stok"><option value="">Semua</option><option value="habis" {% if g.stok == "habis" %}selected{% endif %}>Habis</option><option value="menipis" {% if g.stok == "menipis" %}selected{% endif %}>Menipis</option><option value="minus" {% if g.stok == "minus" %}selected{% endif %}>Minus</option></select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:stok' %}">Reset</a></div>
+</form>
+
+{% if 'ubah_stok' in hak %}
+<div class="kartu baris" style="margin-bottom:18px">
+  <div style="min-width:220px"><label for="jenis-stok">Alasan perubahan stok</label><select id="jenis-stok">{% for k, l in daftar_jenis %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+  <div style="min-width:200px"><label for="lokasi-stok">Hitungan untuk</label><select id="lokasi-stok"><option value="">Total (semua lokasi)</option>{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }} saja</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:240px"><label for="catatan-stok">Catatan (wajib untuk "Lainnya")</label><input type="text" id="catatan-stok" placeholder="mis. opname rak TK-01"></div>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Ketik hasil hitung di kolom "Hitungan baru", lalu Enter. Selisihnya dicatat di riwayat stok dengan alasan di atas. Kalau dipilih satu lokasi, hitungan dibandingkan dengan stok sistem di lokasi itu saja.</p>
+</div>
+{% endif %}
+
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Stok</th>{% if 'ubah_stok' in hak %}<th class="angka">Hitungan baru</th>{% endif %}<th class="angka">Batas stok</th></tr>
+  {% for b in barang %}
+  <tr class="{% if not b.aktif %}nonaktif{% endif %}">
+    <td>{{ b.item_name }}</td>
+    <td>{{ b.variant|varian }}</td>
+    <td>{{ b.kode_rak|default:"-" }}</td>
+    <td class="angka"><b class="stok-kini{% if b.in_stock <= 0 %} habis{% endif %}">{{ b.in_stock|ribuan }}</b></td>
+    {% if 'ubah_stok' in hak %}<td class="angka"><input class="sel hitung" inputmode="numeric" autocomplete="off" data-id="{{ b.id }}" data-kolom="hitung" placeholder="-" aria-label="Hitungan baru {{ b.item_name }} {{ b.variant|varian }}"></td>{% endif %}
+    <td class="angka">{% if 'ubah_info' in hak %}<input class="sel" style="width:90px" inputmode="numeric" data-jenis="angka" data-id="{{ b.id }}" data-kolom="stock_alert" value="{{ b.stock_alert|ribuan }}" data-awal="{{ b.stock_alert|ribuan }}">{% else %}{{ b.stock_alert|ribuan }}{% endif %}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada varian yang cocok dengan filter ini.</td></tr>
+  {% endfor %}
+</table></div>
+
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+<style>.stok-kini.habis{color:var(--bahaya)} td input.sel.hitung{border-color:var(--garis-kuat);background:#fff;width:110px}</style>
+<script>
+document.addEventListener('change', async e => {
+  const el = e.target; if (!el.classList.contains('hitung')) return;
+  e.stopImmediatePropagation();
+  if (el.value.trim() === '') return;
+  el.classList.remove('simpan','gagal');
+  try{
+    const r = await fetch("{% url 'master:stok_ubah' %}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},
+      body: JSON.stringify({id: el.dataset.id, nilai: el.value, cara: 'tetapkan',
+        jenis: document.getElementById('jenis-stok').value, catatan: document.getElementById('catatan-stok').value,
+        lokasi: document.getElementById('lokasi-stok').value})
+    });
+    const d = await r.json();
+    if (!d.ok){ el.classList.add('gagal'); kabar(d.pesan || 'Gagal menyimpan.', true); return; }
+    const kini = el.closest('tr').querySelector('.stok-kini');
+    kini.textContent = ribuan(d.stok); kini.classList.toggle('habis', d.stok <= 0);
+    el.value = ''; el.classList.add('simpan'); setTimeout(() => el.classList.remove('simpan'), 1200);
+    kabar(d.selisih === 0 ? 'Sama dengan stok sekarang.' : 'Stok ' + (d.selisih > 0 ? '+' : '') + d.selisih + ' tercatat.');
+  }catch(err){ el.classList.add('gagal'); kabar('Tidak tersambung ke server. Stok belum berubah.', true); }
+}, true);
+</script>
+{% endblock %}

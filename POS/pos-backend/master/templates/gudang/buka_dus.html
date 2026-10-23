@@ -1,0 +1,38 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Buka dus{% endblock %}
+{% block isi %}
+{% if tanpa_stok %}<div class="kartu redup">{{ toko.nama }} belum punya kasir, jadi buka dus belum dicatat di sini.</div>{% else %}
+<div class="alat"><input type="search" id="saring" placeholder="Cari kemasan" autocomplete="off" aria-label="Cari kemasan"></div>
+{% for k in daftar %}
+<form method="post" class="kartu pasangan" data-isi="{{ k.isi }}" data-tanya="Catat buka dus ini?">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
+  <b>{{ k.dari.item_name }}{% if k.dari.variant != "N/A" %} / {{ k.dari.variant }}{% endif %}</b><br>
+  <span class="redup">menjadi {{ k.ke.item_name }}{% if k.ke.variant != "N/A" %} / {{ k.ke.variant }}{% endif %} · isi {{ k.isi }}{% if k.isi_tidak_tetap %} (bisa beda){% endif %}</span>
+  <div class="dua" style="margin-top:8px">
+    <div><label>Dibuka berapa</label><input class="jumlah" type="text" name="jumlah" inputmode="numeric" required autocomplete="off"></div>
+    {% if k.isi_tidak_tetap %}<div><label>Isi sebenarnya (total)</label><input class="isi" type="text" name="isi_total" inputmode="numeric" autocomplete="off"></div>
+    {% else %}<div><label>Hasil</label><input class="isi" type="text" disabled></div>{% endif %}
+  </div>
+  {% if pilihan_lokasi|length > 1 %}<div class="dua" style="margin-top:8px">
+    <div><label>Dus diambil dari</label><select name="lokasi_dari">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.usul_dari == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+    <div><label>Isinya ditaruh di</label><select name="lokasi_ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.usul_ke == l.id or not k.usul_ke and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+  </div>{% endif %}
+  <div class="alat" style="margin:10px 0 0"><input type="text" name="catatan" placeholder="Catatan (boleh kosong)" aria-label="Catatan"><button class="tombol utama" type="submit">Catat buka dus</button></div>
+</form>
+{% empty %}<div class="kartu redup">Belum ada pasangan kemasan.</div>
+{% endfor %}
+{% if riwayat %}
+<h3>Terakhir kamu buka</h3>
+<div class="daftar">{% for r in riwayat %}<div class="brs"><div class="nama"><b>{{ r.jumlah }} {{ r.konversi.dari.item_name }}</b><span class="redup kecil">jadi {{ r.isi_total }} {{ r.konversi.ke.item_name }} · {{ r.waktu|date:"d M H:i" }}</span></div></div>{% endfor %}</div>
+{% endif %}
+{% endif %}
+<script>
+document.querySelectorAll('.pasangan').forEach(f => {
+  const j = f.querySelector('.jumlah'), i = f.querySelector('.isi');
+  j.addEventListener('input', () => { const n = parseInt(j.value, 10); i.value = n > 0 ? n * f.dataset.isi : ''; });
+});
+const saring = document.getElementById('saring'); if (saring) saring.addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('.pasangan').forEach(f => { f.style.display = f.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% load master_tags %}<div class="gulir"><table>
+  <tr><th>Nama</th><th class="angka">Kejadian</th><th class="angka">Unit kurang</th><th class="angka">Unit lebih</th>{% if lihat_nilai %}<th class="angka">Nilai kurang</th><th class="angka">Nilai lebih</th>{% endif %}</tr>
+  {% for x in grup %}<tr><td>{{ x.nama }}</td><td class="angka">{{ x.kejadian }}</td>
+    <td class="angka">{% if x.kurang %}<b style="color:var(--bahaya)">{{ x.kurang|ribuan }}</b>{% else %}-{% endif %}</td><td class="angka">{{ x.lebih|ribuan|default:"-" }}</td>
+    {% if lihat_nilai %}<td class="angka">{% if x.nilai_kurang %}<b style="color:var(--bahaya)">{{ x.nilai_kurang|ribuan }}</b>{% else %}-{% endif %}</td><td class="angka">{{ x.nilai_lebih|ribuan|default:"-" }}</td>{% endif %}</tr>{% endfor %}
+</table></div>

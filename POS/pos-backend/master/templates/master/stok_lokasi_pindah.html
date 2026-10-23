@@ -1,0 +1,28 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pindah lokasi{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% if kembali %}{{ kembali }}{% else %}{% url 'master:stok_lokasi' %}{% endif %}">Stok per gudang</a> /</p>
+<h2>{{ info.item_name }} / {{ info.variant|varian }}</h2>
+<p class="sub">Total di kasir: <b>{{ total|ribuan }}</b>. Memindah stok tidak mengubah total.</p>
+<div class="gulir" style="max-width:520px"><table>
+  <tr><th>Lokasi</th><th class="angka">Jumlah</th></tr>
+  {% for d in daftar %}<tr class="{% if not d.lokasi.aktif %}nonaktif{% endif %}"><td>{{ d.lokasi.nama }}</td><td class="angka"><b {% if d.jumlah < 0 %}style="color:var(--bahaya)"{% endif %}>{{ d.jumlah|ribuan }}</b></td></tr>{% endfor %}
+</table></div>
+{% if 'kelola_lokasi' in hak %}
+<h3>Pindahkan</h3>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}">
+  <div style="min-width:170px"><label>Dari</label><select name="dari" required>{% for d in aktif %}<option value="{{ d.lokasi.id }}">{{ d.lokasi.nama }} ({{ d.jumlah|ribuan }})</option>{% endfor %}</select></div>
+  <div style="min-width:170px"><label>Ke</label><select name="ke" required>{% for d in aktif %}<option value="{{ d.lokasi.id }}" {% if forloop.counter == 2 %}selected{% endif %}>{{ d.lokasi.nama }}</option>{% endfor %}</select></div>
+  <div style="width:120px"><label>Jumlah</label><input type="text" name="jumlah" inputmode="numeric" required></div>
+  <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
+  <div><button class="tombol utama" type="submit">Pindah</button></div>
+</form>
+{% endif %}
+{% if riwayat %}
+<h3>Riwayat pindah</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Dari</th><th>Ke</th><th class="angka">Jumlah</th><th>Catatan</th></tr>
+  {% for m in riwayat %}<tr><td class="kecil">{{ m.waktu|date:"d M Y H:i" }}</td><td>{{ m.nama_pengguna }}</td><td>{{ m.dari.nama }}</td><td>{{ m.ke.nama }}</td><td class="angka">{{ m.jumlah|ribuan }}</td><td>{{ m.catatan }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

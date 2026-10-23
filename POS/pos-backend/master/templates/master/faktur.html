@@ -1,0 +1,33 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Catat faktur saja{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Catat faktur saja</h2><p class="sub">Untuk faktur lama atau pembelian mendadak yang cukup dicatat hutangnya. <b>Stok dan modal tidak berubah.</b> Kalau barangnya juga harus masuk stok, pakai Pembelian barang.</p></div>
+  <a class="tombol utama" href="{% url 'master:faktur_baru' %}">Faktur baru</a>
+</div>
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nomor faktur, barang, supplier, atau catatan</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="min-width:190px"><label>Status</label><select name="status"><option value="">Semua</option>
+    <option value="belum" {% if g.status == "belum" %}selected{% endif %}>Belum lunas</option>
+    <option value="lewat" {% if g.status == "lewat" %}selected{% endif %}>Lewat jatuh tempo</option>
+    <option value="lunas" {% if g.status == "lunas" %}selected{% endif %}>Lunas</option></select></div>
+  <div style="min-width:190px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:faktur' %}">Reset</a></div>
+</form>
+<div class="gulir"><table>
+  <tr><th>Faktur</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Supplier</th><th>Tanggal</th><th>Barang</th><th class="angka">Total</th><th class="angka">Sisa</th><th>Jatuh tempo</th></tr>
+  {% for f in halaman.object_list %}
+  <tr style="cursor:pointer" onclick="location.href='{% url 'master:faktur_detail' f.id %}'">
+    <td><a href="{% url 'master:faktur_detail' f.id %}"><b>{{ f.nomor_faktur }}</b></a></td>{% if banyak_toko %}<td>{{ f.toko.kode }}</td>{% endif %}<td>{{ f.supplier.nama }}</td>
+    <td style="white-space:nowrap">{{ f.tanggal_faktur|date:"d M Y" }}</td>
+    <td><span class="redup" style="display:block;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.keterangan }}</span></td>
+    <td class="angka">{{ f.total|ribuan }}</td>
+    <td class="angka">{% if f.sisa > 0 %}<b>{{ f.sisa|ribuan }}</b>{% else %}<span class="label baik">Lunas</span>{% endif %}</td>
+    <td style="white-space:nowrap">{% if f.jatuh_tempo %}<span style="color:{% if f.sisa > 0 and f.jatuh_tempo < hari_ini %}var(--bahaya){% endif %}">{{ f.jatuh_tempo|date:"d M Y" }}</span>{% else %}<span class="redup">-</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:28px;text-align:center">Belum ada faktur.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman"><span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>{% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+  {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}</span></div>
+{% endblock %}

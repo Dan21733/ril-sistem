@@ -1,0 +1,12 @@
+<div class="kisi">
+  {% if not isi.toko %}<div><label>Toko</label><div style="padding:10px 0;font-weight:600">{{ toko_aktif.nama }}</div><input type="hidden" name="toko" value="{{ toko_aktif.id }}"></div>{% endif %}
+  <div><label>Supplier</label><input type="text" name="supplier" list="daftar-supplier" value="{{ isi.supplier }}" required autocomplete="off" placeholder="pilih atau ketik nama baru"></div>
+  <div><label>Nomor faktur</label><input type="text" name="nomor_faktur" value="{{ isi.nomor_faktur }}" required autocomplete="off"></div>
+  <div><label>Tanggal faktur</label><input type="date" name="tanggal_faktur" value="{{ isi.tanggal_faktur }}" required></div>
+  <div><label>Jatuh tempo (boleh kosong)</label><input type="date" name="jatuh_tempo" value="{{ isi.jatuh_tempo }}"></div>
+  <div><label>Total di faktur</label><input type="text" name="total" value="{{ isi.total }}" required inputmode="numeric" autocomplete="off"></div>
+</div>
+<datalist id="daftar-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% endfor %}</datalist>
+<div style="margin-top:16px"><label>Barang di faktur (satu baris satu barang)</label><textarea name="keterangan" rows="6" required placeholder="Semen Padang 50 kg x 20 sak&#10;Paku 5 cm x 2 dus">{{ isi.keterangan }}</textarea></div>
+<div style="margin-top:16px"><label>Catatan (boleh kosong)</label><input type="text" name="catatan" value="{{ isi.catatan }}" placeholder="mis. dipesan ibu lewat telepon, faktur lama dari buku"></div>
+<p class="redup kecil" style="margin:8px 0 0">Nama supplier yang belum ada akan dibuat otomatis.</p>

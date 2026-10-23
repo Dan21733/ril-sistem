@@ -1,0 +1,88 @@
+{% extends "gudang/base.html" %}{% load master_tags %}
+{% block judul %}Tugas #{{ t.id }}{% endblock %}
+{% block isi %}
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
+  <span class="redup kecil">{{ izin_teks }} · {{ lingkup_teks }} · sampai {{ t.batas|date:"d M H:i" }} · <b>{{ jumlah_usulan }}</b> usulan</span></div>
+
+{% if tanpa_hak %}
+<div class="pesan info">Akunmu tidak punya hak mengusulkan apa pun di tugas ini. Hubungi pemilik.</div>
+{% elif t.bisa_diisi %}
+<form method="get" class="alat">
+  <input type="search" name="q" value="{{ cari }}" placeholder="Cari nama barang, varian, kategori, brand" aria-label="Cari barang">
+  <button class="tombol" type="submit">Cari</button><span class="kecil redup">{{ total }} varian</span>
+</form>
+
+<form method="post" id="isian">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
+{% for k in kelompok %}
+<div class="kelompok">
+  <div class="kepala"><b style="overflow-wrap:anywhere">{{ k.nama }}</b>
+    {% if boleh_alias %}<input type="hidden" name="i" value="{{ k.nama }}">
+    <div style="flex:1;min-width:220px"><input type="text" name="al_{{ k.nama }}" value="{% if k.alias_usul is not None %}{{ k.alias_usul }}{% else %}{{ k.alias }}{% endif %}"
+      data-awal="{{ k.alias }}" placeholder="Alias, pisahkan dengan koma" aria-label="Alias {{ k.nama }}" style="padding:9px 10px"
+      class="{% if k.alias_usul is not None %}diubah{% endif %}">
+      {% if k.alias_usul is not None %}<div class="kecil redup">sekarang: {{ k.alias|default:"(kosong)" }}</div>{% endif %}</div>{% endif %}
+  </div>
+  {% for v in k.varian %}
+  <div class="vr{% if v.harga_usul is not None or v.floor_usul is not None or v.aktif_usul is not None %} diubah{% endif %}">
+    <input type="hidden" name="v" value="{{ v.id }}">
+    <div class="nm">{{ v.variant|varian }}{% if not v.aktif %} <span class="label">nonaktif</span>{% endif %}</div>
+    {% if boleh_harga %}
+    <div><label for="h_{{ v.id }}">Harga jual</label><input class="harga" id="h_{{ v.id }}" name="h_{{ v.id }}" inputmode="numeric"
+      value="{% if v.harga_usul is not None %}{{ v.harga_usul|ribuan }}{% else %}{{ v.harga|ribuan }}{% endif %}" data-awal="{{ v.harga|ribuan }}">
+      {% if v.harga_usul is not None %}<div class="lama">sekarang {{ v.harga|ribuan }}</div>{% endif %}</div>
+    <div><label for="f_{{ v.id }}">Floor</label><input class="harga" id="f_{{ v.id }}" name="f_{{ v.id }}" inputmode="numeric"
+      value="{% if v.floor_usul is not None %}{{ v.floor_usul|ribuan }}{% else %}{{ v.floor|ribuan }}{% endif %}" data-awal="{{ v.floor|ribuan }}">
+      {% if v.floor_usul is not None %}<div class="lama">sekarang {{ v.floor|ribuan }}</div>{% endif %}</div>
+    {% else %}
+    <div class="kecil redup">jual {{ v.harga|ribuan }}</div><div class="kecil redup">floor {{ v.floor|ribuan }}</div>
+    {% endif %}
+    {% if boleh_aktif %}
+    <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--teks);font-size:15px"><input type="checkbox" name="ak_{{ v.id }}" value="1" style="width:22px;height:22px"
+      {% if v.aktif_usul is not None %}{% if v.aktif_usul %}checked{% endif %}{% elif v.aktif %}checked{% endif %}> Aktif</label>
+    {% else %}<div></div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="kartu redup" style="text-align:center">Tidak ada barang{% if cari %} yang cocok{% endif %}.</div>
+{% endfor %}
+{% if kelompok %}
+<div class="bawah" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <button class="tombol utama" type="submit">Simpan halaman ini</button>
+  {% if jumlah_halaman > 1 %}<span class="kecil">Halaman {{ nomor }} dari {{ jumlah_halaman }}
+    {% if nomor > 1 %}<a class="tombol kecil pindah" href="?q={{ cari|urlencode }}&hal={{ nomor|add:'-1' }}">← Sebelumnya</a>{% endif %}
+    {% if nomor < jumlah_halaman %}<a class="tombol kecil pindah" href="?q={{ cari|urlencode }}&hal={{ nomor|add:'1' }}">Berikutnya →</a>{% endif %}</span>{% endif %}
+</div>
+{% endif %}
+</form>
+
+<form method="post" class="alat" style="margin-top:14px" data-tanya="Kirim {{ jumlah_usulan }} usulan ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
+  <input type="text" id="catatan" name="catatan" maxlength="500" placeholder="Catatan untuk pemilik (boleh kosong)" aria-label="Catatan untuk pemilik">
+  <button class="tombol utama" type="submit" {% if not jumlah_usulan %}disabled{% endif %}>Kirim {{ jumlah_usulan }} usulan</button>
+</form>
+{% if jumlah_usulan %}
+<form method="post" data-tanya="Hapus semua {{ jumlah_usulan }} usulan di tiket ini?">{% csrf_token %}<input type="hidden" name="aksi" value="kosongkan"><button class="tombol kecil bahaya" type="submit">Hapus semua usulan</button></form>
+{% endif %}
+<script>
+const isian = document.getElementById('isian');
+let kotor = false;
+if (isian) {
+  isian.addEventListener('input', e => { kotor = true; e.target.classList.toggle('diubah', 'awal' in e.target.dataset && e.target.value !== e.target.dataset.awal); });
+  isian.addEventListener('submit', () => { kotor = false; });
+  window.addEventListener('beforeunload', e => { if (kotor) { e.preventDefault(); e.returnValue = ''; } });
+  document.querySelectorAll('a.pindah').forEach(a => a.addEventListener('click', e => {
+    if (kotor && !confirm('Isian di halaman ini belum disimpan. Tetap pindah halaman?')) e.preventDefault(); else kotor = false; }));
+}
+</script>
+{% else %}
+<div class="pesan info">{% if t.status == 'terbuka' %}Batas waktu tugas ini sudah lewat.{% else %}Tugas ini {{ t.get_status_display|lower }}.{% endif %}{% if t.catatan_putusan %} Catatan pemilik: {{ t.catatan_putusan }}{% endif %}</div>
+<div class="daftar">
+  {% for u in usulan %}
+  <div class="brs"><div class="nama"><b>{{ u.item_name }}{% if u.variant != '*' %} / {{ u.variant|varian }}{% endif %}</b>
+    <span class="kecil redup">{{ u.get_kolom_display }}: {{ u.lama|default:"(kosong)" }} → {{ u.baru|default:"(kosong)" }}</span></div>
+    {% if u.diterapkan %}<span class="label baik">Diterapkan</span>{% elif u.hasil %}<span class="label">{{ u.hasil }}</span>{% endif %}</div>
+  {% empty %}<div class="brs redup">Tidak ada usulan.</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

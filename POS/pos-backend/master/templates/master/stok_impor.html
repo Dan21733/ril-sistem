@@ -1,0 +1,30 @@
+{% extends "master/base.html" %}
+{% block judul %}Import stok{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:stok_lokasi' %}">Stok per gudang</a> /</p>
+<h2>Import stok dari Excel</h2>
+<p class="sub">Unggah berkas hasil <b>Export Excel</b> di halaman Stok per gudang yang sudah diedit. Perubahan ditampilkan dulu; tidak ada yang berubah sebelum kamu menekan Terapkan.</p>
+<form method="post" enctype="multipart/form-data" class="kartu baris">{% csrf_token %}
+  <div style="flex:1;min-width:260px"><label>Berkas .xlsx</label><input type="file" name="berkas" accept=".xlsx" required></div>
+  <div><button class="tombol utama" type="submit">Baca berkas</button></div>
+  <div><a class="tombol" href="{% url 'master:stok_lokasi' %}?export=1">Export semua stok</a></div>
+</form>
+<div class="kartu" style="margin-top:16px">
+  <b>Yang boleh diubah di Excel</b> (judul kolomnya kuning):
+  <ul style="margin:8px 0 0;padding-left:20px">
+    <li><b>stok_total</b>: stok di kasir. Kalau diubah, stok kasir ikut berubah dan tercatat di Riwayat stok.</li>
+    <li><b>Kolom gudang</b>: jumlah di gudang itu. Kalau diubah tanpa mengubah stok_total, barang dianggap pindah antara Toko dan gudang.</li>
+    <li>Yang diterapkan adalah <b>selisih dari angka saat export</b>, jadi penjualan setelah export tidak ikut terhapus.</li>
+  </ul>
+</div>
+<h3>Riwayat</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Berkas</th><th>Status</th><th></th></tr>
+  {% for r in riwayat %}
+  <tr><td class="kecil">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.pengguna.username }}</td><td>{{ r.nama_berkas }}</td>
+    <td><span class="label {% if r.status == 'diterapkan' %}baik{% elif r.status == 'batal' %}netral{% endif %}">{{ r.get_status_display }}</span></td>
+    <td><a href="{% url 'master:stok_impor_pratinjau' r.id %}">Lihat</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:22px;text-align:center">Belum ada impor stok.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

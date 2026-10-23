@@ -1,0 +1,42 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Stok per gudang{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:flex-start"><h2>Stok per gudang</h2><div class="baris" style="gap:8px;align-items:center"><a class="tombol" href="{% url 'master:stok_lokasi' %}?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&amp;{% endif %}export=1">Export Excel</a>{% if 'ubah_stok' in hak or 'kelola_lokasi' in hak %}<a class="tombol" href="{% url 'master:stok_impor' %}">Import Excel</a>{% endif %}</div></div>
+<p class="sub">{{ halaman.paginator.count|ribuan }} varian. Total = stok di kasir. Toko = total dikurangi semua gudang.
+  {% if jumlah_minus %}<a href="?toko=minus" style="color:var(--bahaya)">{{ jumlah_minus|ribuan }} varian stok tokonya minus</a> (terjual dari rak tanpa pernah resmi diambil dari gudang).{% endif %}</p>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Rak</label><select name="rak"><option value="">Semua</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}{% if r.tempat %} ({{ r.tempat.kode }}){% endif %}</option>{% endfor %}</select></div>
+  <div style="min-width:160px"><label>Ada stok di</label><select name="lokasi"><option value="">Semua</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if g.lokasi == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+  <div style="min-width:170px"><label>Keadaan toko</label><select name="toko"><option value="">Semua</option>
+    <option value="minus" {% if g.toko == "minus" %}selected{% endif %}>Toko minus</option>
+    <option value="semua_gudang" {% if g.toko == "semua_gudang" %}selected{% endif %}>Semua di gudang</option></select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:stok_lokasi' %}">Reset</a></div>
+</form>
+{% if not gudang %}<p class="pesan">Belum ada gudang. <a href="{% url 'master:lokasi' %}">Tambah gudang</a> dulu; sampai itu semua stok dihitung di Toko.</p>{% endif %}
+
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Total</th><th class="angka">{{ toko.nama }}</th>{% for l in gudang %}<th class="angka">{{ l.nama }}</th>{% endfor %}{% if 'kelola_lokasi' in hak %}<th></th>{% endif %}</tr>
+  {% for b in barang %}
+  <tr>
+    <td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td>
+    <td style="white-space:nowrap">{% if b.rak %}{{ b.rak.kode }}{% if b.rak.tempat %} <span class="kecil redup">{{ b.rak.tempat.kode }}</span>{% endif %}{% else %}-{% endif %}</td>
+    <td class="angka">{{ b.in_stock|ribuan }}</td>
+    <td class="angka"><b {% if b.toko < 0 %}style="color:var(--bahaya)"{% endif %}>{{ b.toko|ribuan }}</b></td>
+    {% for n in b.kolom %}<td class="angka">{% if n %}{{ n|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td>{% endfor %}
+    {% if 'kelola_lokasi' in hak %}<td>{% if b.id %}<a class="tombol kecil" href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}">Pindah</a>{% endif %}</td>{% endif %}
+  </tr>
+  {% empty %}
+  <tr><td colspan="{{ gudang|length|add:6 }}" class="redup" style="padding:28px;text-align:center">Tidak ada varian yang cocok dengan filter ini.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Beranda{% endblock %}
+{% block isi %}
+<h2>Halo, {{ request.user.first_name|default:request.user.username }}</h2>
+<div class="kisi">
+{% if 'gudang_ambil' in hak and toko_gudang.id == toko_stok.id %}<a class="kartu" href="{% url 'gudang:ambil' %}">
+  <span class="ubin-judul">Ambil barang</span><span class="ubin-angka {% if jumlah_ambil %}bahaya{% endif %}">{{ jumlah_ambil|default:0 }}</span>
+  <span class="ubin-ket">{% if jumlah_ambil %}barang menunggu diambilkan{% else %}tidak ada yang menunggu{% endif %}</span></a>{% endif %}
+{% if 'gudang_datang' in hak %}<a class="kartu" href="{% url 'gudang:datang' %}">
+  <span class="ubin-judul">Barang datang</span><span class="ubin-angka {% if jumlah_pesanan %}awas{% endif %}">{{ jumlah_pesanan }}</span>
+  <span class="ubin-ket">pesanan belum datang</span></a>{% endif %}
+{% if 'gudang_hitung' in hak %}<a class="kartu" href="{% url 'gudang:hitung' %}">
+  <span class="ubin-judul">Hitung stok</span><span class="ubin-angka {% if jumlah_draf %}awas{% endif %}">{{ jumlah_draf }}</span>
+  <span class="ubin-ket">{% if jumlah_draf %}sudah dihitung, belum diajukan{% else %}hitung barang di rak, lalu ajukan{% endif %}</span></a>{% endif %}
+{% if punya_tugas %}<a class="kartu" href="{% url 'gudang:tiket' %}">
+  <span class="ubin-judul">Tugas</span><span class="ubin-angka {% if tiket_terbuka %}awas{% endif %}">{{ tiket_terbuka|length }}</span>
+  <span class="ubin-ket">{% if tiket_terbuka %}tugas terbuka, isi sebelum batasnya{% else %}tidak ada tugas terbuka{% endif %}</span></a>{% endif %}
+{% if 'gudang_buka_dus' in hak %}<a class="kartu" href="{% url 'gudang:buka_dus' %}">
+  <span class="ubin-judul">Buka dus</span><span class="ubin-angka">{{ jumlah_pasangan }}</span>
+  <span class="ubin-ket">pasangan kemasan yang bisa dibuka</span></a>{% endif %}
+{% if 'ops_lihat_stok' in hak and toko_gudang.id == toko_stok.id %}<a class="kartu" href="{% url 'gudang:stok' %}">
+  <span class="ubin-judul">Stok per lokasi</span><span class="ubin-angka" style="font-size:18px;margin:4px 0">Lihat stok</span>
+  <span class="ubin-ket">jumlah barang di toko dan tiap gudang</span></a>{% endif %}
+</div>
+
+{% if riwayat %}
+<h3>Hitungan yang sudah diajukan</h3>
+<div class="daftar">{% for o in riwayat %}
+  <div class="brs"><div class="nama"><b>#{{ o.id }} · {{ o.n }} barang</b><span class="redup kecil">{{ o.diajukan_waktu|date:"d M Y H:i" }}{% if o.catatan_putusan %} · {{ o.catatan_putusan }}{% endif %}</span></div>
+    <span class="label {% if o.status == 'disetujui' %}baik{% elif o.status == 'ditolak' %}bahaya{% else %}awas{% endif %}">{{ o.get_status_display }}</span></div>
+{% endfor %}</div>
+{% endif %}
+{% endblock %}

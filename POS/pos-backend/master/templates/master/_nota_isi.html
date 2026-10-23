@@ -1,0 +1,33 @@
+{% load master_tags %}
+<div class="baris" style="justify-content:space-between;align-items:start;flex-wrap:nowrap">
+  <h2>{{ n.transaction_id|default:"(tanpa nomor)" }}</h2>
+  <button type="button" class="tombol kecil" data-tutup-panel title="Tutup (Esc)">Tutup</button>
+</div>
+{% if n.manual %}<p class="sub">{{ n.transaction_time|date:"l, d M Y" }} · <span class="label">nota manual</span> {{ n.nomor }}{% if banyak_toko %} · {{ n.toko.nama }}{% endif %} · {{ n.metode }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · <a href="{% url 'master:nota_manual_detail' n.manual_id %}">buka</a></p>
+{% else %}<p class="sub">{{ n.transaction_time|date:"l, d M Y H:i" }} · {{ n.kasir }} · {{ n.metode }}</p>{% endif %}
+{% if penyetuju %}<div class="pesan info">Harga di bawah floor disetujui dengan PIN <b>{{ penyetuju }}</b> di tablet.</div>{% endif %}
+{% if tinjau %}<div class="pesan info">Nota ini sempat ditahan ({{ tinjau.alasan }}) dan diterima {{ tinjau.diputuskan_oleh }} {{ tinjau.diputuskan_waktu|date:"d M Y H:i" }}.</div>{% endif %}
+<div class="gulir"><table>
+  <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga</th><th class="angka">Subtotal</th><th class="angka">Modal</th><th class="angka">Laba</th></tr>
+  {% for b in n.baris %}
+  <tr><td>{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">{{ b.variant }}</span>{% endif %}</td>
+    <td class="angka">{{ b.quantity|ribuan }}</td><td class="angka">{{ b.unit_price|ribuan }}</td><td class="angka"><b>{{ b.subtotal|ribuan }}</b></td>
+    <td class="angka redup">{{ b.modal|ribuan|default:"kosong" }}</td>
+    <td class="angka" style="color:{% if b.laba < 0 %}var(--bahaya){% endif %}">{{ b.laba|ribuan|default:"-" }}</td></tr>
+  {% endfor %}
+  <tr><td colspan="3"><b>Barang</b></td><td class="angka"><b>{{ n.item_amount|ribuan }}</b></td><td class="angka redup">{{ n.modal|ribuan }}</td><td class="angka"><b>{{ n.laba|ribuan }}</b></td></tr>
+  {% if n.shipping_amount %}<tr><td colspan="3">Ongkir</td><td class="angka">{{ n.shipping_amount|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
+  <tr><td colspan="3"><b>Total</b></td><td class="angka"><b>{{ n.total_amount|ribuan }}</b></td><td colspan="2"></td></tr>
+  <tr><td colspan="3">Dibayar ({{ n.metode }})</td><td class="angka">{{ n.payment_amount|ribuan }}</td><td colspan="2"></td></tr>
+  {% if n.change_amount %}<tr><td colspan="3">Kembalian</td><td class="angka">{{ n.change_amount|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
+</table></div>
+{% if foto_nota %}<h3>Foto nota</h3><div class="baris">{% for x in foto_nota %}<a href="{% url 'master:nota_manual_foto' x.id %}" target="_blank">{% if x.content_type == "application/pdf" %}PDF{% else %}<img src="{% url 'master:nota_manual_foto' x.id %}" alt="Foto nota" style="max-width:220px;max-height:220px;border:1px solid var(--garis);border-radius:8px">{% endif %}</a>{% endfor %}</div>{% endif %}
+<p class="redup kecil">Modal memakai modal rata yang berlaku saat nota dibuat.{% if not n.modal_lengkap %} Ada barang yang modalnya kosong, jadi labanya belum lengkap.{% endif %}</p>
+{% if retur %}
+<h3>Retur / void</h3>
+{% for e in retur %}{% url 'master:nota' as alamat_nota %}{% include "master/_retur_event.html" with kembali=alamat_nota %}{% endfor %}
+{% endif %}
+{% if bukti %}
+<h3>Bukti transfer</h3>
+{% for b in bukti %}<p><a href="{% url 'master:nota_bukti' b.proof_id %}" target="_blank"><img src="{% url 'master:nota_bukti' b.proof_id %}" alt="Bukti transfer" style="max-width:100%;max-height:520px;border:1px solid var(--garis);border-radius:10px" onerror="this.outerHTML='<span class=&quot;redup&quot;>Berkas bukti tidak ada di server ini (diunggah {{ b.uploaded_at|date:"d M Y H:i" }}).</span>'"></a></p>{% endfor %}
+{% endif %}

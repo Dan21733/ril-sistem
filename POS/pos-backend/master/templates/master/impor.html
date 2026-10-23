@@ -1,0 +1,21 @@
+{% extends "master/base.html" %}
+{% block judul %}Import Excel{% endblock %}
+{% block isi %}
+<h2>Import Excel</h2>
+<p class="sub">Unggah berkas hasil Export yang sudah diedit. Perubahan ditampilkan dulu; tidak ada yang berubah sebelum kamu menekan Terapkan.</p>
+<form method="post" enctype="multipart/form-data" class="kartu baris">{% csrf_token %}
+  <div style="flex:1;min-width:260px"><label>Berkas .xlsx</label><input type="file" name="berkas" accept=".xlsx" required></div>
+  <div><button class="tombol utama" type="submit">Baca berkas</button></div>
+  <div><a class="tombol" href="{% url 'master:barang' %}?export=1">Export semua barang</a></div>
+</form>
+<h3>Riwayat</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Berkas</th><th>Status</th><th></th></tr>
+  {% for r in riwayat %}
+  <tr><td class="kecil">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.pengguna.username }}</td><td>{{ r.nama_berkas }}</td>
+    <td><span class="label {% if r.status == 'diterapkan' %}baik{% elif r.status == 'batal' %}netral{% endif %}">{{ r.get_status_display }}</span></td>
+    <td><a href="{% url 'master:impor_pratinjau' r.id %}">Lihat</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:22px;text-align:center">Belum ada impor.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

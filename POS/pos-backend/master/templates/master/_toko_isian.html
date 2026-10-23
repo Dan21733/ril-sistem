@@ -1,0 +1,9 @@
+<div class="kisi">
+  <div><label>Kode singkat</label><input type="text" name="kode" value="{{ t.kode }}" required maxlength="10" placeholder="mis. DB, HM"></div>
+  <div><label>Nama toko</label><input type="text" name="nama" value="{{ t.nama }}" required></div>
+  <div><label>Atas nama (pemilik / NPWP)</label><input type="text" name="atas_nama" value="{{ t.atas_nama }}"></div>
+  <div><label>Telepon</label><input type="text" name="telepon" value="{{ t.telepon }}"></div>
+  <div><label>Status pajak</label><select name="pkp"><option value="0">Belum PKP</option><option value="1" {% if t.pkp %}selected{% endif %}>PKP</option></select></div>
+  <div><label>PKP sejak (kalau PKP)</label><input type="date" name="pkp_mulai" value="{{ t.pkp_mulai|date:'Y-m-d' }}"></div>
+</div>
+<div style="margin-top:12px"><label>Alamat</label><input type="text" name="alamat" value="{{ t.alamat }}"></div>

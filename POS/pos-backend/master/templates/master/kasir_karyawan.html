@@ -1,0 +1,81 @@
+{% extends "master/base.html" %}
+{% block judul %}Karyawan & PIN{% endblock %}
+{% block isi %}
+<h2>Karyawan &amp; PIN</h2>
+<p class="sub">Karyawan yang memakai PIN di kasir. PIN dibuat sistem (6 angka, tidak mudah ditebak, tidak sama dengan PIN siapa pun) dan hanya terlihat di sini beberapa hari untuk dibagikan.</p>
+
+{% if pin_baru %}
+<div class="kartu" style="margin-bottom:20px;border-color:var(--aksen)">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <b style="font-size:18px">PIN baru untuk dibagikan</b>
+    <div class="baris">
+      <a class="tombol kecil" href="{% url 'master:karyawan_slip' %}" target="_blank">Cetak slip</a>
+      <form method="post" data-tanya="Sembunyikan semua PIN? Setelah ini PIN tidak bisa dilihat lagi, hanya bisa di-reset.">{% csrf_token %}<input type="hidden" name="aksi" value="sembunyikan"><button class="tombol kecil" type="submit">Sudah dibagikan, sembunyikan</button></form>
+    </div>
+  </div>
+  <div class="gulir" style="margin-top:10px"><table>
+    <tr><th>Karyawan</th><th>PIN</th><th>Berlaku mulai</th><th></th></tr>
+    {% for p in pin_baru %}
+    <tr><td>{{ p.nama }}</td><td style="font-family:monospace;font-size:22px;letter-spacing:.15em"><b>{{ p.t.pin }}</b></td>
+      <td>{% if p.t.berlaku_mulai > now_waktu %}{{ p.t.berlaku_mulai|date:"l, d M Y H:i" }}{% else %}sudah berlaku ({{ p.t.berlaku_mulai|date:"d M H:i" }}){% endif %}</td>
+      <td class="kecil redup">terlihat sampai {{ p.t.hapus_setelah|date:"d M H:i" }}</td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endif %}
+
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Status</th><th>PIN sekarang sejak</th><th>Ganti PIN berikutnya</th><th>Hak akses</th><th></th></tr>
+  {% for d in daftar %}
+  <tr class="{% if not d.aktif %}nonaktif{% endif %}">
+    <td><details><summary style="cursor:pointer"><b>{{ d.nama }}</b> <span class="kecil redup">{{ d.id }}</span></summary>
+      <form method="post" class="baris" style="margin-top:8px;flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ d.id }}">
+        <input type="text" name="nama" value="{{ d.nama }}" style="width:180px" required><button class="tombol kecil" type="submit">Simpan nama</button></form></details></td>
+    <td>{% if d.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label netral">nonaktif</span>{% endif %}</td>
+    <td class="kecil">{% if d.aktif %}{{ d.pin_sejak|date:"d M Y H:i"|default:"dari sistem lama" }}{% else %}-{% endif %}</td>
+    <td class="kecil">{% if d.berikut %}{{ d.berikut|date:"l, d M H:i" }} <span class="label">PIN sudah disiapkan</span>{% elif d.aktif and rotasi_aktif and rotasi_berikut %}{{ rotasi_berikut|date:"l, d M H:i" }}{% else %}<span class="redup">-</span>{% endif %}</td>
+    <td><details class="panel-hak"><summary style="cursor:pointer">{% for x in d.hak_ringkas %}<span class="label baik" style="margin:1px">{{ x }}</span>{% empty %}<span class="redup">tidak ada</span>{% endfor %}</summary>
+      <form method="post" style="margin-top:8px;min-width:280px">{% csrf_token %}<input type="hidden" name="aksi" value="hak"><input type="hidden" name="id" value="{{ d.id }}">
+        {% for judul, isi in grup_hak %}<div class="kecil redup" style="margin:8px 0 2px;font-weight:600">{{ judul }}</div>
+          {% for k, label in isi %}<label style="display:flex;gap:6px;align-items:center;font-size:14px;color:inherit;margin:2px 0"><input type="checkbox" name="hak" value="{{ k }}" style="width:auto" {% if k in d.hak %}checked{% endif %}> {{ label }}</label>{% endfor %}
+        {% endfor %}
+        <div class="kecil redup" style="margin:10px 0 4px">Isi cepat (menambah centang):</div>
+        <div class="baris" style="gap:4px">{% for k, label, hak in paket_ops %}<button type="button" class="tombol kecil isi-paket" data-hak="{{ hak }}">{{ label }}</button>{% endfor %}
+          <button type="button" class="tombol kecil kosongkan-ops">Kosongkan gudang &amp; tugas</button></div>
+        <button class="tombol kecil utama" type="submit" style="margin-top:10px">Simpan hak</button></form></details></td>
+    <td><div class="baris" style="flex-wrap:nowrap;gap:6px">
+      {% if d.aktif %}
+      <form method="post" data-tanya="Buat PIN baru untuk {{ d.nama }}? PIN lama langsung tidak bisa dipakai untuk nota baru.">{% csrf_token %}<input type="hidden" name="aksi" value="reset"><input type="hidden" name="id" value="{{ d.id }}"><button class="tombol kecil" type="submit">Reset PIN</button></form>
+      <form method="post" data-tanya="Nonaktifkan {{ d.nama }}? PIN-nya langsung tidak bisa dipakai. Nota yang sudah ia buat sebelumnya tetap sah.">{% csrf_token %}<input type="hidden" name="aksi" value="nonaktif"><input type="hidden" name="id" value="{{ d.id }}"><button class="tombol kecil bahaya" type="submit">Nonaktifkan</button></form>
+      {% else %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ d.id }}"><button class="tombol kecil" type="submit">Aktifkan (PIN baru)</button></form>
+      {% endif %}
+    </div></td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="6" class="redup">Belum ada karyawan. Tambahkan di bawah; kasir belum bisa menyelesaikan nota tanpa PIN karyawan.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h3>Tambah karyawan</h3>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+  <div style="width:260px"><label>Nama (tercetak di nota)</label><input type="text" name="nama" required maxlength="60" autocomplete="off"></div>
+  <div><button class="tombol utama" type="submit">Tambah &amp; buat PIN</button></div>
+</form>
+<script>
+document.querySelectorAll('.panel-hak form').forEach(f => {
+  f.querySelectorAll('.isi-paket').forEach(b => b.addEventListener('click', () =>
+    b.dataset.hak.split(' ').forEach(h => { const c = f.querySelector(`input[value="${h}"]`); if (c) c.checked = true; })));
+  f.querySelector('.kosongkan-ops').addEventListener('click', () =>
+    f.querySelectorAll('input[name=hak]').forEach(c => { if (!['pos_jual', 'penyetuju'].includes(c.value)) c.checked = false; }));
+});
+</script>
+<p class="kecil redup"><b>Hak akses</b>: dicentang satu-satu per karyawan. <b>Jualan di kasir</b> dicabut = PIN-nya tidak bisa dipakai jualan, void, atau retur di tablet
+  (nota offline lama atas namanya yang telat terkirim masuk Nota perlu ACC). Hak gudang dan tugas membuka menu di aplikasi operasional, hanya yang dicentang.<br>
+<b>Penyetuju</b>: PIN-nya bisa dipakai di tablet untuk menyetujui harga di bawah floor (biasanya kamu dan ibu, sebagai karyawan dengan PIN sendiri). Tanpa penyetuju, kasir bisa mengirim nota itu untuk di-ACC di Nota perlu ACC. Supaya PIN penyetuju tidak bisa ditebak dari data tablet, PIN-nya tidak disimpan di tablet dan hanya dicek server. Persetujuan saat offline tetap bisa: PIN dikunci di tablet dan dicek begitu nota terkirim (PIN salah = masuk Nota perlu ACC). Akibatnya, penyetuju tidak bisa menjadi kasir dengan PIN-nya sendiri saat tablet offline.
+  <br><b>Aplikasi operasional</b>: karyawan yang punya hak gudang/tugas bisa masuk aplikasi admin/gudang dengan PIN kasir yang sama, tetapi hanya dari
+  <a href="{% url 'master:perangkat_ops' %}">perangkat yang kamu setujui</a>. Isinya hanya tugas (tiket) yang kamu buka di <a href="{% url 'master:tiket' %}">Tiket admin</a>.
+  Menonaktifkan karyawan atau mencabut semua hak gudang/tugasnya langsung mengeluarkannya.
+  Ganti PIN berkala diatur di <a href="{% url 'master:aturan_kasir' %}">Aturan kasir</a>.
+  Nota yang dibuat sebelum PIN diganti (misalnya nota offline yang telat terkirim) tetap diterima selama masa tenggang.</p>
+{% endblock %}

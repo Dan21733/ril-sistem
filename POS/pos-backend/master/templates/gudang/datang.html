@@ -1,0 +1,15 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Barang datang{% endblock %}
+{% block isi %}
+<div class="kisi" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+{% for p in pesanan %}
+<a class="kartu" href="{% url 'gudang:datang_detail' p.id %}"><b style="font-size:16px">{{ p.nomor }}</b>
+  <span>{{ p.ringkas }}</span><span class="redup kecil">dipesan {{ p.tanggal_pesan|date:"d M Y" }} · {{ p.n }} barang</span>{% if p.catatan %}<span class="kecil">{{ p.catatan }}</span>{% endif %}</a>
+{% empty %}<div class="kartu redup" style="grid-column:1/-1">Tidak ada pesanan yang sedang ditunggu.</div>
+{% endfor %}
+</div>
+{% if menunggu %}
+<h3>Sudah dicatat, menunggu ACC pemilik</h3>
+<div class="daftar">{% for p in menunggu %}<div class="brs"><div class="nama"><b>{{ p.nomor }}</b><span class="redup kecil">datang {{ p.tanggal_terima|date:"d M Y" }}</span></div><span class="label awas">Menunggu ACC</span></div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

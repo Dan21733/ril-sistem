@@ -1,0 +1,237 @@
+/*
+ * Token warna POS (permintaan pemilik, 2026-09-29).
+ *
+ * Semua komponen hanya memakai variabel di bawah ini supaya mode gelap cukup
+ * diganti dengan menukar nilai variabel, bukan menyentuh tiap komponen.
+ * Palet terang mengikuti gambar acuan pemilik; palet gelap adalah turunan
+ * dari palet yang sama agar kontras tetap aman di tablet.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Netral hangat (dasar) */
+  --pos-bg: #efe8dd;
+  --pos-surface: #ffffff;
+  --pos-surface-alt: #f7f2eb;
+  --pos-border: #d6c8b6;
+  --pos-text-muted: #6b5b4e;
+  --pos-text: #2e2119;
+
+  /* Lapisan turunan: hover, isian kolom, garis pemisah halus */
+  --pos-hover: #f5eee4;
+  --pos-field-bg: #ffffff;
+  --pos-control-border: #95816e;
+  --pos-focus: #6b5b4e;
+  --pos-divider: #e8ded0;
+
+  /* Aksen teal: hanya Bayar, Konfirmasi, dan fokus pencarian */
+  --pos-accent: #0f766e;
+  --pos-accent-hover: #0b5f59;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(15, 118, 110, 0.14);
+
+  /* Status stok */
+  --pos-lowstock-bg: #fdebc8;
+  --pos-lowstock-text: #8a4b08;
+  --pos-outstock-bg: #f6dcd8;
+  --pos-outstock-text: #b42318;
+  --pos-danger: #b42318;
+
+  /* Notifikasi transaksi */
+  --pos-success-bg: #e6f4ee;
+  --pos-success-text: #0f766e;
+
+  /*
+   * Keluarga peringatan memakai pasangan amber milik palet pemilik
+   * (`#FDEBC8`/`#8A4B08`) — nilai yang sama dengan keluarga "stok tipis",
+   * karena bagi kasir keduanya berarti hal yang sama: ada yang perlu dilihat.
+   * Sebelumnya keluarga ini memakai krem `#FDF3E0` + garis mustard `#D9A441`
+   * yang tidak ada di palet, dan mustard itu hanya 2,04:1 terhadap latarnya —
+   * tepinya nyaris tak terlihat. Garisnya kini tinta itu sendiri (`#8A4B08`:
+   * 5,8:1 terhadap latar, 6,8:1 terhadap putih header), resep yang sama dengan
+   * keluarga bahaya yang bergaris `--pos-danger`. (Permintaan pemilik,
+   * 2026-10-11: "warna kedua warning tidak cocok ketika light mode", dengan
+   * gambar palet sebagai acuan.)
+   */
+  --pos-warning-bg: #fdebc8;
+  --pos-warning-border: #8a4b08;
+  --pos-warning-text: #8a4b08;
+
+  /*
+   * Ujung gradien keluarga peringatan (permintaan pemilik, 2026-10-11): panel
+   * "peringatan + solusi" memakai gradien `-bg` lalu `-deep`, dan wilayah
+   * aksinya memakai gradien `-deep` sampai `-edge`. Nilainya dijaga supaya
+   * `--pos-warning-text` tetap >=4,5:1 di ujung tergelap panel (5,4:1) dan
+   * `--pos-text` di atas wilayah aksinya tetap >=12:1. `-edge` adalah `-deep`
+   * yang dicampur tinta keluarganya ~20% — resep yang sama dengan
+   * `--pos-danger-edge`, jadi kedua panel bergradien dengan cara yang sama.
+   */
+  --pos-warning-deep: #f9e5b6;
+  --pos-warning-edge: #e3c693;
+
+  /*
+   * Permukaan merah lembut untuk keadaan "perlu tindakan sekarang". Dipakai
+   * warning nota belum tersinkron ke server (permintaan pemilik, 2026-10-10);
+   * teks dan garisnya memakai `--pos-danger`. Nilainya sengaja sama dengan
+   * keluarga "stok habis" karena bagi kasir keduanya berarti hal yang sama:
+   * ada yang belum beres dan menunggu dia.
+   */
+  --pos-danger-bg: #f6dcd8;
+
+  /*
+   * Keluarga bahaya punya pasangan gradien sendiri supaya bentuk panelnya sama
+   * dengan keluarga peringatan tanpa meminjam warnanya: `-deep` menahan
+   * `--pos-danger` tetap 4,70:1, `-edge` menahan `--pos-text` tetap 7,9:1.
+   */
+  --pos-danger-deep: #f4d2cb;
+  --pos-danger-edge: #e8a99c;
+
+  --pos-overlay: rgba(46, 33, 25, 0.45);
+  --pos-shadow: 0 12px 40px rgba(46, 33, 25, 0.2);
+  --pos-shadow-soft: 0 2px 8px rgba(46, 33, 25, 0.08);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+
+  color: var(--pos-text);
+  background: var(--pos-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --pos-bg: #14100d;
+  --pos-surface: #201a15;
+  --pos-surface-alt: #2a221c;
+  --pos-border: #3d332a;
+  --pos-text-muted: #b6a493;
+  --pos-text: #f4ece2;
+
+  --pos-hover: #302721;
+  --pos-field-bg: #1a1512;
+  --pos-control-border: #887666;
+  --pos-focus: #dbc7b3;
+  --pos-divider: #332a23;
+
+  --pos-accent: #14b8a6;
+  --pos-accent-hover: #0f9c8d;
+  --pos-accent-contrast: #05201d;
+  --pos-accent-soft: rgba(20, 184, 166, 0.2);
+
+  --pos-lowstock-bg: #3a2e17;
+  --pos-lowstock-text: #f2c37c;
+  --pos-outstock-bg: #3a211e;
+  --pos-outstock-text: #f4a195;
+  --pos-danger: #f4a195;
+
+  --pos-success-bg: #16302a;
+  --pos-success-text: #7fd8ca;
+  --pos-warning-bg: #33280f;
+  --pos-warning-border: #7a5a1c;
+  --pos-warning-text: #f2c37c;
+  --pos-warning-deep: #493814;
+
+  /*
+   * Di mode gelap nilai `-edge` sengaja sama dengan `--pos-warning-border`
+   * yang lama: wilayah aksi memang mengambil alih warna garis, jadi tampilan
+   * mode gelap tidak berubah sama sekali oleh perubahan mode terang di atas.
+   */
+  --pos-warning-edge: #7a5a1c;
+  --pos-danger-bg: #3a211e;
+  --pos-danger-deep: #4a2723;
+  --pos-danger-edge: #5c322c;
+
+  --pos-overlay: rgba(0, 0, 0, 0.66);
+  --pos-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --pos-shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+body {
+  background: var(--pos-bg);
+  color: var(--pos-text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Neutral focus is distinct from the teal payment action. */
+#app :is(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--pos-focus);
+  outline-offset: 3px;
+}
+
+/*
+ * Kotak pencarian dikecualikan (laporan pemilik, 2026-10-10): kolom teks selalu
+ * cocok dengan `:focus-visible` begitu diklik, jadi aturan di atas menggambar
+ * persegi netral 2px di dalam kolom — padahal pembungkusnya
+ * (`.search-bar:focus-within`) sudah menjadi penanda fokus: border teal + cincin
+ * 3px. Dua cincin bersarang itu terbaca sebagai kotak asing di dalam kolom
+ * pencarian. Penanda fokusnya tetap ada dan bukan warna saja (border berubah +
+ * cincin), jadi kontrol ini tidak kehilangan indikator fokus; menerima
+ * `outline: none` juga **tidak** boleh dianggap "menghapus focus ring" untuk
+ * kontrol lain.
+ */
+#app .search-bar input:focus-visible {
+  outline: none;
+}
+
+:where(button, input, select, label) {
+  touch-action: manipulation;
+}
+
+#app :is(.cart-price-input input,
+.quantity-input,
+.field-block input,
+.cashier-pin-input input,
+.history-filter input,
+.history-filter select):not(:focus):not(.price-input-invalid) {
+  border-color: var(--pos-control-border);
+}
+
+.cart-item-total,
+.total strong,
+.product-details strong,
+.summary-row strong,
+.payment-total strong,
+.change-row strong,
+.cash-suggestion,
+.nota-total,
+.detail-totals,
+input[inputmode='numeric'] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, input) {
+    transition: none;
+  }
+}

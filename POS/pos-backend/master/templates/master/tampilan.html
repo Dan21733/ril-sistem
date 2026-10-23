@@ -1,0 +1,29 @@
+{% extends "master/base.html" %}
+{% block judul %}Tampilan{% endblock %}
+{% block isi %}
+<h2>Tampilan</h2>
+<p class="sub">Warna tema disimpan untuk akun ini, jadi tiap orang bisa memilih sendiri.</p>
+<form method="post" class="kisi" style="max-width:640px">{% csrf_token %}
+  {% for kode, label in pilihan %}
+  <button type="submit" name="tema" value="{{ kode }}" class="kartu pilih-warna{% if tema == kode %} dipilih{% endif %}" aria-pressed="{% if tema == kode %}true{% else %}false{% endif %}">
+    <span class="contoh contoh-{{ kode }}"><i></i><b></b></span>
+    <span><strong>{{ label }}</strong>{% if tema == kode %}<span class="label baik" style="margin-left:8px">Dipakai</span>{% endif %}</span>
+  </button>
+  {% endfor %}
+</form>
+<h3>Menu samping</h3>
+<div class="kartu" style="max-width:640px">
+  <p style="margin-top:0"><b>Kunci / Lepas</b> (tombol di pojok atas menu): kalau dilepas, menu sembunyi sendiri dan muncul saat kursor diarahkan ke pinggir kiri layar (atau klik pinggirnya).</p>
+  <p style="margin-bottom:0"><b>Lebar menu</b>: geser garis di tepi kanan menu. Klik dua kali garis itu untuk kembali ke lebar awal. Dua pengaturan ini tersimpan di browser ini saja.</p>
+</div>
+<style>
+.pilih-warna{display:flex;flex-direction:column;gap:12px;text-align:left;cursor:pointer;font:inherit;color:inherit;padding:16px}
+.pilih-warna:hover{border-color:var(--garis-kuat)}
+.pilih-warna.dipilih{border:2px solid var(--aksen)}
+.contoh{display:flex;height:70px;border-radius:8px;overflow:hidden;border:1px solid var(--garis)}
+.contoh i{width:32%}.contoh b{flex:1;position:relative}
+.contoh b::after{content:"";position:absolute;right:10px;top:12px;width:42%;height:16px;border-radius:5px}
+.contoh-oranye i{background:#23211e}.contoh-oranye b{background:#f6f5f2}.contoh-oranye b::after{background:#b4541f}
+.contoh-moka i{background:#1f2d3b}.contoh-moka b{background:#f4f6f8}.contoh-moka b::after{background:#2f7fc1}
+</style>
+{% endblock %}

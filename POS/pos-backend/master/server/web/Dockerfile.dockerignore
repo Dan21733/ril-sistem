@@ -1,0 +1,10 @@
+# Build dari folder POS: hanya frontend dan Caddyfile yang dibutuhkan.
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+pos-backend/venv
+pos-backend/media
+pos-backend/*.sqlite3
+print-bridge
+docs

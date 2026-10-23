@@ -1,0 +1,974 @@
+%PDF-1.4
+%ту╧╙
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >>
+endobj
+5 0 obj
+<< /Length 6479 >>
+stream
+BT 0.180 0.129 0.098 rg
+/F2 22.00 Tf 1 0 0 1 56.00 759.89 Tm
+(Kode Harga Floor POS) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 11.50 Tf 1 0 0 1 56.00 737.89 Tm
+(Panduan membaca kode di keranjang: contoh kode dan cara membukanya.) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 727.89 m 539.28 727.89 l S
+BT 0.420 0.357 0.306 rg
+/F1 9.00 Tf 1 0 0 1 56.00 709.89 Tm
+(Versi skema 2.0 \(2026-09-29\)  ╖  dibuat 29-09-2026) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 674.39 Tm
+(Kenapa harga floor tidak ditulis sebagai angka) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 668.39 m 100.00 668.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 644.64 Tm
+(Layar kasir terlihat oleh pelanggan. Kalau batas bawah harga \(harga floor\) ditulis apa adanya,) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 628.89 Tm
+(pelanggan bisa langsung menawar tepat di batas itu. Karena itu POS menampilkan harga floor sebagai) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 613.14 Tm
+(kode pendek seperti F3Y5RGM: kasir tetap bisa membukanya untuk mengukur ruang nego, sementara) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 597.39 Tm
+(pelanggan hanya melihat rangkaian huruf dan angka.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 573.64 Tm
+(Kode ini alat bantu tampilan, bukan pengamanan: siapa pun yang membaca panduan ini bisa) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 557.89 Tm
+(membukanya. Kode tidak pernah dikirim ke server dan tidak tersimpan di nota.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 520.39 Tm
+(Aturan dasar) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 514.39 m 100.00 514.39 l S
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 490.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 490.64 Tm
+(Angka pada kode adalah harga floor dibagi satuannya. Huruf di antara angka hanya pengisi dan) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 474.89 Tm
+(tidak punya arti.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 456.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 456.14 Tm
+(Huruf terakhir kode adalah pemeriksa, abaikan. Huruf tepat sebelum pemeriksa adalah penanda) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 440.39 Tm
+(satuan; baca penandanya dengan kata kunci CANGKIR.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 421.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 421.64 Tm
+(Kata kunci CANGKIR dari satuan terbesar ke terkecil: C juta, A ratus ribu, N puluh ribu, G ribu, K) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 405.89 Tm
+(ratus, I puluh, R rupiah.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 387.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 387.14 Tm
+(Angka dibaca berurutan dari kiri ke kanan, lalu dikalikan satuan penandanya.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 368.39 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 368.39 Tm
+(Awalan tanda ~ berarti harganya dibulatkan, jadi angkanya bisa berbeda sedikit dari harga) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 352.64 Tm
+(sebenarnya.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 333.89 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 333.89 Tm
+(Huruf I dipakai hanya sebagai penanda satuan \(puluh\); huruf pengisi tidak pernah memakai I atau) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 318.14 Tm
+(O, jadi angka 1 dan 0 di dalam kode tidak bisa tertukar dengan huruf.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 299.39 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 299.39 Tm
+(Harga floor yang sama selalu menghasilkan kode yang sama, jadi kasir bisa menghafal kode harga) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 283.64 Tm
+(yang sering muncul.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 264.89 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 264.89 Tm
+(Kalau tidak ada kode di keranjang, artinya harga floor item itu belum tersedia; harga pricelist tetap) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 249.14 Tm
+(boleh dipakai.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 208.64 Tm
+(Tabel penanda satuan) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 202.64 m 100.00 202.64 l S
+0.969 0.949 0.922 rg
+56.00 179.64 483.28 21.00 re f
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 62.00 187.14 Tm
+(Penanda) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 131.04 187.14 Tm
+(Artinya) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 219.81 187.14 Tm
+(Contoh kode) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 348.02 187.14 Tm
+(Cara baca) Tj
+ET
+0.839 0.784 0.714 RG 0.80 w
+56.00 173.64 m 539.28 173.64 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 164.64 Tm
+(C) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 164.64 Tm
+(x 1.000.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 164.64 Tm
+(G8ZCS) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 164.64 Tm
+(8 x 1.000.000 = 8.000.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 151.64 m 539.28 151.64 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 142.64 Tm
+(A) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 142.64 Tm
+(x 100.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 142.64 Tm
+(R2J5BAM) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 142.64 Tm
+(25 x 100.000 = 2.500.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 129.64 m 539.28 129.64 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 120.64 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 120.64 Tm
+(x 10.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 120.64 Tm
+(Q1H5AND) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 120.64 Tm
+(15 x 10.000 = 150.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 107.64 m 539.28 107.64 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 98.64 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 98.64 Tm
+(x 1.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 98.64 Tm
+(Z1S5KGF) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 98.64 Tm
+(15 x 1.000 = 15.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 85.64 m 539.28 85.64 l S
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Kode Harga Floor POS Ч halaman 1 dari 3) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 7410 >>
+stream
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 776.89 Tm
+(K) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 776.89 Tm
+(x 100) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 776.89 Tm
+(C8V0N9FKU) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 776.89 Tm
+(809 x 100 = 80.900) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 763.89 m 539.28 763.89 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 754.89 Tm
+(I) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 754.89 Tm
+(x 10) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 754.89 Tm
+(U2M5EIL) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 754.89 Tm
+(25 x 10 = 250) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 741.89 m 539.28 741.89 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 62.00 732.89 Tm
+(R) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 131.04 732.89 Tm
+(x 1) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 219.81 732.89 Tm
+(B6U5M3ERD) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 348.02 732.89 Tm
+(653 x 1 = 653) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 719.89 m 539.28 719.89 l S
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 694.89 Tm
+(Contoh: harga floor Rp 15.000 memakai penanda G \(ribuan\) dengan angka 15. Harga floor Rp 250.000) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 679.89 Tm
+(memakai penanda N \(puluh ribuan\) dengan angka 25, karena 25 x 10.000 = Rp 250.000.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 642.39 Tm
+(Cara membaca kode \(solving\)) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 636.39 m 100.00 636.39 l S
+BT 0.059 0.463 0.431 rg
+/F2 10.50 Tf 1 0 0 1 56.00 614.39 Tm
+(1.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 78.00 614.39 Tm
+(Salin kode dari keranjang, contoh: C8V0N9FKU.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 10.50 Tf 1 0 0 1 56.00 594.39 Tm
+(2.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 78.00 594.39 Tm
+(Buang huruf terakhir kode; itu hanya pemeriksa. Sisanya: C8V0N9FK.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 10.50 Tf 1 0 0 1 56.00 574.39 Tm
+(3.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 78.00 574.39 Tm
+(Ambil huruf terakhir dari sisa tadi, itulah penanda satuan: K, artinya dikali 100.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 10.50 Tf 1 0 0 1 56.00 554.39 Tm
+(4.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 78.00 554.39 Tm
+(Ambil semua angka dan baca berurutan: 8, 0, 9 -> 809.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 10.50 Tf 1 0 0 1 56.00 534.39 Tm
+(5.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 78.00 534.39 Tm
+(Kalikan: 809 x 100 = Rp 80.900. Itulah harga floor item tersebut.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 496.89 Tm
+(Contoh membuka beberapa kode) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 490.89 m 100.00 490.89 l S
+0.969 0.949 0.922 rg
+56.00 456.89 483.28 34.00 re f
+BT 0.180 0.129 0.098 rg
+/F3 13.50 Tf 1 0 0 1 68.00 470.89 Tm
+(P1G7ZGV) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 11.50 Tf 1 0 0 1 142.70 470.89 Tm
+(Rp 17.000) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 68.00 456.89 Tm
+(Angka 17, penanda G \(x 1.000\). Sisa huruf diabaikan.) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 414.89 483.28 34.00 re f
+BT 0.180 0.129 0.098 rg
+/F3 13.50 Tf 1 0 0 1 68.00 428.89 Tm
+(F3Y5RGM) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 11.50 Tf 1 0 0 1 142.70 428.89 Tm
+(Rp 35.000) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 68.00 414.89 Tm
+(Angka 35, penanda G \(x 1.000\): harga floor dua angka.) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 372.89 483.28 34.00 re f
+BT 0.180 0.129 0.098 rg
+/F3 13.50 Tf 1 0 0 1 68.00 386.89 Tm
+(C8V0N9FKU) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 11.50 Tf 1 0 0 1 158.90 386.89 Tm
+(Rp 80.900) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 68.00 372.89 Tm
+(Angka 809, penanda K \(x 100\).) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 330.89 483.28 34.00 re f
+BT 0.180 0.129 0.098 rg
+/F3 13.50 Tf 1 0 0 1 68.00 344.89 Tm
+(F2Y5RNU) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 11.50 Tf 1 0 0 1 142.70 344.89 Tm
+(Rp 250.000) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 68.00 330.89 Tm
+(Angka 25, penanda N \(x 10.000\).) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 288.89 483.28 34.00 re f
+BT 0.180 0.129 0.098 rg
+/F3 13.50 Tf 1 0 0 1 68.00 302.89 Tm
+(~E1X4Q0H6AGW) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F2 11.50 Tf 1 0 0 1 183.20 302.89 Tm
+(kira-kira Rp 1.406.000) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 68.00 288.89 Tm
+(Awalan ~ = dibulatkan; angka 1406, penanda G \(x 1.000\).) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 243.39 Tm
+(Daftar kode untuk harga floor yang sering muncul) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 237.39 m 100.00 237.39 l S
+0.969 0.949 0.922 rg
+56.00 214.39 483.28 21.00 re f
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 62.00 221.89 Tm
+(Harga floor) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 188.07 221.89 Tm
+(Kode di keranjang) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 324.65 221.89 Tm
+(Penanda) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 10.00 Tf 1 0 0 1 387.69 221.89 Tm
+(Cara baca) Tj
+ET
+0.839 0.784 0.714 RG 0.80 w
+56.00 208.39 m 539.28 208.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 199.39 Tm
+(Rp 5.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 199.39 Tm
+(N5FGB) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 199.39 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 199.39 Tm
+(5 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 186.39 m 539.28 186.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 177.39 Tm
+(Rp 8.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 177.39 Tm
+(K8CGY) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 177.39 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 177.39 Tm
+(8 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 164.39 m 539.28 164.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 155.39 Tm
+(Rp 10.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 155.39 Tm
+(Z1SNV) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 155.39 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 155.39 Tm
+(1 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 142.39 m 539.28 142.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 133.39 Tm
+(Rp 12.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 133.39 Tm
+(C1V2NGJ) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 133.39 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 133.39 Tm
+(12 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 120.39 m 539.28 120.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 111.39 Tm
+(Rp 15.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 111.39 Tm
+(Z1S5KGF) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 111.39 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 111.39 Tm
+(15 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 98.39 m 539.28 98.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 89.39 Tm
+(Rp 17.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 89.39 Tm
+(P1G7ZGV) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 89.39 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 89.39 Tm
+(17 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 76.39 m 539.28 76.39 l S
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Kode Harga Floor POS Ч halaman 2 dari 3) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 7466 >>
+stream
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 776.89 Tm
+(Rp 20.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 776.89 Tm
+(G2ZNC) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 776.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 776.89 Tm
+(2 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 763.89 m 539.28 763.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 754.89 Tm
+(Rp 25.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 754.89 Tm
+(Q2H5AGW) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 754.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 754.89 Tm
+(25 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 741.89 m 539.28 741.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 732.89 Tm
+(Rp 28.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 732.89 Tm
+(M2E8XGT) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 732.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 732.89 Tm
+(28 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 719.89 m 539.28 719.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 710.89 Tm
+(Rp 35.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 710.89 Tm
+(F3Y5RGM) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 710.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 710.89 Tm
+(35 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 697.89 m 539.28 697.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 688.89 Tm
+(Rp 40.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 688.89 Tm
+(W4PNS) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 688.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 688.89 Tm
+(4 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 675.89 m 539.28 675.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 666.89 Tm
+(Rp 50.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 666.89 Tm
+(D5WNZ) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 666.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 666.89 Tm
+(5 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 653.89 m 539.28 653.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 644.89 Tm
+(Rp 65.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 644.89 Tm
+(C6V5NGJ) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 644.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 644.89 Tm
+(65 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 631.89 m 539.28 631.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 622.89 Tm
+(Rp 80.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 622.89 Tm
+(A8TNW) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 622.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 622.89 Tm
+(8 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 609.89 m 539.28 609.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 600.89 Tm
+(Rp 85.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 600.89 Tm
+(J8B5UGQ) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 600.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 600.89 Tm
+(85 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 587.89 m 539.28 587.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 578.89 Tm
+(Rp 90.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 578.89 Tm
+(H9AND) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 578.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 578.89 Tm
+(9 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 565.89 m 539.28 565.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 556.89 Tm
+(Rp 100.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 556.89 Tm
+(Q1HAT) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 556.89 Tm
+(A) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 556.89 Tm
+(1 x 100.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 543.89 m 539.28 543.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 534.89 Tm
+(Rp 250.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 534.89 Tm
+(F2Y5RNU) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 534.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 534.89 Tm
+(25 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 521.89 m 539.28 521.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 512.89 Tm
+(Rp 450.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 512.89 Tm
+(M4E5XNA) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 512.89 Tm
+(N) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 512.89 Tm
+(45 x 10.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 499.89 m 539.28 499.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 490.89 Tm
+(Rp 1.405.700) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 490.89 Tm
+(~E1X4Q0H6AGW) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 490.89 Tm
+(G) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 490.89 Tm
+(~ 1406 x 1.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 477.89 m 539.28 477.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 468.89 Tm
+(Rp 2.500.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 468.89 Tm
+(R2J5BAM) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 468.89 Tm
+(A) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 468.89 Tm
+(25 x 100.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 455.89 m 539.28 455.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 62.00 446.89 Tm
+(Rp 8.000.000) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 10.00 Tf 1 0 0 1 188.07 446.89 Tm
+(G8ZCS) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 10.00 Tf 1 0 0 1 324.65 446.89 Tm
+(C) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 387.69 446.89 Tm
+(8 x 1.000.000) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 433.89 m 539.28 433.89 l S
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 394.39 Tm
+(Catatan) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 388.39 m 100.00 388.39 l S
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 364.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 364.64 Tm
+(Kode mewakili harga floor itu sendiri, bukan selisih dengan harga pricelist.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 345.89 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 345.89 Tm
+(Penanda C dipakai untuk harga floor jutaan; harga di atas 4 digit angka dibulatkan dan diberi tanda) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 330.14 Tm
+(~ supaya tidak terlihat lebih tepat daripada datanya.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 311.39 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 311.39 Tm
+(Angka hasil bagi selalu 1 sampai 4 digit. Kode terpendek 5 karakter, terpanjang sekitar 12 karakter.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 292.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 292.64 Tm
+(Kasir yang mendapati kode tidak ada di daftar ini bisa menghitungnya dengan langkah di halaman) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 276.89 Tm
+(sebelumnya, atau minta pemilik menjalankan ulang skrip docs/generate_floor_code_pdf.py.) Tj
+ET
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Kode Harga Floor POS Ч halaman 3 dari 3) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 11 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 5 0 R >>
+endobj
+9 0 obj
+<< /Type /Page /Parent 11 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 6 0 R >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 11 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 7 0 R >>
+endobj
+11 0 obj
+<< /Type /Pages /Count 3 /Kids [8 0 R 9 0 R 10 0 R] >>
+endobj
+12 0 obj
+<< /Type /Catalog /Pages 11 0 R >>
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000112 00000 n 
+0000000214 00000 n 
+0000000314 00000 n 
+0000000377 00000 n 
+0000006908 00000 n 
+0000014370 00000 n 
+0000021888 00000 n 
+0000021999 00000 n 
+0000022110 00000 n 
+0000022222 00000 n 
+0000022293 00000 n 
+trailer
+<< /Size 13 /Root 12 0 R >>
+startxref
+22344
+%%EOF

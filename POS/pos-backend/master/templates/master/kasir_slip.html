@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Slip PIN</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:16px;color:#111}
+.slip{display:inline-block;width:62mm;border:1px dashed #888;padding:10px 12px;margin:0 8px 10px 0;vertical-align:top;page-break-inside:avoid}
+.slip .nama{font-size:16px;font-weight:700}
+.slip .pin{font-family:monospace;font-size:30px;letter-spacing:.2em;margin:6px 0}
+.slip .kecil{font-size:12px;color:#444}
+.atas{margin-bottom:14px} @media print{.atas{display:none}}
+</style></head><body>
+<div class="atas"><button onclick="window.print()">Cetak</button> Potong per kotak, berikan langsung ke orangnya. Jangan difoto atau dikirim lewat chat.</div>
+{% for s in slip %}
+<div class="slip"><div class="nama">{{ s.nama }}</div><div class="pin">{{ s.t.pin }}</div>
+  <div class="kecil">Berlaku mulai {{ s.t.berlaku_mulai|date:"l, d M Y H:i" }}</div>
+  <div class="kecil">PIN rahasia. Jangan dipinjamkan.</div></div>
+{% empty %}<p>Tidak ada PIN yang bisa dicetak. PIN hanya terlihat beberapa hari setelah dibuat.</p>
+{% endfor %}
+</body></html>

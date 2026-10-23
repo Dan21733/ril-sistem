@@ -1,0 +1,34 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pengambilan barang{% endblock %}
+{% block isi %}
+<h2>Pengambilan barang</h2>
+<p class="sub">Barang yang terjual (nota manual) atau dikirim (transfer) dari gudang. Stok gudang berkurang saat kepala gudang mengonfirmasi.
+  Kalau kepala gudang tidak ada, pemilik bisa mengonfirmasi dari sini; tercatat sebagai "oleh pemilik".</p>
+
+<h3>Menunggu diambil</h3>
+{% for k in kelompok %}
+<form method="post" class="kartu" style="margin-bottom:12px">{% csrf_token %}<input type="hidden" name="referensi" value="{{ k.referensi }}">
+  <b>{{ k.referensi }}</b> <span class="redup kecil">{{ k.sumber }} · {{ k.dibuat|date:"d M Y H:i" }}</span>
+  <div class="gulir" style="margin-top:8px"><table>
+    <tr><th>Barang</th><th class="angka">Diminta</th><th class="angka">Diambil</th><th>Dari</th><th>Catatan</th></tr>
+    {% for p in k.baris %}<tr><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah }}</td>
+      <td class="angka"><input type="text" name="diambil_{{ p.id }}" value="{{ p.jumlah }}" inputmode="numeric" style="width:80px"></td>
+      <td><select name="lokasi_{{ p.id }}">{% for l in gudang %}<option value="{{ l.id }}" {% if l.id == p.lokasi_id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
+      <td><input type="text" name="catatan_{{ p.id }}"></td></tr>{% endfor %}
+  </table></div>
+  {% if 'ubah_stok' in hak %}<div style="margin-top:10px"><button class="tombol" type="submit">Konfirmasi diambil (oleh pemilik)</button></div>{% endif %}
+</form>
+{% empty %}<p class="redup">Tidak ada yang menunggu.</p>
+{% endfor %}
+
+<h3>Riwayat {% if jumlah_beda %}<a class="kecil" href="?beda=1" style="color:var(--bahaya)">{{ jumlah_beda }} jumlahnya beda dari permintaan</a>{% endif %}{% if g.beda %} · <a class="kecil" href="{% url 'master:ambil' %}">semua</a>{% endif %}</h3>
+<div class="gulir"><table>
+  <tr><th>Nota / transfer</th><th>Barang</th><th class="angka">Diminta</th><th class="angka">Diambil</th><th>Dari</th><th>Oleh</th><th>Waktu</th><th>Catatan</th></tr>
+  {% for p in riwayat %}<tr class="{% if p.status == 'batal' %}nonaktif{% endif %}">
+    <td>{{ p.referensi }}</td><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah }}</td>
+    <td class="angka">{% if p.status == 'batal' %}<span class="redup">batal</span>{% elif p.selisih %}<b style="color:var(--bahaya)">{{ p.diambil_jumlah }}</b>{% else %}{{ p.diambil_jumlah }}{% endif %}</td>
+    <td>{{ p.diambil_lokasi.nama|default:p.lokasi.nama }}</td><td>{{ p.diambil_oleh }}{% if p.oleh_pemilik %} <span class="label awas">pemilik</span>{% endif %}</td>
+    <td class="kecil">{{ p.diambil_waktu|date:"d M Y H:i" }}</td><td class="kecil">{{ p.catatan }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:22px;text-align:center">Belum ada.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

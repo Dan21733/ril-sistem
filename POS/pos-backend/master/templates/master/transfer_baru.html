@@ -1,0 +1,17 @@
+{% extends "master/base.html" %}
+{% block judul %}Transfer baru{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:transfer' %}">Transfer ke toko lain</a> /</p>
+<h2>Transfer baru</h2>
+<p class="sub">Pilih dari toko mana ke toko mana. Barangnya ditambahkan di langkah berikutnya.</p>
+{% if aktif|length < 2 %}<div class="pesan warning">Baru ada satu toko aktif. <a href="{% url 'master:toko' %}">Tambah toko dulu.</a></div>{% endif %}
+<form method="post" class="kartu">{% csrf_token %}
+  <div class="kisi">
+    <div><label>Dari toko</label><select name="dari" required>{% for t in aktif %}<option value="{{ t.id }}" {% if t.id == utama.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></div>
+    <div><label>Ke toko</label><select name="ke" required>{% for t in aktif %}<option value="{{ t.id }}" {% if t.id != utama.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></div>
+    <div><label>Tanggal</label><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required style="font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%"></div>
+  </div>
+  <div style="margin-top:16px"><label>Catatan</label><input type="text" name="catatan" placeholder="mis. diantar pakai mobil toko"></div>
+  <div style="margin-top:16px"><button class="tombol utama" type="submit">Lanjut</button> <a class="tombol" href="{% url 'master:transfer' %}">Batal</a></div>
+</form>
+{% endblock %}

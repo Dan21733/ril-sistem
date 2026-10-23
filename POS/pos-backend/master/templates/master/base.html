@@ -1,0 +1,404 @@
+{% load master_tags %}<!doctype html>
+<html lang="id" data-tema="{{ tema }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>{% block judul %}Master{% endblock %} · Master POS</title>
+<script>
+/* Dibaca sebelum halaman digambar supaya menu tidak berkedip. Hanya kenyamanan per browser. */
+(function(){var h=document.documentElement;try{var k=localStorage.getItem('menu_kunci');if(k!=='0')h.classList.add('menu-kunci');var l=parseInt(localStorage.getItem('menu_lebar'),10);if(l>=200&&l<=420)h.style.setProperty('--lebar-menu',l+'px');}catch(e){h.classList.add('menu-kunci');}})();
+</script>
+<style>
+:root{
+  --latar:#f6f5f2; --kartu:#ffffff; --garis:#e2dfd8; --garis-kuat:#cfcbc1;
+  --teks:#1f1d1a; --redup:#6b665d; --sisi:#23211e; --sisi-teks:#d9d5cc; --sisi-redup:#8d877b;
+  --sisi-hover:#34312c; --sisi-garis:#3a3731; --sisi-tombol:#4a463f; --sisi-buka:#2c2925;
+  --aksen:#b4541f; --aksen-gelap:#9c4719; --aksen-lembut:#f7e9df; --baik:#2f6b3f; --baik-lembut:#e3f0e6;
+  --awas:#8a5a00; --awas-lembut:#fbf0d3; --bahaya:#a12b2b; --bahaya-lembut:#f8e3e1;
+  --tombol-hover:#f0eee9; --baris-hover:#fbfaf7; --netral:#ece9e2;
+  --sisi-aktif:#2f2b27; --sisi-aktif-teks:#f0965c;
+}
+/* Tema biru, mengikuti warna dashboard Moka. */
+html[data-tema="moka"]{
+  --latar:#f4f6f8; --garis:#dfe4ea; --garis-kuat:#c6ced8;
+  --teks:#22303e; --redup:#647180; --sisi:#1f2d3b; --sisi-teks:#d5dde6; --sisi-redup:#8a99a9;
+  --sisi-hover:#2a3b4c; --sisi-garis:#33475a; --sisi-tombol:#46596c; --sisi-buka:#18242f;
+  --aksen:#2f7fc1; --aksen-gelap:#246aa4; --aksen-lembut:#e2eef8;
+  --tombol-hover:#eef2f6; --baris-hover:#f6f9fc; --netral:#e8edf2;
+  --sisi-aktif:#263646; --sisi-aktif-teks:#4aa3ec;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--latar);color:var(--teks)}
+a{color:var(--aksen);text-decoration:none} a:hover{text-decoration:underline}
+/* Menu samping: lebar bisa digeser, bisa dikunci atau sembunyi otomatis. */
+:root{--lebar-menu:264px}
+.sisi{background:var(--sisi);color:var(--sisi-teks);padding:22px 0 18px;position:fixed;top:0;left:0;bottom:0;width:var(--lebar-menu);overflow-y:auto;overflow-x:hidden;z-index:20;transition:transform .18s ease,box-shadow .18s}
+main{padding:28px 32px 72px;min-width:0;margin-left:var(--lebar-menu)}
+html:not(.menu-kunci) main{margin-left:18px}
+html:not(.menu-kunci) .sisi{transform:translateX(-100%)}
+html:not(.menu-kunci) .sisi.terbuka{transform:none;box-shadow:6px 0 24px rgba(0,0,0,.25)}
+.pinggir{display:none;position:fixed;top:0;left:0;bottom:0;width:18px;z-index:19;background:var(--sisi);cursor:pointer;border:0;padding:0;color:var(--sisi-redup)}
+.pinggir span{position:absolute;top:50%;left:4px;width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-50%) rotate(-45deg)}
+html:not(.menu-kunci) .pinggir{display:block}
+.sisi .kepala{display:flex;align-items:flex-start;gap:8px;padding:0 14px 0 22px;margin-bottom:22px}
+.sisi .kepala div{flex:1;min-width:0}
+.sisi h1{font-size:17px;margin:0 0 2px;color:#fff;letter-spacing:.2px}
+.sisi .toko{font-size:13px;color:var(--sisi-redup);margin:0}
+.sisi .pilih-toko{margin:-8px 22px 18px;padding:10px 12px;border-radius:10px;background:var(--sisi-hover)}
+.sisi .pilih-toko label{display:block;font-size:12px;color:var(--sisi-redup);margin:0 0 4px}
+.sisi .pilih-toko b{color:#fff;font-size:16px}
+.sisi .pilih-toko select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--sisi-tombol);background:var(--sisi);color:#fff;font:inherit;font-weight:600}
+.sisi .kunci{background:none;border:1px solid var(--sisi-tombol);color:var(--sisi-teks);border-radius:7px;padding:5px 8px;cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
+.sisi .kunci:hover{background:var(--sisi-hover)}
+.sisi a{display:block;padding:11px 22px;color:var(--sisi-teks);font-size:16px}
+.sisi a:hover,.sisi summary:hover{background:var(--sisi-hover);text-decoration:none}
+.sisi a.aktif{background:var(--sisi-aktif);color:var(--sisi-aktif-teks);box-shadow:inset 3px 0 0 var(--sisi-aktif-teks)}
+.sisi summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:11px 22px;font-size:16px;color:var(--sisi-teks);user-select:none}
+.sisi summary::-webkit-details-marker{display:none}
+.sisi summary::after{content:"";margin-left:auto;width:7px;height:7px;border-right:2px solid var(--sisi-redup);border-bottom:2px solid var(--sisi-redup);transform:rotate(-45deg);transition:transform .15s}
+.sisi details[open]>summary::after{transform:rotate(45deg)}
+.sisi details[open]>summary{color:#fff}
+.sisi .isi-grup a{font-size:15px;padding:9px 22px 9px 40px;color:var(--sisi-redup)}
+.sisi .isi-grup a:hover{color:var(--sisi-teks)}
+.sisi .isi-grup a.aktif{color:var(--sisi-aktif-teks)}
+.sisi .angka-menu{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--aksen);color:#fff;font-size:12px;line-height:20px;text-align:center;margin-left:6px}
+.sisi .akun{margin:26px 22px 0;padding-top:14px;border-top:1px solid var(--sisi-garis);font-size:13px;color:var(--sisi-redup)}
+.sisi .akun b{color:var(--sisi-teks);display:block;font-size:15px}
+.sisi .akun button{margin-top:10px;background:none;border:1px solid var(--sisi-tombol);color:var(--sisi-teks);padding:7px 12px;border-radius:7px;cursor:pointer;font:inherit;font-size:14px}
+.geser{position:fixed;top:0;bottom:0;left:calc(var(--lebar-menu) - 3px);width:6px;cursor:col-resize;z-index:21}
+.geser:hover,.geser.aktif{background:var(--aksen);opacity:.5}
+html:not(.menu-kunci) .geser{display:none}
+html.menyeret,html.menyeret *{cursor:col-resize!important;user-select:none!important}
+h2{font-size:25px;margin:0 0 6px} .sub{color:var(--redup);margin:0 0 22px}
+h3{font-size:18px;margin:30px 0 12px}
+.kartu{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:20px}
+.baris{display:flex;gap:14px;flex-wrap:wrap;align-items:end}
+.kisi{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+label{display:block;font-size:14px;color:var(--redup);margin-bottom:5px}
+input[type=text],input[type=password],input[type=search],input[type=file],select,textarea{
+  font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;color:var(--teks);width:100%}
+textarea{min-height:76px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--aksen);outline-offset:-1px;border-color:var(--aksen)}
+.tombol,button.tombol{display:inline-block;font:inherit;padding:10px 18px;border-radius:8px;border:1px solid var(--garis-kuat);background:#fff;color:var(--teks);cursor:pointer;white-space:nowrap}
+.tombol:hover{background:var(--tombol-hover);text-decoration:none}
+.tombol.utama{background:var(--aksen);border-color:var(--aksen);color:#fff} .tombol.utama:hover{background:var(--aksen-gelap);border-color:var(--aksen-gelap)}
+.tombol.bahaya{color:var(--bahaya);border-color:#e0b4b0}
+.tombol.kecil{padding:6px 12px;font-size:14px}
+table{border-collapse:collapse;width:100%}
+th{font-size:14px;text-align:left;color:var(--redup);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--garis-kuat);white-space:nowrap;background:var(--kartu);position:sticky;top:0;z-index:1}
+td{padding:11px 14px;border-bottom:1px solid var(--garis);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr:hover td{background:var(--baris-hover)}
+td.angka,th.angka{text-align:right;font-variant-numeric:tabular-nums}
+.gulir{overflow-x:auto;border:1px solid var(--garis);border-radius:12px;background:var(--kartu)}
+.label{display:inline-block;font-size:13px;padding:3px 10px;border-radius:999px;background:var(--awas-lembut);color:var(--awas);margin:2px 4px 2px 0}
+.label.bahaya{background:var(--bahaya-lembut);color:var(--bahaya)}
+.label.baik{background:var(--baik-lembut);color:var(--baik)}
+.label.netral{background:var(--netral);color:var(--redup)}
+.pesan{padding:13px 16px;border-radius:10px;margin:0 0 18px;border:1px solid}
+.pesan.success{background:var(--baik-lembut);border-color:#b9d8c0;color:var(--baik)}
+.pesan.error{background:var(--bahaya-lembut);border-color:#e6b9b5;color:var(--bahaya)}
+.pesan.info,.pesan.warning{background:var(--awas-lembut);border-color:#ecd89a;color:var(--awas)}
+.redup{color:var(--redup)} .kecil{font-size:14px}
+.halaman{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:16px}
+/* Sel yang bisa diedit di tabel */
+td input.sel{width:124px;text-align:right;padding:8px 10px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;font-variant-numeric:tabular-nums;color:var(--teks)}
+td select.sel{width:104px;padding:8px 6px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit}
+td input[type=checkbox].sel{width:20px;height:20px;accent-color:var(--aksen)}
+tr:hover td .sel,td .sel:focus{border-color:var(--garis-kuat);background:#fff}
+td input.sel.tanda{background:var(--bahaya-lembut);color:var(--bahaya);border-color:#e6b9b5}
+td .sel.simpan{background:var(--baik-lembut)!important} td .sel.gagal{background:var(--bahaya-lembut)!important;border-color:var(--bahaya)!important}
+.masalah-teks{display:block;font-size:13px;color:var(--bahaya);margin-top:2px}
+.masalah-teks:empty{display:none}
+.nonaktif td{opacity:.55}
+[data-ganti]{cursor:text;border-bottom:1px dashed transparent}
+[data-ganti]:hover{border-bottom-color:var(--garis-kuat)}
+input.ganti{font:inherit;font-weight:inherit;padding:4px 8px;border:1px solid var(--aksen);border-radius:7px;width:min(100%,420px)}
+details.lipat>summary{cursor:pointer;font-size:18px;font-weight:600;margin:30px 0 12px;list-style:none}
+details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[open]>summary::before{content:"– "}
+#kabar{position:fixed;right:22px;bottom:22px;padding:12px 18px;border-radius:10px;background:var(--sisi);color:#fff;display:none;max-width:400px;z-index:5}
+#kabar.bahaya{background:var(--bahaya)}
+@media (max-width:820px){.sisi,html:not(.menu-kunci) .sisi{position:static;width:auto;transform:none}main,html:not(.menu-kunci) main{margin-left:0;padding:18px}.pinggir,.geser,.sisi .kunci{display:none!important}}
+</style>
+</head>
+<body>
+<div class="rangka">
+  <button type="button" class="pinggir" id="pinggir" aria-label="Buka menu"><span></span></button>
+  <nav class="sisi" id="sisi">
+    <div class="kepala"><div><h1>Master POS</h1><p class="toko">Dunia Bangunan</p></div>
+      <button type="button" class="kunci" id="tombol-kunci" title="Kunci menu supaya selalu tampil, atau lepas supaya menu sembunyi sendiri"></button></div>
+    {% if toko_aktif %}<div class="pilih-toko">
+      {% if banyak_toko %}<form method="post" action="{% url 'master:pilih_toko' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <label for="pilih-toko">Sedang mengerjakan</label>
+        <select id="pilih-toko" name="toko" onchange="this.form.submit()">{% for t in daftar_toko %}<option value="{{ t.id }}" {% if t.id == toko_aktif.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></form>
+      {% else %}<label>Toko</label><b>{{ toko_aktif.nama }}</b>{% endif %}
+    </div>{% endif %}
+    <a href="{% url 'master:dashboard' %}" class="{% if menu == 'dashboard' %}aktif{% endif %}">Dashboard</a>
+    {% if 'laporan' in hak %}
+    <details{% if menu|dalam:"laporan nota nota_manual retur" %} open{% endif %}><summary>Penjualan{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</summary><div class="isi-grup">
+      <a href="{% url 'master:laporan' %}" class="{% if menu == 'laporan' %}aktif{% endif %}">Laporan penjualan</a>
+      <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
+      <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
+      <a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>
+    </div></details>
+    {% endif %}
+    {% if "kelola_kasir" in hak %}
+    <details{% if menu|dalam:"karyawan tablet aturan_kasir nota_tinjau perangkat_ops" %} open{% endif %}><summary>Kasir{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</summary><div class="isi-grup">
+      <a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>
+      <a href="{% url 'master:karyawan' %}" class="{% if menu == 'karyawan' %}aktif{% endif %}">Karyawan &amp; PIN</a>
+      <a href="{% url 'master:tablet' %}" class="{% if menu == 'tablet' %}aktif{% endif %}">Tablet kasir</a>
+      <a href="{% url 'master:aturan_kasir' %}" class="{% if menu == 'aturan_kasir' %}aktif{% endif %}">Aturan kasir</a>
+      <a href="{% url 'master:perangkat_ops' %}" class="{% if menu == 'perangkat_ops' %}aktif{% endif %}">Perangkat operasional</a>
+    </div></details>
+    {% endif %}
+    <details{% if menu|dalam:"barang kategori brand harga impor sampah" %} open{% endif %}><summary>Barang</summary><div class="isi-grup">
+      <a href="{% url 'master:barang' %}" class="{% if menu == 'barang' %}aktif{% endif %}">Daftar barang</a>
+      {% if 'ubah_harga' in hak %}
+        <a href="{% url 'master:harga' %}" class="{% if menu == 'harga' %}aktif{% endif %}">Harga &amp; modal</a>
+      {% endif %}
+      <a href="{% url 'master:kategori' %}" class="{% if menu == 'kategori' %}aktif{% endif %}">Kategori</a>
+      <a href="{% url 'master:brand' %}" class="{% if menu == 'brand' %}aktif{% endif %}">Brand</a>
+      {% if 'impor' in hak %}
+        <a href="{% url 'master:impor' %}" class="{% if menu == 'impor' %}aktif{% endif %}">Import Excel</a>
+      {% endif %}
+      {% if 'hapus_barang' in hak %}
+        <a href="{% url 'master:sampah' %}" class="{% if menu == 'sampah' %}aktif{% endif %}">Barang dihapus</a>
+      {% endif %}
+    </div></details>
+    {% if 'lihat_stok' in hak or 'transfer' in hak %}
+    <details{% if menu|dalam:"stok stok_lokasi stok_riwayat opname hitung_acak laporan_selisih buka_dus transfer" %} open{% endif %}><summary>Stok</summary><div class="isi-grup">
+      {% if 'lihat_stok' in hak %}
+        <a href="{% url 'master:stok' %}" class="{% if menu == 'stok' %}aktif{% endif %}">Stok barang</a>
+        <a href="{% url 'master:stok_lokasi' %}" class="{% if menu == 'stok_lokasi' %}aktif{% endif %}">Stok per gudang</a>
+        <a href="{% url 'master:stok_riwayat' %}" class="{% if menu == 'stok_riwayat' %}aktif{% endif %}">Riwayat stok</a>
+      {% endif %}
+      {% if 'opname' in hak %}
+        <a href="{% url 'master:opname' %}" class="{% if menu == 'opname' %}aktif{% endif %}">Stok opname</a>
+        <a href="{% url 'master:hitung_acak' %}" class="{% if menu == 'hitung_acak' %}aktif{% endif %}">Cek stok acak</a>
+        <a href="{% url 'master:laporan_selisih' %}" class="{% if menu == 'laporan_selisih' %}aktif{% endif %}">Selisih stok</a>
+      {% endif %}
+      {% if 'ubah_stok' in hak %}
+        <a href="{% url 'master:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>
+      {% endif %}
+      {% if 'transfer' in hak %}
+        <a href="{% url 'master:transfer' %}" class="{% if menu == 'transfer' %}aktif{% endif %}">Transfer ke toko lain</a>
+      {% endif %}
+    </div></details>
+    {% endif %}
+    <details{% if menu|dalam:"ambil tiket lokasi rak" %} open{% endif %}><summary>Gudang{% if "lihat_stok" in hak and jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</summary><div class="isi-grup">
+      {% if 'lihat_stok' in hak %}
+        <a href="{% url 'master:ambil' %}" class="{% if menu == 'ambil' %}aktif{% endif %}">Pengambilan barang{% if jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</a>
+      {% endif %}
+      {% if 'kelola_lokasi' in hak %}
+        <a href="{% url 'master:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tiket admin</a>
+      {% endif %}
+      {% if 'lihat_stok' in hak %}
+        <a href="{% url 'master:lokasi' %}" class="{% if menu == 'lokasi' %}aktif{% endif %}">Gudang &amp; lokasi</a>
+      {% endif %}
+      <a href="{% url 'master:rak' %}" class="{% if menu == 'rak' %}aktif{% endif %}">Rak</a>
+    </div></details>
+    {% if 'pembelian' in hak or 'kelola_supplier' in hak %}
+    <details{% if menu|dalam:"pembelian faktur hutang supplier" %} open{% endif %}><summary>Pembelian</summary><div class="isi-grup">
+      {% if 'pembelian' in hak %}
+        <a href="{% url 'master:pembelian' %}" class="{% if menu == 'pembelian' %}aktif{% endif %}">Pembelian barang</a>
+        <a href="{% url 'master:faktur' %}" class="{% if menu == 'faktur' %}aktif{% endif %}">Catat faktur saja</a>
+        <a href="{% url 'master:hutang' %}" class="{% if menu == 'hutang' %}aktif{% endif %}">Hutang supplier</a>
+      {% endif %}
+      {% if 'kelola_supplier' in hak %}
+        <a href="{% url 'master:supplier' %}" class="{% if menu == 'supplier' %}aktif{% endif %}">Supplier</a>
+      {% endif %}
+    </div></details>
+    {% endif %}
+    <details{% if menu|dalam:"pengguna toko pengaturan log tampilan" %} open{% endif %}><summary>Pengaturan</summary><div class="isi-grup">
+      <a href="{% url 'master:tema' %}" class="{% if menu == 'tampilan' %}aktif{% endif %}">Tampilan</a>
+      {% if 'kelola_pengguna' in hak %}
+        <a href="{% url 'master:pengguna' %}" class="{% if menu == 'pengguna' %}aktif{% endif %}">Pengguna &amp; hak akses</a>
+      {% endif %}
+      {% if 'kelola_toko' in hak %}
+        <a href="{% url 'master:toko' %}" class="{% if menu == 'toko' %}aktif{% endif %}">Toko</a>
+      {% endif %}
+      {% if 'pengaturan' in hak %}
+        <a href="{% url 'master:pengaturan' %}" class="{% if menu == 'pengaturan' %}aktif{% endif %}">Pajak (PPN)</a>
+      {% endif %}
+      {% if 'lihat_log' in hak %}
+        <a href="{% url 'master:log' %}" class="{% if menu == 'log' %}aktif{% endif %}">Riwayat perubahan</a>
+      {% endif %}
+    </div></details>
+    <div class="akun">
+      <b>{{ request.user.username }}</b>
+      <form method="post" action="{% url 'master:logout' %}">{% csrf_token %}<button type="submit">Keluar</button></form>
+    </div>
+  </nav>
+  <div class="geser" id="geser" title="Geser untuk mengubah lebar menu"></div>
+  <main>
+    {% for pesan in messages %}<div class="pesan {{ pesan.tags }}">{{ pesan }}</div>{% endfor %}
+    {% if toko_stok and toko_aktif and toko_aktif.id != toko_stok.id and menu|dalam:"stok stok_lokasi stok_riwayat hitung_acak laporan_selisih buka_dus ambil tiket lokasi retur" %}<div class="pesan info">Stok di halaman ini adalah stok kasir milik <b>{{ toko_stok.nama }}</b>. {{ toko_aktif.nama }} belum punya stok sistem sendiri.</div>{% endif %}
+    {% block isi %}{% endblock %}
+  </main>
+</div>
+<div id="kabar"></div>
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+function kabar(teks, bahaya){
+  const el = document.getElementById('kabar');
+  el.textContent = teks; el.className = bahaya ? 'bahaya' : ''; el.style.display = 'block';
+  clearTimeout(kabar.t); kabar.t = setTimeout(() => el.style.display = 'none', bahaya ? 6000 : 1800);
+}
+function ribuan(n){ return (n === null || n === undefined || n === '') ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function angka(teks){ const t = String(teks || '').replace(/[^0-9]/g, ''); return t === '' ? null : parseInt(t, 10); }
+
+/* Margin di halaman Harga: dihitung ulang dari isi baris. */
+function hitungMargin(baris){
+  const sel = baris.querySelector('.margin'); if (!sel) return;
+  const ambil = k => { const el = baris.querySelector('[data-kolom="'+k+'"]'); return el ? angka(el.value) : null; };
+  const modal = ambil('cost_amount'), jual = ambil('max_price'), floor = ambil('min_price');
+  const pct = h => (modal && h) ? Math.round((h - modal) / h * 100) + '%' : '-';
+  sel.textContent = pct(floor) + ' / ' + pct(jual);
+}
+
+/* Edit di tabel: setiap .sel menyimpan sendiri saat nilainya berubah. */
+async function simpanSel(el){
+  const nilai = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.type !== 'checkbox' && nilai === el.dataset.awal) return;
+  el.classList.remove('simpan','gagal');
+  const catatan = document.getElementById('catatan-ubah');
+  try{
+    const r = await fetch("{% url 'master:barang_ubah' %}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({id: el.dataset.id, kolom: el.dataset.kolom, nilai: nilai, catatan: catatan ? catatan.value : ''})
+    });
+    const d = await r.json();
+    if(!d.ok){ el.classList.add('gagal'); kabar(d.pesan || 'Gagal menyimpan.', true); return; }
+    if (el.dataset.jenis === 'angka'){ el.value = ribuan(d.nilai); }
+    if (el.type !== 'checkbox'){ el.dataset.awal = el.value; }
+    el.classList.add('simpan'); setTimeout(() => el.classList.remove('simpan'), 1200);
+    const baris = el.closest('tr');
+    if (baris){
+      baris.querySelectorAll('input.sel[data-jenis="angka"]').forEach(i => i.classList.toggle('tanda', d.tanda.includes(i.dataset.kolom)));
+      const teks = baris.querySelector('.masalah-teks');
+      if (teks) teks.textContent = d.masalah.map(m => m.label).join(' · ');
+      if (el.dataset.kolom === 'aktif') baris.classList.toggle('nonaktif', !el.checked);
+      hitungMargin(baris);
+    }
+    if (d.berubah) kabar('Tersimpan.');
+  }catch(e){ el.classList.add('gagal'); kabar('Tidak tersambung ke server. Perubahan belum tersimpan.', true); }
+}
+document.addEventListener('change', e => { if (e.target.classList.contains('sel')) simpanSel(e.target); });
+document.addEventListener('focusin', e => { if (e.target.matches('input.sel[data-jenis="angka"]')) e.target.select(); });
+
+/* Panah atas/bawah dan Enter pindah ke baris berikutnya di kolom yang sama, seperti Excel. */
+function pindahBaris(el, arah){
+  let baris = el.closest('tr');
+  while (baris){
+    baris = arah > 0 ? baris.nextElementSibling : baris.previousElementSibling;
+    const tujuan = baris && baris.querySelector('.sel[data-kolom="'+el.dataset.kolom+'"]');
+    if (tujuan){ tujuan.focus(); return true; }
+  }
+  return false;
+}
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (!el.classList || !el.classList.contains('sel') || el.tagName !== 'INPUT' || el.type === 'checkbox') return;
+  if (e.key === 'ArrowDown' || e.key === 'Enter'){ e.preventDefault(); if (!pindahBaris(el, 1)) el.blur(); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); pindahBaris(el, -1); }
+  else if (e.key === 'Escape'){ e.stopPropagation(); el.value = el.dataset.awal; el.blur(); }
+});
+
+/* Klik dua kali pada nama untuk mengganti nama. */
+document.addEventListener('dblclick', e => {
+  const el = e.target.closest('[data-ganti]'); if (!el || el.querySelector('input')) return;
+  const form = document.getElementById('form-ganti'); if (!form) return;
+  const lama = el.dataset.nilai;
+  const input = document.createElement('input'); input.className = 'ganti'; input.value = lama;
+  const isiLama = el.innerHTML; el.innerHTML = ''; el.appendChild(input); input.focus(); input.select();
+  let selesai = false;
+  const batal = () => { if (selesai) return; selesai = true; el.innerHTML = isiLama; };
+  input.addEventListener('keydown', ev => {
+    ev.stopPropagation();
+    if (ev.key === 'Escape') batal();
+    if (ev.key === 'Enter'){
+      ev.preventDefault();
+      const baru = input.value.trim();
+      if (!baru || baru === lama){ batal(); return; }
+      if (!confirm('Ganti nama "' + lama + '" menjadi "' + baru + '"?\n' + (el.dataset.tanya || ''))){ batal(); return; }
+      selesai = true;
+      form.elements.aksi.value = el.dataset.ganti === 'item' ? 'ganti_nama_item' : 'ganti_nama_varian';
+      form.elements.id.value = el.dataset.id || '';
+      form.elements.nama_baru.value = baru; form.elements.varian_baru.value = baru;
+      form.submit();
+    }
+  });
+  input.addEventListener('blur', batal);
+});
+document.addEventListener('submit', e => {
+  const t = e.target.dataset.tanya; if (t && !confirm(t)) e.preventDefault();
+});
+</script>
+<script>
+/* Cari varian di tabel barang (juga di panel yang dimuat lewat fetch). */
+document.addEventListener("input", function (e) {
+  var el = e.target;
+  if (!el.matches || !el.matches("input[data-saring-varian]")) return;
+  var tabel = el.closest("div").parentElement.querySelector("table[data-tabel-varian]");
+  if (!tabel) return;
+  var kata = el.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  tabel.querySelectorAll("tr[data-cari]").forEach(function (tr) {
+    var teks = tr.dataset.cari;
+    tr.style.display = kata.every(function (k) { return teks.indexOf(k) >= 0; }) ? "" : "none";
+  });
+});
+</script>
+<script>
+/* Konfirmasi buang ke keranjang sampah. Didelegasikan ke document supaya juga
+   jalan di panel barang yang dimuat lewat fetch (script di dalamnya tidak dijalankan). */
+document.addEventListener("submit", function (e) {
+  var f = e.target;
+  if (!f.matches || !f.matches("form[data-buang]")) return;
+  var stok = parseInt(f.dataset.stok || "0", 10) || 0;
+  var pesan = "Buang " + f.dataset.nama + " ke keranjang sampah?\n\nBarang akan hilang dari kasir. Bisa dipulihkan dari menu Barang dihapus.";
+  if (stok) pesan = "PERHATIAN: stok masih " + stok.toLocaleString("id-ID") + ".\n\n" + pesan;
+  if (!confirm(pesan)) { e.preventDefault(); return; }
+  var alasan = prompt("Alasan (boleh dikosongkan):", "");
+  if (alasan === null) { e.preventDefault(); return; }
+  f.querySelector("input[name=alasan]").value = alasan;
+});
+</script>
+<script>
+/* Menu samping: kunci/lepas, sembunyi otomatis, dan geser lebar. Pilihan disimpan di browser ini saja. */
+(function(){
+  var h = document.documentElement, sisi = document.getElementById('sisi'), pinggir = document.getElementById('pinggir'),
+      geser = document.getElementById('geser'), tombol = document.getElementById('tombol-kunci'), tutupT;
+  function simpan(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+  function label(){ tombol.textContent = h.classList.contains('menu-kunci') ? 'Lepas' : 'Kunci'; }
+  label();
+  tombol.addEventListener('click', function(){
+    var kunci = !h.classList.contains('menu-kunci');
+    h.classList.toggle('menu-kunci', kunci); sisi.classList.remove('terbuka');
+    simpan('menu_kunci', kunci ? '1' : '0'); label();
+  });
+  function buka(){ clearTimeout(tutupT); sisi.classList.add('terbuka'); }
+  function tutup(){ clearTimeout(tutupT); tutupT = setTimeout(function(){ sisi.classList.remove('terbuka'); }, 250); }
+  pinggir.addEventListener('mouseenter', buka);
+  pinggir.addEventListener('click', buka);
+  sisi.addEventListener('mouseenter', function(){ clearTimeout(tutupT); });
+  sisi.addEventListener('mouseleave', function(){ if (!h.classList.contains('menu-kunci')) tutup(); });
+  document.addEventListener('click', function(e){
+    if (!h.classList.contains('menu-kunci') && sisi.classList.contains('terbuka') && !sisi.contains(e.target) && e.target !== pinggir && !pinggir.contains(e.target)) sisi.classList.remove('terbuka');
+  });
+  geser.addEventListener('pointerdown', function(e){
+    e.preventDefault(); geser.setPointerCapture(e.pointerId); geser.classList.add('aktif'); h.classList.add('menyeret');
+    function gerak(ev){ var l = Math.max(200, Math.min(420, ev.clientX)); h.style.setProperty('--lebar-menu', l + 'px'); }
+    function lepas(ev){
+      geser.classList.remove('aktif'); h.classList.remove('menyeret');
+      geser.removeEventListener('pointermove', gerak); geser.removeEventListener('pointerup', lepas);
+      simpan('menu_lebar', parseInt(getComputedStyle(h).getPropertyValue('--lebar-menu'), 10));
+    }
+    geser.addEventListener('pointermove', gerak); geser.addEventListener('pointerup', lepas);
+  });
+  geser.addEventListener('dblclick', function(){ h.style.removeProperty('--lebar-menu'); simpan('menu_lebar', ''); });
+})();
+</script>
+</body>
+</html>

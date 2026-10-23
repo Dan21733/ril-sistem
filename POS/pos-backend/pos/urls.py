@@ -1,0 +1,74 @@
+from django.urls import path
+
+from .views import (
+    HealthAPIView,
+    ItemListAPIView,
+    PaymentProofUploadAPIView,
+    RefundCreateAPIView,
+    TransactionBatchSyncAPIView,
+    TransactionCreateAPIView,
+    TransactionHistoryDetailAPIView,
+    TransactionHistoryListAPIView,
+    DeviceRegistrationAPIView,
+    DeviceTransactionSequenceAPIView,
+    WorkerOfflineListAPIView,
+)
+
+
+urlpatterns = [
+    path(
+        "health/",
+        HealthAPIView.as_view(),
+        name="health",
+    ),
+    path(
+        "items/",
+        ItemListAPIView.as_view(),
+        name="item-list",
+    ),
+    path(
+        "transactions/",
+        TransactionCreateAPIView.as_view(),
+        name="transaction-create",
+    ),
+    path(
+        "transactions/sync/",
+        TransactionBatchSyncAPIView.as_view(),
+        name="transaction-batch-sync",
+    ),
+    path(
+        "transactions/history/",
+        TransactionHistoryListAPIView.as_view(),
+        name="transaction-history-list",
+    ),
+    path(
+        "transactions/history/<str:transaction_id>/",
+        TransactionHistoryDetailAPIView.as_view(),
+        name="transaction-history-detail",
+    ),
+    path(
+        "refunds/",
+        RefundCreateAPIView.as_view(),
+        name="refund-create",
+    ),
+    path(
+        "payment-proofs/",
+        PaymentProofUploadAPIView.as_view(),
+        name="payment-proof-upload",
+    ),
+    path(
+        "devices/register/",
+        DeviceRegistrationAPIView.as_view(),
+        name="device-register",
+    ),
+    path(
+        "devices/<uuid:device_id>/transaction-sequence/",
+        DeviceTransactionSequenceAPIView.as_view(),
+        name="device-transaction-sequence",
+    ),
+    path(
+        "workers/offline-list/",
+        WorkerOfflineListAPIView.as_view(),
+        name="worker-offline-list",
+    ),
+]

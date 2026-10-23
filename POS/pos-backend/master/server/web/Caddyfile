@@ -1,0 +1,44 @@
+# Halaman kasir di server rumah. Tablet membukanya lewat `tailscale serve`
+# (HTTPS), yang meneruskan ke port ini. Sama seperti proxy di vite.config.js:
+#   /api/devices/register/  -> backend kasir + header token registrasi perangkat
+#   /api/*                  -> backend kasir
+#   /print*                 -> penghubung cetak di laptop toko (PRINT_BRIDGE_TARGET)
+#   lainnya                 -> berkas hasil build (aplikasi satu halaman)
+{
+	admin off
+	auto_https off
+}
+
+:5173 {
+	encode gzip
+
+	# Token registrasi hanya ditambahkan di sini, tidak pernah sampai ke browser.
+	handle /api/devices/register/ {
+		reverse_proxy kasir:8000 {
+			header_up Host kasir
+			header_up X-Device-Registration-Token {$DEVICE_REGISTRATION_TOKEN}
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy kasir:8000 {
+			header_up Host kasir
+		}
+	}
+
+	handle /print* {
+		reverse_proxy {$PRINT_BRIDGE_TARGET:127.0.0.1:9101}
+	}
+
+	handle {
+		root * /srv
+		# Berkas ber-hash boleh disimpan lama; index.html selalu dicek ulang
+		# supaya tablet langsung memakai versi baru setelah update.
+		@aset path /assets/*
+		header @aset Cache-Control "public, max-age=31536000, immutable"
+		@halaman not path /assets/*
+		header @halaman Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

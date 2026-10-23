@@ -1,0 +1,31 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Transfer ke toko lain{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Transfer ke toko lain</h2><p class="sub">Kirim barang ke toko lain dengan surat jalan. Nilainya (modal) dicatat sebagai saldo antar toko.</p></div>
+  <a class="tombol utama" href="{% url 'master:transfer_baru' %}">Transfer baru</a>
+</div>
+<div class="kisi" style="margin-bottom:18px">
+  <a class="kartu" href="?status=dikirim" style="color:inherit;text-decoration:none"><div class="redup kecil">Dalam perjalanan</div><div style="font-size:24px;font-weight:600;color:{% if perjalanan %}var(--aksen){% endif %}">{{ perjalanan }}</div><div class="redup kecil">belum dikonfirmasi toko tujuan</div></a>
+  <a class="kartu" href="{% url 'master:saldo_toko' %}" style="color:inherit;text-decoration:none"><div class="redup kecil">Saldo antar toko</div>
+    {% for s in saldo|slice:":3" %}<div style="margin-top:4px"><b>{{ s.penghutang.nama }}</b> berhutang ke <b>{{ s.pemberi.nama }}</b>: {{ s.jumlah|rupiah }}</div>{% empty %}<div style="font-size:20px;font-weight:600">Lunas semua</div>{% endfor %}</a>
+</div>
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="min-width:200px"><label>Status</label><select name="status"><option value="">Semua</option>{% for k, l in status %}<option value="{{ k }}" {% if g.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:transfer' %}">Reset</a></div>
+</form>
+<div class="gulir"><table>
+  <tr><th>Nomor</th><th>Tanggal</th><th>Dari</th><th>Ke</th><th class="angka">Barang</th><th>Status</th><th class="angka">Nilai</th></tr>
+  {% for t in halaman.object_list %}
+  <tr style="cursor:pointer" onclick="location.href='{% url 'master:transfer_detail' t.id %}'">
+    <td><a href="{% url 'master:transfer_detail' t.id %}"><b>{{ t.nomor }}</b></a></td><td>{{ t.tanggal|date:"d M Y" }}</td><td>{{ t.dari.nama }}</td><td>{{ t.ke.nama }}</td>
+    <td class="angka">{{ t.baris.all|length }}</td>
+    <td><span class="label {% if t.status == 'diterima' %}baik{% elif t.status == 'dikirim' %}{% elif t.status == 'batal' %}netral{% else %}netral{% endif %}">{{ t.get_status_display }}</span></td>
+    <td class="angka">{% if t.status == "diterima" %}{{ t.nilai|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:28px;text-align:center">Belum ada transfer.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman"><span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>{% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+  {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}</span></div>
+{% endblock %}

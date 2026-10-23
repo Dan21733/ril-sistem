@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <desc>Alur bisnis POS 21733, dibuat dari POS/docs/pos_business_flow.mmd</desc>
+  <key id="d0" for="graph" attr.name="name" attr.type="string"/>
+  <key id="label" for="node" attr.name="label" attr.type="string"/>
+  <key id="kind" for="node" attr.name="kind" attr.type="string"/>
+  <key id="subgraph" for="node" attr.name="subgraph" attr.type="string"/>
+  <key id="rank" for="node" attr.name="rank" attr.type="int"/>
+  <key id="elabel" for="edge" attr.name="label" attr.type="string"/>
+  <graph id="pos_business_flow" edgedefault="directed">
+    <data key="d0">Alur bisnis POS 21733</data>
+    <node id="A">
+      <data key="label">Pembeli datang ke kasir</data>
+      <data key="kind">start</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">0</data>
+    </node>
+    <node id="B">
+      <data key="label">Kasir mencari barang. Salah ketik pun tetap ketemu</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">1</data>
+    </node>
+    <node id="C">
+      <data key="label">Barang masuk keranjang. Jumlah dan harga bisa diubah</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">2</data>
+    </node>
+    <node id="D">
+      <data key="label">Harga mau dinegosiasikan?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">3</data>
+    </node>
+    <node id="E">
+      <data key="label">Kasir menentukan harga kesepakatan</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">4</data>
+    </node>
+    <node id="F">
+      <data key="label">Harga masih di antara harga terendah dan harga daftar?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">5</data>
+    </node>
+    <node id="G">
+      <data key="label">Pilih cara menerima barang. Ambil sendiri tanpa ongkir, atau diantar dengan ongkir</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">6</data>
+    </node>
+    <node id="I">
+      <data key="label">Kasir menekan tombol bayar</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">7</data>
+    </node>
+    <node id="P">
+      <data key="label">Kasir memasukkan PIN 6 angka. Nama kasir di nota diambil dari PIN, tidak lagi diketik</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">8</data>
+    </node>
+    <node id="FIN">
+      <data key="label">Transaksi difinalkan. Isi nota dibekukan dan nomornya dipakai</data>
+      <data key="kind">process</data>
+      <data key="subgraph">KASIR</data>
+      <data key="rank">9</data>
+    </node>
+    <node id="CQ">
+      <data key="label">Nota masuk antrean cetak. Transaksi diantar menambah satu surat jalan</data>
+      <data key="kind">print</data>
+      <data key="subgraph">CETAK</data>
+      <data key="rank">10</data>
+    </node>
+    <node id="CQ1">
+      <data key="label">Penghubung cetak dan printer menjawab?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">CETAK</data>
+      <data key="rank">11</data>
+    </node>
+    <node id="CQ2">
+      <data key="label">Nota tercetak dua rangkap: putih untuk pelanggan, karbon untuk toko. Diantar: surat jalan satu lembar</data>
+      <data key="kind">print</data>
+      <data key="subgraph">CETAK</data>
+      <data key="rank">12</data>
+    </node>
+    <node id="CQ3">
+      <data key="label">Kertas belum keluar. Transaksi tetap sah dan tersimpan. Dicoba lagi otomatis, kasir bisa menekan cetak ulang</data>
+      <data key="kind">print</data>
+      <data key="subgraph">CETAK</data>
+      <data key="rank">12</data>
+    </node>
+    <node id="S0">
+      <data key="label">Transaksi dikirim ke sistem</data>
+      <data key="kind">server</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">10</data>
+    </node>
+    <node id="S1">
+      <data key="label">Perangkat kasir masih terdaftar?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">11</data>
+    </node>
+    <node id="S2">
+      <data key="label">PIN benar dan tidak sedang dikunci?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">12</data>
+    </node>
+    <node id="S3">
+      <data key="label">Isi nota sudah benar dan lengkap? Jumlah barang, total, uang bayar, kembalian</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">13</data>
+    </node>
+    <node id="S4">
+      <data key="label">Nota ini sudah pernah tercatat?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">14</data>
+    </node>
+    <node id="S5">
+      <data key="label">Barang masih ada dan harga masih dalam batas?</data>
+      <data key="kind">decision</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">15</data>
+    </node>
+    <node id="S6">
+      <data key="label">Nota resmi tersimpan. Stok barang ikut dipotong</data>
+      <data key="kind">server</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">16</data>
+    </node>
+    <node id="S7">
+      <data key="label">Riwayat nota per hari. Bisa dicari per tanggal, nota bisa dicetak ulang</data>
+      <data key="kind">server</data>
+      <data key="subgraph">SISTEM</data>
+      <data key="rank">17</data>
+    </node>
+    <node id="H">
+      <data key="label">Harga di luar batas tidak boleh dijual. Kasir menaikkan harga atau membatalkan. Aturan persetujuan pemilik belum ada</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">6</data>
+    </node>
+    <node id="R0">
+      <data key="label">Sistem tidak terjangkau. Nota tetap di perangkat dan kertasnya tetap keluar, lalu dikirim ulang</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">11</data>
+    </node>
+    <node id="R1">
+      <data key="label">Perangkat harus didaftarkan ulang. Setelah itu transaksi dikirim lagi</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">12</data>
+    </node>
+    <node id="R2">
+      <data key="label">PIN salah, atau sedang dikunci karena salah berkali-kali. Tunggu sebentar lalu coba lagi</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">13</data>
+    </node>
+    <node id="R3">
+      <data key="label">Nota dikembalikan untuk diperbaiki. Misalnya total atau kembalian tidak cocok</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">14</data>
+    </node>
+    <node id="R4">
+      <data key="label">Tidak dicatat dua kali. Nota yang sama ditandai sudah beres</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">15</data>
+    </node>
+    <node id="R5">
+      <data key="label">Nomornya sudah dipakai nota lain. Perlu diperiksa manual oleh petugas</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">15</data>
+    </node>
+    <node id="R6">
+      <data key="label">Penjualan ditolak. Misalnya barang habis, atau harga di bawah batas</data>
+      <data key="kind">error</data>
+      <data key="subgraph">GAGAL</data>
+      <data key="rank">16</data>
+    </node>
+    <node id="NOTE">
+      <data key="label">Nota tidak pernah dicetak sebelum transaksi difinalkan. Kalau PIN belum ada di daftar kasir perangkat, kertas baru keluar setelah sistem menerima transaksinya</data>
+      <data key="kind">note</data>
+      <data key="subgraph">CATATAN</data>
+      <data key="rank">10</data>
+    </node>
+    <node id="Z">
+      <data key="label">Selesai</data>
+      <data key="kind">end</data>
+      <data key="subgraph"></data>
+      <data key="rank">18</data>
+    </node>
+    <edge id="e1" source="A" target="B">
+    </edge>
+    <edge id="e2" source="B" target="C">
+    </edge>
+    <edge id="e3" source="C" target="D">
+    </edge>
+    <edge id="e4" source="D" target="G">
+      <data key="elabel">Tidak</data>
+    </edge>
+    <edge id="e5" source="D" target="E">
+      <data key="elabel">Ya</data>
+    </edge>
+    <edge id="e6" source="E" target="F">
+    </edge>
+    <edge id="e7" source="F" target="G">
+      <data key="elabel">Ya</data>
+    </edge>
+    <edge id="e8" source="F" target="H">
+      <data key="elabel">Di luar batas</data>
+    </edge>
+    <edge id="e9" source="H" target="E">
+    </edge>
+    <edge id="e10" source="G" target="I">
+    </edge>
+    <edge id="e11" source="I" target="P">
+    </edge>
+    <edge id="e12" source="P" target="FIN">
+    </edge>
+    <edge id="e13" source="FIN" target="CQ">
+    </edge>
+    <edge id="e14" source="FIN" target="S0">
+    </edge>
+    <edge id="e15" source="FIN" target="NOTE">
+    </edge>
+    <edge id="e16" source="CQ" target="CQ1">
+    </edge>
+    <edge id="e17" source="CQ1" target="CQ2">
+      <data key="elabel">Menjawab</data>
+    </edge>
+    <edge id="e18" source="CQ1" target="CQ3">
+      <data key="elabel">Belum menjawab</data>
+    </edge>
+    <edge id="e19" source="CQ3" target="CQ1">
+    </edge>
+    <edge id="e20" source="CQ2" target="Z">
+    </edge>
+    <edge id="e21" source="S0" target="S1">
+    </edge>
+    <edge id="e22" source="S1" target="S2">
+      <data key="elabel">Masih</data>
+    </edge>
+    <edge id="e23" source="S1" target="R1">
+      <data key="elabel">Tidak</data>
+    </edge>
+    <edge id="e24" source="S2" target="S3">
+      <data key="elabel">Benar</data>
+    </edge>
+    <edge id="e25" source="S2" target="R2">
+      <data key="elabel">Salah</data>
+    </edge>
+    <edge id="e26" source="S3" target="S4">
+      <data key="elabel">Sudah benar</data>
+    </edge>
+    <edge id="e27" source="S3" target="R3">
+      <data key="elabel">Ada yang salah</data>
+    </edge>
+    <edge id="e28" source="S4" target="S5">
+      <data key="elabel">Belum</data>
+    </edge>
+    <edge id="e29" source="S4" target="R4">
+      <data key="elabel">Sudah pernah</data>
+    </edge>
+    <edge id="e30" source="S4" target="R5">
+      <data key="elabel">Dipakai nota lain</data>
+    </edge>
+    <edge id="e31" source="S5" target="S6">
+      <data key="elabel">Ya</data>
+    </edge>
+    <edge id="e32" source="S5" target="R6">
+      <data key="elabel">Tidak</data>
+    </edge>
+    <edge id="e33" source="S6" target="S7">
+    </edge>
+    <edge id="e34" source="S0" target="R0">
+      <data key="elabel">Belum terjawab</data>
+    </edge>
+    <edge id="e35" source="R0" target="S0">
+    </edge>
+    <edge id="e36" source="R1" target="S0">
+    </edge>
+    <edge id="e37" source="S7" target="Z">
+    </edge>
+  </graph>
+</graphml>

@@ -1,0 +1,21 @@
+# Rahasia yang tidak boleh pernah masuk repo.
+#
+# Kejadian 2026-09-28: kunci service account Google Cloud terunduh ke dalam
+# folder POS/ dan tidak terlindungi aturan ignore mana pun — berkas itu memuat
+# private key yang bisa menulis ke setiap spreadsheet yang dibagikan ke service
+# account tersebut. Nama berkas unduhan Google berpola
+# <project-id>-<12 karakter heksadesimal>.json, jadi polanya yang dijaga di sini
+# sebagai jaring pengaman kalau berkas itu tersimpan di tempat yang salah lagi.
+#
+# Aturan khusus modul tetap berlaku sendiri-sendiri, misalnya
+# POS/pos-backend/.gitignore untuk .env dan .secrets/.
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+*service-account*.json
+
+# Kunci privat dalam bentuk apa pun.
+*.pem
+*.key
+
+# Folder kerja lokal, bukan isi repo.
+_to_delete/
+__pycache__/

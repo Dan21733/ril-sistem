@@ -1,0 +1,23 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Hutang supplier{% endblock %}
+{% block isi %}
+<h2>Hutang supplier</h2>
+<p class="sub">Semua faktur yang belum lunas, dari Pembelian barang maupun Catat faktur saja. Urut jatuh tempo.</p>
+
+<div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Total hutang</div><div style="font-size:24px;font-weight:600">{{ ringkas.total|rupiah }}</div><div class="redup kecil">{{ ringkas.jumlah }} faktur</div></div>
+  <div class="kartu"><div class="redup kecil">Lewat jatuh tempo</div><div style="font-size:24px;font-weight:600;color:{% if ringkas.lewat %}var(--bahaya){% endif %}">{{ ringkas.lewat|length }}</div></div>
+  <div class="kartu"><div class="redup kecil">Jatuh tempo 7 hari ke depan</div><div style="font-size:24px;font-weight:600">{{ ringkas.segera|length }}</div></div>
+</div>
+<div class="gulir"><table>
+  <tr><th>Jatuh tempo</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Supplier</th><th>Faktur</th><th>Asal</th><th class="angka">Total</th><th class="angka">Sisa</th></tr>
+  {% for h in daftar %}
+  <tr><td style="white-space:nowrap;color:{% if h.lewat %}var(--bahaya){% endif %}">{{ h.jatuh_tempo|date:"d M Y"|default:"-" }}{% if h.lewat %} (lewat){% endif %}</td>
+    {% if banyak_toko %}<td>{{ h.toko.kode }}</td>{% endif %}<td>{{ h.supplier.nama }}</td>
+    {% if h.manual %}<td><a href="{% url 'master:faktur_detail' h.id %}"><b>{{ h.nomor_faktur }}</b></a></td><td><span class="label netral">Di luar PO</span></td>
+    {% else %}<td><a href="{% url 'master:pembelian_detail' h.id %}"><b>{{ h.nomor_faktur|default:h.nomor }}</b></a></td><td><span class="label netral">{{ h.nomor }}</span></td>{% endif %}
+    <td class="angka">{{ h.total|ribuan }}</td><td class="angka"><b>{{ h.sisa|ribuan }}</b></td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:28px;text-align:center">Tidak ada hutang. Semua lunas.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,798 @@
+%PDF-1.4
+%ту╧╙
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >>
+endobj
+5 0 obj
+<< /Length 5480 >>
+stream
+BT 0.180 0.129 0.098 rg
+/F2 22.00 Tf 1 0 0 1 56.00 759.89 Tm
+(Koneksi Printer POS) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 11.50 Tf 1 0 0 1 56.00 737.89 Tm
+(Panduan untuk admin dan pemilik toko: cara nota bisa keluar, dan apa yang harus dilakukan kalau layar POS bilang printernya tidak tersambung.) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 727.89 m 539.28 727.89 l S
+BT 0.420 0.357 0.306 rg
+/F1 9.00 Tf 1 0 0 1 56.00 709.89 Tm
+(Versi panduan 1.0 \(2026-09-30\)  ╖  dibuat 30-09-2026) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 630.89 483.28 71.00 re f
+0.059 0.463 0.431 RG 2.40 w
+56.00 630.89 m 56.00 701.89 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.50 Tf 1 0 0 1 70.00 681.89 Tm
+(Intinya satu baris) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 665.89 Tm
+(Nota dicetak lewat program kecil di jaringan toko, bukan lewat internet. Selama printer menyala, mesin) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 650.89 Tm
+(yang menjalankan program itu menyala, dan keduanya masih tersambung ke jaringan toko, nota akan) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 635.89 Tm
+(tetap keluar.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 595.39 Tm
+(Bagaimana nota keluar) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 589.39 m 100.00 589.39 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 565.64 Tm
+(Ada tiga pihak yang bekerja berurutan. Tablet kasir tidak pernah bicara langsung ke printer, karena) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 549.89 Tm
+(halaman web tidak bisa membuka port printer; yang menjembatani adalah satu program kecil di) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 534.14 Tm
+(komputer toko, yang di panduan ini disebut penghubung cetak.) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 382.44 483.28 151.70 re f
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 510.84 Tm
+(  Tablet kasir \(POS\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 495.54 Tm
+(        |) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 480.24 Tm
+(        |  Wi-Fi / kabel LAN toko  \(HTTP ke alamat /print\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 464.94 Tm
+(        v) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 449.64 Tm
+(  Penghubung cetak di komputer toko  \(port 9101, program kecil yang selalu menyala\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 434.34 Tm
+(        |) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 419.04 Tm
+(        |  kabel LAN, port 9100 \(bahasa printer ESC/POS\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 403.74 Tm
+(        v) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 9.00 Tf 1 0 0 1 68.00 388.44 Tm
+(  Printer Epson TM-U220B       \(nota keluar 2 rangkap: asli + karbon\)) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 348.69 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 348.69 Tm
+(Yang dikirim tablet hanyalah gambar nota \(baris teks siap cetak\); penghubung cetak tidak tahu isi) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 332.94 Tm
+(nota dan tidak menyimpan data penjualan.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 314.19 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 314.19 Tm
+(Internet tidak dipakai di jalur ini. Jadi internet mati bukan alasan nota gagal keluar, dan sebaliknya) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 298.44 Tm
+(printer mati bukan alasan internet jadi masalah.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 279.69 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 279.69 Tm
+(Karena itu layar POS menampilkan status printer secara berkala: kasir bisa tahu sebelum menyobek) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 263.94 Tm
+(nota.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 223.44 Tm
+(Yang perlu disiapkan sekali di toko) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 217.44 m 100.00 217.44 l S
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 193.69 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 193.69 Tm
+(Printer diberi alamat IP tetap \(DHCP reservation di router\). Kalau IP-nya berubah, POS akan) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 177.94 Tm
+(mencari printer di alamat lama dan statusnya jadi merah.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 159.19 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 159.19 Tm
+(Komputer penghubung: satu komputer/mini PC di toko yang menyala selama jam jualan \(bisa juga) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 143.44 Tm
+(komputer yang menyajikan POS\). Bukan tablet: sistem tablet membatasi program latar, jadi program) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 127.69 Tm
+(di tablet rapuh.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 108.94 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 108.94 Tm
+(Printer tersambung ke jaringan lewat kabel LAN, dan port 9100 hanya dibuka untuk komputer) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 93.19 Tm
+(penghubung Ч tidak untuk tablet atau perangkat lain.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 74.44 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 74.44 Tm
+(Tablet POS dan komputer penghubung berada di jaringan toko yang sama.) Tj
+ET
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Koneksi Printer POS Ч halaman 1 dari 4) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 4552 >>
+stream
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 770.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 770.14 Tm
+(Penghubung cetak dijalankan otomatis saat komputer menyala \(mis. Task Scheduler di Windows) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 754.39 Tm
+(atau service di Linux\), supaya tidak perlu dinyalakan manual.) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 678.39 483.28 71.00 re f
+0.059 0.463 0.431 RG 2.40 w
+56.00 678.39 m 56.00 749.39 l S
+BT 0.180 0.129 0.098 rg
+/F2 10.50 Tf 1 0 0 1 70.00 729.39 Tm
+(Siapa yang mengurus komputer penghubung belum dikunci) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 713.39 Tm
+(Sampai pemilik memutuskan siapa yang memasang dan memperbarui program penghubung cetak) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 698.39 Tm
+(\(toko sendiri atau penyedia POS\), anggap ini pertanyaan pertama saat pemasangan: "komputer mana) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 70.00 683.39 Tm
+(yang akan menjalankannya, dan siapa yang memeriksanya kalau mati?") Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 634.89 Tm
+(Cara menjalankan dan memeriksa penghubung cetak) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 628.89 m 100.00 628.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 605.14 Tm
+(Bagian ini untuk teknisi. Program penghubung hanya butuh Python 3 \(tanpa pemasangan paket) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 589.39 Tm
+(tambahan\); nama berkasnya bridge.py, jadi perintah di bawah ini menyebut nama itu. Alamat printer) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 573.64 Tm
+(diisi saat menjalankannya:) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 371.58 483.28 204.06 re f
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 553.02 Tm
+(python bridge.py --printer-host 10.0.0.9 --printer-name "Kasir 1") Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 538.40 Tm
+() Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 523.78 Tm
+(# Variabel lingkungan juga didukung; sintaksnya berbeda per shell:) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 509.16 Tm
+() Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 494.54 Tm
+(# Windows \(Command Prompt\):) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 479.92 Tm
+(set PRINTER_HOST=10.0.0.9) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 465.30 Tm
+(set PRINTER_NAME=Kasir 1) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 450.68 Tm
+(python bridge.py) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 436.06 Tm
+() Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 421.44 Tm
+(# Windows \(PowerShell\):) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 406.82 Tm
+($env:PRINTER_HOST = "10.0.0.9") Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 392.20 Tm
+($env:PRINTER_NAME = "Kasir 1") Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 377.58 Tm
+(python bridge.py) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 338.58 Tm
+(Saat menyala, program ini menampilkan alamat yang harus dipakai tablet dan alamat pemeriksaan status.) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 323.58 Tm
+(Kalau dijalankan tanpa PRINTER_HOST, ia langsung berhenti dengan pesan yang menyebut variabel yang) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 308.58 Tm
+(belum diisi.) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 285.58 Tm
+(PRINTER_NAME adalah nama printer yang muncul di panel status pada layar POS. Isi nama yang dikenali) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 10.00 Tf 1 0 0 1 56.00 270.58 Tm
+(orang toko \(mis. "Kasir 1"\), karena program tidak bisa tahu sendiri model printernya.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 246.83 Tm
+(Pemeriksaan cepat dari komputer mana pun di jaringan toko: buka alamat status di browser, atau) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 231.08 Tm
+(jalankan baris berikut.) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 175.22 483.28 57.86 re f
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 210.46 Tm
+(http://<IP-komputer-penghubung>:9101/health) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 195.84 Tm
+() Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 181.22 Tm
+(curl http://10.0.0.5:9101/health) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 141.47 Tm
+(Jawabannya berbentuk data singkat seperti ini:) Tj
+ET
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Koneksi Printer POS Ч halaman 2 dari 4) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 5939 >>
+stream
+0.969 0.949 0.922 rg
+56.00 706.79 483.28 87.10 re f
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 771.27 Tm
+({ "status": "ok",) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 756.65 Tm
+(  "version": "1.0",) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 742.03 Tm
+(  "printer": "10.0.0.9:9100",) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 727.41 Tm
+(  "printer_name": "Kasir 1",) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F3 8.60 Tf 1 0 0 1 68.00 712.79 Tm
+(  "printer_status": "ok" }) Tj
+ET
+0.969 0.949 0.922 rg
+56.00 674.54 483.28 19.95 re f
+BT 0.420 0.357 0.306 rg
+/F2 9.50 Tf 1 0 0 1 62.00 681.66 Tm
+(Bagian jawaban) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F2 9.50 Tf 1 0 0 1 176.78 681.66 Tm
+(Artinya) Tj
+ET
+0.839 0.784 0.714 RG 0.80 w
+56.00 668.84 m 539.28 668.84 l S
+BT 0.180 0.129 0.098 rg
+/F3 9.50 Tf 1 0 0 1 62.00 660.29 Tm
+(status) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 9.50 Tf 1 0 0 1 176.78 660.29 Tm
+(Program penghubung hidup. "ok" artinya programnya jalan.) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 647.94 m 539.28 647.94 l S
+BT 0.180 0.129 0.098 rg
+/F3 9.50 Tf 1 0 0 1 62.00 639.39 Tm
+(printer_status) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 9.50 Tf 1 0 0 1 176.78 639.39 Tm
+("ok" printer menjawab; "unreachable" tidak menjawab.) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 627.04 m 539.28 627.04 l S
+BT 0.180 0.129 0.098 rg
+/F3 9.50 Tf 1 0 0 1 62.00 618.49 Tm
+(printer) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 9.50 Tf 1 0 0 1 176.78 618.49 Tm
+(Alamat IP dan port printer yang dituju.) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 606.14 m 539.28 606.14 l S
+BT 0.180 0.129 0.098 rg
+/F3 9.50 Tf 1 0 0 1 62.00 597.59 Tm
+(printer_name) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 9.50 Tf 1 0 0 1 176.78 597.59 Tm
+(Nama printer yang diisi saat menjalankan program, mis. "Kasir 1".) Tj
+ET
+0.839 0.784 0.714 RG 0.40 w
+56.00 585.24 m 539.28 585.24 l S
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 56.00 560.99 Tm
+(Yang menentukan nota bisa keluar adalah printer_status, bukan status: program penghubung bisa hidup) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 56.00 546.74 Tm
+(sementara printernya mati, dan itulah yang ditampilkan merah di layar POS.) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 56.00 524.49 Tm
+(Catatan: program penghubung sengaja tidak melaporkan kertas habis atau pita kering. Yang bisa dipastikan hanya) Tj
+ET
+BT 0.420 0.357 0.306 rg
+/F1 9.50 Tf 1 0 0 1 56.00 510.24 Tm
+(printernya menjawab atau tidak.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 472.74 Tm
+(Arti status di layar POS) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 466.74 m 100.00 466.74 l S
+BT 0.180 0.129 0.098 rg
+/F2 11.50 Tf 1 0 0 1 56.00 446.74 Tm
+(Hijau - Printer tersambung) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 56.00 427.74 Tm
+(Program penghubung menjawab dan printer menerima kiriman. Nota akan keluar.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 406.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 406.74 Tm
+(Kalau kertas ternyata tidak keluar, periksa kertas/pita di printer; status hanya memastikan printernya) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 391.74 Tm
+(hidup dan tersambung.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 11.50 Tf 1 0 0 1 56.00 372.74 Tm
+(Merah - Printer tidak tersambung \(printer tidak menjawab\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 56.00 353.74 Tm
+(Program penghubung hidup, tetapi printer tidak menjawab di alamatnya.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 332.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 332.74 Tm
+(Pastikan printer menyala dan lampu galatnya tidak menyala.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 314.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 314.74 Tm
+(Periksa kabel LAN printer \(atau kabel ke adaptor jaringannya\).) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 296.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 296.74 Tm
+(Pastikan IP printer tidak berubah \(DHCP reservation di router\).) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 278.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 278.74 Tm
+(Tekan "Periksa lagi" di panel status pada layar POS.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 11.50 Tf 1 0 0 1 56.00 259.74 Tm
+(Merah - Printer tidak tersambung \(penghubung cetak tidak terjangkau\)) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 56.00 240.74 Tm
+(Komputer penghubung atau jaringannya yang tidak bisa dihubungi.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 219.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 219.74 Tm
+(Pastikan program penghubung hidup di komputernya.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 201.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 201.74 Tm
+(Periksa kabel jaringan komputer itu, terutama kalau komputernya baru dinyalakan ulang.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 183.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 183.74 Tm
+(Pastikan alamat yang dipakai POS untuk menghubunginya tidak berubah.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.00 Tf 1 0 0 1 56.00 165.74 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.00 Tf 1 0 0 1 72.00 165.74 Tm
+(Tekan "Periksa lagi" setelahnya.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 142.99 Tm
+(Layar POS membedakan kedua penyebab merah itu karena perbaikannya berbeda: yang satu di) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 127.24 Tm
+(printer, yang satu di komputer penghubung. Nama printer, alamat printer, dan pukul berapa terakhir) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 111.49 Tm
+(diperiksa terbuka dengan menekan tombol status di sebelah pengatur mode gelap.) Tj
+ET
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Koneksi Printer POS Ч halaman 3 dari 4) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 4950 >>
+stream
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 756.39 Tm
+(Kalau ada gangguan) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 750.39 m 100.00 750.39 l S
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 726.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 726.64 Tm
+(Cetak gagal tidak membatalkan penjualan. Nota tetap tercatat dan dicoba cetak lagi otomatis begitu) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 710.89 Tm
+(printer hidup; kasir juga bisa menekan "Cetak ulang nota".) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 692.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 692.14 Tm
+(Kalau printer tidak bisa dipakai sama sekali, kasir menulis nota tangan memakai nomor nota asli) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 676.39 Tm
+(yang tampil di layar. Jadi penjualan tidak pernah tertahan hanya karena printer.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 657.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 657.64 Tm
+(Listrik atau internet mati: jalur cetak tetap jalan selama printer dan komputer penghubung tetap) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 641.89 Tm
+(hidup. Kalau listrik mati total, nota menyusul dicetak setelah semuanya menyala lagi.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 623.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 623.14 Tm
+(Jangan mencabut kabel LAN printer saat POS sedang dipakai; nota yang sedang dikirim akan gagal) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 607.39 Tm
+(dan masuk antrean cetak ulang.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 566.89 Tm
+(Pertanyaan yang sering muncul) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 560.89 m 100.00 560.89 l S
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 537.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 537.14 Tm
+(Apakah printer harus printer WiFi? Tidak. Yang dipakai sekarang adalah printer dengan kabel LAN) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 521.39 Tm
+(\(Epson TM-U220B\) supaya jalurnya stabil dan tidak lewat internet.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 502.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 502.64 Tm
+(Kenapa tidak langsung dari tablet? Karena halaman web tidak diizinkan membuka port printer, dan) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 486.89 Tm
+(POS yang disajikan lewat HTTPS diblokir kalau memanggil alamat HTTP di jaringan lokal.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 468.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 468.14 Tm
+(Apakah data penjualan lewat program penghubung? Tidak. Ia hanya meneruskan data cetak ke) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 452.39 Tm
+(printer dan tidak menyimpan nota.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 433.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 433.64 Tm
+(Berapa lama program penghubung harus menyala? Selama jam jualan. Kalau ia mati, POS tetap) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 417.89 Tm
+(bisa menjual, tetapi nota tidak akan keluar sampai hidup lagi.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 399.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 399.14 Tm
+(Apakah satu komputer penghubung bisa melayani beberapa tablet? Bisa, selama semuanya di) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 383.39 Tm
+(jaringan toko yang sama dan memakai alamat yang sama.) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F2 14.00 Tf 1 0 0 1 56.00 342.89 Tm
+(Kalau setelah semua langkah tetap merah) Tj
+ET
+0.059 0.463 0.431 RG 1.60 w
+56.00 336.89 m 100.00 336.89 l S
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 56.00 313.14 Tm
+(Hubungi penyedia POS dan kirimkan informasi berikut supaya tidak perlu diperiksa dari nol:) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 291.39 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 291.39 Tm
+(Bunyi jawaban alamat status \(bagian "printer_status" dan "printer"\).) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 272.64 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 272.64 Tm
+(Nama dan alamat printer seperti yang terbaca di panel status POS.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 253.89 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 253.89 Tm
+(Waktu kejadian, dan sudah berapa lama POS dipakai sebelum statusnya merah.) Tj
+ET
+BT 0.059 0.463 0.431 rg
+/F1 10.50 Tf 1 0 0 1 56.00 235.14 Tm
+(Х) Tj
+ET
+BT 0.180 0.129 0.098 rg
+/F1 10.50 Tf 1 0 0 1 72.00 235.14 Tm
+(Apakah komputer penghubung baru dinyalakan ulang, atau printer baru dipindah/diganti.) Tj
+ET
+0.839 0.784 0.714 RG 0.6 w
+56.00 56.00 m 539.28 56.00 l S
+BT 0.420 0.357 0.306 rg
+/F1 8.50 Tf 1 0 0 1 56.00 44.00 Tm
+(Koneksi Printer POS Ч halaman 4 dari 4) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 13 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 5 0 R >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 13 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 6 0 R >>
+endobj
+11 0 obj
+<< /Type /Page /Parent 13 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 7 0 R >>
+endobj
+12 0 obj
+<< /Type /Page /Parent 13 0 R /MediaBox [0 0 595.28 841.89] /Resources 4 0 R /Contents 8 0 R >>
+endobj
+13 0 obj
+<< /Type /Pages /Count 4 /Kids [9 0 R 10 0 R 11 0 R 12 0 R] >>
+endobj
+14 0 obj
+<< /Type /Catalog /Pages 13 0 R >>
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000112 00000 n 
+0000000214 00000 n 
+0000000314 00000 n 
+0000000377 00000 n 
+0000005909 00000 n 
+0000010513 00000 n 
+0000016504 00000 n 
+0000021506 00000 n 
+0000021617 00000 n 
+0000021729 00000 n 
+0000021841 00000 n 
+0000021953 00000 n 
+0000022032 00000 n 
+trailer
+<< /Size 15 /Root 14 0 R >>
+startxref
+22083
+%%EOF

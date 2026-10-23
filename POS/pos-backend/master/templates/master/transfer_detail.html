@@ -1,0 +1,115 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}{{ tr.nomor }}{% endblock %}
+{% block isi %}
+<style>td input.kotak{width:100px;text-align:right;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:7px;font:inherit}
+.langkah{display:flex;gap:8px;margin:0 0 22px;flex-wrap:wrap}.langkah span{padding:6px 14px;border-radius:999px;background:#ece9e2;color:var(--redup);font-size:14px}.langkah span.kini{background:var(--aksen);color:#fff}.langkah span.lewat{background:var(--baik-lembut);color:var(--baik)}
+#hasil-cari{border:1px solid var(--garis);border-radius:8px;margin-top:6px;max-height:280px;overflow:auto;background:#fff}#hasil-cari:empty{display:none}
+#hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}#hasil-cari div:hover,#hasil-cari div.pilih{background:var(--aksen-lembut)}</style>
+<p class="kecil"><a href="{% url 'master:transfer' %}">Transfer ke toko lain</a> /</p>
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>{{ tr.nomor }} · {{ tr.dari.nama }} → {{ tr.ke.nama }}</h2>
+  <p class="sub">{{ tr.tanggal|date:"d M Y" }} · dibuat {{ tr.dibuat_oleh }}{% if tr.catatan %} · {{ tr.catatan|linebreaksbr }}{% endif %}</p></div>
+  {% if tr.status != "draf" and tr.status != "batal" %}<a class="tombol" href="{% url 'master:transfer_cetak' tr.id %}" target="_blank">Cetak surat jalan</a>{% endif %}
+</div>
+{% if tr.status == "batal" %}<div class="pesan warning">Transfer ini dibatalkan.</div>{% else %}
+<div class="langkah">
+  <span class="{% if tr.status == 'draf' %}kini{% else %}lewat{% endif %}">1. Disiapkan</span>
+  <span class="{% if tr.status == 'dikirim' %}kini{% elif tr.status == 'diterima' %}lewat{% endif %}">2. Dalam perjalanan</span>
+  <span class="{% if tr.status == 'diterima' %}kini{% endif %}">3. Diterima</span>
+</div>{% endif %}
+
+{% if tr.status == "draf" %}
+<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_baris">
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Jumlah</th>{% if tr.dari.stok_di_kasir and pilihan_lokasi %}<th>Diambil dari</th>{% endif %}<th></th></tr>
+  {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
+    <td class="angka"><input class="kotak" name="qty_{{ b.id }}" value="{{ b.jumlah_kirim }}" inputmode="numeric"></td>
+    {% if tr.dari.stok_di_kasir and pilihan_lokasi %}<td><select name="lokasi_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.lokasi_id == l.id or not b.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}
+    <td><button class="tombol kecil bahaya" type="submit" name="hapus_{{ b.id }}" value="1">Hapus</button></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:24px;text-align:center">Belum ada barang. Tambahkan di bawah.</td></tr>{% endfor %}
+</table></div>
+{% if baris %}<div style="margin-top:12px"><button class="tombol" type="submit">Simpan perubahan jumlah{% if tr.dari.stok_di_kasir and pilihan_lokasi %} dan lokasi{% endif %}</button></div>{% endif %}
+</form>
+<h3>Tambah barang</h3>
+<form method="post" class="kartu" id="form-tambah">{% csrf_token %}<input type="hidden" name="aksi" value="tambah_baris"><input type="hidden" name="varian_id" id="varian-id">
+  <div class="baris">
+    <div style="flex:3;min-width:260px"><label>Cari barang (nama, varian, brand, atau alias)</label><input type="text" id="cari-barang" autocomplete="off" placeholder="ketik minimal 2 huruf" autofocus><div id="hasil-cari"></div></div>
+    <div style="width:120px"><label>Jumlah</label><input type="text" name="jumlah" id="tambah-jumlah" inputmode="numeric" required></div>
+    <div><button class="tombol utama" type="submit">Tambah</button></div>
+  </div>
+</form>
+{% if baris %}
+<div class="kartu baris" style="margin-top:18px;border-color:var(--aksen)">
+  <div style="flex:1;min-width:260px"><b>Siap dikirim?</b> {% if tr.dari.stok_di_kasir %}Stok {{ tr.dari.nama }} langsung berkurang saat dikirim.{% else %}{{ tr.dari.nama }} belum punya kasir, jadi stoknya tidak diubah sistem.{% endif %} Surat jalan bisa dicetak setelah ini.</div>
+  <form method="post" data-tanya="Kirim barang ini ke {{ tr.ke.nama }}?">{% csrf_token %}<input type="hidden" name="aksi" value="kirim"><button class="tombol utama" type="submit">Kirim</button></form>
+</div>
+{% endif %}
+<script>
+(function(){
+  const kotak = document.getElementById('cari-barang'), wadah = document.getElementById('hasil-cari');
+  let t = null, hasil = [];
+  function pilih(h){ document.getElementById('varian-id').value = h.id; kotak.value = h.nama + (h.varian ? ' / ' + h.varian : ''); wadah.innerHTML = ''; document.getElementById('tambah-jumlah').focus(); }
+  kotak.addEventListener('input', () => {
+    document.getElementById('varian-id').value = '';
+    clearTimeout(t); t = setTimeout(async () => {
+      if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
+      const r = await fetch("{% url 'master:pembelian_cari' %}?q=" + encodeURIComponent(kotak.value));
+      hasil = (await r.json()).hasil;
+      wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
+      hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i; d.textContent = h.nama + (h.varian ? ' / ' + h.varian : ''){% if tr.dari.stok_di_kasir %} + '  ·  stok ' + (h.stok == null ? '-' : h.stok){% endif %}; wadah.appendChild(d); });
+    }, 200);
+  });
+  wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });
+  kotak.addEventListener('keydown', e => {
+    const semua = [...wadah.querySelectorAll('[data-i]')]; if (!semua.length) return;
+    let i = semua.findIndex(d => d.classList.contains('pilih'));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); semua.forEach(d => d.classList.remove('pilih')); i = e.key === 'ArrowDown' ? Math.min(i + 1, semua.length - 1) : Math.max(i - 1, 0); semua[i].classList.add('pilih'); }
+    if (e.key === 'Enter'){ e.preventDefault(); pilih(hasil[semua[Math.max(i, 0)].dataset.i]); }
+  });
+  document.getElementById('form-tambah').addEventListener('submit', e => { if (!document.getElementById('varian-id').value){ e.preventDefault(); kabar('Pilih barang dari hasil pencarian dulu.', true); } });
+})();
+</script>
+{% endif %}
+
+{% if tr.status == "dikirim" %}
+<form method="post" class="kartu" id="form-terima">{% csrf_token %}<input type="hidden" name="aksi" value="terima">
+  <p style="margin-top:0">Dikirim {{ tr.dikirim_waktu|date:"d M Y H:i" }} oleh {{ tr.dikirim_oleh }}. Isi jumlah yang sampai di {{ tr.ke.nama }}.</p>
+  <div class="gulir" style="margin-bottom:14px"><table>
+    <tr><th>Barang</th><th>Varian</th><th class="angka">Dikirim</th><th class="angka">Sampai</th>{% if tr.ke.stok_di_kasir and pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
+    {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim }}</td>
+      <td class="angka"><input class="kotak" name="terima_{{ b.id }}" data-kirim="{{ b.jumlah_kirim }}" inputmode="numeric" placeholder="sampai"></td>
+      {% if tr.ke.stok_di_kasir and pilihan_lokasi %}<td><select name="lokasi_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.varian.rak.tempat_id == l.id or not b.varian.rak.tempat_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>{% endfor %}
+  </table></div>
+  <p style="margin:0 0 12px"><button type="button" class="tombol kecil" id="isi-semua">Semua sampai sesuai kiriman</button></p>
+  <label>Catatan (wajib kalau jumlah beda)</label><input type="text" name="catatan_terima" placeholder="mis. 2 sak sobek di jalan">
+  <div style="margin-top:14px"><button class="tombol utama" type="submit">Konfirmasi diterima</button></div>
+  <p class="redup kecil" style="margin:10px 0 0">{% if tr.ke.stok_di_kasir %}Stok {{ tr.ke.nama }} bertambah saat dikonfirmasi.{% else %}{{ tr.ke.nama }} belum punya kasir, jadi stoknya tidak diubah sistem.{% endif %} Nilai kiriman {{ nilai_kirim|rupiah }} (modal) masuk saldo antar toko sesuai jumlah yang sampai.</p>
+</form>
+<script>
+document.getElementById('isi-semua').addEventListener('click', () => document.querySelectorAll('[data-kirim]').forEach(i => { if (!i.value.trim()) i.value = i.dataset.kirim; }));
+document.getElementById('form-terima').addEventListener('submit', e => {
+  const f = e.target, kotak = [...f.querySelectorAll('[data-kirim]')];
+  if (kotak.some(i => !i.value.trim())){ e.preventDefault(); kabar('Masih ada jumlah yang kosong. Isi 0 kalau tidak sampai.', true); return; }
+  if (kotak.some(i => i.value.trim() !== i.dataset.kirim) && !f.elements.catatan_terima.value.trim()){ e.preventDefault(); kabar('Jumlah beda dari kiriman. Isi catatannya dulu.', true); }
+});
+</script>
+{% endif %}
+
+{% if tr.status == "diterima" %}
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th><th class="angka">Dikirim</th><th class="angka">Sampai</th><th class="angka">Modal</th><th class="angka">Nilai</th></tr>
+  {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim }}</td>
+    <td class="angka">{% if b.jumlah_terima != b.jumlah_kirim %}<b style="color:var(--bahaya)">{{ b.jumlah_terima }}</b>{% else %}{{ b.jumlah_terima }}{% endif %}</td>
+    <td class="angka">{{ b.modal_satuan|ribuan }}</td><td class="angka">{{ b.nilai|ribuan }}</td></tr>{% endfor %}
+  <tr><td colspan="5"><b>Nilai masuk saldo</b> <span class="redup kecil">· {{ tr.ke.nama }} berhutang ke {{ tr.dari.nama }}</span></td><td class="angka"><b>{{ tr.nilai|ribuan }}</b></td></tr>
+</table></div>
+<p class="redup kecil">Diterima {{ tr.diterima_waktu|date:"d M Y H:i" }} oleh {{ tr.diterima_oleh }}{% if tr.catatan_terima %} · {{ tr.catatan_terima }}{% endif %}</p>
+{% endif %}
+
+{% if tr.status == "draf" or tr.status == "dikirim" %}
+<details class="lipat"><summary>Batalkan transfer</summary>
+<form method="post" class="kartu baris" data-tanya="Batalkan transfer ini?{% if tr.status == 'dikirim' and tr.dari.stok_di_kasir %} Stok kembali ke {{ tr.dari.nama }}.{% endif %}">{% csrf_token %}<input type="hidden" name="aksi" value="batal">
+  <div style="flex:1;min-width:240px"><label>Alasan</label><input type="text" name="alasan" required></div><div><button class="tombol bahaya" type="submit">Batalkan</button></div>
+</form></details>
+{% endif %}
+{% endblock %}

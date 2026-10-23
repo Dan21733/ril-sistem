@@ -1,0 +1,150 @@
+{% extends "master/base.html" %}
+{% block judul %}Input nota manual{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+td input.kotak{width:110px;text-align:right;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:7px;font:inherit;font-variant-numeric:tabular-nums}
+.cari-wadah{position:relative;margin-top:10px}
+#hasil-cari{border:1px solid var(--garis-kuat);border-radius:8px;margin-top:4px;max-height:340px;overflow:auto;background:#fff;position:absolute;left:0;right:0;top:100%;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.12)}#hasil-cari:empty{display:none}
+#hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}#hasil-cari div:hover,#hasil-cari div.pilih{background:var(--aksen-lembut)}
+.total-besar{font-size:26px;font-weight:600}
+.pintas{font-size:12px;opacity:.7;margin-left:8px;font-weight:400}
+input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
+#bantuan-pintas{position:fixed;right:20px;bottom:20px;z-index:40;background:#fff;border:1px solid var(--garis-kuat);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:14px 16px;min-width:270px;font-size:14px}
+#bantuan-pintas table{width:100%;border-collapse:collapse}#bantuan-pintas td{padding:4px 0;border:0}#bantuan-pintas td:first-child{white-space:nowrap;padding-right:14px}
+#bantuan-pintas kbd,.pintas kbd{font:12px ui-monospace,Consolas,monospace;border:1px solid var(--garis-kuat);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:#faf9f6;color:var(--teks)}
+.tombol-tanya{width:30px;height:30px;border-radius:50%;padding:0;font-weight:700;line-height:28px;text-align:center}</style>
+<p class="kecil"><a href="{% url 'master:nota_manual' %}">Nota tulis tangan</a> /</p>
+<h2>Input nota manual</h2>
+<p class="sub">Salin nota tulisan tangan. Barang dipilih dari daftar barang supaya stok dan laporan ikut benar.</p>
+<form method="post" enctype="multipart/form-data" id="form-nota">{% csrf_token %}<input type="hidden" name="baris" id="isi-baris" value="{{ kirim.baris }}">
+<div class="kartu"><div class="kisi">
+  <div><label>Toko</label><div style="padding:10px 0;font-weight:600">{{ toko_aktif.nama }}</div><input type="hidden" name="toko" value="{{ toko_aktif.id }}"></div>
+  <div><label>Tanggal di nota</label><input type="date" name="tanggal" id="tanggal" value="{{ tanggal }}" required{% if tanggal_terbawa %} class="terbawa"{% endif %}>
+    {% if tanggal_terbawa %}<div class="kecil" id="ket-terbawa" style="color:var(--awas)">Tanggal dari nota sebelumnya. Ganti kalau beda.</div>{% endif %}</div>
+  <div><label>Nomor di nota (kalau ada)</label><input type="text" name="nomor_tulisan" value="{{ kirim.nomor_tulisan }}" autocomplete="off"></div>
+  <div><label>Pembeli (boleh kosong)</label><input type="text" name="pembeli" value="{{ kirim.pembeli }}" autocomplete="off"></div>
+  {% if pilihan_lokasi|length > 1 %}<div><label>Barang diambil dari</label><select name="lokasi">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if kirim.lokasi == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>{% endif %}
+  <div><label>Cara bayar</label><select name="cara_bayar">{% for k, l in cara %}<option value="{{ k }}" {% if kirim.cara_bayar == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+</div></div>
+
+<h3>Barang</h3>
+<div class="gulir"><table id="tabel">
+  <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga satuan</th><th class="angka">Subtotal</th><th></th></tr>
+  <tr id="baris-kosong"><td colspan="5" class="redup" style="padding:20px;text-align:center">Belum ada barang. Cari di bawah.</td></tr>
+</table></div>
+<div class="cari-wadah"><input type="text" id="cari-barang" autocomplete="off" placeholder="Ketik nama barang, lalu panah bawah dan Enter" autofocus><div id="hasil-cari"></div></div>
+<p class="redup kecil">Enter di kolom jumlah pindah ke harga; Enter di harga kembali ke pencarian. Harga terisi harga jual sekarang; ganti kalau di nota beda.</p>
+
+<div class="kisi" style="margin-top:12px">
+  <div class="kartu"><label>Ongkir (kalau ada)</label><input type="text" name="ongkir" id="ongkir" value="{{ kirim.ongkir }}" inputmode="numeric"></div>
+  <div class="kartu"><div class="redup kecil">Total nota</div><div class="total-besar" id="total">Rp0</div><div class="redup kecil" id="total-rinci"></div></div>
+</div>
+<div class="kartu" style="margin-top:12px">
+  <label>Catatan (boleh kosong)</label><input type="text" name="catatan" value="{{ kirim.catatan }}" placeholder="mis. dicatat ibu, barang diambil besok">
+  <div style="margin-top:12px"><label>Foto nota (boleh kosong, paling banyak {{ maks_foto }})</label><input type="file" name="foto" accept="image/jpeg,image/png,image/webp,application/pdf" multiple></div>
+</div>
+<div class="baris" style="margin-top:16px;align-items:center">
+  <button class="tombol utama" type="submit" id="tombol-simpan" title="Ctrl+S">Simpan<span class="pintas">Ctrl+S</span></button>
+  <button class="tombol" type="submit" name="lagi" value="1" id="tombol-lagi" title="Ctrl+Enter">Simpan dan input nota berikutnya<span class="pintas">Ctrl+Enter</span></button>
+  <button class="tombol kecil tombol-tanya" type="button" id="tanya-pintas" title="Daftar shortcut (?)" aria-label="Daftar shortcut">?</button>
+</div>
+</form>
+<div id="bantuan-pintas" hidden role="dialog" aria-label="Shortcut keyboard">
+  <div class="baris" style="justify-content:space-between;margin-bottom:6px"><b>Shortcut</b><button type="button" class="tombol kecil" id="tutup-pintas">Tutup</button></div>
+  <table>
+    <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Simpan, lalu nota berikutnya</td></tr>
+    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Simpan, lalu lihat notanya</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Pilih barang → jumlah → harga → cari lagi</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Pilih di hasil cari</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Tutup hasil cari / kotak ini</td></tr>
+    <tr><td><kbd>?</kbd></td><td>Buka/tutup kotak ini</td></tr>
+  </table>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tabel = document.getElementById('tabel'), kosong = document.getElementById('baris-kosong');
+  const kotak = document.getElementById('cari-barang'), wadah = document.getElementById('hasil-cari');
+  let t = null, hasil = [];
+  const rows = [];
+  function hitung(){
+    let total = 0;
+    rows.forEach(r => {
+      const q = angka(r.q.value) || 0, h = angka(r.h.value) || 0, sub = q * h;
+      r.sub.textContent = ribuan(sub); total += sub;
+      r.peringatan.textContent = (r.data.floor && h && h < r.data.floor) ? 'di bawah floor ' + ribuan(r.data.floor) : '';
+    });
+    kosong.style.display = rows.length ? 'none' : '';
+    const ongkir = angka(document.getElementById('ongkir').value) || 0;
+    document.getElementById('total').textContent = 'Rp' + ribuan(total + ongkir);
+    document.getElementById('total-rinci').textContent = rows.length + ' barang' + (ongkir ? ' · ongkir ' + ribuan(ongkir) : '');
+  }
+  function tambah(d, qty, harga){
+    if (rows.some(r => r.data.id === d.id)){ kabar('Barang itu sudah ada di daftar. Ubah jumlahnya saja.', true); return; }
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td class="angka"><input class="kotak" inputmode="numeric" style="width:80px"></td><td class="angka"><input class="kotak" inputmode="numeric"><span class="masalah-teks"></span></td><td class="angka"><b></b></td><td><button type="button" class="tombol kecil bahaya">Hapus</button></td>';
+    tr.cells[0].textContent = d.nama + (d.varian ? ' / ' + d.varian : '');
+    const r = {data: d, tr: tr, q: tr.querySelector('input'), h: tr.querySelectorAll('input')[1], sub: tr.querySelector('b'), peringatan: tr.querySelector('.masalah-teks')};
+    r.q.value = qty || ''; r.h.value = harga != null ? ribuan(harga) : (d.harga != null ? ribuan(d.harga) : '');
+    tabel.querySelector('tbody').appendChild(tr);
+    rows.push(r);
+    [r.q, r.h].forEach(i => i.addEventListener('input', hitung));
+    r.q.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); r.h.focus(); r.h.select(); } });
+    r.h.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); kotak.focus(); } });
+    r.h.addEventListener('blur', () => { const n = angka(r.h.value); if (n != null) r.h.value = ribuan(n); });
+    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); hitung(); kotak.focus(); });
+    hitung();
+    return r;
+  }
+  function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d); if (r){ r.q.focus(); } }
+  kotak.addEventListener('input', () => {
+    clearTimeout(t); t = setTimeout(async () => {
+      if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
+      const res = await fetch("{% url 'master:nota_manual_cari' %}?q=" + encodeURIComponent(kotak.value));
+      hasil = (await res.json()).hasil;
+      wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
+      hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
+        d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga)); wadah.appendChild(d); });
+    }, 200);
+  });
+  wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });
+  document.addEventListener('click', e => { if (!e.target.closest('.cari-wadah')) wadah.innerHTML = ''; });
+  kotak.addEventListener('keydown', e => {
+    const semua = [...wadah.querySelectorAll('[data-i]')];
+    if (e.key === 'Escape'){ wadah.innerHTML = ''; return; }
+    if (e.key === 'Enter'){ e.preventDefault(); if (semua.length){ const i = Math.max(semua.findIndex(d => d.classList.contains('pilih')), 0); pilih(hasil[semua[i].dataset.i]); } return; }
+    if (!semua.length) return;
+    let i = semua.findIndex(d => d.classList.contains('pilih'));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); semua.forEach(d => d.classList.remove('pilih'));
+      i = e.key === 'ArrowDown' ? Math.min(i + 1, semua.length - 1) : Math.max(i - 1, 0); semua[i].classList.add('pilih'); semua[i].scrollIntoView({block:'nearest'}); }
+  });
+  document.getElementById('ongkir').addEventListener('input', hitung);
+  // Kalau simpan ditolak, baris yang sudah diisi dibangun ulang.
+  try { JSON.parse(document.getElementById('isi-baris').value || '[]').forEach(d => tambah(d, d.jumlah, angka(String(d.harga)))); } catch (e) {}
+  document.getElementById('form-nota').addEventListener('submit', e => {
+    if (!rows.length){ e.preventDefault(); kabar('Tambahkan minimal satu barang.', true); kotak.focus(); return; }
+    if (rows.some(r => !(angka(r.q.value) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong.', true); return; }
+    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
+  });
+  hitung();
+
+  // Shortcut: Ctrl+Enter = simpan lalu nota berikutnya, Ctrl+S = simpan saja (Cmd di Mac).
+  const form = document.getElementById('form-nota'), bantuan = document.getElementById('bantuan-pintas');
+  const tglInput = document.getElementById('tanggal');
+  tglInput.addEventListener('input', () => { tglInput.classList.remove('terbawa'); document.getElementById('ket-terbawa')?.remove(); });
+  let terkirim = false;
+  form.addEventListener('submit', e => { if (e.defaultPrevented) return; if (terkirim) { e.preventDefault(); return; } terkirim = true; });
+  const kirimDengan = tombol => { const h = rows.find(r => document.activeElement === r.h); if (h) h.h.dispatchEvent(new Event('blur')); form.requestSubmit(tombol); };
+  const togel = buka => { bantuan.hidden = !(buka ?? bantuan.hidden); };
+  document.getElementById('tanya-pintas').addEventListener('click', () => togel());
+  document.getElementById('tutup-pintas').addEventListener('click', () => togel(false));
+  document.addEventListener('keydown', e => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key === 'Enter') { e.preventDefault(); kirimDengan(document.getElementById('tombol-lagi')); return; }
+    if (mod && !e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kirimDengan(document.getElementById('tombol-simpan')); return; }
+    if (e.key === 'Escape' && !bantuan.hidden) { togel(false); return; }
+    const ketik = e.target.closest('input, textarea, select');
+    if (e.key === '?' && !ketik) { e.preventDefault(); togel(); }
+  });
+});
+</script>
+{% endblock %}

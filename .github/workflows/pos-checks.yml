@@ -1,0 +1,91 @@
+# Pemeriksaan otomatis POS (item #2): smoke SQLite, suite PostgreSQL
+# disposable, dan frontend. Tidak menyentuh database produksi: seluruh
+# kredensial di bawah adalah dummy, dan database PG adalah service
+# sekali-pakai per job (positorio tidak menyimpan rahasia operasional).
+name: POS checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend-smoke:
+    name: Backend smoke (SQLite, tanpa DB bisnis)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: POS/pos-backend
+    env:
+      DATABASE_URL: "sqlite://:memory:"
+      SECRET_KEY: ci-smoke-test-only
+      DEVICE_AUTH_SIGNING_KEY: ci-smoke-test-only
+      DEVICE_REGISTRATION_TOKEN: ci-smoke-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Full suite on SQLite (PG tests skip eksplisit)
+        run: python manage.py test pos
+      - name: Print bridge selftest (tanpa printer)
+        run: python ../print-bridge/bridge.py --selftest
+        working-directory: POS/pos-backend
+
+  backend-pg:
+    name: Backend integrasi (PostgreSQL disposable)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: POS/pos-backend
+    env:
+      POS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_test
+      SECRET_KEY: ci-pg-test-only
+      DEVICE_AUTH_SIGNING_KEY: ci-pg-test-only
+      DEVICE_REGISTRATION_TOKEN: ci-pg-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Full suite on disposable PostgreSQL
+        run: python tools/run_pg_tests.py
+
+  frontend:
+    name: Frontend (uji alur, build, lint read-only)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: POS/pos-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: POS/pos-frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Alur checkout penting (tanpa browser/server nyata)
+        run: npm test
+      - name: Lint read-only (tanpa --fix)
+        run: npm run lint:check
+      - name: Build bundle
+        run: npm run build

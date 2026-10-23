@@ -1,0 +1,26 @@
+# Berkas .bat disimpan dengan line ending CRLF di mana pun berkas itu di-checkout.
+#
+# Alasannya bukan selera: cmd.exe salah membaca label dan blok "if (" kalau
+# berkasnya LF, gejalanya error membingungkan seperti
+# ". was unexpected at this time." — dan itu terjadi di mesin client yang
+# meng-clone tanpa core.autocrlf. Tanpa aturan ini, .bat tersimpan sebagai LF
+# dan hanya berfungsi di mesin yang punya autocrlf=true.
+*.bat text eol=crlf
+
+# Dokumen biner tidak boleh disentuh konversi line ending.
+#
+# PDF yang dibuat docs/generate_gap_code_pdf.py menyimpan tabel xref berisi
+# offset byte dan setiap stream menyimpan panjangnya di /Length. Kalau git
+# menganggapnya teks dan mengubah LF menjadi CRLF saat checkout (core.autocrlf
+# true di mesin pemilik), offset dan panjang itu bergeser dan PDF-nya rusak di
+# mesin client. Karena itu format dokumen ditandai biner, bukan teks.
+*.pdf binary
+*.pptx binary
+*.png binary
+*.jpeg binary
+*.jpg binary
+*.ico binary
+
+# Skrip shell untuk server Linux (mis. master/server/siapkan.sh) harus LF di mana pun
+# di-checkout; CRLF membuat bash gagal dengan "$'\r": command not found".
+*.sh text eol=lf

@@ -1,0 +1,40 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Dashboard{% endblock %}
+{% block isi %}
+<h2>Dashboard</h2>
+<p class="sub">{{ jumlah_item|ribuan }} barang, {{ jumlah_varian|ribuan }} varian{% if jumlah_nonaktif %}, {{ jumlah_nonaktif|ribuan }} nonaktif{% endif %}.</p>
+
+<div class="kisi">
+  <div class="kartu"><div class="redup kecil">Penjualan hari ini</div><div style="font-size:22px;font-weight:600">{{ total_hari_ini|rupiah }}</div><div class="redup kecil">{{ nota_hari_ini }} nota{% if 'laporan' in hak %} · <a href="{% url 'master:laporan' %}">laporan</a>{% endif %}</div></div>
+  {% if 'lihat_stok' in hak %}<a class="kartu" href="{% url 'master:stok' %}?stok=habis" style="color:inherit;text-decoration:none"><div class="redup kecil">Stok habis</div><div style="font-size:22px;font-weight:600;color:{% if stok_habis %}var(--bahaya){% endif %}">{{ stok_habis|ribuan }}</div><div class="redup kecil">{{ stok_menipis|ribuan }} lagi menipis</div></a>{% endif %}
+  {% if hutang %}
+  <a class="kartu" href="{% url 'master:pembelian' %}?status=menunggu" style="color:inherit;text-decoration:none"><div class="redup kecil">Pembelian menunggu ACC</div><div style="font-size:22px;font-weight:600;color:{% if menunggu_acc %}var(--aksen){% else %}inherit{% endif %}">{{ menunggu_acc }}</div><div class="redup kecil">barang datang yang belum disetujui</div></a>
+  <a class="kartu" href="{% url 'master:hutang' %}" style="color:inherit;text-decoration:none"><div class="redup kecil">Hutang ke supplier</div><div style="font-size:22px;font-weight:600">{{ hutang.total|rupiah }}</div><div class="kecil" style="color:{% if hutang.lewat %}var(--bahaya){% else %}var(--redup){% endif %}">{{ hutang.jumlah }} faktur{% if hutang.lewat %} · {{ hutang.lewat|length }} lewat jatuh tempo{% elif hutang.segera %} · {{ hutang.segera|length }} jatuh tempo minggu ini{% endif %}</div></a>
+  {% endif %}
+  {% if opname_menunggu is not None %}<a class="kartu" href="{% url 'master:opname' %}?status=diajukan" style="color:inherit;text-decoration:none"><div class="redup kecil">Opname menunggu ACC</div><div style="font-size:22px;font-weight:600;color:{% if opname_menunggu %}var(--aksen){% else %}inherit{% endif %}">{{ opname_menunggu }}</div><div class="redup kecil">hitungan stok dari kepala gudang</div></a>{% endif %}
+</div>
+
+<h3>Perlu diperbaiki</h3>
+<div class="kisi">
+{% for k in kotak %}
+  <a class="kartu" href="{% url 'master:barang' %}?masalah={{ k.kunci }}" style="color:inherit;text-decoration:none">
+    <div style="font-size:26px;font-weight:600;color:{% if k.jumlah %}var(--bahaya){% else %}var(--baik){% endif %}">{{ k.jumlah|ribuan }}</div>
+    <div style="font-weight:600">{{ k.label }}</div>
+    <div class="redup kecil">{{ k.akibat }}</div>
+  </a>
+{% endfor %}
+</div>
+
+{% if log_terbaru %}
+<h3>Perubahan terakhir</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Barang</th><th>Kolom</th><th>Catatan</th></tr>
+  {% for l in log_terbaru %}
+  <tr><td class="kecil">{{ l.waktu|date:"d M H:i" }}</td><td>{{ l.nama_pengguna }}</td>
+      <td>{{ l.item_name }}{% if l.variant and l.variant != "*" %} <span class="redup">/ {{ l.variant }}</span>{% endif %}</td>
+      <td>{{ l.kolom }}</td><td class="redup kecil">{{ l.get_aksi_display }} · {{ l.get_sumber_display }}</td></tr>
+  {% endfor %}
+</table></div>
+<p class="kecil"><a href="{% url 'master:log' %}">Lihat semua log</a></p>
+{% endif %}
+{% endblock %}

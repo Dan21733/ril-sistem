@@ -1,0 +1,32 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Riwayat perubahan{% endblock %}
+{% block isi %}
+<h2>Riwayat perubahan</h2>
+<p class="sub">{{ halaman.paginator.count|ribuan }} catatan. Setiap perubahan lewat master tercatat di sini dan tidak bisa dihapus dari layar.</p>
+<form method="get" class="kartu baris" style="margin-bottom:14px">
+  <div style="flex:2;min-width:200px"><label>Cari barang atau nilai</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="min-width:150px"><label>Kolom</label><select name="kolom"><option value="">Semua</option>{% for k, l in daftar_kolom %}<option value="{{ k }}" {% if g.kolom == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Oleh</label><select name="pengguna"><option value="">Semua</option>{% for p in daftar_pengguna %}<option {% if g.pengguna == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Sumber</label><select name="sumber"><option value="">Semua</option><option value="layar" {% if g.sumber == "layar" %}selected{% endif %}>Layar</option><option value="impor" {% if g.sumber == "impor" %}selected{% endif %}>Impor Excel</option></select></div>
+  {% if g.batch %}<input type="hidden" name="batch" value="{{ g.batch }}">{% endif %}
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:log' %}">Reset</a></div>
+</form>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Aksi</th><th>Barang</th><th>Varian</th><th>Kolom</th><th>Lama</th><th>Baru</th><th>Catatan</th></tr>
+  {% for l in halaman.object_list %}
+  <tr><td class="kecil" style="white-space:nowrap">{{ l.waktu|date:"d M Y H:i:s" }}</td><td>{{ l.nama_pengguna }}</td>
+    <td class="kecil">{{ l.get_aksi_display }}<br><span class="redup">{{ l.get_sumber_display }}</span></td>
+    <td>{{ l.item_name }}</td><td>{{ l.variant }}</td><td>{{ l.label_kolom }}</td>
+    {% if l.sembunyi %}<td colspan="2" class="redup">disembunyikan</td>{% else %}<td class="redup">{{ l.lama }}</td><td>{{ l.baru }}</td>{% endif %}
+    <td class="kecil redup">{{ l.catatan }}</td></tr>
+  {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada catatan.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+{% endblock %}

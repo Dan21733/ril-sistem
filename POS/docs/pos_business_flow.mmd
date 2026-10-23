@@ -1,0 +1,103 @@
+%% Alur transaksi POS, versi Mermaid - SUMBER UTAMA diagram ini.
+%% Sengaja ditulis dalam bahasa awam dan tanpa detail teknis (alamat API, nama
+%% tabel, nama field), supaya mudah dipahami pemilik toko dan kasir.
+%%
+%% Berkas ini sumber utama alur: jangan mengedit gambar hasilnya - ubah alurnya di
+%% sini. Hasil render yang tersimpan: pos_business_flow.svg, pos_business_flow.png,
+%% pos_business_flow.drawio, dan pos_business_flow.xml (GraphML). Generator Python
+%% yang dulu melakukannya (POS/docs/pos_business_flow.py) sudah dihapus saat
+%% bersih-bersih repo, jadi render ulang memakai Mermaid CLI
+%% (npx @mermaid-js/mermaid-cli) lalu simpan dengan nama berkas yang sama.
+%%
+%% Sintaks yang dipakai sengaja dibatasi pada bentuk yang bisa dibaca generator:
+%% "ID[...]" (kotak), "ID{...}" (pilihan), "A --> B", "A -->|"tulisan"| B",
+%% "A -.-> B" (garis putus-putus, hanya untuk catatan), dan "subgraph".
+%% Satu subgraph = satu kolom di gambar (lihat LANES di generator).
+%% Teks dipisah barisnya dengan <br/>; jangan menulis tanda kutip di dalamnya.
+
+flowchart TD
+    subgraph KASIR["DI MEJA KASIR"]
+        A["Pembeli datang ke kasir"]
+        B["Kasir mencari barang.<br/>Salah ketik pun tetap ketemu"]
+        C["Barang masuk keranjang.<br/>Jumlah dan harga bisa diubah"]
+        D{"Harga mau<br/>dinegosiasikan?"}
+        E["Kasir menentukan harga kesepakatan"]
+        F{"Harga masih di antara<br/>harga terendah dan<br/>harga daftar?"}
+        G["Pilih cara menerima barang.<br/>Ambil sendiri tanpa ongkir,<br/>atau diantar dengan ongkir"]
+        I["Kasir menekan tombol bayar"]
+        P["Kasir memasukkan PIN 6 angka.<br/>Nama kasir di nota diambil dari PIN,<br/>tidak lagi diketik"]
+        FIN["Transaksi difinalkan.<br/>Isi nota dibekukan<br/>dan nomornya dipakai"]
+    end
+
+    subgraph CETAK["NOTA TERCETAK - jalan di jaringan toko, tidak butuh internet"]
+        CQ["Nota masuk antrean cetak.<br/>Transaksi diantar menambah<br/>satu surat jalan"]
+        CQ1{"Penghubung cetak dan<br/>printer menjawab?"}
+        CQ2["Nota tercetak dua rangkap:<br/>putih untuk pelanggan,<br/>karbon untuk toko.<br/>Diantar: surat jalan satu lembar"]
+        CQ3["Kertas belum keluar.<br/>Transaksi tetap sah dan tersimpan.<br/>Dicoba lagi otomatis,<br/>kasir bisa menekan cetak ulang"]
+    end
+
+    subgraph SISTEM["DICATAT DI SISTEM - butuh koneksi ke server"]
+        S0["Transaksi dikirim ke sistem"]
+        S1{"Perangkat kasir<br/>masih terdaftar?"}
+        S2{"PIN benar dan<br/>tidak sedang dikunci?"}
+        S3{"Isi nota sudah benar dan lengkap?<br/>Jumlah barang, total, uang bayar, kembalian"}
+        S4{"Nota ini sudah pernah tercatat?"}
+        S5{"Barang masih ada<br/>dan harga masih dalam batas?"}
+        S6["Nota resmi tersimpan.<br/>Stok barang ikut dipotong"]
+        S7["Riwayat nota per hari.<br/>Bisa dicari per tanggal,<br/>nota bisa dicetak ulang"]
+    end
+
+    subgraph GAGAL["BUTUH TINDAKAN - tidak jadi, atau menunggu"]
+        H["Harga di luar batas tidak boleh dijual.<br/>Kasir menaikkan harga atau membatalkan.<br/>Aturan persetujuan pemilik belum ada"]
+        R0["Sistem tidak terjangkau.<br/>Nota tetap di perangkat dan kertasnya<br/>tetap keluar, lalu dikirim ulang"]
+        R1["Perangkat harus didaftarkan ulang.<br/>Setelah itu transaksi dikirim lagi"]
+        R2["PIN salah, atau sedang dikunci<br/>karena salah berkali-kali.<br/>Tunggu sebentar lalu coba lagi"]
+        R3["Nota dikembalikan untuk diperbaiki.<br/>Misalnya total atau kembalian tidak cocok"]
+        R4["Tidak dicatat dua kali.<br/>Nota yang sama ditandai sudah beres"]
+        R5["Nomornya sudah dipakai nota lain.<br/>Perlu diperiksa manual oleh petugas"]
+        R6["Penjualan ditolak.<br/>Misalnya barang habis, atau harga<br/>di bawah batas"]
+    end
+
+    subgraph CATATAN["CATATAN"]
+        NOTE["Nota tidak pernah dicetak sebelum<br/>transaksi difinalkan. Kalau PIN belum ada<br/>di daftar kasir perangkat, kertas baru<br/>keluar setelah sistem menerima transaksinya"]
+    end
+
+    Z["Selesai"]
+
+    A --> B
+    B --> C
+    C --> D
+    D -->|"Tidak"| G
+    D -->|"Ya"| E
+    E --> F
+    F -->|"Ya"| G
+    F -->|"Di luar batas"| H
+    H --> E
+    G --> I
+    I --> P
+    P --> FIN
+    FIN --> CQ
+    FIN --> S0
+    FIN -.-> NOTE
+    CQ --> CQ1
+    CQ1 -->|"Menjawab"| CQ2
+    CQ1 -->|"Belum menjawab"| CQ3
+    CQ3 --> CQ1
+    CQ2 --> Z
+    S0 --> S1
+    S1 -->|"Masih"| S2
+    S1 -->|"Tidak"| R1
+    S2 -->|"Benar"| S3
+    S2 -->|"Salah"| R2
+    S3 -->|"Sudah benar"| S4
+    S3 -->|"Ada yang salah"| R3
+    S4 -->|"Belum"| S5
+    S4 -->|"Sudah pernah"| R4
+    S4 -->|"Dipakai nota lain"| R5
+    S5 -->|"Ya"| S6
+    S5 -->|"Tidak"| R6
+    S6 --> S7
+    S0 -->|"Belum terjawab"| R0
+    R0 --> S0
+    R1 --> S0
+    S7 --> Z

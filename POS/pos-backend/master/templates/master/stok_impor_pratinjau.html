@@ -1,0 +1,39 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pratinjau import stok{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:stok_impor' %}">Import stok</a> /</p>
+<h2>Pratinjau import stok</h2>
+<p class="sub">{{ impor.nama_berkas }} · {{ impor.waktu|date:"d M Y H:i" }} · <span class="label {% if impor.status == 'diterapkan' %}baik{% elif impor.status == 'batal' %}netral{% endif %}">{{ impor.get_status_display }}</span></p>
+
+{% if impor.status == "pratinjau" %}
+<div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Baris dibaca</div><b style="font-size:22px">{{ isi.dibaca|ribuan }}</b></div>
+  <div class="kartu"><div class="redup kecil">Barang yang berubah</div><b style="font-size:22px">{{ jumlah|ribuan }}</b></div>
+  {% if toko_minus %}<div class="kartu"><div class="redup kecil">Stok toko jadi minus</div><b style="font-size:22px;color:var(--bahaya)">{{ toko_minus|ribuan }}</b></div>{% endif %}
+  {% if gudang_minus %}<div class="kartu"><div class="redup kecil">Gudang jadi minus</div><b style="font-size:22px;color:var(--bahaya)">{{ gudang_minus|ribuan }}</b><div class="kecil redup">ada penjualan/pengambilan setelah export</div></div>{% endif %}
+</div>
+{% if isi.galat %}<div class="pesan error"><b>{{ isi.galat|length }} baris dilewati:</b><br>{% for g in isi.galat|slice:":30" %}{{ g }}<br>{% endfor %}</div>{% endif %}
+{% if jumlah %}
+<form method="post" class="baris" style="margin-bottom:16px">{% csrf_token %}
+  <button class="tombol utama" type="submit" name="aksi" value="terapkan" data-tanya="Terapkan {{ jumlah }} perubahan stok?">Terapkan</button>
+  <button class="tombol" type="submit" name="aksi" value="batal">Batalkan</button>
+</form>
+<div class="gulir"><table>
+  <tr><th>Barang</th><th class="angka">Total (kasir)</th><th>Gudang</th><th class="angka">Toko</th></tr>
+  {% for b in baris %}
+  <tr>
+    <td><b>{{ b.item_name }}</b> <span class="redup">/ {{ b.variant|varian }}</span></td>
+    <td class="angka">{% if b.total %}{{ b.total_lama|ribuan }} → <b>{{ b.total_baru|ribuan }}</b> <span class="kecil {% if b.total < 0 %}redup{% endif %}">({% if b.total > 0 %}+{% endif %}{{ b.total }})</span>{% else %}<span class="redup">{{ b.total_lama|ribuan }}</span>{% endif %}</td>
+    <td>{% for r in b.rinci %}<div class="kecil">{{ r.nama }}: {{ r.lama|ribuan }} → <b {% if r.baru < 0 %}style="color:var(--bahaya)"{% endif %}>{{ r.baru|ribuan }}</b> ({% if r.selisih > 0 %}+{% endif %}{{ r.selisih }})</div>{% empty %}<span class="redup">-</span>{% endfor %}</td>
+    <td class="angka">{% if b.toko_baru != b.toko_lama %}{{ b.toko_lama|ribuan }} → <b {% if b.toko_baru < 0 %}style="color:var(--bahaya)"{% endif %}>{{ b.toko_baru|ribuan }}</b>{% else %}<span class="redup">{{ b.toko_lama|ribuan }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% if jumlah > 500 %}<p class="kecil redup">Ditampilkan 500 dari {{ jumlah|ribuan }} barang. Semuanya ikut diterapkan.</p>{% endif %}
+{% else %}
+<div class="kartu">Tidak ada angka yang berubah di berkas ini.</div>
+{% endif %}
+{% else %}
+<div class="kartu">{% if impor.status == "diterapkan" %}Sudah diterapkan: {{ impor.hasil.total|default:0 }} stok total dan {{ impor.hasil.gudang|default:0 }} jumlah gudang diubah. Lihat di <a href="{% url 'master:stok_riwayat' %}">Riwayat stok</a>.{% else %}Impor ini dibatalkan. Tidak ada yang berubah.{% endif %}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Cek stok acak{% endblock %}
+{% block isi %}
+<h2>Cek stok acak</h2>
+<p class="sub">Sistem memilih beberapa barang secara acak di satu lokasi. Hitung sendiri fisiknya; angka sistem baru ditampilkan setelah selesai.
+  Tidak ada yang tahu barang mana yang akan dicek, jadi selisih yang ditutupi saat opname akan kelihatan di sini.</p>
+<form method="post" class="kartu baris" style="margin-bottom:18px">{% csrf_token %}
+  <div style="min-width:200px"><label>Lokasi</label><select name="lokasi">{% for l in pilihan %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+  <div style="width:140px"><label>Jumlah barang</label><input type="text" name="jumlah" value="10" inputmode="numeric"></div>
+  <div><button class="tombol utama" type="submit">Pilih barang acak</button></div>
+</form>
+<div class="gulir"><table>
+  <tr><th>#</th><th>Waktu</th><th>Oleh</th><th>Lokasi</th><th class="angka">Barang</th><th class="angka">Ada selisih</th><th class="angka">Kurang (unit)</th><th>Status</th></tr>
+  {% for h in daftar %}
+  <tr style="cursor:pointer" onclick="location.href='{% url 'master:hitung_acak_detail' h.id %}'">
+    <td><a href="{% url 'master:hitung_acak_detail' h.id %}">#{{ h.id }}</a></td><td class="kecil">{{ h.waktu|date:"d M Y H:i" }}</td><td>{{ h.oleh }}</td><td>{{ h.lokasi.nama }}</td>
+    <td class="angka">{{ h.n }}</td>
+    <td class="angka">{% if h.status == 'selesai' %}{% if h.beda %}<b style="color:var(--bahaya)">{{ h.beda }}</b>{% else %}0{% endif %}{% else %}<span class="redup">-</span>{% endif %}</td>
+    <td class="angka">{% if h.kurang %}<b style="color:var(--bahaya)">{{ h.kurang|ribuan }}</b>{% else %}<span class="redup">-</span>{% endif %}</td>
+    <td>{{ h.get_status_display }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:28px;text-align:center">Belum pernah hitung acak.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

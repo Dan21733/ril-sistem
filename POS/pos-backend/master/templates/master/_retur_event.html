@@ -1,0 +1,29 @@
+{% load master_tags %}
+<div class="kartu" style="margin-bottom:14px">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <div><b>{{ e.label }}</b> · nota <b>{{ e.nota }}</b> <span class="redup kecil">· {{ e.waktu|date:"d M Y H:i" }} · disetujui {{ e.disetujui }}{% if e.uang %} · uang kembali Rp{{ e.uang|ribuan }}{% endif %}</span></div>
+    {% if e.penerimaan %}<span class="label baik">Diterima {{ e.penerimaan.waktu|date:"d M H:i" }} oleh {{ e.penerimaan.nama_pengguna }}</span>
+    {% elif e.baris %}<span class="label bahaya">Barang belum diterima</span>{% endif %}
+  </div>
+  <p class="kecil redup" style="margin:6px 0 10px">Alasan: {{ e.alasan }}</p>
+  {% if e.penerimaan %}
+    <table>{% for b in e.penerimaan.baris.all %}<tr><td>{{ b.item_name }} <span class="redup">/ {{ b.variant|varian }}</span></td>
+      <td class="angka">{{ b.jumlah|ribuan }}</td><td>{% if b.masuk %}{{ b.masuk|ribuan }} ke {{ b.lokasi.nama|default:"Toko" }}{% endif %}{% if b.rusak %}{% if b.masuk %} · {% endif %}<span style="color:var(--bahaya)">{{ b.rusak|ribuan }} rusak</span>{% endif %}</td></tr>{% endfor %}</table>
+  {% elif e.baris %}
+    {% if 'ubah_stok' in hak %}
+    <form method="post" action="{% url 'master:retur' %}">{% csrf_token %}
+      <input type="hidden" name="refund_id" value="{{ e.refund_id }}"><input type="hidden" name="kembali" value="{{ kembali }}">
+      <table>
+        <tr><th>Barang</th><th class="angka">Kembali</th><th>Ditaruh di</th><th class="angka">Rusak</th></tr>
+        {% for b in e.baris %}
+        <tr><td>{{ b.item_name }} <span class="redup">/ {{ b.variant|varian }}</span></td><td class="angka"><b>{{ b.jumlah|ribuan }}</b></td>
+          <td><select name="lokasi_{{ forloop.counter0 }}" style="min-width:160px">{% for l in lokasi_retur %}{% if l.jenis == "toko" or "kelola_lokasi" in hak %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endif %}{% endfor %}</select></td>
+          <td class="angka"><input type="text" inputmode="numeric" name="rusak_{{ forloop.counter0 }}" value="0" style="width:80px;text-align:right"></td></tr>
+        {% endfor %}
+      </table>
+      <div class="baris" style="margin-top:10px"><div style="flex:1;min-width:220px"><input type="text" name="catatan" placeholder="Catatan (opsional)"></div>
+        <button class="tombol utama" type="submit" data-tanya="Terima barang retur ini? Stok akan bertambah sesuai pilihan.">Terima barang</button></div>
+    </form>
+    {% else %}<p class="kecil redup">Menunggu pemilik menerima barangnya.</p>{% endif %}
+  {% endif %}
+</div>

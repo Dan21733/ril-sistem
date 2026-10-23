@@ -1,0 +1,107 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Buka dus{% endblock %}
+{% block isi %}
+<style>
+.pasangan{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}
+.panah{color:var(--redup);padding:0 8px}
+.cari-wadah{position:relative}
+.hasil-cari{border:1px solid var(--garis);border-radius:8px;margin-top:6px;max-height:260px;overflow:auto;background:#fff}.hasil-cari:empty{display:none}
+.hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}.hasil-cari div:hover,.hasil-cari div.pilih{background:var(--aksen-lembut)}
+@media (max-width:900px){.pasangan{grid-template-columns:1fr}}
+</style>
+<h2>Buka dus</h2>
+<p class="sub">Memecah kemasan besar menjadi satuan eceran. Stok dan modal ikut pindah; harga tidak berubah.</p>
+
+{% for k in daftar %}
+<div class="kartu {% if not k.aktif %}nonaktif{% endif %}" style="margin-bottom:14px{% if not k.aktif %};opacity:.6{% endif %}">
+  <div class="pasangan">
+    <div>
+      <b>{{ k.dari.item_name }}</b> <span class="redup">{{ k.dari.variant|varian }}</span>
+      <span class="panah">→</span>
+      <b>{{ k.ke.item_name }}</b> <span class="redup">{{ k.ke.variant|varian }}</span>
+      <div class="kecil redup" style="margin-top:4px">1 kemasan = {{ k.isi|ribuan }}{% if k.isi_tidak_tetap %} (isi tidak tetap, diisi saat dibuka){% endif %} · stok kemasan <b style="color:{% if k.stok_dari <= 0 %}var(--bahaya){% else %}var(--teks){% endif %}">{{ k.stok_dari|ribuan|default:"-" }}</b> · stok eceran <b style="color:var(--teks)">{{ k.stok_ke|ribuan|default:"-" }}</b>{% if k.catatan %} · {{ k.catatan }}{% endif %}</div>
+    </div>
+    {% if k.aktif %}
+    <form method="post" class="baris" style="flex-wrap:nowrap" data-isi="{{ k.isi }}">{% csrf_token %}<input type="hidden" name="aksi" value="buka"><input type="hidden" name="id" value="{{ k.id }}">
+      <div style="width:110px"><label>Dibuka</label><input type="text" name="jumlah" inputmode="numeric" value="1" required class="jumlah-buka"></div>
+      {% if k.isi_tidak_tetap %}<div style="width:150px"><label>Isi sebenarnya</label><input type="text" name="isi_total" inputmode="numeric" value="{{ k.isi }}" required class="isi-buka"></div>{% endif %}
+      {% if pilihan_lokasi|length > 1 %}<div style="width:150px"><label>Dus dari</label><select name="lokasi_dari">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.dari.rak.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+      <div style="width:150px"><label>Isi ke</label><select name="lokasi_ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.ke.rak.tempat_id == l.id or not k.ke.rak.tempat_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>{% endif %}
+      <div><button class="tombol utama" type="submit">Buka</button></div>
+    </form>
+    {% endif %}
+  </div>
+  <details style="margin-top:10px"><summary class="kecil redup" style="cursor:pointer">Ubah pasangan ini</summary>
+  <form method="post" class="baris" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="ubah"><input type="hidden" name="id" value="{{ k.id }}">
+    <div style="width:130px"><label>Isi per kemasan</label><input type="text" name="isi" value="{{ k.isi }}" inputmode="numeric" required></div>
+    <div style="min-width:220px"><label>Isi</label><select name="isi_tidak_tetap"><option value="0">Selalu sama</option><option value="1" {% if k.isi_tidak_tetap %}selected{% endif %}>Tidak tetap, diisi saat dibuka</option></select></div>
+    <div style="min-width:130px"><label>Status</label><select name="aktif"><option value="1">Aktif</option><option value="0" {% if not k.aktif %}selected{% endif %}>Nonaktif</option></select></div>
+    <div style="flex:1;min-width:180px"><label>Catatan</label><input type="text" name="catatan" value="{{ k.catatan }}"></div>
+    <div><button class="tombol" type="submit">Simpan</button></div>
+  </form></details>
+</div>
+{% empty %}
+<div class="kartu redup" style="text-align:center;padding:28px">Belum ada pasangan buka dus. Tambahkan di bawah.</div>
+{% endfor %}
+
+<details class="lipat" {% if not daftar %}open{% endif %}><summary>Tambah pasangan</summary>
+<form method="post" class="kartu" id="form-pasangan">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+  <input type="hidden" name="dari_id" id="dari-id"><input type="hidden" name="ke_id" id="ke-id">
+  <div class="kisi" style="grid-template-columns:1fr 1fr">
+    <div class="cari-wadah"><label>Kemasan besar (yang dibuka)</label><input type="text" class="cari" data-target="dari-id" autocomplete="off" placeholder="mis. semen 50 kg"><div class="hasil-cari"></div></div>
+    <div class="cari-wadah"><label>Satuan eceran (hasilnya)</label><input type="text" class="cari" data-target="ke-id" autocomplete="off" placeholder="mis. semen per kg"><div class="hasil-cari"></div></div>
+  </div>
+  <div class="baris" style="margin-top:16px">
+    <div style="width:150px"><label>Isi per kemasan</label><input type="text" name="isi" inputmode="numeric" placeholder="mis. 50" required></div>
+    <div style="min-width:260px"><label>Isi</label><select name="isi_tidak_tetap"><option value="0">Selalu sama</option><option value="1">Tidak tetap, diisi saat dibuka</option></select></div>
+    <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
+    <div><button class="tombol utama" type="submit">Tambah pasangan</button></div>
+  </div>
+  <p class="redup kecil" style="margin:10px 0 0">Stok dihitung dalam bilangan bulat. Untuk barang yang dijual di bawah 1 kg, buat satuan ecerannya per ons atau per gram.</p>
+</form>
+</details>
+
+{% if riwayat %}
+<h3>Riwayat buka dus</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Dari</th><th>Menjadi</th><th class="angka">Dibuka</th><th class="angka">Isi</th><th class="angka">Modal eceran</th><th>Catatan</th></tr>
+  {% for r in riwayat %}<tr><td class="kecil" style="white-space:nowrap">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.oleh }}</td>
+    <td>{{ r.konversi.dari.item_name }} <span class="redup">{{ r.konversi.dari.variant|varian }}</span></td>
+    <td>{{ r.konversi.ke.item_name }} <span class="redup">{{ r.konversi.ke.variant|varian }}</span></td>
+    <td class="angka">{{ r.jumlah|ribuan }}</td><td class="angka">{{ r.isi_total|ribuan }}</td><td class="angka">{{ r.modal_satuan|ribuan|default:"-" }}</td><td class="kecil redup">{{ r.catatan }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+<script>
+(function(){
+  // Isi sebenarnya mengikuti jumlah yang dibuka, selama belum diubah tangan.
+  document.querySelectorAll('form[data-isi]').forEach(f => {
+    const j = f.querySelector('.jumlah-buka'), i = f.querySelector('.isi-buka'); if (!i) return;
+    let disentuh = false; i.addEventListener('input', () => disentuh = true);
+    j.addEventListener('input', () => { if (!disentuh){ const n = parseInt(j.value.replace(/\D/g,''), 10); i.value = n ? n * parseInt(f.dataset.isi, 10) : ''; } });
+  });
+  document.querySelectorAll('.cari').forEach(kotak => {
+    const wadah = kotak.parentElement.querySelector('.hasil-cari'), target = document.getElementById(kotak.dataset.target);
+    let t = null, hasil = [];
+    const pilih = h => { target.value = h.id; kotak.value = h.nama + (h.varian ? ' / ' + h.varian : ''); wadah.innerHTML = ''; };
+    kotak.addEventListener('input', () => { target.value = ''; clearTimeout(t); t = setTimeout(async () => {
+      if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
+      const r = await fetch("{% url 'master:pembelian_cari' %}?q=" + encodeURIComponent(kotak.value));
+      hasil = (await r.json()).hasil; wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
+      hasil.forEach((h, n) => { const d = document.createElement('div'); d.dataset.i = n; d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  stok ' + (h.stok == null ? '-' : h.stok); wadah.appendChild(d); });
+    }, 200); });
+    wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });
+    kotak.addEventListener('keydown', e => {
+      const semua = [...wadah.querySelectorAll('[data-i]')]; if (!semua.length) return;
+      let i = semua.findIndex(d => d.classList.contains('pilih'));
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); semua.forEach(d => d.classList.remove('pilih'));
+        i = e.key === 'ArrowDown' ? Math.min(i + 1, semua.length - 1) : Math.max(i - 1, 0); semua[i].classList.add('pilih'); semua[i].scrollIntoView({block:'nearest'}); }
+      if (e.key === 'Enter'){ e.preventDefault(); pilih(hasil[semua[Math.max(i, 0)].dataset.i]); }
+    });
+  });
+  document.getElementById('form-pasangan').addEventListener('submit', e => {
+    if (!document.getElementById('dari-id').value || !document.getElementById('ke-id').value){ e.preventDefault(); kabar('Pilih kedua barang dari hasil pencarian dulu.', true); }
+  });
+})();
+</script>
+{% endblock %}

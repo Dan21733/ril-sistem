@@ -1,0 +1,40 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}{{ n.nomor }}{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:nota_manual' %}">Nota tulis tangan</a> /</p>
+<h2>{% if n.nomor_tulisan %}Nota {{ n.nomor_tulisan }}{% else %}{{ n.nomor }}{% endif %}{% if banyak_toko %} · {{ n.toko.nama }}{% endif %}</h2>
+<p class="sub">{{ n.tanggal|date:"l, d M Y" }} · {{ n.get_cara_bayar_display }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · {{ n.nomor }} dimasukkan {{ n.dibuat_oleh }}, {{ n.dibuat_waktu|date:"d M Y H:i" }}</p>
+{% if n.batal %}<div class="pesan warning">Dibatalkan {{ n.batal_oleh }}, {{ n.batal_waktu|date:"d M Y H:i" }}: {{ n.batal_alasan }}</div>{% endif %}
+<div class="gulir"><table>
+  <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga</th><th class="angka">Subtotal</th><th class="angka">Modal</th><th class="angka">Laba</th></tr>
+  {% for b in baris %}<tr><td>{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">{{ b.variant }}</span>{% endif %}{% if b.di_bawah_floor %}<span class="masalah-teks">di bawah floor</span>{% endif %}</td>
+    <td class="angka">{{ b.jumlah|ribuan }}</td><td class="angka">{{ b.harga|ribuan }}</td><td class="angka"><b>{{ b.subtotal|ribuan }}</b></td>
+    <td class="angka redup">{{ b.modal|ribuan|default:"kosong" }}</td><td class="angka" style="color:{% if b.laba < 0 %}var(--bahaya){% endif %}">{{ b.laba|ribuan|default:"-" }}</td></tr>{% endfor %}
+  <tr><td colspan="3"><b>Barang</b></td><td class="angka"><b>{{ n.total_barang|ribuan }}</b></td><td class="angka redup">{{ modal|ribuan }}</td><td class="angka"><b>{{ laba|ribuan }}</b></td></tr>
+  {% if n.ongkir %}<tr><td colspan="3">Ongkir</td><td class="angka">{{ n.ongkir|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
+  <tr><td colspan="3"><b>Total</b></td><td class="angka"><b>{{ n.total|ribuan }}</b></td><td colspan="2"></td></tr>
+</table></div>
+<p class="redup kecil">Modal memakai modal rata saat nota dimasukkan.{% if not modal_lengkap %} Ada barang yang modalnya kosong, jadi labanya belum lengkap.{% endif %}
+{% if n.toko.stok_di_kasir %}Stok {{ n.toko.nama }} {% if n.batal %}sudah dikembalikan{% else %}sudah dikurangi{% endif %}.{% else %}{{ n.toko.nama }} belum punya kasir, jadi stok tidak diubah sistem.{% endif %}</p>
+{% if n.catatan %}<div class="kartu" style="margin-top:12px"><div class="redup kecil">Catatan</div>{{ n.catatan|linebreaksbr }}</div>{% endif %}
+{% if foto %}<h3>Foto nota</h3><div class="baris">{% for x in foto %}<a href="{% url 'master:nota_manual_foto' x.id %}" target="_blank">{% if x.content_type == "application/pdf" %}<span class="tombol">PDF</span>{% else %}<img src="{% url 'master:nota_manual_foto' x.id %}" alt="Foto nota" style="max-width:240px;max-height:240px;border:1px solid var(--garis);border-radius:8px" onerror="this.outerHTML='<span class=&quot;redup&quot;>berkas tidak ada di server ini</span>'">{% endif %}</a>{% endfor %}</div>{% endif %}
+{% if not n.batal %}
+<details class="lipat"{% if form_ubah_buka %} open{% endif %}><summary>Perbaiki tanggal, nomor, pembeli, atau cara bayar</summary>
+<form method="post" class="kartu" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="aksi" value="ubah">
+  <div class="kisi">
+    <div><label>Tanggal di nota</label><input type="date" name="tanggal" value="{{ n.tanggal|date:'Y-m-d' }}" max="{{ hari_ini }}" required></div>
+    <div><label>Nomor di nota</label><input type="text" name="nomor_tulisan" value="{{ n.nomor_tulisan }}" autocomplete="off"></div>
+    <div><label>Pembeli</label><input type="text" name="pembeli" value="{{ n.pembeli }}" autocomplete="off"></div>
+    <div><label>Cara bayar</label><select name="cara_bayar">{% for k, l in cara %}<option value="{{ k }}" {% if n.cara_bayar == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="baris" style="margin-top:10px"><div style="flex:1;min-width:240px"><label>Alasan</label><input type="text" name="alasan" required placeholder="mis. salah tanggal waktu input"></div>
+    <div><button class="tombol utama" type="submit">Simpan perubahan</button></div></div>
+  <p class="kecil redup" style="margin:8px 0 0">Stok dan modal tidak berubah. Nomor {{ n.nomor }} tetap. Perubahan tercatat di Log.</p>
+</form></details>
+<details class="lipat"><summary>Batalkan nota</summary>
+<form method="post" class="kartu baris" data-tanya="Batalkan nota ini?{% if n.toko.stok_di_kasir %} Stok barangnya dikembalikan.{% endif %}">{% csrf_token %}
+  <div style="flex:1;min-width:240px"><label>Alasan (mis. salah input, nanti diinput ulang)</label><input type="text" name="alasan" required></div><div><button class="tombol bahaya" type="submit">Batalkan</button></div>
+</form></details>
+<p class="redup kecil">Barang, jumlah, dan harga tidak bisa diubah setelah disimpan. Kalau ada yang salah, batalkan lalu input ulang.</p>
+{% endif %}
+{% endblock %}

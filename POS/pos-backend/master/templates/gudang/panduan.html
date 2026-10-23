@@ -1,0 +1,68 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Panduan{% endblock %}
+{% block isi %}
+<style>.panduan h3{margin:0 0 6px}.panduan ul{margin:0;padding-left:20px}.panduan li{margin:3px 0}</style>
+<div class="judul-hal"><h2>Panduan</h2><span class="redup kecil">hanya menu yang bisa kamu buka</span></div>
+<div class="kisi panduan" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start">
+
+<div class="kartu"><h3>Umum</h3><ul>
+  <li>Masuk dengan PIN kasirmu sendiri, hanya dari perangkat yang sudah disetujui pemilik. Jangan pinjamkan PIN.</li>
+  <li>Salah PIN 10 kali = tunggu 5 menit.</li>
+  <li>Selesai kerja, tekan <b>Keluar</b>. Sesi juga berakhir sendiri setelah 10 jam.</li>
+  <li>Yang kamu isi di sini tidak langsung mengubah stok atau harga; pemilik memeriksa dulu (kecuali Ambil barang dan Buka dus).</li>
+</ul></div>
+
+{% if 'gudang_ambil' in hak %}<div class="kartu"><h3>Ambil barang</h3><ul>
+  <li>Isinya barang yang sudah terjual atau dikirim dari gudang dan harus diambilkan.</li>
+  <li>Ambil barangnya, cek jumlah dan gudang asalnya, lalu tekan <b>Sudah diambil</b>. Stok gudang berkurang saat itu.</li>
+  <li>Kalau jumlah yang diambil beda atau diambil dari gudang lain, ubah angkanya/gudangnya dan tulis catatan.</li>
+</ul></div>{% endif %}
+
+{% if 'gudang_datang' in hak %}<div class="kartu"><h3>Barang datang</h3><ul>
+  <li>Pilih pesanan yang barangnya datang. Hitung barangnya, isi jumlah yang <b>benar-benar diterima</b>.</li>
+  <li>Barang yang tidak datang diisi 0. Kalau jumlah beda dari pesanan, catatan wajib diisi (mis. kurang 5 sak, 2 sobek).</li>
+  <li>Pilih barang ditaruh di mana. Isi nomor surat jalan kalau ada.</li>
+  <li>Stok baru bertambah setelah pemilik ACC. Barang datang tanpa pesanan di daftar: lapor pemilik.</li>
+</ul></div>{% endif %}
+
+{% if 'gudang_hitung' in hak %}<div class="kartu"><h3>Hitung stok</h3><ul>
+  <li>Pilih tempat yang sedang dihitung (toko atau gudang). Tiap tempat diajukan sendiri-sendiri.</li>
+  <li>Cari barang atau pilih rak, isi jumlah yang ada di rak, lalu <b>Simpan hitungan</b>. Kotak yang dikosongkan tidak disimpan; isi 0 kalau barangnya memang habis.</li>
+  <li>Hitungan bisa disimpan sedikit-sedikit. Kalau semua sudah, <b>Ajukan ke pemilik</b>; setelah diajukan tidak bisa diubah.</li>
+  <li>Kamu tidak melihat stok sistem. Hitung apa adanya.</li>
+</ul></div>{% endif %}
+
+{% if 'gudang_buka_dus' in hak %}<div class="kartu"><h3>Buka dus</h3><ul>
+  <li>Catat setiap kali kemasan besar dibuka untuk dijual eceran. Stok langsung pindah dari kemasan besar ke eceran.</li>
+  <li>Isi berapa dus yang dibuka. Kalau isinya bisa beda (mis. timbangan), isi total sebenarnya.</li>
+  <li>Pasangan kemasan dibuat oleh pemilik. Kalau tidak ada di daftar, lapor pemilik.</li>
+</ul></div>{% endif %}
+
+{% if 'ops_lihat_stok' in hak %}<div class="kartu"><h3>Stok per lokasi</h3><ul>
+  <li>Cari barang atau pilih rak untuk melihat jumlah di toko dan tiap gudang.</li>
+  <li>Angka toko = total stok dikurangi semua gudang. Angka minus (merah) berarti catatannya tidak cocok; lapor pemilik.</li>
+</ul></div>{% endif %}
+
+{% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak or 'ops_barang_harga' in hak or 'ops_barang_alias' in hak or 'ops_barang_aktif' in hak %}<div class="kartu"><h3>Tugas</h3><ul>
+  <li>Tugas dibuka pemilik untukmu, dengan batas waktu. Di luar tugas yang terbuka kamu tidak bisa mengisi apa pun.</li>
+  <li>Isi usulan, lalu <b>Kirim</b> sebelum batas waktunya. Setelah dikirim tidak bisa diubah.</li>
+  <li>Tidak ada yang berubah sebelum pemilik ACC; pemilik bisa menerima sebagian dan menolak sisanya.</li>
+</ul></div>{% endif %}
+
+{% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak %}<div class="kartu"><h3>Tugas pindah lokasi dan rak</h3><ul>
+  {% if 'ops_tiket_pindah' in hak %}<li><b>Pindah sekaligus</b>: semua barang di satu rak atau satu kategori yang ada stoknya di lokasi asal diusulkan pindah seluruhnya. Pemilik bisa mengubah per barang.</li>
+  <li><b>Per barang</b>: cari barangnya, pilih dari dan ke mana, isi jumlahnya.</li>{% endif %}
+  {% if 'ops_tiket_rak' in hak %}<li><b>Ganti rak</b> barang, atau <b>pindahkan satu rak</b> utuh ke lokasi lain (tanpa stok).</li>{% endif %}
+  <li>Total stok tidak berubah lewat tugas ini, hanya letaknya.</li>
+</ul></div>{% endif %}
+
+{% if 'ops_barang_harga' in hak or 'ops_barang_alias' in hak or 'ops_barang_aktif' in hak %}<div class="kartu"><h3>Tugas data barang</h3><ul>
+  <li>Ubah langsung angkanya di daftar. Yang sama dengan sekarang tidak dihitung usulan. Kotak yang diubah berwarna kuning.</li>
+  <li><b>Simpan halaman ini</b> sebelum pindah halaman atau mencari barang lain.</li>
+  {% if 'ops_barang_harga' in hak %}<li>Floor tidak boleh lebih tinggi dari harga jual.</li>{% endif %}
+  {% if 'ops_barang_alias' in hak %}<li>Alias = nama lain yang dipakai pembeli, pisahkan dengan koma (mis. "kunci rumah, kunci kamar"). Dipakai kasir untuk mencari.</li>{% endif %}
+  {% if 'ops_barang_aktif' in hak %}<li>Hilangkan centang <b>Aktif</b> untuk barang yang tidak dijual lagi; barang nonaktif tidak muncul di kasir.</li>{% endif %}
+</ul></div>{% endif %}
+
+</div>
+{% endblock %}

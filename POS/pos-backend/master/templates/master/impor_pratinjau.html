@@ -1,0 +1,68 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pratinjau impor{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:impor' %}">Import Excel</a> /</p>
+<h2>{{ impor.nama_berkas }}</h2>
+<p class="sub">{{ isi.jumlah_baris|ribuan }} baris dibaca dari sheet "{{ isi.sheet }}". Status: <b>{{ impor.get_status_display }}</b>.</p>
+
+<div class="kisi">
+  <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.perubahan|length|ribuan }}</div><div>Sel berubah</div></div>
+  <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.alias|length|ribuan }}</div><div>Alias berubah</div></div>
+  <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.baru|length|ribuan }}</div><div>Barang baru</div></div>
+  <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.rak|length|ribuan }}</div><div>Rak baru atau berubah</div></div>
+  <div class="kartu"><div style="font-size:24px;font-weight:600;color:{% if isi.galat %}var(--bahaya){% else %}var(--baik){% endif %}">{{ isi.galat|length|ribuan }}</div><div>Baris bermasalah (dilewati)</div></div>
+</div>
+
+<p class="kecil redup" style="margin-top:12px">
+  Kolom dibaca: {{ isi.kolom_dipakai|join:", "|default:"-" }}.
+  {% if isi.kolom_diabaikan %}Diabaikan: {{ isi.kolom_diabaikan|join:", " }}.{% endif %}
+  {% if isi.kolom_tanpa_hak %}Dilewati karena hak akun: {{ isi.kolom_tanpa_hak|join:", " }}.{% endif %}
+</p>
+
+{% if impor.status == 'pratinjau' %}
+<form method="post" class="kartu baris" style="margin:14px 0">{% csrf_token %}
+  {% if isi.baru %}<label style="margin:0;font-size:14px;color:var(--teks)"><input type="checkbox" name="izinkan_baru" value="1"> Buat juga {{ isi.baru|length }} barang baru</label>{% endif %}
+  <button class="tombol utama" type="submit" name="aksi" value="terapkan">Terapkan</button>
+  <button class="tombol" type="submit" name="aksi" value="batal">Batal</button>
+</form>
+{% elif impor.status == 'diterapkan' %}
+<div class="pesan success" style="margin-top:14px">Diterapkan: {{ impor.hasil.diubah }} sel, {{ impor.hasil.alias }} alias, {{ impor.hasil.baru }} barang baru, {{ impor.hasil.rak }} rak.
+  {% if 'lihat_log' in hak %}<a href="{% url 'master:log' %}?batch={{ impor.hasil.batch }}">Lihat di log</a>{% endif %}</div>
+  {% if impor.hasil.dilewati %}<div class="pesan warning">{% for d in impor.hasil.dilewati %}{{ d }}<br>{% endfor %}</div>{% endif %}
+{% endif %}
+
+{% if ringkas_kolom %}<p>{% for r in ringkas_kolom %}<span class="label netral">{{ r.label }}: {{ r.jumlah|ribuan }}</span>{% endfor %}</p>{% endif %}
+
+{% if contoh_galat %}
+<h3>Baris bermasalah</h3>
+<div class="gulir"><table><tr><th>Baris</th><th>Masalah</th></tr>
+{% for g in contoh_galat %}<tr><td>{{ g.baris }}</td><td>{{ g.pesan }}</td></tr>{% endfor %}</table></div>
+{% if isi.galat|length > contoh_galat|length %}<p class="redup kecil">Menampilkan {{ contoh_galat|length }} dari {{ isi.galat|length }}.</p>{% endif %}
+{% endif %}
+
+{% if isi.rak %}
+<h3>Rak</h3>
+<div class="gulir"><table><tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th></th></tr>
+{% for r in isi.rak %}<tr><td>{{ r.kode }}</td><td>{{ r.nama }}</td><td>{{ r.lokasi }}</td><td><span class="label netral">{{ r.jenis }}</span></td></tr>{% endfor %}</table></div>
+{% endif %}
+
+{% if contoh_perubahan %}
+<h3>Sel berubah</h3>
+<div class="gulir"><table><tr><th>Baris</th><th>Barang</th><th>Varian</th><th>Kolom</th><th>Lama</th><th>Baru</th></tr>
+{% for p in contoh_perubahan %}<tr><td>{{ p.baris }}</td><td>{{ p.item_name }}</td><td>{{ p.variant }}</td><td>{{ p.label }}</td><td>{{ p.lama|default_if_none:"" }}</td><td><b>{{ p.baru|default_if_none:"" }}</b></td></tr>{% endfor %}</table></div>
+{% if isi.perubahan|length > contoh_perubahan|length %}<p class="redup kecil">Menampilkan {{ contoh_perubahan|length }} dari {{ isi.perubahan|length }}.</p>{% endif %}
+{% endif %}
+
+{% if contoh_alias %}
+<h3>Alias berubah</h3>
+<div class="gulir"><table><tr><th>Barang</th><th>Lama</th><th>Baru</th></tr>
+{% for a in contoh_alias %}<tr><td>{{ a.item_name }}</td><td class="redup">{{ a.lama }}</td><td>{{ a.baru }}</td></tr>{% endfor %}</table></div>
+{% if isi.alias|length > contoh_alias|length %}<p class="redup kecil">Menampilkan {{ contoh_alias|length }} dari {{ isi.alias|length }}.</p>{% endif %}
+{% endif %}
+
+{% if isi.baru %}
+<h3>Barang baru</h3>
+<div class="gulir"><table><tr><th>Baris</th><th>Barang</th><th>Varian</th><th>Kategori</th><th>Merek</th><th class="angka">Floor</th><th class="angka">Harga jual</th></tr>
+{% for b in isi.baru|slice:":200" %}<tr><td>{{ b.baris }}</td><td>{{ b.item_name }}</td><td>{{ b.variant }}</td><td>{{ b.category }}</td><td>{{ b.brand|default:"-" }}</td><td class="angka">{{ b.min_price|ribuan }}</td><td class="angka">{{ b.max_price|ribuan }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endblock %}

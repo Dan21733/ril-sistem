@@ -1,0 +1,29 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Riwayat stok{% endblock %}
+{% block isi %}
+<h2>Riwayat stok</h2>
+<p class="sub">{{ halaman.paginator.count|ribuan }} catatan perubahan stok: lewat master dan penjualan kasir.</p>
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari barang atau catatan</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="min-width:200px"><label>Alasan</label><select name="jenis"><option value="">Semua</option>{% for k, l in daftar_jenis %}<option value="{{ k }}" {% if g.jenis == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Oleh</label><select name="pengguna"><option value="">Semua</option>{% for p in daftar_pengguna %}<option {% if g.pengguna == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:stok_riwayat' %}">Reset</a></div>
+</form>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Oleh</th><th>Barang</th><th>Varian</th><th>Alasan</th><th>Lokasi</th><th class="angka">Sebelum</th><th class="angka">Perubahan</th><th class="angka">Sesudah</th><th>Catatan</th></tr>
+  {% for m in halaman.object_list %}
+  <tr><td class="kecil" style="white-space:nowrap">{{ m.waktu|date:"d M Y H:i" }}</td><td>{{ m.nama_pengguna }}</td><td>{{ m.item_name }}</td><td>{{ m.variant|varian }}</td>
+    <td>{{ m.label }}</td><td class="kecil">{{ m.lokasi_nama|default:"" }}</td><td class="angka redup">{{ m.stok_sebelum|ribuan }}</td>
+    <td class="angka" style="color:{% if m.jumlah < 0 %}var(--bahaya){% else %}var(--baik){% endif %}"><b>{% if m.jumlah > 0 %}+{% endif %}{{ m.jumlah }}</b></td>
+    <td class="angka">{{ m.stok_sesudah|ribuan }}</td><td class="kecil redup">{{ m.catatan }}</td></tr>
+  {% empty %}<tr><td colspan="10" class="redup" style="padding:28px;text-align:center">Belum ada perubahan stok.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+{% endblock %}

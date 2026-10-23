@@ -1,0 +1,61 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Opname #{{ op.id }}{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:opname' %}">Stok opname</a> /</p>
+<h2>Opname #{{ op.id }} · {{ op.dibuat_oleh }}{% if banyak_toko %} · {{ op.toko.nama }}{% endif %}{% if op.toko.stok_di_kasir %} · {{ op.lokasi.nama|default:"Toko (display)" }}{% endif %}</h2>
+<p class="sub">Diajukan {{ op.diajukan_waktu|date:"d M Y H:i" }}{% if op.catatan %} · {{ op.catatan }}{% endif %}</p>
+{% if op.status == "disetujui" %}<div class="pesan success">Disetujui {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}.</div>
+{% elif op.status == "ditolak" %}<div class="pesan warning">Ditolak {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}: {{ op.catatan_putusan }}</div>{% endif %}
+
+{% if not punya_stok %}
+<div class="pesan info">{{ op.toko.nama }} belum punya kasir, jadi tidak ada stok sistem untuk dibandingkan. Hitungan ini dicatat sebagai stok awal toko itu; ACC tidak mengubah stok apa pun.</div>
+<div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Barang dihitung</div><div style="font-size:22px;font-weight:600">{{ baris|length }}</div></div>
+  <div class="kartu"><div class="redup kecil">Nilai barang (modal rata)</div><div style="font-size:22px;font-weight:600">{{ nilai_hitung|rupiah }}</div></div>
+</div>
+<form method="post" data-tanya="Catat hitungan ini sebagai stok awal {{ op.toko.nama }}?">{% csrf_token %}<input type="hidden" name="aksi" value="acc">
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Hitungan</th><th class="angka">Nilai</th><th>Catatan</th></tr>
+  {% for b in baris %}<tr><td>{{ b.varian.item_name }}<input type="hidden" name="pilih" value="{{ b.id }}"></td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
+    <td class="angka"><b>{{ b.hitung }}</b></td><td class="angka">{% if b.nilai_hitung is None %}<span class="redup">modal kosong</span>{% else %}{{ b.nilai_hitung|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>{% endfor %}
+</table></div>
+{% if op.status == "diajukan" %}<div style="margin-top:14px"><button class="tombol utama" type="submit">Catat sebagai stok awal</button></div>{% endif %}
+</form>
+{% else %}
+<div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Barang dihitung</div><div style="font-size:22px;font-weight:600">{{ baris|length }}</div></div>
+  <div class="kartu"><div class="redup kecil">Yang selisih</div><div style="font-size:22px;font-weight:600;color:{% if jumlah_beda %}var(--bahaya){% else %}var(--baik){% endif %}">{{ jumlah_beda }}</div></div>
+  <div class="kartu"><div class="redup kecil">Nilai selisih (modal rata)</div><div style="font-size:22px;font-weight:600;color:{% if nilai_selisih < 0 %}var(--bahaya){% endif %}">{% if nilai_selisih < 0 %}-{% endif %}{{ nilai_selisih|cut:"-"|rupiah }}</div></div>
+</div>
+
+<form method="post" id="form-acc" data-tanya="ACC opname ini? Stok barang yang dicentang langsung disesuaikan.">{% csrf_token %}<input type="hidden" name="aksi" value="acc">
+<div class="gulir"><table>
+  <tr>{% if op.status == "diajukan" %}<th><input type="checkbox" id="semua" checked title="Centang semua"></th>{% endif %}<th>Barang</th><th>Varian</th><th>Rak</th>
+    <th class="angka" title="Stok di sistem saat barang itu dihitung">Sistem saat dihitung</th><th class="angka">Hitungan</th><th class="angka">Selisih</th>
+    {% if op.status == "diajukan" %}<th class="angka">Stok sekarang</th><th class="angka">Jadi</th>{% else %}<th>Diterapkan</th>{% endif %}<th class="angka">Nilai selisih</th><th>Catatan</th></tr>
+  {% for b in baris %}
+  <tr>{% if op.status == "diajukan" %}<td><input type="checkbox" name="pilih" value="{{ b.id }}" checked style="width:20px;height:20px;accent-color:var(--aksen)"></td>{% endif %}
+    <td>{{ b.varian.item_name }}</td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
+    <td class="angka redup">{{ b.stok_saat_hitung }}</td><td class="angka"><b>{{ b.hitung }}</b></td>
+    <td class="angka" style="color:{% if b.selisih < 0 %}var(--bahaya){% elif b.selisih > 0 %}var(--baik){% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih }}</td>
+    {% if op.status == "diajukan" %}<td class="angka redup">{{ b.stok_sekarang }}</td><td class="angka"><b>{{ b.stok_jadi }}</b></td>
+    {% else %}<td>{% if b.diterapkan %}<span class="label baik">ya</span>{% else %}<span class="label netral">tidak</span>{% endif %}</td>{% endif %}
+    <td class="angka">{% if b.nilai_selisih is None %}<span class="redup">modal kosong</span>{% elif b.nilai_selisih < 0 %}-{{ b.nilai_selisih|cut:"-"|ribuan }}{% else %}{{ b.nilai_selisih|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>
+  {% endfor %}
+</table></div>
+<p class="redup kecil">Yang diterapkan adalah selisihnya, bukan angka hitungannya. Jadi kalau ada penjualan sesudah barang dihitung, "Jadi" = stok sekarang + selisih, dan penjualan itu tidak ikut terhapus.</p>
+{% if op.status == "diajukan" %}<div style="margin-top:14px"><button class="tombol utama" type="submit">ACC yang dicentang</button> <span class="redup kecil">Yang tidak dicentang dibiarkan, stoknya tidak berubah.</span></div>{% endif %}
+</form>
+
+{% endif %}
+{% if op.status == "diajukan" %}
+<details class="lipat"><summary>Tolak semuanya</summary>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="tolak">
+  <div style="flex:1;min-width:260px"><label>Alasan (terlihat oleh kepala gudang)</label><input type="text" name="alasan" required placeholder="mis. hitung ulang rak A, selisihnya terlalu besar"></div>
+  <div><button class="tombol bahaya" type="submit">Tolak</button></div>
+</form></details>
+<script>
+const semua = document.getElementById('semua'); if (semua) semua.addEventListener('change', e => { document.querySelectorAll('[name=pilih]').forEach(c => c.checked = e.target.checked); });
+</script>
+{% endif %}
+{% endblock %}

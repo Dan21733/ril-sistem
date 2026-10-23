@@ -1,0 +1,16 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}{{ judul }}{% endblock %}
+{% block isi %}
+<h2>{{ judul }}</h2>
+<p class="sub">{{ daftar|length }} {{ judul|lower }}. Klik nama untuk melihat barangnya.</p>
+<form method="get" class="baris" style="margin-bottom:12px"><div style="width:280px"><input type="search" name="q" value="{{ cari }}" placeholder="Cari {{ judul|lower }}"></div><button class="tombol" type="submit">Cari</button></form>
+<div class="gulir"><table>
+  <tr><th>{{ judul }}</th><th class="angka">Barang</th><th class="angka">Varian</th>{% if 'ubah_info' in hak %}<th>Ganti nama</th>{% endif %}</tr>
+  {% for d in daftar %}
+  <tr><td><a href="{{ d.tautan }}">{{ d.nama|default:"(kosong)" }}</a></td><td class="angka">{{ d.item|ribuan }}</td><td class="angka">{{ d.varian|ribuan }}</td>
+    {% if 'ubah_info' in hak %}<td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px" data-tanya="Ganti nama untuk semua {{ d.varian }} varian?">{% csrf_token %}
+      <input type="hidden" name="lama" value="{{ d.nama }}"><input type="text" name="baru" placeholder="nama baru" style="width:200px" required>
+      <button class="tombol kecil" type="submit">Ganti</button></form></td>{% endif %}</tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

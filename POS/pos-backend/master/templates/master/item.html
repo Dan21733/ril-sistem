@@ -1,0 +1,6 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}{{ item_info.item_name }}{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:barang' %}">Daftar barang</a> /</p>
+{% include "master/_item_isi.html" %}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "master/base.html" %}
+{% block judul %}Pajak (PPN){% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}</style>
+<h2>Pajak (PPN)</h2>
+<p class="sub">Status pajak toko dan tarif PPN. Dipakai saat faktur pembelian di-ACC.</p>
+
+<h3 style="margin-top:0">Status PKP</h3>
+<div class="kartu">{% for t in semua_toko %}<div style="margin-bottom:6px"><b>{{ t.nama }}</b>: {% if t.pkp %}PKP sejak {{ t.pkp_mulai|date:"d M Y" }}{% else %}belum PKP{% endif %}</div>{% endfor %}
+  <p class="redup kecil" style="margin:8px 0 0">Status PKP diatur per toko di menu <a href="{% url 'master:toko' %}">Toko</a>, karena PKP melekat pada pemilik (NPWP) tokonya. Belum PKP: PPN yang dibayar ke supplier dihitung sebagai modal. Sudah PKP: PPN berfaktur tidak masuk modal.</p></div>
+
+<h3>Tarif PPN</h3>
+{% if not daftar_tarif %}<div class="pesan warning">Belum ada tarif. Faktur dengan PPN belum bisa dicatat sampai tarif diisi. Pastikan angkanya ke konsultan pajak.</div>{% endif %}
+<div class="gulir"><table>
+  <tr><th>Berlaku sejak</th><th>Tarif efektif</th><th>Catatan</th><th></th></tr>
+  {% for t in daftar_tarif %}<tr><td>{{ t.mulai|date:"d M Y" }}</td><td><b>{{ t.persen|floatformat:"-2" }}%</b></td><td>{{ t.catatan }}</td>
+    <td><form method="post" data-tanya="Hapus tarif ini?">{% csrf_token %}<input type="hidden" name="aksi" value="hapus_tarif"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form></td></tr>
+  {% empty %}<tr><td colspan="4" class="redup" style="padding:24px;text-align:center">Belum ada tarif.</td></tr>{% endfor %}
+</table></div>
+<form method="post" class="kartu baris" style="margin-top:16px">{% csrf_token %}<input type="hidden" name="aksi" value="tarif">
+  <div style="width:200px"><label>Berlaku sejak</label><input type="date" name="mulai" required></div>
+  <div style="width:150px"><label>Tarif efektif (%)</label><input type="text" name="persen" placeholder="mis. 11" required></div>
+  <div style="flex:1;min-width:220px"><label>Catatan</label><input type="text" name="catatan" placeholder="sumber atau dasar aturannya"></div>
+  <div><button class="tombol utama" type="submit">Tambah tarif</button></div>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Isi tarif efektif, yaitu persen yang benar-benar dikalikan ke harga sebelum pajak. Tarif lama jangan dihapus; tambahkan baris baru dengan tanggal mulai yang baru.</p>
+</form>
+{% endblock %}

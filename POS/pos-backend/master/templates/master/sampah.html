@@ -1,0 +1,42 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Barang dihapus{% endblock %}
+{% block isi %}
+<h2>Barang dihapus</h2>
+<p class="sub">Barang di sini tidak muncul di kasir maupun di daftar barang. Pulihkan untuk menjualnya lagi.
+  Hapus permanen hanya bisa untuk barang yang belum punya riwayat, dan wajib memasukkan password akunmu.</p>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nama, varian, atau SKU</label><input type="search" name="q" value="{{ q }}"></div>
+  <div><button class="tombol utama" type="submit">Cari</button> <a class="tombol" href="{% url 'master:sampah' %}">Reset</a></div>
+</form>
+
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Dibuang</th><th class="angka">Stok saat dibuang</th><th class="angka">Harga jual</th><th>Riwayat</th><th></th></tr>
+  {% for s in daftar %}
+  <tr>
+    <td><b>{{ s.item_name }}</b> / {{ s.variant|varian }}<div class="kecil redup">{{ s.kategori }}{% if s.brand %} · {{ s.brand }}{% endif %}</div>
+      {% if s.alasan %}<div class="kecil">Alasan: {{ s.alasan }}</div>{% endif %}</td>
+    <td style="white-space:nowrap">{{ s.waktu|date:"d M Y H:i" }}<div class="kecil redup">{{ s.oleh }}</div></td>
+    <td class="angka">{% if s.stok %}<b>{{ s.stok|ribuan }}</b>{% else %}0{% endif %}</td>
+    <td class="angka">{{ s.harga|ribuan }}</td>
+    <td class="kecil">{% if s.riwayat %}{{ s.riwayat|join:", " }}{% else %}<span class="redup">Tidak ada</span>{% endif %}</td>
+    <td style="white-space:nowrap">
+      <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ s.id }}"><input type="hidden" name="aksi" value="pulihkan">
+        <button class="tombol kecil utama" type="submit">Pulihkan</button></form>
+      {% if s.riwayat %}
+        <div class="kecil redup" style="margin-top:6px">Tidak bisa dihapus permanen</div>
+      {% else %}
+        <details style="display:inline-block;margin-left:6px"><summary class="tombol kecil">Hapus permanen</summary>
+          <form method="post" class="kartu" style="margin-top:6px;min-width:220px" onsubmit="return confirm('Hapus permanen {{ s.item_name|escapejs }} / {{ s.variant|escapejs }}? Tidak bisa dibatalkan.')">{% csrf_token %}
+            <input type="hidden" name="id" value="{{ s.id }}"><input type="hidden" name="aksi" value="hapus">
+            <label>Password akunmu</label><input type="password" name="password" required autocomplete="current-password">
+            <div style="margin-top:8px"><button class="tombol kecil" type="submit">Hapus permanen</button></div>
+          </form>
+        </details>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">{% if q %}Tidak ada yang cocok.{% else %}Keranjang sampah kosong.{% endif %}</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

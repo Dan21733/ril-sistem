@@ -1,0 +1,27 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Ambil barang{% endblock %}
+{% block isi %}
+{% for k in kelompok %}
+<form method="post" class="kartu" style="margin-bottom:12px">{% csrf_token %}<input type="hidden" name="referensi" value="{{ k.referensi }}">
+  <b style="font-size:16px">{{ k.referensi }}</b> <span class="redup kecil">{{ k.sumber }} · {{ k.dibuat|date:"d M H:i" }}</span>
+  <div class="daftar" style="margin-top:8px">
+    {% for p in k.baris %}
+    <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ p.item_name }}{% if p.variant != "N/A" %} / {{ p.variant }}{% endif %}</b>
+      <span class="redup kecil">ambil <b>{{ p.jumlah }}</b> dari {{ p.lokasi.nama }}{% if p.varian.rak_id %} · rak {{ p.varian.rak_id }}{% endif %}</span></div>
+      <div style="flex-basis:100%;display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <input class="angka" type="text" name="diambil_{{ p.id }}" value="{{ p.jumlah }}" data-minta="{{ p.jumlah }}" inputmode="numeric" style="width:90px" title="Jumlah yang benar-benar diambil">
+        <select name="lokasi_{{ p.id }}" style="flex:1;min-width:120px">{% for l in gudang %}<option value="{{ l.id }}" {% if l.id == p.lokasi_id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>
+        <input type="text" name="catatan_{{ p.id }}" placeholder="catatan (kalau beda)" style="flex:2;min-width:160px">
+      </div></div>
+    {% endfor %}
+  </div>
+  <div style="margin-top:10px"><button class="tombol utama penuh" type="submit">Sudah diambil</button></div>
+</form>
+{% empty %}<div class="kartu redup">Tidak ada barang yang menunggu diambil.</div>
+{% endfor %}
+{% if riwayat %}
+<h3>Terakhir kamu ambil</h3>
+<div class="daftar">{% for p in riwayat %}<div class="brs"><div class="nama"><b>{{ p.diambil_jumlah }} {{ p.item_name }}{% if p.variant != "N/A" %} / {{ p.variant }}{% endif %}</b>
+  <span class="redup kecil">{{ p.referensi }} · {{ p.diambil_lokasi.nama }} · {{ p.diambil_waktu|date:"d M H:i" }}{% if p.selisih %} · diminta {{ p.jumlah }}{% endif %}</span></div></div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

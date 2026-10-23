@@ -1,0 +1,1 @@
+{% load master_tags %}<input class="sel{% if kolom in b.tanda %} tanda{% endif %}" inputmode="numeric" autocomplete="off" data-jenis="angka" data-id="{{ b.id }}" data-kolom="{{ kolom }}" value="{{ nilai|ribuan }}" data-awal="{{ nilai|ribuan }}" aria-label="{{ label }} {{ b.item_name }} {{ b.variant|varian }}">

@@ -1,0 +1,38 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Saldo antar toko{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}</style>
+<p class="kecil"><a href="{% url 'master:transfer' %}">Transfer ke toko lain</a> /</p>
+<h2>Saldo antar toko</h2>
+<p class="sub">Dari transfer yang sudah diterima (nilai modal), dikurangi pelunasan. Kalau keluarga sepakat tidak ditagih, catat sebagai pelunasan dengan catatan itu.</p>
+{% for s in saldo %}
+<div class="kartu baris" style="margin-bottom:12px;justify-content:space-between"><div><b>{{ s.penghutang.nama }}</b> berhutang ke <b>{{ s.pemberi.nama }}</b></div><div style="font-size:22px;font-weight:600">{{ s.jumlah|rupiah }}</div></div>
+{% empty %}<div class="kartu redup">Tidak ada saldo. Semua lunas.</div>{% endfor %}
+
+{% if saldo %}
+<h3>Catat pelunasan</h3>
+<form method="post" class="kartu baris">{% csrf_token %}
+  <div style="min-width:240px;flex:1"><label>Yang dilunasi</label><select name="pasangan" id="pasangan">{% for s in saldo %}<option value="{{ s.penghutang.id }}-{{ s.pemberi.id }}" data-jumlah="{{ s.jumlah }}">{{ s.penghutang.nama }} → {{ s.pemberi.nama }}</option>{% endfor %}</select>
+    <input type="hidden" name="pembayar" id="pembayar"><input type="hidden" name="penerima" id="penerima"></div>
+  <div style="width:180px"><label>Tanggal</label><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></div>
+  <div style="width:180px"><label>Jumlah</label><input type="text" name="jumlah" id="jumlah" inputmode="numeric" required></div>
+  <div style="width:150px"><label>Cara</label><select name="cara">{% for k, l in cara_bayar %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
+  <div><button class="tombol utama" type="submit">Catat</button></div>
+</form>
+<script>
+(function(){
+  const p = document.getElementById('pasangan');
+  const atur = () => { const o = p.selectedOptions[0], [a, b] = o.value.split('-'); document.getElementById('pembayar').value = a; document.getElementById('penerima').value = b; document.getElementById('jumlah').value = ribuan(o.dataset.jumlah); };
+  p.addEventListener("change", atur); document.addEventListener("DOMContentLoaded", atur);
+})();
+</script>
+{% endif %}
+
+<h3>Riwayat pelunasan</h3>
+<div class="gulir"><table>
+  <tr><th>Tanggal</th><th>Dari</th><th>Ke</th><th class="angka">Jumlah</th><th>Cara</th><th>Catatan</th><th>Oleh</th></tr>
+  {% for r in riwayat %}<tr><td>{{ r.tanggal|date:"d M Y" }}</td><td>{{ r.pembayar.nama }}</td><td>{{ r.penerima.nama }}</td><td class="angka">{{ r.jumlah|ribuan }}</td><td>{{ r.get_cara_display }}</td><td>{{ r.catatan }}</td><td class="redup">{{ r.oleh }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:24px;text-align:center">Belum ada pelunasan.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,135 @@
+# Kasir + master + aplikasi gudang + PostgreSQL di server rumah, satu database.
+# Panduan lengkap: master/README.md bagian "Server rumah (Docker)".
+#
+# Jalankan dari folder ini (pos-backend/master/server):
+#   docker compose up -d --build
+#
+# Rahasia ada di berkas .env di folder ini (dibuat siapkan.sh, tidak ikut git).
+# Semua hanya mendengar di 127.0.0.1 server: tidak terbuka ke WiFi rumah.
+# Dari perangkat lain dibuka lewat SSH tunnel atau `tailscale serve`:
+#   kasir (tablet)  : 127.0.0.1:5173
+#   master          : 127.0.0.1:8001
+#   gudang          : 127.0.0.1:8002
+
+name: master
+
+x-aplikasi: &aplikasi
+  build:
+    context: ../..
+    dockerfile: master/server/Dockerfile
+  image: master-dbrl:lokal
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+  environment: &env
+    DATABASE_URL: postgresql://master:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@db:5432/master
+    SECRET_KEY: ${SECRET_KEY:?isi SECRET_KEY di .env}
+    DEVICE_AUTH_SIGNING_KEY: ${DEVICE_AUTH_SIGNING_KEY:?isi di .env}
+    DEVICE_REGISTRATION_TOKEN: ${DEVICE_REGISTRATION_TOKEN:?isi di .env}
+    MASTER_ALLOWED_HOSTS: ${MASTER_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    MASTER_CSRF_TRUSTED_ORIGINS: ${MASTER_CSRF_TRUSTED_ORIGINS:-}
+    GUDANG_ALLOWED_HOSTS: ${GUDANG_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    GUDANG_CSRF_TRUSTED_ORIGINS: ${GUDANG_CSRF_TRUSTED_ORIGINS:-}
+    GUDANG_HTTPS: ${GUDANG_HTTPS:-0}
+    MASTER_MEDIA_ROOT: /data/media
+    MASTER_CACHE_DIR: /data/cache
+    MASTER_CADANGAN_KE: /data/cadangan
+    TZ: Asia/Jakarta
+  volumes:
+    - ${DATA_DIR:-/srv/data/master}/media:/data/media
+    - ${DATA_DIR:-/srv/data/master}/cadangan:/data/cadangan
+    - ${DATA_DIR:-/srv/data/master}/pindah:/data/pindah:ro
+    - cache:/data/cache
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: master
+      POSTGRES_USER: master
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
+      TZ: Asia/Jakarta
+    volumes:
+      # Volume Docker ada di SSD (/var/lib/docker), sesuai rencana: database di SSD.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U master -d master"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Postgres sempat menulis ke disk sebelum berhenti saat server dimatikan.
+    stop_grace_period: 60s
+
+  master:
+    <<: *aplikasi
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  gudang:
+    <<: *aplikasi
+    command: ["python", "-m", "waitress", "--listen=0.0.0.0:8002", "--threads=8", "master.wsgi_gudang:application"]
+    ports:
+      - "127.0.0.1:8002:8002"
+
+  # Pekerjaan berkala master: ganti PIN karyawan terjadwal, dsb.
+  jadwal:
+    <<: *aplikasi
+    command: ["python", "manage.py", "master_jadwal", "--terus", "--settings=master.settings"]
+
+  # Backend kasir (API POS). Tidak dibuka ke luar; tablet lewat layanan web.
+  kasir:
+    <<: *aplikasi
+    command: ["python", "-m", "waitress", "--listen=0.0.0.0:8000", "--threads=8", "config.wsgi:application"]
+    environment:
+      <<: *env
+      DJANGO_SETTINGS_MODULE: config.settings
+      POS_DEBUG: "0"
+      POS_ALLOWED_HOSTS: kasir
+      POS_MEDIA_ROOT: /data/media
+      POS_CACHE_DIR: /data/cache
+
+  # Halaman kasir hasil build + proxy /api ke kasir dan /print ke laptop toko.
+  web:
+    build:
+      context: ../../..
+      dockerfile: pos-backend/master/server/web/Dockerfile
+      args:
+        VITE_STORE_NAME: ${VITE_STORE_NAME:-}
+        VITE_STORE_ADDRESS: ${VITE_STORE_ADDRESS:-}
+        VITE_STORE_PHONE: ${VITE_STORE_PHONE:-}
+        VITE_STORE_CODE: ${VITE_STORE_CODE:-}
+    image: kasir-web-dbrl:lokal
+    restart: unless-stopped
+    depends_on:
+      - kasir
+    environment:
+      DEVICE_REGISTRATION_TOKEN: ${DEVICE_REGISTRATION_TOKEN:?isi di .env}
+      # Alamat penghubung cetak di laptop toko, mis. http://100.x.y.z:9101
+      PRINT_BRIDGE_TARGET: ${PRINT_BRIDGE_TARGET:-http://127.0.0.1:9101}
+    ports:
+      - "127.0.0.1:5173:5173"
+
+  # Cadangan harian: salinan lokal di HDD + salinan terenkripsi di Neon.
+  cadangan:
+    build: ./cadangan
+    image: cadangan-dbrl:lokal
+    restart: unless-stopped
+    user: "1000:1000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://master:${POSTGRES_PASSWORD}@db:5432/master
+      CADANGAN_KUNCI: ${CADANGAN_KUNCI:-}
+      CADANGAN_NEON_URL: ${CADANGAN_NEON_URL:-}
+      CADANGAN_JAM: ${CADANGAN_JAM:-02:30}
+      CADANGAN_FOLDER: /data/cadangan/db
+      TZ: Asia/Jakarta
+    volumes:
+      - ${DATA_DIR:-/srv/data/master}/cadangan:/data/cadangan
+
+volumes:
+  pgdata:
+  cache:

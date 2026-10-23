@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perangkat belum disetujui</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#23211e;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f1d1a}
+.kotak{background:#fff;padding:28px 24px;border-radius:14px;width:min(380px,92vw);text-align:center}
+h1{font-size:20px;margin:0 0 10px}p{color:#6b665d;margin:0 0 14px}
+.kode{font:700 34px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.08em;background:#f7e9df;color:#b4541f;border-radius:10px;padding:12px;margin:6px 0 16px}
+a{display:inline-block;padding:11px 18px;border-radius:9px;background:#b4541f;color:#fff;text-decoration:none}
+</style></head><body>
+<div class="kotak">
+{% if p and p.status == 'dicabut' %}
+  <h1>Perangkat ini dicabut</h1>
+  <p>Perangkat ini tidak boleh lagi membuka aplikasi operasional. Hubungi pemilik.</p>
+  <div class="kode">{{ p.kode }}</div>
+{% elif p %}
+  <h1>Perangkat belum disetujui</h1>
+  <p>Minta pemilik menyetujui kode ini di master, menu <b>Kasir › Perangkat operasional</b>.</p>
+  <div class="kode">{{ p.kode }}</div>
+  <a href="">Sudah disetujui, cek lagi</a>
+{% else %}
+  <h1>Perangkat belum disetujui</h1>
+  <p>Terlalu banyak perangkat yang menunggu persetujuan. Minta pemilik membersihkan daftar di master, lalu buka halaman ini lagi.</p>
+{% endif %}
+</div>
+</body></html>

@@ -1,0 +1,41 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Gudang & lokasi{% endblock %}
+{% block isi %}
+<h2>Gudang &amp; lokasi</h2>
+<p class="sub">Tempat stok disimpan di toko yang memegang stok kasir. Stok Toko (display) tidak diisi langsung: dihitung dari total stok dikurangi semua gudang.
+  Lihat <a href="{% url 'master:stok_lokasi' %}">stok per lokasi</a>.</p>
+<div class="gulir"><table>
+  <tr><th>Kode</th><th>Nama</th><th>Jenis</th><th>Keterangan</th><th class="angka">Urutan</th><th class="angka">Rak</th><th class="angka">Varian</th><th class="angka">Unit</th>{% if 'kelola_lokasi' in hak %}<th></th>{% endif %}</tr>
+  {% for d in daftar %}{% with l=d.lokasi %}
+  <tr class="{% if not l.aktif %}nonaktif{% endif %}">
+    {% if 'kelola_lokasi' in hak %}
+    <td><input type="text" name="kode" value="{{ l.kode }}" form="lok-{{ l.id }}" style="width:110px" required></td>
+    <td><input type="text" name="nama" value="{{ l.nama }}" form="lok-{{ l.id }}" required></td>
+    <td>{{ l.get_jenis_display }}</td>
+    <td><input type="text" name="keterangan" value="{{ l.keterangan }}" form="lok-{{ l.id }}"></td>
+    <td class="angka"><input type="text" name="urutan" value="{{ l.urutan }}" form="lok-{{ l.id }}" style="width:60px" inputmode="numeric"></td>
+    {% else %}
+    <td>{{ l.kode }}</td><td>{{ l.nama }}</td><td>{{ l.get_jenis_display }}</td><td>{{ l.keterangan }}</td><td class="angka">{{ l.urutan }}</td>
+    {% endif %}
+    <td class="angka">{{ d.rak|ribuan }}</td>
+    <td class="angka">{% if l.jenis == 'gudang' %}<a href="{% url 'master:stok_lokasi' %}?lokasi={{ l.id }}">{{ d.varian|ribuan }}</a>{% else %}<span class="redup">dihitung</span>{% endif %}</td>
+    <td class="angka">{% if l.jenis == 'gudang' %}{{ d.unit|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td>
+    {% if 'kelola_lokasi' in hak %}<td style="white-space:nowrap">
+      <form method="post" id="lok-{{ l.id }}" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="id" value="{{ l.id }}"><button class="tombol kecil" type="submit">Simpan</button></form>
+      {% if l.jenis == 'gudang' %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ l.id }}"><button class="tombol kecil" type="submit">{{ l.aktif|yesno:"Nonaktifkan,Aktifkan" }}</button></form>{% endif %}
+    </td>{% endif %}
+  </tr>
+  {% endwith %}{% endfor %}
+</table></div>
+{% if 'kelola_lokasi' in hak %}
+<h3>Tambah gudang</h3>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
+  <div style="width:130px"><label>Kode</label><input type="text" name="kode" maxlength="20" required placeholder="GD-A"></div>
+  <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required placeholder="Gudang A"></div>
+  <div style="flex:2;min-width:200px"><label>Keterangan</label><input type="text" name="keterangan"></div>
+  <div style="width:90px"><label>Urutan</label><input type="text" name="urutan" inputmode="numeric" value="0"></div>
+  <div><button class="tombol utama" type="submit">Tambah</button></div>
+</form>
+<p class="kecil redup">Gudang yang masih menyimpan stok tidak bisa dinonaktifkan; pindahkan stoknya dulu.</p>
+{% endif %}
+{% endblock %}

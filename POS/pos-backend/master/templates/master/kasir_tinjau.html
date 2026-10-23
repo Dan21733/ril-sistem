@@ -1,0 +1,57 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Nota perlu ACC{% endblock %}
+{% block isi %}
+<h2>Nota perlu ACC</h2>
+<p class="sub">Nota yang sudah final di tablet (sudah dicetak dan diserahkan ke pembeli) tetapi gagal diperiksa server, misalnya PIN sudah diganti, harga di bawah floor yang sekarang, atau barangnya sudah dihapus. Nota tidak hilang: tunggu keputusanmu di sini.</p>
+
+<div class="baris" style="margin-bottom:16px;gap:8px">
+  <a class="tombol kecil {% if status == 'menunggu' %}utama{% endif %}" href="?status=menunggu">Menunggu</a>
+  <a class="tombol kecil {% if status == 'diterima' %}utama{% endif %}" href="?status=diterima">Diterima</a>
+  <a class="tombol kecil {% if status == 'ditolak' %}utama{% endif %}" href="?status=ditolak">Ditolak</a>
+</div>
+
+{% for d in daftar %}
+<div class="kartu" style="margin-bottom:14px">
+  <div class="baris" style="justify-content:space-between;align-items:start">
+    <div>
+      <b style="font-size:18px">{{ d.n.transaction_id|default:"(tanpa nomor)" }}</b>
+      <span class="label netral">tablet {{ d.n.device_code|default:"?" }}</span>
+      {% if d.waktu_nota %}<span class="kecil redup">dibuat {{ d.waktu_nota|date:"d M Y H:i" }}</span>{% endif %}
+      <span class="kecil redup">· masuk {{ d.n.masuk|date:"d M Y H:i" }}</span>
+      <div class="pesan warning" style="margin:8px 0 0">Alasan ditahan: {{ d.n.alasan }}</div>
+    </div>
+    <div style="text-align:right"><div class="kecil redup">Total</div><b style="font-size:20px">{{ d.total|default:0|rupiah }}</b>
+      <div class="kecil redup">{{ d.bayar }}{% if d.pembeli %} · {{ d.pembeli }}{% endif %}</div></div>
+  </div>
+  <div class="gulir" style="margin-top:10px"><table>
+    <tr><th>Barang</th><th>Jumlah</th><th>Harga di nota</th><th>Floor sekarang</th><th>Subtotal</th></tr>
+    {% for b in d.baris %}
+    <tr><td>{{ b.nama }}{% if b.varian and b.varian != "N/A" %} / {{ b.varian }}{% endif %}{% if not b.ada %} <span class="label bahaya">barang tidak ada</span>{% endif %}</td>
+      <td>{{ b.jumlah }}</td><td>{{ b.harga|rupiah }}{% if b.di_bawah_floor %} <span class="label bahaya">di bawah floor</span>{% endif %}</td>
+      <td class="redup">{{ b.floor|rupiah }}</td><td>{{ b.subtotal|default:0|rupiah }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% if d.n.status == "menunggu" %}
+  <div class="baris" style="margin-top:12px;align-items:end">
+    <form method="post" class="baris" style="gap:8px;align-items:end">{% csrf_token %}<input type="hidden" name="aksi" value="terima"><input type="hidden" name="sync_id" value="{{ d.n.sync_id }}">
+      <div style="width:200px"><label>Kasir</label><select name="worker_id" required>
+        <option value="">pilih kasir</option>
+        {% for wid, nama in pekerja %}<option value="{{ wid }}" {% if wid == d.n.worker_id %}selected{% endif %}>{{ nama }}</option>{% endfor %}</select></div>
+      <div style="width:220px"><label>Catatan (opsional)</label><input type="text" name="catatan" maxlength="300"></div>
+      <button class="tombol utama" type="submit" {% if d.barang_hilang %}disabled title="Pulihkan barangnya dulu dari Barang dihapus"{% endif %}>Terima</button>
+    </form>
+    <form method="post" class="baris" style="gap:8px;align-items:end;margin-left:auto">{% csrf_token %}<input type="hidden" name="aksi" value="tolak"><input type="hidden" name="sync_id" value="{{ d.n.sync_id }}">
+      <div style="width:240px"><label>Alasan menolak</label><input type="text" name="alasan" required maxlength="300"></div>
+      <button class="tombol bahaya" type="submit">Tolak</button>
+    </form>
+  </div>
+  <p class="kecil redup" style="margin:8px 0 0">Terima = nota masuk penjualan pada waktu aslinya dan stok dipotong. Tolak = nota tetap tercatat di sini, tidak dihitung penjualan, stok tidak dipotong.</p>
+  {% else %}
+  <p class="kecil" style="margin:10px 0 0">{% if d.n.status == "diterima" %}<span class="label baik">diterima</span> kasir {{ d.kasir|default:d.n.worker_id }}{% else %}<span class="label bahaya">ditolak</span>{% endif %}
+    oleh {{ d.n.diputuskan_oleh }} {{ d.n.diputuskan_waktu|date:"d M Y H:i" }}{% if d.n.catatan %} · {{ d.n.catatan }}{% endif %}</p>
+  {% endif %}
+</div>
+{% empty %}
+<p class="redup">{% if status == "menunggu" %}Tidak ada nota yang menunggu ACC.{% else %}Belum ada.{% endif %}</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masuk · Gudang</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#23211e;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f1d1a}
+form{background:#fff;padding:28px;border-radius:12px;width:min(340px,92vw)}
+h1{font-size:19px;margin:0 0 2px} p{color:#6b665d;margin:0 0 18px}
+label{display:block;font-size:12px;color:#6b665d;margin:12px 0 3px}
+input{font:inherit;width:100%;padding:9px 10px;border:1px solid #cfcbc1;border-radius:7px;box-sizing:border-box}
+input:focus{outline:2px solid #b4541f;outline-offset:-1px}
+button{font:inherit;margin-top:18px;width:100%;padding:10px;border:0;border-radius:7px;background:#b4541f;color:#fff;cursor:pointer}
+.galat{background:#f8e3e1;color:#a12b2b;padding:9px 11px;border-radius:7px;margin-bottom:6px}
+</style></head><body>
+<form method="post">{% csrf_token %}
+  <h1>Masuk dengan kata sandi</h1><p>Akun lama (nama pengguna)</p>
+  {% if form.errors %}<div class="galat">{% for e in form.non_field_errors %}{{ e }}{% empty %}Nama pengguna atau kata sandi salah.{% endfor %}</div>{% endif %}
+  <label for="id_username">Nama pengguna</label><input id="id_username" name="username" autofocus autocomplete="username" required>
+  <label for="id_password">Kata sandi</label><input id="id_password" name="password" type="password" autocomplete="current-password" required>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button type="submit">Masuk</button>
+  <p style="margin:14px 0 0;text-align:center;font-size:13px"><a href="{% url 'gudang:masuk' %}" style="color:#b4541f">Masuk dengan PIN</a></p>
+</form></body></html>

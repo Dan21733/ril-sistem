@@ -1,0 +1,35 @@
+{% extends "master/base.html" %}
+{% block judul %}Supplier{% endblock %}
+{% block isi %}
+<h2>Supplier</h2>
+<p class="sub">{{ daftar|length }} supplier. Status PKP dan NPWP dipakai nanti saat faktur pembelian dicatat.</p>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Kontak</th><th>Telepon</th><th>PKP</th><th>NPWP</th><th></th></tr>
+  {% for s in daftar %}
+  <tr class="{% if not s.aktif %}nonaktif{% endif %}">
+    <td><b>{{ s.nama }}</b>{% if s.catatan %}<span class="masalah-teks" style="color:var(--redup)">{{ s.catatan }}</span>{% endif %}</td>
+    <td>{{ s.kontak }}</td><td>{{ s.telepon }}</td>
+    <td>{% if s.pkp %}<span class="label baik">PKP</span>{% else %}<span class="label netral">Bukan PKP</span>{% endif %}</td>
+    <td>{{ s.npwp }}</td>
+    <td style="white-space:nowrap"><a class="tombol kecil" href="{% url 'master:barang' %}?supplier={{ s.id }}">Barangnya</a> <a class="tombol kecil" href="?buka={{ s.id }}#form">Ubah</a>
+      <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ s.id }}"><button class="tombol kecil" type="submit">{{ s.aktif|yesno:"Nonaktifkan,Aktifkan" }}</button></form></td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Belum ada supplier.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h3 id="form">{% if dibuka %}Ubah {{ dibuka.nama }}{% else %}Tambah supplier{% endif %}</h3>
+<form method="post" class="kartu">{% csrf_token %}
+  <input type="hidden" name="aksi" value="{% if dibuka %}simpan{% else %}tambah{% endif %}">{% if dibuka %}<input type="hidden" name="id" value="{{ dibuka.id }}">{% endif %}
+  <div class="kisi">
+    <div><label>Nama supplier</label><input type="text" name="nama" value="{{ dibuka.nama }}" required></div>
+    <div><label>Nama sales atau kontak</label><input type="text" name="kontak" value="{{ dibuka.kontak }}"></div>
+    <div><label>Telepon</label><input type="text" name="telepon" value="{{ dibuka.telepon }}"></div>
+    <div><label>Status pajak</label><select name="pkp"><option value="0">Bukan PKP / belum tahu</option><option value="1" {% if dibuka.pkp %}selected{% endif %}>PKP (memberi faktur pajak)</option></select></div>
+    <div><label>NPWP</label><input type="text" name="npwp" value="{{ dibuka.npwp }}"></div>
+  </div>
+  <div style="margin-top:16px"><label>Alamat</label><input type="text" name="alamat" value="{{ dibuka.alamat }}"></div>
+  <div style="margin-top:16px"><label>Catatan</label><input type="text" name="catatan" value="{{ dibuka.catatan }}"></div>
+  <div style="margin-top:16px"><button class="tombol utama" type="submit">{% if dibuka %}Simpan{% else %}Tambah{% endif %}</button>{% if dibuka %} <a class="tombol" href="{% url 'master:supplier' %}">Batal</a>{% endif %}</div>
+</form>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "master/base.html" %}
+{% block judul %}Faktur baru{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}</style>
+<p class="kecil"><a href="{% url 'master:faktur' %}">Catat faktur saja</a> /</p>
+<h2>Faktur baru</h2>
+<p class="sub">Untuk barang yang dipesan tanpa PO, atau faktur lama. Stok dan modal tidak ikut berubah.</p>
+<form method="post" enctype="multipart/form-data" class="kartu" id="form-faktur">{% csrf_token %}
+  {% include "master/_faktur_isian.html" with isi=kirim %}
+  <div style="margin-top:16px"><label>Foto faktur (boleh kosong, paling banyak {{ maks_foto }}, JPG/PNG/PDF)</label><input type="file" name="foto" accept="image/jpeg,image/png,image/webp,application/pdf" multiple></div>
+  <div class="kartu" style="margin-top:16px;background:#fbfaf7">
+    <label style="display:flex;gap:10px;align-items:center;color:var(--teks);font-size:16px;margin:0"><input type="checkbox" name="sudah_lunas" value="1" id="sudah-lunas" {% if kirim.sudah_lunas %}checked{% endif %} style="width:20px;height:20px;accent-color:var(--aksen)"> Faktur ini sudah lunas</label>
+    <div class="baris" id="isian-lunas" style="margin-top:12px;display:none">
+      <div style="width:200px"><label>Tanggal lunas</label><input type="date" name="tanggal_lunas" value="{{ kirim.tanggal_lunas }}"></div>
+      <div style="width:180px"><label>Cara bayar</label><select name="cara_lunas">{% for k, l in cara_bayar %}<option value="{{ k }}" {% if k == "transfer" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <p class="redup kecil" style="margin:0;flex-basis:100%">Cocok untuk memasukkan faktur lama yang sudah dibayar. Tanggal lunas kosong = tanggal faktur.</p>
+    </div>
+  </div>
+  <div style="margin-top:16px" class="baris">
+    <button class="tombol utama" type="submit">Simpan</button>
+    <button class="tombol" type="submit" name="lagi" value="1">Simpan dan isi faktur berikutnya</button>
+  </div>
+</form>
+<script>
+(function(){
+  const f = document.getElementById('form-faktur');
+  if (!f.elements.tanggal_faktur.value) f.elements.tanggal_faktur.value = '{{ hari_ini|date:"Y-m-d" }}';
+  const cek = document.getElementById('sudah-lunas'), isian = document.getElementById('isian-lunas');
+  const atur = () => { isian.style.display = cek.checked ? 'flex' : 'none'; };
+  cek.addEventListener('change', atur); atur();
+  f.elements.total.addEventListener('blur', e => { const n = parseInt(e.target.value.replace(/\D/g, ''), 10); if (n) e.target.value = ribuan(n); });
+})();
+</script>
+{% endblock %}

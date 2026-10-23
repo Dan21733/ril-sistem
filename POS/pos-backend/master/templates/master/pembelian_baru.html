@@ -1,0 +1,17 @@
+{% extends "master/base.html" %}
+{% block judul %}Pesanan baru{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:pembelian' %}">Pembelian</a> /</p>
+<h2>Pesanan baru</h2>
+<p class="sub">Pilih supplier dulu. Barangnya ditambahkan di langkah berikutnya.</p>
+{% if not daftar_supplier %}<div class="pesan warning">Belum ada supplier. <a href="{% url 'master:supplier' %}">Tambah supplier dulu.</a></div>{% endif %}
+<form method="post" class="kartu">{% csrf_token %}
+  <div class="kisi">
+    <div><label>Supplier</label><select name="supplier" required><option value="">Pilih</option>{% for s in daftar_supplier %}<option value="{{ s.id }}">{{ s.nama }}{% if s.pkp %} (PKP){% endif %}</option>{% endfor %}</select></div>
+  <div><label>Toko</label><div style="padding:10px 0;font-weight:600">{{ toko_aktif.nama }}</div><input type="hidden" name="toko" value="{{ toko_aktif.id }}"></div>
+    <div><label>Tanggal pesan</label><input type="date" name="tanggal_pesan" value="{{ hari_ini|date:'Y-m-d' }}" required style="font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%"></div>
+  </div>
+  <div style="margin-top:16px"><label>Catatan</label><input type="text" name="catatan"></div>
+  <div style="margin-top:16px"><button class="tombol utama" type="submit">Lanjut</button> <a class="tombol" href="{% url 'master:pembelian' %}">Batal</a></div>
+</form>
+{% endblock %}

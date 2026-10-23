@@ -1,0 +1,108 @@
+// Skema POS — DIHASILKAN OTOMATIS, jangan diedit manual.
+// Regenerate: skrip tools/export_db_schema.py sudah dihapus (bersih-bersih repo) - ekspor baru perlu ditulis ulang lebih dulu, dan itu menyentuh database
+// Sumber: DBengkulu @ pg-e5b9d28-pos-21733.l.aivencloud.com:20806 (schema: public), diekspor 2026-09-28 19:10:43
+// Tempelkan isi file ini ke https://dbdiagram.io untuk menggambar ERD.
+
+Project pos_db {
+  database_type: 'PostgreSQL'
+  Note: 'Diekspor otomatis dari database DBengkulu pada 2026-09-28 19:10:43. Setiap perubahan skema wajib regenerate file ini.'
+}
+
+Table device {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  device_code varchar(3) [not null, unique]
+
+  checks {
+    `device_code::text ~ '^T[0-9]{2}$'::text` [name: 'device_device_code_format_check']
+  }
+}
+
+Table device_transaction_sequence {
+  device_id uuid [pk, not null]
+  next_sequence int [not null, default: 1]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  checks {
+    `next_sequence >= 1 AND next_sequence <= 999999` [name: 'device_transaction_sequence_next_sequence_check']
+  }
+}
+
+Table item {
+  moka_id varchar
+  category varchar
+  sku varchar
+  item_name varchar [not null]
+  ecommerce_item bool
+  brand varchar
+  variant varchar [not null]
+  min_price int
+  max_price int
+  in_stock int
+  track_stock bool
+  track_alert bool
+  stock_alert int
+  cost_amount int
+
+  indexes {
+    (item_name, variant) [pk]
+  }
+}
+
+Table payment_proof {
+  proof_id uuid [pk, not null]
+  sync_id uuid [not null]
+  object_key text [not null, unique]
+  content_type varchar(32) [not null]
+  byte_size int [not null]
+  sha256 varchar(64) [not null]
+  captured_at timestamptz
+  uploaded_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  device_code varchar(3)
+
+  checks {
+    `byte_size > 0 AND byte_size <= 5242880` [name: 'payment_proof_byte_size_check']
+    `sha256::text ~ '^[0-9a-f]{64}$'::text` [name: 'payment_proof_sha256_check']
+  }
+}
+
+Table transaction_detail {
+  item_name varchar [not null]
+  variant varchar [not null]
+  quantity int [not null]
+  unit_price int [not null]
+  discount int [default: 0]
+  subtotal int [not null]
+  sync_id uuid [not null]
+
+  indexes {
+    (sync_id, item_name, variant) [pk]
+  }
+}
+
+Table transactions {
+  transaction_id varchar(10) [unique]
+  worker_id varchar [not null]
+  transaction_time timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  total_amount int [not null]
+  payment_method varchar [not null]
+  payment_amount int [not null]
+  change_amount int [not null]
+  item_amount int [not null]
+  shipping_amount int
+  cust_name text
+  phone_no varchar(20)
+  sync_id uuid [pk, not null]
+}
+
+Table worker {
+  id varchar(5) [pk, not null]
+  name text [not null]
+  pin text [not null]
+}
+
+// ---- Relasi ----
+Ref device_transaction_sequence_device_id_fkey: device.(id) - device_transaction_sequence.(device_id)
+Ref payment_proof_sync_id_fkey: payment_proof.(sync_id) > transactions.(sync_id)
+Ref transaction_detail_item_name_variant_fkey: transaction_detail.(item_name, variant) > item.(item_name, variant)
+Ref transaction_detail_sync_id_fkey: transaction_detail.(sync_id) > transactions.(sync_id)
+Ref transactions_worker_id_fkey: transactions.(worker_id) > worker.(id)

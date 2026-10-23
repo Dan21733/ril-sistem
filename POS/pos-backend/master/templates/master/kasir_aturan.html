@@ -1,0 +1,39 @@
+{% extends "master/base.html" %}
+{% block judul %}Aturan kasir{% endblock %}
+{% block isi %}
+<style>.kartu input[type=number],.kartu input[type=time]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}</style>
+<h2>Aturan kasir</h2>
+<p class="sub">Aturan yang dipakai kasir di semua tablet. Perubahan terasa di kasir paling lambat beberapa detik kemudian.</p>
+
+{% if a.rotasi_aktif == "1" and not penjadwal_hidup %}
+<div class="pesan error">Penjadwal tidak berjalan, jadi ganti PIN otomatis tidak akan terjadi. Di server: <code>docker compose up -d jadwal</code>.</div>
+{% endif %}
+
+<form method="post" class="kartu" style="max-width:720px">{% csrf_token %}
+  <h3 style="margin-top:0">Ganti PIN berkala</h3>
+  <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="rotasi_aktif" value="1" {% if a.rotasi_aktif == "1" %}checked{% endif %} style="width:auto"> Ganti PIN semua karyawan secara otomatis</label>
+  <div class="baris" style="margin-top:12px">
+    <div style="width:140px"><label>Setiap (hari)</label><input type="number" name="rotasi_interval_hari" min="1" max="90" value="{{ a.rotasi_interval_hari }}"></div>
+    <div style="width:160px"><label>Pada hari</label><select name="rotasi_hari">{% for i, n in hari %}<option value="{{ i }}" {% if a.rotasi_hari == i|stringformat:"d" %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div style="width:130px"><label>Jam</label><input type="time" name="rotasi_jam" value="{{ a.rotasi_jam }}"></div>
+    <div style="width:200px"><label>PIN baru disiapkan (hari sebelumnya)</label><input type="number" name="rotasi_siapkan_hari" min="0" max="7" value="{{ a.rotasi_siapkan_hari }}"></div>
+  </div>
+  {% if a.rotasi_aktif == "1" and berikut %}
+  <p class="kecil">Ganti PIN berikutnya: <b>{{ berikut|date:"l, d M Y H:i" }}</b>. {% if siapkan_mulai <= now_waktu %}PIN baru sudah dibuat dan ada{% else %}PIN baru dibuat {{ siapkan_mulai|date:"l, d M H:i" }} dan muncul{% endif %} di <a href="{% url 'master:karyawan' %}">Karyawan &amp; PIN</a> untuk dibagikan.</p>
+  {% endif %}
+
+  <h3>Nota offline yang telat terkirim</h3>
+  <div class="baris">
+    <div style="width:220px"><label>PIN lama masih diterima (hari)</label><input type="number" name="pin_tenggang_hari" min="1" max="60" value="{{ a.pin_tenggang_hari }}"></div>
+  </div>
+  <p class="kecil redup">Nota dicocokkan dengan PIN yang berlaku saat nota dibuat. Nota dari sebelum PIN diganti tetap diterima kalau terkirim dalam batas ini, misalnya tablet mati lampu seharian. Lewat batas itu nota masuk <a href="{% url 'master:nota_tinjau' %}">Nota perlu ACC</a>, tidak hilang.</p>
+
+  <h3>Void, retur, dan uang kembali</h3>
+  <div class="baris">
+    <div style="width:240px"><label>Uang kembali paling banyak (% dari total nota)</label><input type="number" name="refund_maks_persen" min="0" max="100" value="{{ a.refund_maks_persen }}"></div>
+  </div>
+  <p class="kecil redup">100 = pembeli bisa menerima kembali seluruh uang yang dibayarnya. Misalnya 90 = paling banyak 90% dari total nota, dihitung kumulatif untuk semua void, retur, dan refund pada nota yang sama.</p>
+
+  <div style="margin-top:16px"><button class="tombol utama" type="submit">Simpan</button></div>
+</form>
+{% endblock %}

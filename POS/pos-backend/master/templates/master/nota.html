@@ -1,0 +1,77 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Nota kasir{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+.besar{font-size:24px;font-weight:600}.batang{height:8px;border-radius:4px;background:var(--aksen);min-width:2px}
+.tab{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}.tab a{padding:8px 16px;border-radius:999px;background:#ece9e2;color:var(--teks)}.tab a.kini{background:var(--aksen);color:#fff}.tab a:hover{text-decoration:none}
+th a{color:inherit}th a.kini{color:var(--aksen)}</style>
+<h2>Nota kasir</h2>
+{% if jumlah_retur %}<div class="pesan error"><a href="{% url 'master:retur' %}" style="color:inherit"><b>{{ jumlah_retur }} retur/void</b> dari kasir belum diterima barangnya. Stok belum bertambah sampai diterima →</a></div>{% endif %}
+<p class="sub">{{ periode.awal|date:"d M Y" }}{% if periode.awal != periode.akhir %} sampai {{ periode.akhir|date:"d M Y" }}{% endif %}. Klik nota untuk melihat isinya.</p>
+<form method="get" class="kartu baris" style="margin-bottom:18px" id="form-periode">
+  {% if jenis %}<input type="hidden" name="lap" value="{{ jenis }}">{% endif %}
+  <div style="min-width:170px"><label>Periode</label><select name="periode" onchange="document.getElementById('atur-tgl').style.display = this.value === 'atur' ? 'flex' : 'none'; if (this.value !== 'atur') this.form.submit()">
+    <option value="hari" {% if periode.pilih == "hari" %}selected{% endif %}>Hari ini</option><option value="kemarin" {% if periode.pilih == "kemarin" %}selected{% endif %}>Kemarin</option>
+    <option value="7" {% if periode.pilih == "7" %}selected{% endif %}>7 hari terakhir</option><option value="30" {% if periode.pilih == "30" %}selected{% endif %}>30 hari terakhir</option>
+    <option value="bulan" {% if periode.pilih == "bulan" %}selected{% endif %}>Bulan ini</option><option value="atur" {% if periode.pilih == "atur" %}selected{% endif %}>Atur tanggal</option></select></div>
+  <div id="atur-tgl" class="baris" style="display:{% if periode.pilih == "atur" %}flex{% else %}none{% endif %}">
+    <div style="width:180px"><label>Dari</label><input type="date" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"></div>
+    <div style="width:180px"><label>Sampai</label><input type="date" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
+  </div>
+  <div style="min-width:160px"><label>Karyawan</label><select name="kasir"><option value="">Semua</option>{% for k, n in daftar_kasir %}<option value="{{ k }}" {% if g.kasir == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Cara bayar</label><select name="metode"><option value="">Semua</option>{% for k, n in daftar_metode %}<option value="{{ k }}" {% if g.metode == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Perangkat</label><select name="perangkat"><option value="">Semua</option>{% for k in daftar_perangkat %}<option {% if g.perangkat == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Sumber</label><select name="sumber"><option value="">Kasir dan tulis tangan</option><option value="kasir" {% if g.sumber == "kasir" %}selected{% endif %}>Kasir saja</option><option value="manual" {% if g.sumber == "manual" %}selected{% endif %}>Tulis tangan saja</option></select></div>
+  <div style="flex:1;min-width:200px"><label>Cari nomor nota atau barang</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+</form><div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Penjualan barang{% if ringkas.kembali %} bersih{% endif %}</div><div class="besar">{{ ringkas.omzet|rupiah }}</div><div class="redup kecil">{{ ringkas.nota|ribuan }} nota · rata-rata {{ ringkas.rata|rupiah }}</div>{% if ringkas.kembali %}<div class="redup kecil">kotor {{ ringkas.omzet_kotor|rupiah }} − dikembalikan {{ ringkas.uang_kembali|rupiah }} ({{ ringkas.kembali }} refund/retur/void)</div>{% endif %}</div>
+  <div class="kartu"><div class="redup kecil">Laba kotor{% if ringkas.kembali %} bersih{% endif %}</div><div class="besar">{{ ringkas.laba|rupiah }}</div><div class="redup kecil">{% if ringkas.margin != None %}margin {{ ringkas.margin }}%{% else %}-{% endif %}</div></div>
+  <div class="kartu"><div class="redup kecil">Ongkir</div><div class="besar">{{ ringkas.ongkir|rupiah }}</div><div class="redup kecil">total diterima {{ ringkas.total|rupiah }}</div></div>
+</div>
+{% if ringkas.tanpa_modal %}<div class="pesan warning">{{ ringkas.tanpa_modal }} nota berisi barang yang modalnya kosong. Laba untuk barang itu tidak ikut dihitung, jadi angka laba di atas terlalu tinggi sebesar modal barang itu.</div>{% endif %}
+<div class="belah" id="belah">
+<div class="kiri"><div class="gulir"><table id="tabel-nota">
+  <tr><th>Nomor</th><th>Waktu</th><th class="sempit">Karyawan</th><th class="sempit">Cara bayar</th><th class="angka">Total</th><th class="angka sempit">Laba kotor</th></tr>
+  {% for n in daftar %}
+  <tr class="baris-item" data-id="{{ n.sync_id }}" data-url="{% if n.manual %}{% url 'master:nota_manual_panel' n.manual_id %}{% else %}{% url 'master:nota_panel' n.sync_id %}{% endif %}" tabindex="0">
+    <td><b>{{ n.transaction_id|default:"(tanpa nomor)" }}</b>{% if n.manual %} <span class="label">manual</span>{% if banyak_toko %} <span class="label netral">{{ n.toko.kode }}</span>{% endif %}{% endif %}{% if n.ada_bukti %} <span class="label netral">bukti</span>{% endif %}{% if n.retur == "menunggu" %} <span class="label bahaya">retur belum diterima</span>{% elif n.retur == "void" %} <span class="label netral">void</span>{% elif n.retur == "retur" %} <span class="label netral">retur</span>{% elif n.retur == "uang" %} <span class="label netral">uang kembali</span>{% endif %}</td>
+    <td style="white-space:nowrap">{% if n.manual %}{{ n.transaction_time|date:"d M" }}{% else %}{{ n.transaction_time|date:"d M H:i" }}{% endif %}</td>
+    <td class="sempit">{{ n.kasir }}</td><td class="sempit">{{ n.metode }}</td>
+    <td class="angka"><b>{{ n.total_amount|ribuan }}</b></td>
+    <td class="angka sempit" style="color:{% if n.laba < 0 %}var(--bahaya){% endif %}">{{ n.laba|ribuan }}{% if not n.modal_lengkap %}*{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada nota di periode ini.</td></tr>
+  {% endfor %}
+</table></div>
+{% if terpotong %}<p class="redup kecil">Menampilkan 400 nota terbaru. Persempit periodenya untuk melihat yang lain; angka ringkasan di atas tetap untuk semua nota.</p>{% endif %}
+</div>
+<aside class="kanan" id="panel" hidden></aside>
+</div>
+<style>
+.belah{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}.belah.buka{grid-template-columns:minmax(340px,1fr) minmax(0,1.3fr)}.belah.buka .sempit{display:none}.kiri{min-width:0}
+.kanan{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:22px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;min-width:0}.kanan h2{font-size:22px}
+.baris-item{cursor:pointer}.baris-item.pilih td{background:var(--aksen-lembut)!important}.baris-item:focus{outline:2px solid var(--aksen);outline-offset:-2px}
+@media (max-width:1100px){.belah.buka{grid-template-columns:1fr}.belah.buka .kiri{display:none}.kanan{position:static;max-height:none}}
+</style>
+<script>
+(function(){
+  const belah = document.getElementById('belah'), panel = document.getElementById('panel'), tabel = document.getElementById('tabel-nota');
+  async function buka(id){
+    tabel.querySelectorAll('.pilih').forEach(el => el.classList.remove('pilih'));
+    const baris = tabel.querySelector('[data-id="'+id+'"]'); if (baris) baris.classList.add('pilih');
+    belah.classList.add('buka'); panel.hidden = false; panel.innerHTML = '<p class="redup">Memuat...</p>';
+    try{ const r = await fetch(baris.dataset.url); if (!r.ok) throw 0; panel.innerHTML = await r.text(); panel.scrollTop = 0; }
+    catch(e){ panel.innerHTML = '<p class="pesan error">Nota tidak bisa dimuat.</p>'; }
+  }
+  function tutup(){ belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = ''; tabel.querySelectorAll('.pilih').forEach(el => el.classList.remove('pilih')); }
+  tabel.addEventListener('click', e => { const b = e.target.closest('.baris-item'); if (b) buka(b.dataset.id); });
+  tabel.addEventListener('keydown', e => { const b = e.target.closest('.baris-item'); if (!b) return;
+    if (e.key === 'Enter') buka(b.dataset.id);
+    if (e.key === 'ArrowDown' && b.nextElementSibling){ e.preventDefault(); b.nextElementSibling.focus(); }
+    if (e.key === 'ArrowUp' && b.previousElementSibling && b.previousElementSibling.classList.contains('baris-item')){ e.preventDefault(); b.previousElementSibling.focus(); } });
+  panel.addEventListener('click', e => { if (e.target.closest('[data-tutup-panel]')) tutup(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden && !e.target.matches('input,select')) tutup(); });
+})();
+</script>
+{% endblock %}

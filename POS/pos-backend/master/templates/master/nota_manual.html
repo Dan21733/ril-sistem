@@ -1,0 +1,51 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Nota tulis tangan{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Nota tulis tangan</h2><p class="sub">Penjualan dari nota tulisan tangan, di luar kasir. Ikut masuk ke Nota kasir dan Laporan penjualan.</p></div>
+  <a class="tombol utama" href="{% url 'master:nota_manual_baru' %}">Input nota</a>
+</div>
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nomor, pembeli, atau barang</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="min-width:160px"><label>Tanggal</label><input type="date" name="tanggal" value="{{ g.tanggal }}" style="font:inherit;padding:9px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff"></div>
+  <div style="min-width:160px"><label>Status</label><select name="status"><option value="">Berlaku</option><option value="batal" {% if g.status == "batal" %}selected{% endif %}>Dibatalkan</option><option value="semua" {% if g.status == "semua" %}selected{% endif %}>Semua</option></select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:nota_manual' %}">Reset</a></div>
+</form>
+<form method="post" id="form-massal">{% csrf_token %}
+<div class="kartu baris" id="bar-massal" hidden style="margin-bottom:12px;align-items:end;position:sticky;top:8px;z-index:5;border-color:var(--aksen)">
+  <div style="align-self:center"><b id="jumlah-pilih">0</b> nota dipilih</div>
+  <div><label>Ganti tanggal jadi</label><input type="date" name="tanggal" max="{{ hari_ini }}" style="font:inherit;padding:9px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff"></div>
+  <div style="flex:1;min-width:220px"><label>Alasan</label><input type="text" name="alasan" placeholder="mis. salah tanggal waktu input"></div>
+  <div><button class="tombol utama" type="submit">Ganti tanggal</button></div>
+</div>
+<div class="gulir"><table>
+  <tr><th style="width:34px"><input type="checkbox" id="pilih-semua" style="width:auto" title="Pilih semua di halaman ini" aria-label="Pilih semua di halaman ini"></th><th>Tanggal</th><th>Nomor</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Pembeli</th><th class="angka">Barang</th><th>Bayar</th><th class="angka">Total</th></tr>
+  {% for n in halaman.object_list %}
+  <tr style="cursor:pointer;{% if n.batal %}opacity:.55{% endif %}" onclick="location.href='{% url 'master:nota_manual_detail' n.id %}'">
+    <td onclick="event.stopPropagation()">{% if not n.batal %}<input type="checkbox" name="pilih" value="{{ n.id }}" style="width:auto" aria-label="Pilih {{ n.nomor }}">{% endif %}</td>
+    <td style="white-space:nowrap">{{ n.tanggal|date:"d M Y" }}</td>
+    <td><a href="{% url 'master:nota_manual_detail' n.id %}"><b>{{ n.nomor_tulisan|default:n.nomor }}</b></a>{% if n.nomor_tulisan %} <span class="redup kecil">{{ n.nomor }}</span>{% endif %}{% if n.batal %} <span class="label bahaya">batal</span>{% endif %}</td>
+    {% if banyak_toko %}<td>{{ n.toko.kode }}</td>{% endif %}
+    <td>{{ n.pembeli|default:"-" }}</td><td class="angka">{{ n.baris.all|length }}</td><td>{{ n.get_cara_bayar_display }}</td><td class="angka"><b>{{ n.total|ribuan }}</b></td></tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:28px;text-align:center">Belum ada nota manual.</td></tr>
+  {% endfor %}
+</table></div>
+</form>
+<p class="kecil redup">Salah tanggal? Saring tanggal yang salah, centang notanya, lalu ganti sekaligus. Barang dan harga tetap tidak bisa diubah.</p>
+<script>
+(() => {
+  const kotak = () => [...document.querySelectorAll('input[name=pilih]')], bar = document.getElementById('bar-massal');
+  const segar = () => { const n = kotak().filter(c => c.checked).length; bar.hidden = !n; document.getElementById('jumlah-pilih').textContent = n; };
+  document.getElementById('pilih-semua').addEventListener('change', e => { kotak().forEach(c => c.checked = e.target.checked); segar(); });
+  document.getElementById('form-massal').addEventListener('change', segar);
+  document.getElementById('form-massal').addEventListener('submit', e => {
+    const n = kotak().filter(c => c.checked).length, t = e.target.tanggal.value;
+    if (!t || !e.target.alasan.value.trim()) { e.preventDefault(); kabar('Isi tanggal baru dan alasannya.', true); return; }
+    if (!confirm(`Ganti tanggal ${n} nota jadi ${t}?`)) e.preventDefault();
+  });
+})();
+</script>
+<div class="halaman"><span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>{% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+  {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}</span></div>
+{% endblock %}

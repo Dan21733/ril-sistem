@@ -1,0 +1,22 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Stok per lokasi{% endblock %}
+{% block isi %}
+<form method="get" class="alat">
+  <input type="search" name="q" value="{{ cari }}" placeholder="Cari barang: nama, varian, merek" aria-label="Cari barang" {% if not cari and not rak %}autofocus{% endif %}>
+  <select name="rak" onchange="this.form.submit()" aria-label="Rak"><option value="">Semua rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if rak == r.kode %}selected{% endif %}>{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select>
+  <button class="tombol" type="submit">Cari</button>
+</form>
+{% if hasil %}
+<div class="daftar">
+  {% for v in hasil %}
+  <div class="brs"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
+    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}</span></div>
+    <div class="kecil" style="display:flex;gap:4px 14px;flex-wrap:wrap;justify-content:flex-end;text-align:right">
+      <span>{{ toko_display.nama }}: <b {% if v.toko < 0 %}style="color:var(--bahaya)"{% endif %}>{{ v.toko }}</b></span>
+      {% for nama, n in v.per %}<span>{{ nama }}: <b {% if n < 0 %}style="color:var(--bahaya)"{% endif %}>{{ n }}</b></span>{% endfor %}
+    </div></div>
+  {% endfor %}
+</div>
+{% if terpotong %}<p class="redup kecil">Hanya 80 barang pertama yang tampil. Persempit pencariannya.</p>{% endif %}
+{% elif cari or rak %}<p class="redup">Tidak ada barang yang cocok.</p>{% endif %}
+{% endblock %}

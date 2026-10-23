@@ -1,0 +1,21 @@
+venv/
+.env
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Berkas bukti transfer hasil pengujian di mesin lokal; bukan isi repo.
+media/
+
+# Skrip berisi kredensial tidak boleh pernah masuk git.
+# Kejadian 2026-09-26: datainput.py (frontend) ter-commit berisi kredensial DB.
+datainput*.py
+*.xlsx
+.pin_throttle_cache/
+
+# Kunci service account Google untuk tools/export_to_google_sheets.py.
+# Lokasi yang disarankan di luar repo, tapi kalau diletakkan di sini tetap
+# tidak akan ikut ter-commit.
+.secrets/
+
+

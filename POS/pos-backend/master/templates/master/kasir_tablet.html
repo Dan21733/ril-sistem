@@ -1,0 +1,41 @@
+{% extends "master/base.html" %}
+{% block judul %}Tablet kasir{% endblock %}
+{% block isi %}
+<h2>Tablet kasir</h2>
+<p class="sub">Tablet yang pernah mendaftar ke kasir. Tablet nonaktif tidak bisa membuka daftar barang, mengirim nota, atau mengambil daftar PIN.</p>
+
+<div class="kartu" style="margin-bottom:20px;{% if terbuka %}border-color:#ecd89a{% endif %}">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <div>
+      {% if terbuka %}<b style="font-size:18px">Pendaftaran tablet baru: TERBUKA</b>
+      <div class="redup kecil" style="margin-top:4px">Tablet baru yang membuka halaman kasir langsung terdaftar sendiri. Tutup lagi setelah semua tablet toko terdaftar.</div>
+      {% else %}<b style="font-size:18px">Pendaftaran tablet baru: TERTUTUP</b>
+      <div class="redup kecil" style="margin-top:4px">Hanya tablet di daftar ini yang aktif yang bisa memakai kasir. Tablet lain ditolak, walaupun tersambung ke jaringan.</div>{% endif %}
+    </div>
+    <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="pendaftaran"><input type="hidden" name="buka" value="{% if terbuka %}0{% else %}1{% endif %}">
+      <button class="tombol {% if terbuka %}utama{% endif %}" type="submit">{% if terbuka %}Tutup pendaftaran{% else %}Buka pendaftaran{% endif %}</button></form>
+  </div>
+</div>
+
+<div class="gulir"><table>
+  <tr><th>Kode</th><th>Nama tablet</th><th>Status</th><th>Terdaftar</th><th>Terakhir terlihat</th><th></th></tr>
+  {% for t in daftar %}
+  <tr class="{% if not t.aktif %}nonaktif{% endif %}">
+    <td><b>{{ t.kode }}</b></td>
+    <td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ t.id }}">
+      <input type="text" name="nama" value="{{ t.nama }}" placeholder="mis. Tab kasir depan" style="width:200px" maxlength="60"><button class="tombol kecil" type="submit">Simpan</button></form></td>
+    <td>{% if t.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label bahaya">nonaktif</span>{% endif %}</td>
+    <td class="kecil">{{ t.didaftar|date:"d M Y H:i"|default:"sebelum fitur ini" }}</td>
+    <td class="kecil">{{ t.terakhir|date:"d M Y H:i"|default:"-" }}</td>
+    <td>{% if t.aktif %}
+      <form method="post" data-tanya="Nonaktifkan tablet {{ t.kode }}? Nota yang masih tersimpan di tablet itu tidak bisa terkirim sampai tablet diaktifkan lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="nonaktif"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil bahaya" type="submit">Nonaktifkan</button></form>
+      {% else %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">Aktifkan</button></form>
+      {% endif %}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="6" class="redup">Belum ada tablet terdaftar. Buka pendaftaran, lalu buka halaman kasir di tablet.</td></tr>
+  {% endfor %}
+</table></div>
+<p class="kecil redup">Tablet hilang atau dicuri: nonaktifkan di sini dan tutup pendaftaran. Selama pendaftaran terbuka, tablet mana pun bisa mendaftar ulang sebagai tablet baru.</p>
+{% endblock %}

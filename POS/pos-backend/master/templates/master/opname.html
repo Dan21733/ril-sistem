@@ -1,0 +1,17 @@
+{% extends "master/base.html" %}
+{% block judul %}Stok opname{% endblock %}
+{% block isi %}
+<h2>Stok opname</h2>
+<p class="sub">Hitungan stok dari kepala gudang. Stok baru berubah setelah di-ACC di sini.</p>
+<p><a class="tombol kecil {% if not saring %}utama{% endif %}" href="?">Semua</a>
+{% for k, l in status %} <a class="tombol kecil {% if saring == k %}utama{% endif %}" href="?status={{ k }}">{{ l }}</a>{% endfor %}</p>
+<div class="gulir"><table>
+  <tr><th>Nomor</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Diajukan</th><th>Oleh</th><th class="angka">Barang</th><th>Catatan</th><th>Status</th></tr>
+  {% for o in daftar %}
+  <tr><td><a href="{% url 'master:opname_detail' o.id %}"><b>#{{ o.id }}</b></a></td>{% if banyak_toko %}<td>{{ o.toko.kode }}</td>{% endif %}<td>{{ o.diajukan_waktu|date:"d M Y H:i" }}</td><td>{{ o.dibuat_oleh }}</td><td class="angka">{{ o.n }}{% if o.lokasi %}<div class="kecil redup">{{ o.lokasi.nama }}</div>{% endif %}</td><td>{{ o.catatan }}</td>
+    <td><span class="label {% if o.status == 'disetujui' %}baik{% elif o.status == 'ditolak' %}bahaya{% endif %}">{{ o.get_status_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Belum ada opname yang diajukan.</td></tr>
+  {% endfor %}
+</table></div>
+{% if sedang %}<p class="redup kecil" style="margin-top:14px">Sedang dihitung, belum diajukan: {% for o in sedang %}{{ o.dibuat_oleh }} ({{ o.n }} barang){% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+{% endblock %}

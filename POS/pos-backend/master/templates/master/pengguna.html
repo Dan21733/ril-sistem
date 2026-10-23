@@ -1,0 +1,49 @@
+{% extends "master/base.html" %}
+{% block judul %}Pengguna & hak akses{% endblock %}
+{% block isi %}
+<h2>Pengguna &amp; hak akses</h2>
+<p class="sub">Akun untuk master dan aplikasi operasional (/gudang/). Hak diatur per akun. Ini terpisah dari PIN kasir.</p>
+<div class="gulir"><table>
+  <tr><th>Nama pengguna</th><th>Hak</th><th>Status</th><th>Terakhir masuk</th><th>Ganti kata sandi</th><th></th></tr>
+  {% for d in daftar %}
+  <tr class="{% if not d.akun.is_active %}nonaktif{% endif %}">
+    <td><b>{{ d.akun.username }}</b></td>
+    <td>
+      {% if d.utama %}Pemilik utama (semua hak)
+      {% else %}
+      <details><summary class="tombol kecil">{{ d.ringkas }}{% if semua_toko|length > 1 %} · {{ d.nama_toko }}{% endif %} · atur</summary>
+        <form method="post" class="kartu" style="margin-top:8px;min-width:320px">{% csrf_token %}<input type="hidden" name="aksi" value="hak"><input type="hidden" name="id" value="{{ d.akun.id }}">
+          <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" name="semua" value="1" {% if d.semua %}checked{% endif %} style="width:auto"> <span><b>Pemilik: semua hak</b>, termasuk hak baru nanti</span></label>
+          {% if semua_toko|length > 1 %}
+          <div class="kecil redup" style="margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em">Toko yang boleh dibuka</div>
+          {% for t in semua_toko %}<label style="display:flex;gap:8px;align-items:center;margin:2px 0;font-weight:400"><input type="checkbox" name="toko" value="{{ t.id }}" {% if t.id in d.toko_izin %}checked{% endif %} style="width:auto"> {{ t.nama }}</label>{% endfor %}
+          <div class="kecil redup">Tidak dicentang sama sekali = semua toko.</div>
+          {% endif %}
+          {% for grup, isi in label_hak %}
+          <div class="kecil redup" style="margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em">{{ grup }}</div>
+          {% for kode, label in isi %}
+          <label style="display:flex;gap:8px;align-items:center;margin:2px 0;font-weight:400"><input type="checkbox" name="hak" value="{{ kode }}" {% if kode in d.punya %}checked{% endif %} style="width:auto"> {{ label }}</label>
+          {% endfor %}{% endfor %}
+          <div style="margin-top:12px"><button class="tombol utama kecil" type="submit">Simpan hak</button></div>
+        </form>
+      </details>
+      {% endif %}
+    </td>
+    <td>{{ d.akun.is_active|yesno:"Aktif,Nonaktif" }}</td>
+    <td class="kecil redup">{{ d.akun.last_login|date:"d M Y H:i"|default:"belum pernah" }}</td>
+    <td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="sandi"><input type="hidden" name="id" value="{{ d.akun.id }}">
+      <input type="password" name="password" placeholder="minimal 8 karakter" style="width:170px" autocomplete="new-password" required><button class="tombol kecil" type="submit">Ganti</button></form></td>
+    <td>{% if d.akun != request.user %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ d.akun.id }}"><button class="tombol kecil {% if d.akun.is_active %}bahaya{% endif %}" type="submit">{{ d.akun.is_active|yesno:"Nonaktifkan,Aktifkan" }}</button></form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+<h3>Tambah pengguna</h3>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+  <div style="width:200px"><label>Nama pengguna</label><input type="text" name="username" required autocomplete="off"></div>
+  <div style="width:200px"><label>Kata sandi</label><input type="password" name="password" required autocomplete="new-password"></div>
+  <div style="width:220px"><label>Mulai dari</label><select name="templat" required>{% for k, l in templat %}<option value="{{ k }}" {% if k == 'kosong' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Tambah</button></div>
+</form>
+<p class="kecil redup">Setelah dibuat, buka "atur" di baris akunnya untuk menambah atau mencabut hak satu per satu.
+  Akun tanpa hak "Membuka master" tidak bisa masuk master sama sekali; akun dengan hak operasional diarahkan ke /gudang/.</p>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pembelian barang{% endblock %}
+{% block isi %}
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Pembelian barang</h2><p class="sub">Pesanan ke supplier, barang datang, dan hutang.</p></div>
+  <a class="tombol utama" href="{% url 'master:pembelian_baru' %}">Pesanan baru</a>
+</div>
+
+<div class="kisi" style="margin-bottom:18px">
+  <a class="kartu" href="?status=menunggu" style="color:inherit;text-decoration:none"><div class="redup kecil">Menunggu ACC</div><div style="font-size:24px;font-weight:600;color:{% if menunggu %}var(--aksen){% endif %}">{{ menunggu }}</div></a>
+  <a class="kartu" href="{% url 'master:hutang' %}" style="color:inherit;text-decoration:none"><div class="redup kecil">Hutang belum lunas (termasuk Catat faktur saja)</div><div style="font-size:24px;font-weight:600">{{ hutang.total|rupiah }}</div><div class="redup kecil">{{ hutang.jumlah }} faktur</div></a>
+  <a class="kartu" href="{% url 'master:hutang' %}" style="color:inherit;text-decoration:none"><div class="redup kecil">Lewat jatuh tempo</div><div style="font-size:24px;font-weight:600;color:{% if hutang.lewat %}var(--bahaya){% endif %}">{{ hutang.lewat|length }}</div><div class="redup kecil">{{ hutang.segera|length }} lagi jatuh tempo dalam 7 hari</div></a>
+</div>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nomor, faktur, supplier, atau barang</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="min-width:200px"><label>Status</label><select name="status"><option value="">Semua</option><option value="dibuat" {% if g.status == "dibuat" %}selected{% endif %}>Dipesan</option><option value="menunggu" {% if g.status == "menunggu" %}selected{% endif %}>Menunggu ACC</option><option value="diterima" {% if g.status == "diterima" %}selected{% endif %}>Diterima</option><option value="hutang" {% if g.status == "hutang" %}selected{% endif %}>Belum lunas</option><option value="batal" {% if g.status == "batal" %}selected{% endif %}>Batal</option></select></div>
+  <div style="min-width:200px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:pembelian' %}">Reset</a></div>
+</form>
+
+<div class="gulir"><table>
+  <tr><th>Nomor</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Supplier</th><th>Tanggal pesan</th><th>Status</th><th class="angka">Total</th><th class="angka">Sisa hutang</th><th>Jatuh tempo</th></tr>
+  {% for p in halaman.object_list %}
+  <tr style="cursor:pointer" onclick="location.href='{% url 'master:pembelian_detail' p.id %}'">
+    <td><a href="{% url 'master:pembelian_detail' p.id %}"><b>{{ p.nomor }}</b></a>{% if p.nomor_faktur %}<span class="masalah-teks" style="color:var(--redup)">Faktur {{ p.nomor_faktur }}</span>{% endif %}</td>
+    {% if banyak_toko %}<td>{{ p.toko.kode }}</td>{% endif %}<td>{{ p.supplier.nama }}</td>
+    <td>{{ p.tanggal_pesan|date:"d M Y" }}</td>
+    <td>{% if p.status == "diterima" %}{% if p.lunas %}<span class="label baik">Lunas</span>{% else %}<span class="label">Belum lunas</span>{% endif %}{% elif p.status == "menunggu" %}<span class="label bahaya">Menunggu ACC</span>{% elif p.status == "batal" %}<span class="label netral">Batal</span>{% else %}<span class="label netral">Dipesan</span>{% endif %}</td>
+    <td class="angka">{% if p.status == "diterima" %}{{ p.total|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td>
+    <td class="angka">{% if p.status == "diterima" and p.sisa > 0 %}<b>{{ p.sisa|ribuan }}</b>{% else %}<span class="redup">-</span>{% endif %}</td>
+    <td>{% if p.jatuh_tempo %}<span style="color:{% if p.status == "diterima" and p.sisa > 0 and p.jatuh_tempo < hari_ini %}var(--bahaya){% else %}inherit{% endif %}">{{ p.jatuh_tempo|date:"d M Y" }}</span>{% else %}<span class="redup">-</span>{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:28px;text-align:center">Belum ada pembelian.</td></tr>
+  {% endfor %}
+</table></div>
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+{% endblock %}

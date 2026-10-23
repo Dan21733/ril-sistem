@@ -1,0 +1,4 @@
+# Tambahan untuk modul master, di luar requirements.txt milik POS.
+openpyxl==3.1.5
+# Server aplikasi gudang (Windows).
+waitress==3.0.2

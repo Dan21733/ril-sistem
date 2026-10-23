@@ -1,0 +1,98 @@
+{% load master_tags %}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>{% block judul %}Gudang{% endblock %} · Dunia Bangunan</title>
+<style>
+:root{--latar:#f6f5f2;--kartu:#fff;--garis:#e2dfd8;--garis-kuat:#cfcbc1;--teks:#1f1d1a;--redup:#6b665d;--sisi:#23211e;
+  --aksen:#b4541f;--aksen-lembut:#f7e9df;--baik:#2f6b3f;--baik-lembut:#e3f0e6;--awas:#8a5a00;--awas-lembut:#fbf0d3;--bahaya:#a12b2b;--bahaya-lembut:#f8e3e1}
+*{box-sizing:border-box}html,body{margin:0}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--latar);color:var(--teks)}
+a{color:var(--aksen);text-decoration:none}
+header{background:var(--sisi);color:#fff}
+/* Satu baris di layar lebar (judul, menu, akun); di layar sempit menu turun ke baris kedua. */
+header .atas{display:flex;align-items:center;gap:14px;padding:0 14px;max-width:1240px;margin:0 auto;min-height:50px}
+header .judul{font-size:15px;white-space:nowrap}header .akun{font-size:13px;color:#bdb7ab;display:flex;gap:8px;align-items:center;white-space:nowrap}
+header button{background:none;border:1px solid #4a463f;color:#fff;padding:5px 11px;border-radius:7px;font:inherit;font-size:13px}
+nav{display:flex;flex:1;overflow-x:auto;scrollbar-width:none}
+nav a{flex:0 0 auto;text-align:center;padding:15px 11px 12px;font-size:14px;color:#d9d5cc;white-space:nowrap;border-bottom:3px solid transparent}
+nav a.aktif{color:#fff;border-bottom-color:var(--aksen)}
+@media (max-width:760px){header .atas{flex-wrap:wrap;padding:8px 12px 0;gap:8px}header .judul{flex:1}nav{order:3;flex-basis:100%;margin:0 -12px}nav a{flex:1;padding:10px 10px 9px}}
+main{max-width:1240px;margin:0 auto;padding:14px 14px 70px}
+h2{font-size:19px;margin:2px 0 2px}.sub{color:var(--redup);margin:0 0 12px;font-size:14px}h3{font-size:16px;margin:18px 0 8px}
+.kartu{background:var(--kartu);border:1px solid var(--garis);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:block;color:inherit}
+.redup{color:var(--redup)}.kecil{font-size:13px}
+label{display:block;font-size:13px;color:var(--redup);margin-bottom:4px}
+input[type=text],input[type=search],input[type=date],select{font:inherit;padding:9px 11px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;color:var(--teks);width:100%;min-height:40px}
+input:focus,select:focus{outline:2px solid var(--aksen);outline-offset:-1px}
+input.angka{width:96px;text-align:right;font-size:17px;font-variant-numeric:tabular-nums}
+.tombol{display:inline-block;font:inherit;padding:9px 15px;border-radius:8px;min-height:40px;border:1px solid var(--garis-kuat);background:#fff;color:var(--teks);cursor:pointer}
+.tombol.utama{background:var(--aksen);border-color:var(--aksen);color:#fff}.tombol.penuh{width:100%;text-align:center}
+.tombol.kecil{padding:6px 11px;font-size:13px;min-height:34px}.tombol.bahaya{color:var(--bahaya);border-color:#e0b4b0}
+.pesan{padding:10px 14px;border-radius:9px;margin:0 0 12px;border:1px solid;font-size:14px}
+.pesan.success{background:var(--baik-lembut);border-color:#b9d8c0;color:var(--baik)}
+.pesan.error{background:var(--bahaya-lembut);border-color:#e6b9b5;color:var(--bahaya)}
+.pesan.info,.pesan.warning{background:var(--awas-lembut);border-color:#ecd89a;color:var(--awas)}
+.label{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;background:#ece9e2;color:var(--redup)}
+.label.baik{background:var(--baik-lembut);color:var(--baik)}.label.bahaya{background:var(--bahaya-lembut);color:var(--bahaya)}.label.awas{background:var(--awas-lembut);color:var(--awas)}
+.daftar{background:var(--kartu);border:1px solid var(--garis);border-radius:10px;overflow:hidden}
+.daftar .brs{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--garis)}
+.daftar .brs:last-child{border-bottom:0}.daftar .nama{min-width:0;flex:1}.daftar .nama b{display:block;overflow-wrap:anywhere}
+.brs.terisi{background:var(--baik-lembut)}
+.bawah{position:sticky;bottom:0;background:var(--latar);padding:10px 0;margin-top:10px;border-top:1px solid var(--garis)}
+.dua{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Ubin beranda/tugas: seperti dashboard master, versi kecil. */
+/* Baris alat: pilihan + cari + tombol dalam satu baris, turun sendiri kalau sempit. */
+.alat{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.alat>*{margin:0}.alat input[type=search],.alat input[type=text]{flex:3 1 200px;width:auto}.alat select{flex:1 1 150px;width:auto}
+.alat .tombol{flex:0 0 auto}
+.judul-hal{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 10px}.judul-hal h2{margin:0}
+.panduan-link{color:#d9d5cc;border:1px solid #4a463f;border-radius:50%;width:28px;height:28px;display:inline-grid;place-items:center;font-weight:700;font-size:14px}
+.panduan-link.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.kisi{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));margin-bottom:6px}
+.kisi .kartu{margin:0;display:flex;flex-direction:column;gap:2px;min-height:96px;text-decoration:none}
+.kisi .kartu:active{background:var(--aksen-lembut)}
+.ubin-judul{font-size:13px;color:var(--redup)}.ubin-angka{font-size:24px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums}
+.ubin-ket{font-size:13px;color:var(--redup)}.ubin-angka.awas{color:var(--aksen)}.ubin-angka.bahaya{color:var(--bahaya)}
+input.harga{width:130px;text-align:right;font-variant-numeric:tabular-nums;padding:9px 10px}
+.diubah{background:var(--awas-lembut)}
+.kelompok{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.kelompok>.kepala{padding:12px 14px;border-bottom:1px solid var(--garis);display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.kelompok .vr{display:grid;grid-template-columns:minmax(120px,1fr) auto auto auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--garis)}
+.kelompok .vr:last-child{border-bottom:0}
+.kelompok .vr .lama{font-size:13px;color:var(--redup)}
+@media (max-width:620px){.kelompok .vr{grid-template-columns:1fr 1fr}.kelompok .vr .nm{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header>
+  <div class="atas"><b class="judul">{% if toko_gudang %}{{ toko_gudang.nama }}{% else %}Gudang{% endif %}</b>
+  <nav>
+    {% if 'gudang_datang' in hak or 'gudang_hitung' in hak or 'gudang_buka_dus' in hak or 'gudang_ambil' in hak or 'ops_lihat_stok' in hak %}<a href="{% url 'gudang:beranda' %}" class="{% if menu == 'beranda' %}aktif{% endif %}">Beranda</a>{% endif %}
+    {% if 'gudang_ambil' in hak and toko_gudang.id == toko_stok.id %}<a href="{% url 'gudang:ambil' %}" class="{% if menu == 'ambil' %}aktif{% endif %}" title="Ambil barang">Ambil{% if jumlah_ambil %} <span class="label awas">{{ jumlah_ambil }}</span>{% endif %}</a>{% endif %}
+    {% if 'gudang_datang' in hak %}<a href="{% url 'gudang:datang' %}" class="{% if menu == 'datang' %}aktif{% endif %}" title="Barang datang">Datang</a>{% endif %}
+    {% if 'gudang_hitung' in hak %}<a href="{% url 'gudang:hitung' %}" class="{% if menu == 'hitung' %}aktif{% endif %}" title="Hitung stok">Hitung</a>{% endif %}
+    {% if 'gudang_buka_dus' in hak %}<a href="{% url 'gudang:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>{% endif %}
+    {% if 'ops_lihat_stok' in hak and toko_gudang.id == toko_stok.id %}<a href="{% url 'gudang:stok' %}" class="{% if menu == 'stok' %}aktif{% endif %}">Stok</a>{% endif %}
+    {% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak or 'ops_barang_harga' in hak or 'ops_barang_alias' in hak or 'ops_barang_aktif' in hak %}<a href="{% url 'gudang:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas</a>{% endif %}
+  </nav>
+    <div class="akun"><a class="panduan-link{% if menu == 'panduan' %} aktif{% endif %}" href="{% url 'gudang:panduan' %}" title="Panduan" aria-label="Panduan">?</a>{{ request.user.first_name|default:request.user.username }}<form method="post" action="{% url 'gudang:keluar' %}">{% csrf_token %}<button type="submit">Keluar</button></form></div>
+  </div>
+</header>
+<main>
+  {% if banyak_toko %}<form method="get" style="margin-bottom:14px"><select name="toko" onchange="this.form.submit()" aria-label="Toko">{% for t in daftar_toko %}<option value="{{ t.id }}" {% if toko_gudang.id == t.id %}selected{% endif %}>Sedang di: {{ t.nama }}</option>{% endfor %}</select></form>{% endif %}
+  {% for pesan in messages %}<div class="pesan {{ pesan.tags }}">{{ pesan }}</div>{% endfor %}
+  {% block isi %}{% endblock %}
+</main>
+<script>
+document.addEventListener('submit', e => { const t = e.target.dataset.tanya; if (t && !confirm(t)) e.preventDefault(); });
+// Enter di kotak angka pindah ke kotak berikutnya, bukan mengirim form.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.matches('input.angka')) return;
+  const semua = [...document.querySelectorAll('input.angka')], i = semua.indexOf(e.target);
+  if (semua[i + 1]){ e.preventDefault(); semua[i + 1].focus(); semua[i + 1].select(); }
+});
+</script>
+</body>
+</html>

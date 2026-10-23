@@ -1,0 +1,67 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Tiket admin{% endblock %}
+{% block isi %}
+<h2>Tiket admin</h2>
+<p class="sub">Admin hanya bisa mengajukan perubahan di dalam tiket yang kamu buka, sampai batas waktunya. Tidak ada yang berubah sebelum kamu ACC di sini, per baris.
+  <b>Pindah lokasi dan rak</b>: pindah stok antar lokasi dan perubahan rak. <b>Data barang</b>: usul harga jual, floor, alias, aktif/nonaktif; admin tidak pernah melihat modal, stok, atau supplier.</p>
+{% if admin %}
+<form method="post" class="kartu" style="margin-bottom:18px">{% csrf_token %}
+  <div class="baris">
+    <div style="min-width:200px"><label>Jenis</label><select name="jenis" id="jenis">
+      <option value="lokasi">Pindah lokasi dan rak</option><option value="barang">Data barang</option></select></div>
+    <div style="min-width:180px"><label>Untuk</label><select name="untuk" id="untuk" required>{% for a in admin %}<option value="{{ a.u.id }}" data-jenis="{{ a.jenis }}" data-izin="{{ a.izin }}">{{ a.u.first_name|default:a.u.username }}</option>{% endfor %}</select></div>
+    <div style="flex:2;min-width:240px"><label>Tujuan</label><input type="text" name="tujuan" required placeholder="mis. rotasi sanitary, atau sesuaikan harga cat Avian"></div>
+    <div style="min-width:200px"><label>Batas waktu</label><input type="datetime-local" name="batas" value="{{ batas_awal }}" required></div>
+  </div>
+  <div class="baris" id="bagian-lokasi" style="margin-top:10px">
+    <div style="flex:1;min-width:240px"><label>Lingkup (boleh kosong)</label><input type="text" name="lingkup" placeholder="mis. rak SN-01 sampai SN-04"></div>
+  </div>
+  <div id="bagian-barang" hidden style="margin-top:10px">
+    <label>Boleh mengusulkan</label>
+    <div class="baris" style="gap:16px">{% for k, label in izin_barang %}<label style="display:flex;gap:6px;align-items:center;color:inherit;margin:0"><input type="checkbox" name="izin" value="{{ k }}" style="width:auto" {% if k == 'harga' %}checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+    <div class="baris" style="margin-top:10px">
+      <div style="flex:1;min-width:220px"><label>Kategori (kosong = semua; Ctrl/Shift untuk pilih banyak)</label><select name="kategori" multiple size="6">{% for k in daftar_kategori %}<option>{{ k }}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:220px"><label>Brand (kosong = semua)</label><select name="brand" multiple size="6">{% for b in daftar_brand %}<option>{{ b }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+  <div style="margin-top:12px"><button class="tombol utama" type="submit">Buka tiket</button></div>
+</form>
+<script>
+const jenis = document.getElementById('jenis'), untuk = document.getElementById('untuk');
+function aturJenis(){
+  const j = jenis.value;
+  document.getElementById('bagian-lokasi').hidden = j !== 'lokasi';
+  document.getElementById('bagian-barang').hidden = j !== 'barang';
+  let pilih = null;
+  [...untuk.options].forEach(o => { o.hidden = !o.dataset.jenis.split(' ').includes(j); if (!o.hidden && !pilih) pilih = o; });
+  if (untuk.selectedOptions[0]?.hidden) untuk.value = pilih ? pilih.value : '';
+  aturIzin();
+}
+// Hanya izin yang memang dimiliki admin yang bisa dicentang.
+function aturIzin(){
+  const punya = (untuk.selectedOptions[0]?.dataset.izin || '').split(' ');
+  document.querySelectorAll('input[name=izin]').forEach(c => {
+    const ok = punya.includes(c.value); c.disabled = !ok; if (!ok) c.checked = false;
+    c.closest('label').style.opacity = ok ? 1 : .45;
+    c.closest('label').title = ok ? '' : 'Admin ini tidak punya hak ini (atur di Karyawan & PIN)';
+  });
+}
+jenis.addEventListener('change', aturJenis); untuk.addEventListener('change', aturIzin); aturJenis();
+</script>
+{% else %}
+<p class="pesan">Belum ada akun admin. Beri hak "Tugas lokasi" atau "Tugas data barang" ke karyawan di <a href="{% url 'master:karyawan' %}">Karyawan &amp; PIN</a>
+  (atau centang hak tiket di menu <a href="{% url 'master:pengguna' %}">Pengguna</a>).</p>
+{% endif %}
+<div class="gulir"><table>
+  <tr><th>#</th><th>Jenis</th><th>Untuk</th><th>Tujuan</th><th>Batas</th><th class="angka">Usulan</th><th>Status</th></tr>
+  {% for t in daftar %}
+  <tr style="cursor:pointer" onclick="location.href='{% url 'master:tiket_detail' t.id %}'">
+    <td><a href="{% url 'master:tiket_detail' t.id %}"><b>#{{ t.id }}</b></a></td><td class="kecil">{{ t.get_jenis_display }}</td><td>{{ t.untuk.first_name|default:t.untuk.username }}</td>
+    <td>{{ t.tujuan }}{% if t.lingkup %}<div class="kecil redup">{{ t.lingkup }}</div>{% endif %}</td>
+    <td class="kecil" style="white-space:nowrap">{{ t.batas|date:"d M Y H:i" }}</td>
+    <td class="angka">{{ t.jumlah_usulan }}</td>
+    <td>{% if t.status == 'terbuka' and t.lewat_batas %}<span class="label awas">Lewat batas</span>{% elif t.status == 'dikirim' %}<span class="label awas">Menunggu ACC</span>{% elif t.status == 'selesai' %}<span class="label baik">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="label bahaya">{{ t.get_status_display }}</span>{% else %}{{ t.get_status_display }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:28px;text-align:center">Belum ada tiket.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

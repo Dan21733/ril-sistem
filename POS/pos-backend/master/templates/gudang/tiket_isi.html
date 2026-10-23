@@ -1,0 +1,65 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Tiket #{{ t.id }}{% endblock %}
+{% block isi %}
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
+  <span class="redup kecil">{% if t.lingkup %}{{ t.lingkup }} · {% endif %}sampai {{ t.batas|date:"d M H:i" }} · {% if t.status == 'terbuka' and t.lewat_batas %}lewat batas{% else %}{{ t.get_status_display|lower }}{% endif %}</span></div>
+
+{% if t.bisa_diisi %}
+{% if boleh_pindah %}<details class="kartu"><summary><b>Pindah sekaligus (satu rak atau satu kategori)</b></summary>
+<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="massal">
+  <div class="dua">
+    <div><label>Rak</label><select name="rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>atau kategori</label><select name="kategori"><option value="">-</option>{% for k in daftar_kategori %}<option>{{ k }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="dua" style="margin-top:10px">
+    <div><label>Dari</label><select name="dari">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+    <div><label>Ke</label><select name="ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if forloop.counter == 2 %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+  </div>
+  {% if boleh_rak %}<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:400"><input type="checkbox" name="ikut_rak" value="1" style="width:auto"> Raknya juga dipindah ke lokasi tujuan</label>{% endif %}
+  <div style="margin-top:10px"><label>Catatan</label><input type="text" name="catatan"></div>
+  <div style="margin-top:10px"><button class="tombol utama" type="submit">Tambah ke usulan</button></div>
+</form></details>{% endif %}
+
+{% if boleh_rak %}<details class="kartu"><summary><b>Pindahkan satu rak ke lokasi lain</b> (tanpa stok)</summary>
+<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="rak_lokasi">
+  <div class="dua">
+    <div><label>Rak</label><select name="rak" required>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>Ke</label><select name="ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+  </div>
+  <div style="margin-top:10px"><button class="tombol" type="submit">Tambah ke usulan</button></div>
+</form></details>{% endif %}
+
+<form method="get" class="alat" style="margin-top:10px">
+  <input type="search" name="q" value="{{ cari }}" placeholder="Cari barang: nama, varian, merek" aria-label="Cari barang">
+  <button class="tombol" type="submit">Cari</button></form>
+{% if hasil %}
+<div class="daftar">{% for v in hasil %}
+  <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
+    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if lihat_stok %} · Toko {{ v.toko }}{% for nama, n in v.per %}{% if n %} · {{ nama }} {{ n }}{% endif %}{% endfor %}{% endif %}</span></div>
+    {% if boleh_pindah %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="pindah"><input type="hidden" name="varian_id" value="{{ v.id }}">
+      <select name="dari" style="flex:1;min-width:110px">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">dari {{ l.nama }}</option>{% endfor %}</select>
+      <select name="ke" style="flex:1;min-width:110px">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if forloop.counter == 2 %}selected{% endif %}>ke {{ l.nama }}</option>{% endfor %}</select>
+      <input type="text" name="jumlah" inputmode="numeric" placeholder="jumlah" style="width:90px" required>
+      <button class="tombol kecil" type="submit">Usulkan pindah</button></form>{% endif %}
+    {% if boleh_rak %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="rak"><input type="hidden" name="varian_id" value="{{ v.id }}">
+      <select name="rak" style="flex:1"><option value="">tanpa rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if v.rak_id == r.kode %}selected{% endif %}>rak {{ r.kode }}</option>{% endfor %}</select>
+      <button class="tombol kecil" type="submit">Usulkan ganti rak</button></form>{% endif %}
+  </div>{% endfor %}</div>
+{% if terpotong %}<p class="redup kecil">Hanya 80 barang pertama yang tampil. Persempit pencariannya.</p>{% endif %}
+{% elif cari %}<p class="redup">Tidak ada barang yang cocok.</p>{% endif %}
+{% endif %}
+
+<h3>Usulan ({{ baris|length }})</h3>
+<div class="daftar">{% for b in baris %}
+  <div class="brs"><div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode }}{% endif %}</b>
+    <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}ganti rak ke {{ b.rak.kode|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
+    {% if t.bisa_diisi %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}</div>
+{% empty %}<div class="brs redup">Belum ada usulan.</div>{% endfor %}</div>
+
+{% if t.bisa_diisi and baris %}
+<form method="post" class="alat" style="margin-top:14px" data-tanya="Kirim tugas ini ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
+  <input type="text" name="catatan" placeholder="Catatan untuk pemilik (boleh kosong)" aria-label="Catatan untuk pemilik">
+  <button class="tombol utama" type="submit">Kirim ke pemilik</button>
+</form>
+{% endif %}
+{% endblock %}

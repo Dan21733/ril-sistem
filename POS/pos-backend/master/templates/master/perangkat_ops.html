@@ -1,0 +1,52 @@
+{% extends "master/base.html" %}
+{% block judul %}Perangkat operasional{% endblock %}
+{% block isi %}
+<h2>Perangkat operasional</h2>
+<p class="sub">Aplikasi operasional (admin dan gudang) hanya terbuka di perangkat yang kamu setujui di sini. Perangkat baru yang membuka alamatnya
+  akan menampilkan kode, mis. <b>OPS-7K3P</b>. Cocokkan kodenya dengan layar perangkat itu, beri nama, lalu setujui. Sebelum disetujui, halaman masuk PIN pun tidak tampil.</p>
+
+<h3>Menunggu persetujuan</h3>
+<div class="gulir"><table>
+  <tr><th>Kode</th><th>Pertama terlihat</th><th>Browser / aplikasi</th><th>Nama perangkat</th><th></th></tr>
+  {% for p in menunggu %}
+  <tr><td style="font-family:monospace;font-size:18px"><b>{{ p.kode }}</b></td><td class="kecil">{{ p.dibuat|date:"d M Y H:i" }}</td>
+    <td class="kecil redup" style="max-width:320px;overflow-wrap:anywhere">{{ p.keterangan|default:"-" }}</td>
+    <td colspan="2"><div class="baris" style="flex-wrap:nowrap;gap:6px">
+      <form method="post" class="baris" style="flex-wrap:nowrap;gap:6px">{% csrf_token %}<input type="hidden" name="aksi" value="setujui"><input type="hidden" name="id" value="{{ p.id }}">
+        <input type="text" name="nama" required maxlength="80" placeholder="mis. Laptop admin" style="width:190px"><button class="tombol kecil utama" type="submit">Setujui</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil" type="submit">Hapus</button></form>
+    </div></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup">Tidak ada. Permintaan yang tidak disetujui terhapus sendiri setelah 7 hari.</td></tr>
+  {% endfor %}
+</table></div>
+
+<h3>Disetujui</h3>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Kode</th><th>Disetujui</th><th>Terakhir dipakai</th><th></th></tr>
+  {% for p in disetujui %}
+  <tr><td><details><summary style="cursor:pointer"><b>{{ p.nama }}</b></summary>
+      <form method="post" class="baris" style="margin-top:8px;flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ p.id }}">
+        <input type="text" name="nama" value="{{ p.nama }}" required maxlength="80" style="width:180px"><button class="tombol kecil" type="submit">Simpan nama</button></form></details></td>
+    <td style="font-family:monospace">{{ p.kode }}</td>
+    <td class="kecil">{{ p.disetujui|date:"d M Y H:i" }} · {{ p.disetujui_oleh }}</td>
+    <td class="kecil">{% if p.terakhir %}{{ p.terakhir|date:"d M Y H:i" }}{% if p.terakhir_akun %} · {{ p.terakhir_akun }}{% endif %}{% else %}<span class="redup">belum</span>{% endif %}</td>
+    <td><form method="post" data-tanya="Cabut {{ p.nama }}? Perangkat itu langsung tidak bisa membuka aplikasi, dan yang sedang masuk ikut keluar.">{% csrf_token %}<input type="hidden" name="aksi" value="cabut"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil bahaya" type="submit">Cabut</button></form></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup">Belum ada perangkat yang disetujui.</td></tr>
+  {% endfor %}
+</table></div>
+
+{% if dicabut %}
+<h3>Dicabut</h3>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Kode</th><th>Dicabut</th><th></th></tr>
+  {% for p in dicabut %}
+  <tr class="nonaktif"><td>{{ p.nama|default:"-" }}</td><td style="font-family:monospace">{{ p.kode }}</td><td class="kecil">{{ p.dicabut|date:"d M Y H:i" }}</td>
+    <td><div class="baris" style="flex-wrap:nowrap;gap:6px">
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="setujui"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil" type="submit">Setujui lagi</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil" type="submit">Hapus</button></form></div></td></tr>
+  {% endfor %}
+</table></div>
+{% endif %}
+<p class="kecil redup">Yang masuk di perangkat ini adalah karyawan dengan PIN kasirnya sendiri; aksesnya diatur di <a href="{% url 'master:karyawan' %}">Karyawan &amp; PIN</a>.
+  Kalau data browser di perangkat itu dihapus, perangkatnya muncul lagi di "Menunggu" dengan kode baru; cabut yang lama.</p>
+{% endblock %}

@@ -1,0 +1,12 @@
+# Berlaku untuk build dari folder pos-backend (Docker membaca berkas ini karena
+# namanya mengikuti Dockerfile). Rahasia, database, dan berkas lokal tidak ikut image.
+**/.env
+**/.env.*
+**/venv
+**/__pycache__
+**/*.pyc
+*.sqlite3
+media
+.pin_throttle_cache
+.secrets
+master/server

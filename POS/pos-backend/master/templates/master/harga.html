@@ -1,0 +1,74 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Harga & modal{% endblock %}
+{% block isi %}
+<h2>Harga &amp; modal</h2>
+<p class="sub">{{ halaman.paginator.count|ribuan }} varian. Ubah langsung di tabel. Panah atas dan bawah pindah baris, Tab pindah kolom.</p>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="flex:2;min-width:220px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}"></div>
+  <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:160px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:200px"><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:harga' %}">Reset</a></div>
+</form>
+
+{% if pratinjau %}
+<div class="kartu" style="margin-bottom:18px;border-color:var(--aksen)">
+  <h3 style="margin-top:0">Pratinjau: {{ pratinjau.jumlah|ribuan }} {{ pratinjau.label|lower }} akan berubah</h3>
+  {% if pratinjau.terbalik %}<div class="pesan warning">{{ pratinjau.terbalik|ribuan }} varian akan punya floor di atas harga jual setelah perubahan ini, dan tidak bisa dijual di kasir sampai diperbaiki.</div>{% endif %}
+  {% if pratinjau.jumlah %}
+  <div class="gulir" style="max-height:340px;overflow:auto"><table>
+    <tr><th>Barang</th><th>Varian</th><th class="angka">Sekarang</th><th class="angka">Menjadi</th></tr>
+    {% for r in pratinjau.contoh %}<tr><td>{{ r.item_name }}</td><td>{{ r.variant|varian }}</td><td class="angka redup">{{ r.lama|ribuan }}</td><td class="angka"><b>{{ r.baru|ribuan }}</b>{% if r.terbalik %} <span class="label bahaya">floor di atas jual</span>{% endif %}</td></tr>{% endfor %}
+  </table></div>
+  {% if pratinjau.jumlah > pratinjau.contoh|length %}<p class="redup kecil">Menampilkan {{ pratinjau.contoh|length }} dari {{ pratinjau.jumlah|ribuan }}.</p>{% endif %}
+  <form method="post" class="baris" style="margin-top:16px" data-tanya="Terapkan perubahan ke {{ pratinjau.jumlah }} varian?">{% csrf_token %}
+    <input type="hidden" name="kolom" value="{{ param.kolom }}"><input type="hidden" name="cara" value="{{ param.cara }}">
+    <input type="hidden" name="angka" value="{{ param.angka }}"><input type="hidden" name="bulat" value="{{ param.bulat }}"><input type="hidden" name="catatan" value="{{ param.catatan }}">
+    <button class="tombol utama" type="submit" name="aksi" value="terapkan">Terapkan ke {{ pratinjau.jumlah|ribuan }} varian</button>
+    <a class="tombol" href="?{{ qs_halaman }}">Batal</a>
+  </form>
+  {% else %}<p class="redup">Tidak ada yang berubah dengan pengaturan ini.</p>{% endif %}
+</div>
+{% endif %}
+
+<details class="lipat" {% if pratinjau %}open{% endif %}><summary style="margin-top:0">Ubah massal</summary>
+<form method="post" class="kartu baris">{% csrf_token %}
+  <div style="min-width:160px"><label>Kolom</label><select name="kolom">{% for k, l in kolom_massal %}<option value="{{ k }}" {% if param.kolom == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="min-width:200px"><label>Cara</label><select name="cara">{% for k, l in cara_massal %}<option value="{{ k }}" {% if param.cara == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="width:150px"><label>Angka (boleh minus)</label><input type="text" name="angka" value="{{ param.angka|default:'' }}" placeholder="mis. 5" required></div>
+  <div style="min-width:170px"><label>Bulatkan ke atas</label><select name="bulat">{% for b in daftar_bulat %}<option value="{{ b }}" {% if param.bulat|stringformat:"s" == b|stringformat:"s" %}selected{% endif %}>{% if b %}ke {{ b|ribuan }}{% else %}tidak dibulatkan{% endif %}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:220px"><label>Alasan (masuk ke log)</label><input type="text" name="catatan" value="{{ param.catatan|default:'' }}" placeholder="mis. harga supplier naik Oktober"></div>
+  <div><button class="tombol" type="submit" name="aksi" value="pratinjau">Lihat pratinjau</button></div>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Berlaku untuk {% if ada_filter %}<b>{{ halaman.paginator.count|ribuan }} varian yang cocok dengan filter di atas</b>{% else %}<b>semua {{ halaman.paginator.count|ribuan }} varian</b> karena tidak ada filter{% endif %}. Floor, harga jual, dan modal diubah sendiri-sendiri; tidak ada yang dihitung otomatis dari yang lain.</p>
+</form>
+</details>
+
+<div class="baris" style="margin:18px 0 10px"><div style="flex:1;max-width:520px"><label for="catatan-ubah">Alasan perubahan untuk edit di tabel (opsional, masuk ke log)</label><input type="text" id="catatan-ubah" placeholder="mis. koreksi salah ketik"></div></div>
+
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Varian</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th><th class="angka" title="Sama dengan modal terakhir sampai barang masuk dicatat">Modal rata</th>{% endif %}<th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka" title="Margin terhadap harga, dihitung dari modal terakhir">Margin floor / jual</th>{% endif %}</tr>
+  {% for b in barang %}
+  <tr class="{% if not b.aktif %}nonaktif{% endif %}">
+    <td><a href="{% url 'master:barang' %}?buka={{ b.item_id }}&q={{ b.item_name|urlencode }}">{{ b.item_name }}</a></td>
+    <td>{{ b.variant|varian }}<span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
+    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal terakhir" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}</td>
+    <td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="modal_rata" nilai=b.modal_rata label="Modal rata" %}{% else %}{{ b.modal_rata|ribuan }}{% endif %}</td>{% endif %}
+    <td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>
+    <td class="angka">{% include "master/_sel.html" with kolom="max_price" nilai=b.max_price label="Harga jual" %}</td>
+    {% if 'lihat_modal' in hak %}<td class="angka redup margin"></td>{% endif %}
+  </tr>
+  {% empty %}
+  <tr><td colspan="7" class="redup" style="padding:28px;text-align:center">Tidak ada varian yang cocok dengan filter ini.</td></tr>
+  {% endfor %}
+</table></div>
+
+<div class="halaman">
+  <span class="redup kecil">Halaman {{ halaman.number }} dari {{ halaman.paginator.num_pages }}</span>
+  <span>
+    {% if halaman.has_previous %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.previous_page_number }}">Sebelumnya</a>{% endif %}
+    {% if halaman.has_next %}<a class="tombol kecil" href="?{{ qs_halaman }}{% if qs_halaman %}&{% endif %}hal={{ halaman.next_page_number }}">Berikutnya</a>{% endif %}
+  </span>
+</div>
+<script>document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('tr').forEach(b => hitungMargin(b)));</script>
+{% endblock %}

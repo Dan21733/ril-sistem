@@ -1,0 +1,61 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Faktur {{ f.nomor_faktur }}{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+.foto{display:flex;gap:12px;flex-wrap:wrap}.foto .satu{border:1px solid var(--garis);border-radius:10px;background:#fff;padding:8px;width:180px}
+.foto img{width:100%;height:150px;object-fit:cover;border-radius:6px;display:block}.foto .pdf{height:150px;display:grid;place-items:center;background:#f0eee9;border-radius:6px;font-weight:600}</style>
+<p class="kecil"><a href="{% url 'master:faktur' %}">Catat faktur saja</a> /</p>
+<h2>{{ f.nomor_faktur }} · {{ f.supplier.nama }}</h2>
+{% if banyak_toko %}<p style="margin:0 0 4px"><span class="label netral">{{ f.toko.nama }}</span></p>{% endif %}
+<p class="sub">Faktur {{ f.tanggal_faktur|date:"d M Y" }} · dicatat {{ f.dibuat_oleh }}, {{ f.dibuat_waktu|date:"d M Y H:i" }}{% if f.catatan %} · {{ f.catatan }}{% endif %}</p>
+
+<div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Total</div><div style="font-size:22px;font-weight:600">{{ f.total|rupiah }}</div></div>
+  <div class="kartu"><div class="redup kecil">Sudah dibayar</div><div style="font-size:22px;font-weight:600">{{ f.terbayar|rupiah }}</div></div>
+  <div class="kartu"><div class="redup kecil">Sisa</div><div style="font-size:22px;font-weight:600;color:{% if f.sisa > 0 %}var(--bahaya){% else %}var(--baik){% endif %}">{% if f.sisa > 0 %}{{ f.sisa|rupiah }}{% else %}Lunas{% endif %}</div></div>
+  <div class="kartu"><div class="redup kecil">Jatuh tempo</div><div style="font-size:22px;font-weight:600;color:{% if terlambat %}var(--bahaya){% endif %}">{{ f.jatuh_tempo|date:"d M Y"|default:"-" }}</div>{% if terlambat %}<div class="kecil" style="color:var(--bahaya)">lewat</div>{% endif %}</div>
+</div>
+
+<div class="kartu" style="margin-bottom:18px"><div class="redup kecil">Barang di faktur</div><div style="white-space:pre-wrap;margin-top:6px">{{ f.keterangan }}</div></div>
+
+<h3>Foto faktur</h3>
+<div class="foto">
+  {% for x in foto %}<div class="satu"><a href="{% url 'master:faktur_foto' x.id %}" target="_blank">{% if x.content_type == "application/pdf" %}<div class="pdf">PDF</div>{% else %}<img src="{% url 'master:faktur_foto' x.id %}" alt="Foto faktur" onerror="this.outerHTML='<div class=&quot;pdf redup&quot;>berkas tidak ada di server ini</div>'">{% endif %}</a>
+    <form method="post" data-tanya="Hapus foto ini?" style="margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="hapus_foto"><input type="hidden" name="id" value="{{ x.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form></div>
+  {% empty %}<p class="redup" style="margin:0">Belum ada foto.</p>{% endfor %}
+</div>
+{% if foto|length < maks_foto %}
+<form method="post" enctype="multipart/form-data" class="baris" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="aksi" value="foto">
+  <div style="flex:1;min-width:260px"><input type="file" name="foto" accept="image/jpeg,image/png,image/webp,application/pdf" multiple required></div>
+  <div><button class="tombol" type="submit">Tambah foto</button></div></form>
+{% endif %}
+
+<h3>Pembayaran</h3>
+{% if pembayaran %}
+<div class="gulir" style="margin-bottom:16px"><table>
+  <tr><th>Tanggal</th><th>Cara</th><th class="angka">Jumlah</th><th>Catatan</th><th>Dicatat oleh</th></tr>
+  {% for b in pembayaran %}<tr><td>{{ b.tanggal|date:"d M Y" }}</td><td>{{ b.get_cara_display }}</td><td class="angka"><b>{{ b.jumlah|ribuan }}</b></td><td>{{ b.catatan }}</td><td class="redup">{{ b.oleh }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+{% if f.sisa > 0 %}
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="bayar">
+  <div style="width:190px"><label>Tanggal bayar</label><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></div>
+  <div style="width:200px"><label>Jumlah (sisa {{ f.sisa|ribuan }})</label><input type="text" name="jumlah" value="{{ f.sisa|ribuan }}" inputmode="numeric" required></div>
+  <div style="width:160px"><label>Cara</label><select name="cara">{% for k, l in cara_bayar %}<option value="{{ k }}" {% if k == "transfer" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
+  <div><button class="tombol utama" type="submit">Catat pembayaran</button></div>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Jumlah sudah terisi dengan sisa hutang. Untuk mencicil, ganti angkanya.</p>
+</form>
+{% elif not pembayaran %}<p class="redup">Tidak ada pembayaran.</p>{% endif %}
+
+<details class="lipat"><summary>Ubah data faktur</summary>
+<form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="ubah">
+  {% include "master/_faktur_isian.html" with isi=isian %}
+  <div style="margin-top:16px"><button class="tombol utama" type="submit">Simpan perubahan</button></div>
+</form></details>
+{% if not pembayaran %}
+<details class="lipat"><summary>Hapus faktur</summary>
+<form method="post" class="kartu baris" data-tanya="Hapus faktur ini beserta fotonya?">{% csrf_token %}<input type="hidden" name="aksi" value="hapus">
+  <p style="margin:0;flex:1">Hanya untuk salah input. Faktur yang sudah ada pembayarannya tidak bisa dihapus.</p><button class="tombol bahaya" type="submit">Hapus</button></form></details>
+{% endif %}
+{% endblock %}

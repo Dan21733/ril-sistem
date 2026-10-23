@@ -1,0 +1,27 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Selisih stok{% endblock %}
+{% block isi %}
+<h2>Selisih stok</h2>
+<p class="sub">Dari opname yang di-ACC, hitung acak, dan barang diambil dari gudang yang jumlahnya beda dari permintaan.
+  Cari pola: selisih kecil yang berulang di lokasi, orang, atau kategori yang sama.</p>
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div><label>Dari</label><input type="date" name="dari" value="{{ dari|date:'Y-m-d' }}"></div>
+  <div><label>Sampai</label><input type="date" name="sampai" value="{{ sampai|date:'Y-m-d' }}"></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+</form>
+{% if not r.jumlah %}<p class="redup">Tidak ada selisih pada rentang ini.</p>{% else %}
+<p>{{ r.jumlah }} kejadian selisih.</p>
+{% with grup=r.lokasi %}<h3>Per lokasi</h3>{% include "master/_tabel_selisih.html" %}{% endwith %}
+{% with grup=r.orang %}<h3>Per orang</h3><p class="kecil redup">Opname: yang menghitung. Cek stok acak: pemilik yang menghitung (selisihnya menunjuk ke yang menjaga lokasi itu). Ambil barang: yang mengambilkan.</p>{% include "master/_tabel_selisih.html" %}{% endwith %}
+{% with grup=r.kategori %}<h3>Per kategori</h3>{% include "master/_tabel_selisih.html" %}{% endwith %}
+{% with grup=r.barang %}<h3>Barang yang paling sering selisih</h3>{% include "master/_tabel_selisih.html" %}{% endwith %}
+<h3>Semua kejadian</h3>
+<div class="gulir"><table>
+  <tr><th>Waktu</th><th>Sumber</th><th>Lokasi</th><th>Oleh</th><th>Barang</th><th class="angka">Selisih</th>{% if lihat_nilai %}<th class="angka">Nilai</th>{% endif %}<th>Referensi</th></tr>
+  {% for k in r.kejadian %}<tr><td class="kecil">{{ k.waktu|date:"d M Y H:i" }}</td><td>{{ k.sumber }}</td><td>{{ k.lokasi }}</td><td>{{ k.orang }}</td>
+    <td>{{ k.varian.item_name }} / {{ k.varian.variant|varian }}</td>
+    <td class="angka"><b style="color:{% if k.selisih < 0 %}var(--bahaya){% else %}var(--baik){% endif %}">{% if k.selisih > 0 %}+{% endif %}{{ k.selisih|ribuan }}</b></td>
+    {% if lihat_nilai %}<td class="angka">{{ k.nilai|ribuan|default:"-" }}</td>{% endif %}<td class="kecil">{{ k.ref }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+{% endblock %}

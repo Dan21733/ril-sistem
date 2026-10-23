@@ -1,0 +1,70 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Laporan penjualan{% endblock %}
+{% block isi %}
+<style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+.besar{font-size:24px;font-weight:600}.batang{height:8px;border-radius:4px;background:var(--aksen);min-width:2px}
+.tab{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}.tab a{padding:8px 16px;border-radius:999px;background:#ece9e2;color:var(--teks)}.tab a.kini{background:var(--aksen);color:#fff}.tab a:hover{text-decoration:none}
+th a{color:inherit}th a.kini{color:var(--aksen)}</style>
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Laporan penjualan</h2><p class="sub">{{ periode.awal|date:"d M Y" }}{% if periode.awal != periode.akhir %} sampai {{ periode.akhir|date:"d M Y" }}{% endif %}</p></div>
+  {% if jenis != "ringkasan" %}<a class="tombol" href="?{{ qs_export }}{% if qs_export %}&{% endif %}export=1">Export Excel</a>{% endif %}
+</div>
+<div class="tab">{% for k, l in daftar_jenis %}<a href="?{{ qs_tanpa_lap }}{% if qs_tanpa_lap %}&{% endif %}lap={{ k }}" class="{% if jenis == k %}kini{% endif %}">{{ l }}</a>{% endfor %}</div>
+<form method="get" class="kartu baris" style="margin-bottom:18px" id="form-periode">
+  {% if jenis %}<input type="hidden" name="lap" value="{{ jenis }}">{% endif %}
+  <div style="min-width:170px"><label>Periode</label><select name="periode" onchange="document.getElementById('atur-tgl').style.display = this.value === 'atur' ? 'flex' : 'none'; if (this.value !== 'atur') this.form.submit()">
+    <option value="hari" {% if periode.pilih == "hari" %}selected{% endif %}>Hari ini</option><option value="kemarin" {% if periode.pilih == "kemarin" %}selected{% endif %}>Kemarin</option>
+    <option value="7" {% if periode.pilih == "7" %}selected{% endif %}>7 hari terakhir</option><option value="30" {% if periode.pilih == "30" %}selected{% endif %}>30 hari terakhir</option>
+    <option value="bulan" {% if periode.pilih == "bulan" %}selected{% endif %}>Bulan ini</option><option value="atur" {% if periode.pilih == "atur" %}selected{% endif %}>Atur tanggal</option></select></div>
+  <div id="atur-tgl" class="baris" style="display:{% if periode.pilih == "atur" %}flex{% else %}none{% endif %}">
+    <div style="width:180px"><label>Dari</label><input type="date" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"></div>
+    <div style="width:180px"><label>Sampai</label><input type="date" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
+  </div>
+  <div style="min-width:160px"><label>Karyawan</label><select name="kasir"><option value="">Semua</option>{% for k, n in daftar_kasir %}<option value="{{ k }}" {% if g.kasir == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Cara bayar</label><select name="metode"><option value="">Semua</option>{% for k, n in daftar_metode %}<option value="{{ k }}" {% if g.metode == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Perangkat</label><select name="perangkat"><option value="">Semua</option>{% for k in daftar_perangkat %}<option {% if g.perangkat == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Sumber</label><select name="sumber"><option value="">Kasir dan tulis tangan</option><option value="kasir" {% if g.sumber == "kasir" %}selected{% endif %}>Kasir saja</option><option value="manual" {% if g.sumber == "manual" %}selected{% endif %}>Tulis tangan saja</option></select></div>
+  {% if saring_barang %}
+  <div style="min-width:170px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:170px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  {% if jenis == "barang" %}<div style="min-width:170px"><label>Tampilkan</label><select name="rinci"><option value="">Per barang</option><option value="1" {% if g.rinci == "1" %}selected{% endif %}>Per varian</option></select></div>{% endif %}
+  {% endif %}
+  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+</form><div class="kisi" style="margin-bottom:18px">
+  <div class="kartu"><div class="redup kecil">Penjualan barang{% if ringkas.kembali %} bersih{% endif %}</div><div class="besar">{{ ringkas.omzet|rupiah }}</div><div class="redup kecil">{{ ringkas.nota|ribuan }} nota · rata-rata {{ ringkas.rata|rupiah }}</div>{% if ringkas.kembali %}<div class="redup kecil">kotor {{ ringkas.omzet_kotor|rupiah }} − dikembalikan {{ ringkas.uang_kembali|rupiah }} ({{ ringkas.kembali }} refund/retur/void)</div>{% endif %}</div>
+  <div class="kartu"><div class="redup kecil">Laba kotor{% if ringkas.kembali %} bersih{% endif %}</div><div class="besar">{{ ringkas.laba|rupiah }}</div><div class="redup kecil">{% if ringkas.margin != None %}margin {{ ringkas.margin }}%{% else %}-{% endif %}</div></div>
+  <div class="kartu"><div class="redup kecil">Ongkir</div><div class="besar">{{ ringkas.ongkir|rupiah }}</div><div class="redup kecil">total diterima {{ ringkas.total|rupiah }}</div></div>
+</div>
+{% if ringkas.tanpa_modal %}<div class="pesan warning">{{ ringkas.tanpa_modal }} nota berisi barang yang modalnya kosong. Laba untuk barang itu tidak ikut dihitung, jadi angka laba di atas terlalu tinggi sebesar modal barang itu.</div>{% endif %}
+{% if jenis == "ringkasan" %}
+  {% if kembali %}
+  <h3>Refund, retur, dan void</h3>
+  <p class="redup kecil">Dihitung pada tanggal kejadiannya. Uang yang dikembalikan mengurangi penjualan; modal barang yang kembali ke stok menambah laba lagi. Barang rusak tidak kembali ke stok, jadi tetap rugi.</p>
+  <div class="gulir"><table>
+    <tr><th>Waktu</th><th>Jenis</th><th>Nota asal</th><th>Kasir</th><th>Alasan</th><th class="angka">Uang kembali</th><th class="angka">Modal kembali</th></tr>
+    {% for k in kembali %}<tr><td>{{ k.waktu|date:"d M H:i" }}</td><td>{{ k.label }}{% if k.menunggu %} <span class="label">menunggu diterima</span>{% endif %}</td><td>{{ k.transaction_id|default:"-" }}</td><td>{{ k.kasir }}</td><td>{{ k.alasan }}</td><td class="angka">{{ k.uang|ribuan }}</td><td class="angka">{{ k.modal_kembali|ribuan }}</td></tr>{% endfor %}
+  </table></div>
+  {% endif %}
+  {% if per_hari|length > 1 %}
+  <h3>Per hari</h3>
+  <div class="gulir"><table>
+    <tr><th>Tanggal</th><th class="angka">Nota</th><th class="angka">Penjualan</th><th style="width:30%"></th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
+    {% for h in per_hari %}<tr><td>{{ h.nama|date:"l, d M" }}</td><td class="angka">{{ h.nota }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td><td class="angka">{{ h.laba|ribuan }}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>{% endfor %}
+  </table></div>
+  {% endif %}
+  <h3>10 barang dengan penjualan terbesar</h3>
+{% endif %}
+<div class="gulir"><table>
+  <tr><th>{% if jenis == "kasir" %}Karyawan{% elif jenis == "bayar" %}Cara bayar{% elif jenis == "kategori" %}Kategori{% elif jenis == "brand" %}Brand{% else %}Barang{% endif %}</th>
+    <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=qty" class="{% if urut == 'qty' %}kini{% endif %}">{{ satuan_qty }}</a></th>
+    <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=omzet" class="{% if urut == 'omzet' %}kini{% endif %}">Penjualan</a></th><th style="width:22%"></th>
+    <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=laba" class="{% if urut == 'laba' %}kini{% endif %}">Laba kotor</a></th>
+    <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=margin" class="{% if urut == 'margin' %}kini{% endif %}">Margin</a></th></tr>
+  {% for h in tabel %}
+  <tr><td>{{ h.nama }}</td><td class="angka">{{ h.qty|ribuan }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td>
+    <td class="angka" style="color:{% if h.laba < 0 %}var(--bahaya){% endif %}">{{ h.laba|ribuan }}{% if h.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada penjualan di periode ini.</td></tr>
+  {% endfor %}
+</table></div>
+<p class="redup kecil">Urutan bawaan berdasarkan nilai penjualan, bukan jumlah biji. Klik judul kolom untuk mengganti urutan. Laba dihitung dari modal rata saat nota dibuat; tanda * berarti ada barang yang modalnya kosong.</p>
+{% endblock %}
