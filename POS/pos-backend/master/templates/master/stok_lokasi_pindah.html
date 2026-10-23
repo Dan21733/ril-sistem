@@ -8,7 +8,10 @@
   <tr><th>Lokasi</th><th class="angka">Jumlah</th></tr>
   {% for d in daftar %}<tr class="{% if not d.lokasi.aktif %}nonaktif{% endif %}"><td>{{ d.lokasi.nama }}</td><td class="angka"><b {% if d.jumlah < 0 %}style="color:var(--bahaya)"{% endif %}>{{ d.jumlah|ribuan }}</b></td></tr>{% endfor %}
 </table></div>
-{% if 'kelola_lokasi' in hak %}
+{% if 'kelola_lokasi' in hak and kosong %}
+<div class="pesan info" style="margin-top:14px">Stok barang ini masih 0, jadi belum ada yang bisa dipindah. Isi stoknya dulu: per gudang sekaligus lewat
+  {% if 'ubah_stok' in hak %}<a href="{% url 'master:stok_impor' %}">Import stok (Excel)</a>{% else %}Import stok (Excel){% endif %}, atau lewat barang datang / stok opname.</div>
+{% elif 'kelola_lokasi' in hak %}
 <h3>Pindahkan</h3>
 <form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}">
   <div style="min-width:170px"><label>Dari</label><select name="dari" required>{% for d in aktif %}<option value="{{ d.lokasi.id }}">{{ d.lokasi.nama }} ({{ d.jumlah|ribuan }})</option>{% endfor %}</select></div>
@@ -17,6 +20,7 @@
   <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
   <div><button class="tombol utama" type="submit">Pindah</button></div>
 </form>
+{% elif kosong %}<p class="redup kecil">Stok barang ini masih 0.</p>
 {% endif %}
 {% if riwayat %}
 <h3>Riwayat pindah</h3>

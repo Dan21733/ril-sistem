@@ -11,7 +11,7 @@ from pos.models import Item
 from master.layanan import inti as layanan
 from master.akun.akses import PERAN, SEMUA_HAK
 from master.layanan.inti import Tolak
-from master.models import Rak, VarianInfo
+from master.models import ItemInfo, Rak, VarianInfo
 from master.tests.dasar import Dasar, buat_item
 
 
@@ -82,6 +82,19 @@ class LokasiTest(Dasar):
         self.client.post(reverse("master:rak"), {"aksi": "simpan", "kode": "TK-01", "nama": "Rak Hardware", "tempat": self.ga.id})
         self.assertEqual(Rak.objects.get(kode="TK-01").tempat, self.ga)
         self.assertContains(self.client.get(reverse("master:rak")), "Gudang A")
+
+    def test_jalan_ke_pindah_dari_daftar_barang_dan_stok_kosong(self):
+        self.client.force_login(self.admin)
+        info = self.info("Palu", "Kecil")
+        url = reverse("master:stok_lokasi_pindah", args=[info.id])
+        r = self.client.get(reverse("master:item", args=[ItemInfo.objects.get(item_name="Palu").id]))
+        self.assertContains(r, url)                                   # angka stok di panel barang bisa diklik
+        r = self.client.get(reverse("master:stok_lokasi") + "?q=palu")
+        self.assertContains(r, url)
+        Item.objects.filter(item_name="Palu", variant="Kecil").update(in_stock=0)
+        r = self.client.get(url)
+        self.assertContains(r, "masih 0")
+        self.assertNotContains(r, "<h3>Pindahkan</h3>", html=False)
 
     def test_sampah_dengan_stok_gudang_tidak_bisa_hapus_permanen(self):
         from master.layanan import lokasi

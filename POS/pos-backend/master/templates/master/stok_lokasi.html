@@ -18,15 +18,15 @@
 {% if not gudang %}<p class="pesan">Belum ada gudang. <a href="{% url 'master:lokasi' %}">Tambah gudang</a> dulu; sampai itu semua stok dihitung di Toko.</p>{% endif %}
 
 <div class="gulir"><table>
-  <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Total</th><th class="angka">{{ toko.nama }}</th>{% for l in gudang %}<th class="angka">{{ l.nama }}</th>{% endfor %}{% if 'kelola_lokasi' in hak %}<th></th>{% endif %}</tr>
+  <tr><th>Barang</th><th>Varian</th>{% if 'kelola_lokasi' in hak %}<th></th>{% endif %}<th>Rak</th><th class="angka">Total</th><th class="angka">{{ toko.nama }}</th>{% for l in gudang %}<th class="angka">{{ l.nama }}</th>{% endfor %}</tr>
   {% for b in barang %}
   <tr>
-    <td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td>
+    <td>{% if b.id %}<a href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}">{{ b.item_name }}</a>{% else %}{{ b.item_name }}{% endif %}</td><td>{{ b.variant|varian }}</td>
+    {% if 'kelola_lokasi' in hak %}<td>{% if b.id %}<a class="tombol kecil" href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}">Pindah</a>{% endif %}</td>{% endif %}
     <td style="white-space:nowrap">{% if b.rak %}{{ b.rak.kode }}{% if b.rak.tempat %} <span class="kecil redup">{{ b.rak.tempat.kode }}</span>{% endif %}{% else %}-{% endif %}</td>
     <td class="angka">{{ b.in_stock|ribuan }}</td>
     <td class="angka"><b {% if b.toko < 0 %}style="color:var(--bahaya)"{% endif %}>{{ b.toko|ribuan }}</b></td>
     {% for n in b.kolom %}<td class="angka">{% if n %}{{ n|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td>{% endfor %}
-    {% if 'kelola_lokasi' in hak %}<td>{% if b.id %}<a class="tombol kecil" href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}">Pindah</a>{% endif %}</td>{% endif %}
   </tr>
   {% empty %}
   <tr><td colspan="{{ gudang|length|add:6 }}" class="redup" style="padding:28px;text-align:center">Tidak ada varian yang cocok dengan filter ini.</td></tr>

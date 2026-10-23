@@ -180,6 +180,7 @@ def pindah(request, varian_id):
     return render(request, "master/stok_lokasi_pindah.html", {
         "menu": "stok_lokasi", "info": info, "total": baris["in_stock"] or 0, "daftar": daftar,
         "aktif": [d for d in daftar if d["lokasi"].aktif],
+        "kosong": not any(d["jumlah"] for d in daftar),
         "riwayat": MutasiLokasi.objects.filter(varian=info).select_related("dari", "ke")[:30],
         "kembali": request.GET.get("kembali", ""),
     })
