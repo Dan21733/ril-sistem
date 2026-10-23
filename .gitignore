@@ -19,3 +19,6 @@
 # Folder kerja lokal, bukan isi repo.
 _to_delete/
 __pycache__/
+
+# Catatan alat AI pihak ketiga, bukan isi repo.
+.freebuff/
