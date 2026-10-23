@@ -161,8 +161,8 @@ class TokoTest(Dasar):
         po = Pembelian.objects.get()
         svc.tambah_baris(po, varian_id=self.info("Palu", "Kecil").id, jumlah=1, harga=1)
         self.client.force_login(self.gudang)
-        self.assertNotContains(self.client.get(reverse("gudang:datang")), po.nomor)
-        self.assertContains(self.client.get(reverse("gudang:datang") + f"?toko={self.t2.id}"), po.nomor)
+        self.assertNotContains(self.client.get(reverse("gudang:beranda")), po.nomor)
+        self.assertContains(self.client.get(reverse("gudang:beranda") + f"?toko={self.t2.id}"), po.nomor)
         self.assertContains(self.client.get(reverse("gudang:buka_dus")), "belum punya kasir")   # pilihan diingat
 
 

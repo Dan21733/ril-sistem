@@ -1,12 +1,14 @@
 {% extends "gudang/base.html" %}
-{% block judul %}Hitung stok{% endblock %}
+{% block judul %}Tugas #{{ t.id }}{% endblock %}
 {% block isi %}
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
+  <span class="redup kecil">Hitung {{ lingkup_teks }} · sampai {{ t.batas|date:"d M H:i" }}{% if sudah %} · <b>{{ sudah|length }}</b> sudah dihitung{% endif %}</span></div>
+
+{% if t.bisa_diisi %}
 <form method="get" class="alat">
-  {% if pilihan_lokasi %}<select name="lokasi" onchange="this.form.submit()" aria-label="Menghitung di">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if lokasi.id == l.id %}selected{% endif %}>Di {{ l.nama }}</option>{% endfor %}</select>{% endif %}
   <input type="search" name="q" value="{{ cari }}" placeholder="Cari barang: nama, varian, merek" aria-label="Cari barang" {% if not mencari %}autofocus{% endif %}>
   <select name="rak" onchange="this.form.submit()" aria-label="Rak"><option value="">Semua rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if rak == r.kode %}selected{% endif %}>{{ r.kode }} · {{ r.nama }}</option>{% endfor %}</select>
   <button class="tombol" type="submit">Cari</button>
-  {% if lokasi.jenis == 'gudang' %}<a class="tombol kecil" href="?semua=1">Barang ber-rak di {{ lokasi.nama }}</a>{% endif %}
 </form>
 
 {% if mencari %}
@@ -16,7 +18,7 @@
   <div class="brs {% if v.terisi %}terisi{% endif %}"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
     <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if v.terisi %} · sudah dihitung: {{ v.terisi.hitung }}{% endif %}</span></div>
     <input class="angka" type="text" name="hitung_{{ v.id }}" inputmode="numeric" placeholder="{% if v.terisi %}ubah{% else %}jumlah{% endif %}" autocomplete="off"></div>
-  {% empty %}<div class="brs redup">Tidak ada barang yang cocok.</div>
+  {% empty %}<div class="brs redup">Tidak ada barang yang cocok di lingkup tugas ini.</div>
   {% endfor %}
 </div>
 {% if terpotong %}<p class="redup kecil">Hanya 80 barang pertama yang tampil. Persempit pencariannya.</p>{% endif %}
@@ -24,7 +26,7 @@
 </form>
 {% endif %}
 
-<h3>Sudah dihitung{% if lokasi %} di {{ lokasi.nama }}{% endif %}{% if sudah %} ({{ sudah|length }}){% endif %}</h3>
+<h3>Sudah dihitung{% if sudah %} ({{ sudah|length }}){% endif %}</h3>
 {% if sudah %}
 <div class="daftar">
   {% for b in sudah %}
@@ -34,9 +36,12 @@
     <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form></div>
   {% endfor %}
 </div>
-<form method="post" class="alat" style="margin-top:10px" data-tanya="Ajukan {{ sudah|length }} hitungan ke pemilik? Setelah diajukan tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="ajukan">
+<form method="post" class="alat" style="margin-top:10px" data-tanya="Kirim {{ sudah|length }} hitungan ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
   <input type="text" name="catatan" placeholder="Catatan untuk pemilik (boleh kosong)" aria-label="Catatan untuk pemilik">
-  <button class="tombol utama" type="submit">Ajukan {{ sudah|length }} ke pemilik</button>
+  <button class="tombol utama" type="submit">Kirim {{ sudah|length }} ke pemilik</button>
 </form>
 {% else %}<p class="redup kecil">Belum ada.</p>{% endif %}
+{% else %}
+<div class="pesan info">{% if t.status == 'terbuka' %}Batas waktu tugas ini sudah lewat.{% else %}Tugas ini {{ t.get_status_display|lower }}.{% endif %}{% if t.catatan_putusan %} Catatan pemilik: {{ t.catatan_putusan }}{% endif %}</div>
+{% endif %}
 {% endblock %}

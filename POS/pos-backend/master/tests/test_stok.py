@@ -207,8 +207,6 @@ class OpnameTest(Dasar):
             opname.tolak(self.admin, op, " ", hak=SEMUA_HAK)
         opname.tolak(self.admin, op, "hitung ulang", hak=SEMUA_HAK)
         self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 10)
-        self.client.force_login(self.gudang)
-        self.assertContains(self.client.get(reverse("gudang:beranda")), "hitung ulang")
 
     def test_gudang_tidak_bisa_acc_dan_ajukan_kosong_ditolak(self):
         from master.layanan import opname
@@ -221,22 +219,115 @@ class OpnameTest(Dasar):
         self.client.force_login(self.gudang)
         self.assertEqual(self.client.post(reverse("master:opname_detail", args=[op.id]), {"aksi": "acc"}).status_code, 403)
 
-    def test_lewat_layar(self):
-        from master.models import Opname
+    def _tugas(self, **lain):
+        from datetime import timedelta
+        from django.utils import timezone
+        from master.layanan import tiket as svc_tiket
+        from master.models import Lokasi
+        return svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung palu", jenis="hitung", hak=SEMUA_HAK,
+                              batas=timezone.now() + timedelta(hours=2),
+                              lokasi=lain.pop("lokasi", Lokasi.objects.get(jenis="toko").id), **lain)
+
+    def test_hitung_hanya_lewat_tugas(self):
         self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:hitung"), follow=True)
+        self.assertContains(r, "lewat tugas dari pemilik")
+        self.assertEqual(self.client.post(reverse("gudang:hitung"), {"aksi": "simpan"}).status_code, 302)
+        from master.models import Opname
+        self.assertFalse(Opname.objects.exists())
+
+    def test_buka_tugas_hitung_perlu_hak_dan_lokasi(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from master.layanan import tiket as svc_tiket
+        with self.assertRaises(Tolak):
+            self._tugas(lokasi=None)
+        with self.assertRaises(Tolak):   # tanpa hak opname
+            svc_tiket.buka(self.gudang, untuk=self.gudang, tujuan="x", jenis="hitung", hak=PERAN["Gudang"] | {"tiket"},
+                           batas=timezone.now() + timedelta(hours=1), lokasi=1)
+        with self.assertRaises(Tolak):   # akun tanpa hak hitung
+            svc_tiket.buka(self.admin, untuk=self.finance, tujuan="x", jenis="hitung", hak=SEMUA_HAK,
+                           batas=timezone.now() + timedelta(hours=1), lokasi=1)
+
+    def test_lewat_tugas_sampai_acc_menutup_tugas(self):
+        from master.models import Opname
+        Item.objects.filter(item_name="Palu").update(category="Perkakas")
+        t = self._tugas(kategori=["Perkakas"])
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "hitung palu")
+        self.assertContains(r, "kategori Perkakas")
+        url = reverse("gudang:tiket_hitung", args=[t.id])
         id_kecil = self.info("Palu", "Kecil").id
-        r = self.client.post(reverse("gudang:hitung") + "?q=palu", {"aksi": "simpan", f"hitung_{id_kecil}": "6", "hitung_999999": ""}, follow=True)
+        r = self.client.get(url)
+        self.assertContains(r, "Palu / Kecil")
+        self.assertNotContains(r, "in_stock")
+        r = self.client.post(url, {"aksi": "simpan", f"hitung_{id_kecil}": "6", "hitung_999999": ""}, follow=True)
         self.assertContains(r, "1 hitungan tersimpan")
         self.assertContains(r, "sudah dihitung: 6")
-        self.client.post(reverse("gudang:hitung"), {"aksi": "ajukan", "catatan": "rak A"})
+        self.assertNotContains(r, ">10<")     # stok sistem tidak tampil
+        self.client.post(url, {"aksi": "kirim", "catatan": "rak A"})
+        t.refresh_from_db()
+        self.assertEqual(t.status, "dikirim")
         op = Opname.objects.get()
+        self.assertEqual((op.tiket_id, op.status), (t.id, "diajukan"))
+        # setelah dikirim tidak bisa diubah
+        self.client.post(url, {"aksi": "simpan", f"hitung_{id_kecil}": "1"})
+        self.assertEqual(op.baris.get().hitung, 6)
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("master:dashboard")), "Opname menunggu ACC")
-        isi = self.client.get(reverse("master:opname_detail", args=[op.id])).content.decode()
-        self.assertIn("rak A", isi)
+        self.assertIn("rak A", self.client.get(reverse("master:opname_detail", args=[op.id])).content.decode())
+        # halaman tiket di master meneruskan ke opname
+        self.assertRedirects(self.client.get(reverse("master:tiket_detail", args=[t.id])),
+                             reverse("master:opname_detail", args=[op.id]))
         r = self.client.post(reverse("master:opname_detail", args=[op.id]), {"aksi": "acc", "pilih": [op.baris.get().id]}, follow=True)
         self.assertContains(r, "Opname di-ACC")
         self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 6)
+        t.refresh_from_db()
+        self.assertEqual(t.status, "selesai")
+
+    def test_barang_di_luar_lingkup_ditolak_dan_tolak_menutup_tugas(self):
+        from master.layanan import opname
+        from master.models import Rak
+        Rak.objects.get_or_create(kode="TK-09", defaults={"nama": "Rak sembilan"})
+        VarianInfo.objects.filter(item_name="Palu", variant="Kecil").update(rak_id="TK-09")
+        t = self._tugas(rak=["TK-09"])
+        besar = self.info("Palu", "Besar").id
+        with self.assertRaises(Tolak):
+            opname.simpan_hitungan(self.gudang, {f"hitung_{besar}": "3"}, tiket=t,
+                                   boleh=set(opname.lingkup_tugas(t).values_list("id", flat=True)))
+        opname.simpan_hitungan(self.gudang, {f"hitung_{self.info('Palu', 'Kecil').id}": "8"}, tiket=t,
+                               toko=opname.t_toko(t), lokasi=opname.lokasi_tugas(t),
+                               boleh=set(opname.lingkup_tugas(t).values_list("id", flat=True)))
+        op = opname.kirim_tugas(self.gudang, t)
+        opname.tolak(self.admin, op, "hitung ulang besok", hak=SEMUA_HAK)
+        t.refresh_from_db()
+        self.assertEqual((t.status, t.catatan_putusan), ("ditolak", "hitung ulang besok"))
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "Sebelumnya")
+        self.assertContains(r, "hitung ulang besok")
+        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 10)
+
+    def test_lewat_batas_diteruskan_pemilik(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from master.layanan import opname
+        from master.models import Tiket
+        t = self._tugas()
+        opname.simpan_hitungan(self.gudang, {f"hitung_{self.info('Palu', 'Kecil').id}": "8"}, tiket=t,
+                               toko=opname.t_toko(t), lokasi=opname.lokasi_tugas(t))
+        Tiket.objects.filter(pk=t.id).update(batas=timezone.now() - timedelta(minutes=1))
+        t.refresh_from_db()
+        with self.assertRaises(Tolak):
+            opname.kirim_tugas(self.gudang, t)
+        with self.assertRaises(Tolak):
+            opname.teruskan_tugas(self.gudang, t, hak=PERAN["Gudang"])
+        op = opname.teruskan_tugas(self.admin, t, hak=SEMUA_HAK)
+        self.assertEqual(op.status, "diajukan")
+        opname.acc(self.admin, op, [op.baris.get().id], hak=SEMUA_HAK)
+        t.refresh_from_db()
+        self.assertEqual(t.status, "selesai")
 
 
 class GudangTest(Dasar):
@@ -288,14 +379,22 @@ class GudangTest(Dasar):
         layanan.sinkron_info()
         bukadus.buat_konversi(self.admin, dari_id=self.info("Semen", "Sak").id, ke_id=self.info("Semen", "Kg").id, isi=50)
         self.client.force_login(self.gudang)
-        self._bersih(self.client.get(reverse("gudang:beranda")))
-        self._bersih(self.client.get(reverse("gudang:datang")))
+        from datetime import timedelta
+        from django.utils import timezone
+        from master.layanan import tiket as svc_tiket
+        from master.models import Lokasi
+        t = svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung", jenis="hitung", hak=SEMUA_HAK,
+                           batas=timezone.now() + timedelta(hours=1), lokasi=Lokasi.objects.get(jenis="toko").id)
+        self.client.force_login(self.gudang)
+        isi = self._bersih(self.client.get(reverse("gudang:beranda")))
+        self.assertIn(po.nomor, isi)
         isi = self._bersih(self.client.get(reverse("gudang:datang_detail", args=[po.id])))
         self.assertIn("Palu / Kecil", isi)
         self.assertIn("TK-01", isi)
-        isi = self._bersih(self.client.get(reverse("gudang:hitung") + "?q=palu"))
+        self.assertNotIn('value="10"', isi)       # jumlah pesanan tidak ditampilkan (terima buta)
+        isi = self._bersih(self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?q=palu"))
         self.assertIn("Palu / Kecil", isi)
-        self._bersih(self.client.get(reverse("gudang:hitung") + "?rak=TK-01"))
+        self._bersih(self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?rak=TK-01"))
         self.assertIn("Semen / Sak", self._bersih(self.client.get(reverse("gudang:buka_dus"))))
 
     def test_gudang_catat_datang_lalu_pemilik_lengkapi_dan_acc(self):
@@ -304,42 +403,94 @@ class GudangTest(Dasar):
         kecil, besar = po.baris.order_by("id")
         self.client.force_login(self.gudang)
         url = reverse("gudang:datang_detail", args=[po.id])
-        # Beda dari pesanan tanpa catatan: ditolak, tidak ada yang berubah.
-        r = self.client.post(url, {f"terima_{kecil.id}": "8", f"terima_{besar.id}": "5"})
-        self.assertContains(r, "Isi catatannya")
-        po.refresh_from_db(); self.assertEqual(po.status, "dibuat")
         # Kosong tidak dianggap nol.
-        r = self.client.post(url, {f"terima_{kecil.id}": "8", f"terima_{besar.id}": "", "catatan_terima": "x"})
+        r = self.client.post(url, {f"terima_{kecil.id}": "8", f"terima_{besar.id}": ""})
         self.assertContains(r, "belum diisi")
-        r = self.client.post(url, {f"terima_{kecil.id}": "8", f"terima_{besar.id}": "5", "catatan_terima": "kurang 2",
-                                   "surat_jalan": "SJ-77", f"harga_{kecil.id}": "1"})
-        self.assertRedirects(r, reverse("gudang:datang"))
+        po.refresh_from_db(); self.assertEqual(po.status, "dibuat")
+        # Beda dari pesanan: diminta hitung ulang tanpa diberi tahu angka seharusnya.
+        r = self.client.post(url, {f"terima_{kecil.id}": "8", f"terima_{besar.id}": "5", "surat_jalan": "SJ-77",
+                                   f"harga_{kecil.id}": "1"}, follow=True)
+        self.assertContains(r, "dihitung ulang")
+        isi = self._bersih(r)
+        self.assertIn("Palu / Kecil", isi)
+        self.assertNotIn("Palu / Besar", isi)      # yang sudah cocok tidak dihitung ulang
+        po.refresh_from_db()
+        self.assertEqual((po.status, po.hitung_ulang), ("dibuat", [kecil.id]))
+        # Hitung ulang: catatan wajib.
+        r = self.client.post(url, {f"terima_{kecil.id}": "9"})
+        self.assertContains(r, "Isi catatan")
+        r = self.client.post(url, {f"terima_{kecil.id}": "9", "catatan_terima": "1 dus sobek"})
+        self.assertRedirects(r, reverse("gudang:tiket"))
         po.refresh_from_db(); kecil.refresh_from_db()
-        self.assertEqual((po.status, po.diterima_oleh, po.catatan_terima), ("menunggu", "gudang", "Surat jalan SJ-77. kurang 2"))
+        self.assertEqual((po.status, po.diterima_oleh, po.hitung_ulang), ("menunggu", "gudang", []))
+        self.assertEqual(po.catatan_terima, "Surat jalan SJ-77. Hitung ulang: 1 dus sobek")
         # Gudang tidak bisa mengubah harga walau mengirim kolomnya.
-        self.assertEqual((kecil.jumlah_terima, kecil.harga), (8, 654321))
+        self.assertEqual((kecil.jumlah_hitung1, kecil.jumlah_terima, kecil.harga), (8, 9, 654321))
         self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 4321)
         self.assertEqual(self.client.get(url).status_code, 404)
 
         self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
+        self.assertContains(r, "Hitungan 1")
         r = self.client.post(reverse("master:pembelian_detail", args=[po.id]), {
             "aksi": "faktur", "mode_ppn": "tanpa", f"harga_{kecil.id}": "1.000", f"harga_{besar.id}": "2.000",
             "nomor_faktur": "F-1", "ongkir": "900", "ongkir_tagihan": "terpisah"}, follow=True)
         self.assertContains(r, "Data faktur tersimpan")
-        po = svc.acc(self.admin, Pembelian.objects.get(pk=po.id))
-        self.assertEqual((po.total, po.nomor_faktur, po.ongkir), (18000, "F-1", 900))
-        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 4329)
-
-    def test_gudang_buka_dus(self):
-        from master.layanan import bukadus
-        from master.models import BukaDus
-        buat_item("Semen", "Sak", modal=50000, stok=10)
-        buat_item("Semen", "Kg", modal=1000, stok=0)
-        layanan.sinkron_info()
-        k = bukadus.buat_konversi(self.admin, dari_id=self.info("Semen", "Sak").id, ke_id=self.info("Semen", "Kg").id, isi=50)
+        # Datang 9 dari 10: pemilik wajib memilih sisanya ditunggu atau batal.
+        r = self.client.post(reverse("master:pembelian_detail", args=[po.id]), {"aksi": "acc"}, follow=True)
+        self.assertContains(r, "Pilih: sisanya ditunggu")
+        r = self.client.post(reverse("master:pembelian_detail", args=[po.id]), {"aksi": "acc", "sisa": "tunggu"}, follow=True)
+        po = Pembelian.objects.get(pk=po.id)
+        self.assertEqual((po.status, po.total, po.nomor_faktur, po.ongkir), ("diterima", 19000, "F-1", 900))
+        lanjut = po.lanjutan.get()
+        self.assertEqual((lanjut.status, lanjut.supplier_id, lanjut.catatan), ("dibuat", self.supplier.id, f"Sisa dari {po.nomor}"))
+        self.assertEqual([(b.item_name, b.variant, b.jumlah_pesan, b.harga) for b in lanjut.baris.all()],
+                         [("Palu", "Kecil", 1, 1000)])
+        self.assertContains(r, lanjut.nomor)
+        # PO lanjutan muncul di tugas gudang
         self.client.force_login(self.gudang)
-        r = self.client.post(reverse("gudang:buka_dus"), {"id": k.id, "jumlah": "2"}, follow=True)
-        self.assertContains(r, "dibuka menjadi 100")
-        self.assertEqual(Item.objects.get(item_name="Semen", variant="Kg").in_stock, 100)
-        self.assertEqual(BukaDus.objects.get().oleh, "gudang")
-        self.assertNotIn("50.000", r.content.decode())
+        self.assertContains(self.client.get(reverse("gudang:tiket")), lanjut.nomor)
+
+    def test_barang_di_luar_pesanan(self):
+        from master.layanan import pembelian as svc
+        po = self._po()
+        kecil, besar = po.baris.order_by("id")
+        buat_item("Semen", "Sak", modal=0, stok=0)   # belum pernah dibeli: harga 0, pemilik diingatkan
+        layanan.sinkron_info()
+        info = self.info("Semen", "Sak")
+        self.client.force_login(self.gudang)
+        url = reverse("gudang:datang_detail", args=[po.id])
+        self.assertContains(self.client.get(url + "?q=semen"), "Semen / Sak")
+        self.client.post(url, {"aksi": "tambah_lain", "varian_id": info.id, "jumlah": "3"})
+        lain = po.baris.get(di_luar_pesanan=True)
+        self.assertEqual((lain.jumlah_pesan, lain.jumlah_terima), (0, 3))
+        r = self.client.post(url, {"aksi": "tambah_lain", "varian_id": self.info("Palu", "Kecil").id, "jumlah": "1"}, follow=True)
+        self.assertContains(r, "sudah ada di daftar pesanan")
+        # barang di luar pesanan tidak memicu hitung ulang
+        r = self.client.post(url, {f"terima_{kecil.id}": "10", f"terima_{besar.id}": "5", f"terima_{lain.id}": "3"})
+        self.assertRedirects(r, reverse("gudang:tiket"))
+        po.refresh_from_db()
+        self.assertEqual(po.status, "menunggu")
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
+        self.assertContains(r, "tidak dipesan")
+        self.assertContains(r, "Harga masih 0")
+        po = svc.acc(self.admin, po)
+        self.assertEqual(Item.objects.get(item_name="Semen", variant="Sak").in_stock, 3)
+        self.assertFalse(po.lanjutan.exists())
+
+
+class TiketHitungMasterTest(Dasar):
+    def test_pemilik_buka_tugas_hitung_dari_halaman_tiket(self):
+        from master.models import Lokasi, Tiket
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:tiket"))
+        self.assertContains(r, 'value="hitung"')
+        r = self.client.post(reverse("master:tiket"), {
+            "aksi": "buka", "jenis": "hitung", "untuk": self.gudang.id, "tujuan": "hitung rak depan",
+            "batas": "2099-01-01T10:00", "lokasi": Lokasi.objects.get(jenis="toko").id, "rak": ["TK-01"]}, follow=True)
+        t = Tiket.objects.get()
+        self.assertEqual((t.jenis, t.saring["rak"], t.saring["lokasi"]), ("hitung", ["TK-01"], Lokasi.objects.get(jenis="toko").id))
+        r = self.client.get(reverse("master:tiket_detail", args=[t.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "hitung rak depan")

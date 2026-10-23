@@ -302,6 +302,11 @@ class Pembelian(models.Model):
     # False: dibayar sendiri ke ekspedisi, hanya masuk modal.
     ongkir = models.BigIntegerField(default=0)
     ongkir_ke_supplier = models.BooleanField(default=True)
+    # Terima buta oleh gudang: id baris yang jumlahnya beda dari pesanan dan sedang
+    # diminta dihitung ulang (gudang tidak tahu angka pesanannya).
+    hitung_ulang = models.JSONField(default=list, blank=True)
+    # Kiriman sebagian: PO lanjutan berisi sisa yang belum datang.
+    lanjutan_dari = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="lanjutan")
 
     # Dibekukan saat ACC
     acc_oleh = models.CharField(max_length=150, blank=True, default="")
@@ -344,6 +349,10 @@ class PembelianBaris(models.Model):
     harga = models.IntegerField()
     # Lokasi tempat barang ditaruh saat datang (null = Toko/display).
     lokasi = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.PROTECT, related_name="baris_beli")
+    # Hitungan pertama gudang (sebelum hitung ulang). Null = belum dihitung gudang.
+    jumlah_hitung1 = models.IntegerField(null=True, blank=True)
+    # Barang yang datang tapi tidak ada di pesanan (dicatat gudang, jumlah_pesan = 0).
+    di_luar_pesanan = models.BooleanField(default=False)
     # Dibekukan saat ACC
     dpp = models.BigIntegerField(default=0)
     ppn = models.BigIntegerField(default=0)
@@ -472,6 +481,8 @@ class Opname(models.Model):
     toko = models.ForeignKey(Toko, on_delete=models.PROTECT, related_name="opname", null=True)
     # Lokasi yang dihitung (hanya untuk toko yang memegang stok kasir). Null = Toko/display.
     lokasi = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.PROTECT, related_name="opname")
+    # Hitungan dari tugas (tiket jenis "hitung") yang dibuka pemilik.
+    tiket = models.OneToOneField("Tiket", null=True, blank=True, on_delete=models.SET_NULL, related_name="opname")
     dibuat_oleh = models.CharField(max_length=150)
     dibuat_waktu = models.DateTimeField(auto_now_add=True)
     diajukan_waktu = models.DateTimeField(null=True, blank=True)
@@ -787,7 +798,7 @@ class Tiket(models.Model):
     """
     STATUS = [("terbuka", "Terbuka"), ("dikirim", "Menunggu ACC"), ("selesai", "Selesai"),
               ("ditolak", "Ditolak"), ("batal", "Dibatalkan")]
-    JENIS = [("lokasi", "Pindah lokasi dan rak"), ("barang", "Data barang")]
+    JENIS = [("lokasi", "Pindah lokasi dan rak"), ("barang", "Data barang"), ("hitung", "Hitung stok")]
     IZIN_BARANG = [("harga", "Harga jual dan floor"), ("alias", "Alias"), ("aktif", "Aktif / nonaktif")]
 
     jenis = models.CharField(max_length=10, choices=JENIS, default="lokasi")

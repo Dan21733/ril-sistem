@@ -1,4 +1,4 @@
-"""Halaman masuk (login) master dan aplikasi gudang, dengan batas percobaan.
+"""Halaman masuk (login) master (nama pengguna + kata sandi) dan aplikasi operasional (PIN kasir).
 
 Setelah BATAS kali salah kata sandi untuk satu nama pengguna, nama itu dikunci
 selama KUNCI detik. Hitungan disimpan di cache bersama (FileBasedCache milik POS),
@@ -59,21 +59,11 @@ class FormMasuk(AuthenticationForm):
             raise forms.ValidationError("Akun ini tidak punya akses ke aplikasi ini.", code="tanpa_hak")
 
 
-class FormMasukGudang(FormMasuk):
-    perlu_hak = "gudang"
-
-
 class MasukMaster(auth_views.LoginView):
     template_name = "master/login.html"
     authentication_form = FormMasuk
     redirect_authenticated_user = True
 
-
-class MasukGudang(auth_views.LoginView):
-    template_name = "gudang/masuk.html"
-    authentication_form = FormMasukGudang
-    redirect_authenticated_user = True
-    next_page = "gudang:beranda"
 
 
 # ---------------------------------------------------------------------------

@@ -110,8 +110,7 @@ class MasukPinTest(Dasar):
     def test_masuk_dengan_pin_langsung_ke_tugas(self):
         r = self.client.post("/gudang/masuk/", {"pin": self.pin})
         self.assertRedirects(r, "/gudang/", fetch_redirect_response=False)
-        r = self.client.get("/gudang/", follow=True)
-        self.assertEqual(r.redirect_chain[-1][0], "/gudang/tiket/")
+        r = self.client.get("/gudang/")
         self.assertContains(r, "Belum ada tugas")
         self.assertContains(r, "Sari")
         self.assertNotContains(r, "Hitung stok")
@@ -140,16 +139,16 @@ class MasukPinTest(Dasar):
 
     def test_nonaktif_atau_cabut_peran_langsung_keluar(self):
         self.client.post("/gudang/masuk/", {"pin": self.pin})
-        self.assertEqual(self.client.get("/gudang/tiket/").status_code, 200)
+        self.assertEqual(self.client.get("/gudang/").status_code, 200)
         svc_karyawan.nonaktifkan(self.admin, self.wid)
-        self.assertEqual(self.client.get("/gudang/tiket/").status_code, 302)
+        self.assertEqual(self.client.get("/gudang/").status_code, 302)
         self.assertNotIn("_auth_user_id", self.client.session)
         # karyawan lain: perannya dicabut
         akun_karyawan.atur_hak_ops(self.admin, self.wid2, BARANG)
         self.client.post("/gudang/masuk/", {"pin": self.pin2})
-        self.assertEqual(self.client.get("/gudang/tiket/").status_code, 200)
+        self.assertEqual(self.client.get("/gudang/").status_code, 200)
         akun_karyawan.atur_hak_ops(self.admin, self.wid2, [])
-        self.assertEqual(self.client.get("/gudang/tiket/").status_code, 302)
+        self.assertEqual(self.client.get("/gudang/").status_code, 302)
 
     def test_sesi_terikat_ke_perangkat(self):
         self.client.post("/gudang/masuk/", {"pin": self.pin})
@@ -158,7 +157,7 @@ class MasukPinTest(Dasar):
         lain = Client()
         _setujui_klien(lain, self.admin, "HP lain")
         lain.cookies[self.client.cookies.get("master_sessionid") and "master_sessionid" or "gudang_sessionid"] = sesi
-        r = lain.get("/gudang/tiket/")
+        r = lain.get("/gudang/")
         self.assertEqual(r.status_code, 302)
 
     def test_hak_di_halaman_karyawan(self):
@@ -183,12 +182,14 @@ class MasukPinTest(Dasar):
         akun_karyawan.atur_hak_ops(self.admin, self.wid2, ["gudang_ambil"])
         self.client.post("/gudang/masuk/", {"pin": self.pin2})
         r = self.client.get("/gudang/")
-        self.assertContains(r, "Halo, Budi")
-        self.assertContains(r, "Ambil barang")
-        for teks in ("Barang datang", "Hitung stok", "Buka dus", "Stok per lokasi", "Tugas"):
+        self.assertContains(r, "Budi")
+        self.assertContains(r, "Belum ada tugas")
+        for teks in ("Buka dus", "Hitung stok", "Terima barang datang"):
             self.assertNotContains(r, teks)
-        for url in ("/gudang/datang/", "/gudang/hitung/", "/gudang/buka-dus/", "/gudang/stok/", "/gudang/tiket/"):
+        for url in ("/gudang/datang/", "/gudang/hitung/", "/gudang/buka-dus/"):
             self.assertEqual(self.client.get(url).status_code, 403, url)
+        self.assertEqual(self.client.get("/gudang/stok/").status_code, 404)        # menu Stok dihapus
+        self.assertEqual(self.client.get("/gudang/masuk/sandi/").status_code, 404)  # masuk hanya dengan PIN
         self.assertEqual(self.client.get("/gudang/ambil/").status_code, 200)
 
 
@@ -305,7 +306,6 @@ class TiketBarangTest(Dasar):
         self.assertNotContains(r, "Palu")      # kategori lain
         # menu kepala gudang tidak ada
         self.assertEqual(self.client.get(reverse("gudang:hitung")).status_code, 403)
-        self.assertEqual(self.client.get(reverse("gudang:stok")).status_code, 403)
 
     def test_simpan_usulan_tidak_mengubah_barang(self):
         self.client.force_login(self.sari)
@@ -402,3 +402,40 @@ class TiketBarangTest(Dasar):
         self.assertContains(r, "Palu")
         self.assertNotContains(r, 'name="h_')     # tanpa izin harga, tidak ada isian harga
         self.assertNotContains(r, "Cat Avian")
+
+
+class HakBentrokTest(Dasar):
+    """Yang menghitung stok (hitung buta) tidak boleh bisa melihat jumlah stok sistem."""
+
+    def test_hitung_dan_lihat_stok_ditolak_tanpa_mengubah_apa_pun(self):
+        from pos import pengaturan
+        wid, _ = svc_karyawan.tambah(self.admin, "Eva")
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "gudang_hitung"])
+        with self.assertRaises(Tolak):
+            akun_karyawan.atur_semua(self.admin, wid, ["gudang_hitung", "ops_lihat_stok"])
+        user = get_user_model().objects.get(username=f"ops-{wid.lower()}")
+        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang", "gudang_hitung"})
+        self.assertNotIn(wid, pengaturan.bukan_kasir())   # jualan kasir juga tidak ikut berubah
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:karyawan"), {"aksi": "hak", "id": wid, "hak": ["gudang_hitung", "ops_lihat_stok"]},
+                             follow=True)
+        self.assertContains(r, "tidak boleh untuk orang yang sama")
+        akun_karyawan.atur_semua(self.admin, wid, ["ops_lihat_stok"])
+        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang", "ops_lihat_stok"})
+
+    def test_migrasi_mencabut_lihat_stok_dari_penghitung(self):
+        from importlib import import_module
+        from django.apps import apps
+        from master.models import AkunKaryawan
+        mig = import_module("master.migrations.0028_gudang_tugas_terima_buta")
+        wid, _ = svc_karyawan.tambah(self.admin, "Eva")
+        akun_karyawan.atur_hak_ops(self.admin, wid, ["gudang_hitung"])
+        akun = AkunKaryawan.objects.get(worker_id=wid)
+        AkunKaryawan.objects.filter(pk=akun.pk).update(peran=["gudang_hitung", "ops_lihat_stok"])
+        HakAkun.objects.filter(user=akun.user).update(hak=["gudang", "gudang_hitung", "ops_lihat_stok"])
+        lain = get_user_model().objects.create_user("lihat")
+        HakAkun.objects.create(user=lain, hak=["gudang", "ops_lihat_stok"])
+        mig.pisah_hitung_dan_lihat_stok(apps, None)
+        self.assertEqual(AkunKaryawan.objects.get(pk=akun.pk).peran, ["gudang_hitung"])
+        self.assertEqual(HakAkun.objects.get(user=akun.user).hak, ["gudang", "gudang_hitung"])
+        self.assertEqual(HakAkun.objects.get(user=lain).hak, ["gudang", "ops_lihat_stok"])

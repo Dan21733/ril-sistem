@@ -1,39 +1,57 @@
 {% extends "gudang/base.html" %}{% load master_tags %}
 {% block judul %}{{ po.nomor }}{% endblock %}
 {% block isi %}
-<div class="judul-hal"><a class="kecil" href="{% url 'gudang:datang' %}">‹ Kembali</a><h2>{{ po.nomor }}</h2>
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>{% if ulang %}Hitung ulang · {% endif %}{{ po.nomor }}</h2>
   <span class="redup kecil">dipesan {{ po.tanggal_pesan|date:"d M Y" }}{% if po.catatan %} · {{ po.catatan }}{% endif %}</span></div>
-<form method="post" id="form-datang">{% csrf_token %}
+{% if ulang %}<div class="pesan info">Hitung lagi barang di bawah ini dengan teliti, lalu isi jumlah yang benar-benar ada.</div>{% endif %}
+<form method="post" id="form-datang">{% csrf_token %}<input type="hidden" name="aksi" value="catat">
 <div class="daftar">
   {% for b in baris %}
   <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
-    <span class="redup kecil">Dipesan {{ b.jumlah_pesan }}{% if b.varian.rak_id %} · rak {{ b.varian.rak_id }}{% endif %}</span></div>
-    <input class="angka" type="text" name="terima_{{ b.id }}" value="{{ b.isi }}" data-pesan="{{ b.jumlah_pesan }}" inputmode="numeric" placeholder="datang" autocomplete="off">
-    {% if pilihan_lokasi %}<select name="lokasi_{{ b.id }}" class="pilih-lokasi" style="flex-basis:100%;margin-top:6px">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.usul == l.id|stringformat:"s" %}selected{% endif %}>Taruh di {{ l.nama }}</option>{% endfor %}</select>{% endif %}</div>
+    <span class="redup kecil">{% if b.di_luar_pesanan %}<span class="label awas">tidak ada di pesanan</span> {% endif %}{% if b.varian.rak_id %}rak {{ b.varian.rak_id }}{% endif %}</span></div>
+    <input class="angka wajib" type="text" name="terima_{{ b.id }}" value="{{ b.isi }}" inputmode="numeric" placeholder="jumlah" autocomplete="off">
+    {% if b.di_luar_pesanan and not ulang %}<button class="tombol kecil bahaya" type="submit" form="hapus-{{ b.id }}">Hapus</button>{% endif %}
+    {% if pilihan_lokasi and not ulang %}<select name="lokasi_{{ b.id }}" class="pilih-lokasi" style="flex:0 1 230px;min-width:170px" aria-label="Ditaruh di">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.usul == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>{% endif %}</div>
   {% endfor %}
 </div>
-<div class="alat" style="margin-top:10px">
-  <button type="button" class="tombol kecil" id="isi-semua">Semua datang sesuai pesanan</button>
-  {% if pilihan_lokasi %}<select id="lokasi-semua" aria-label="Semua ditaruh di"><option value="">Semua ditaruh di…</option>{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select>{% endif %}
-</div>
-<div class="dua">
+{% if ulang %}
+<div style="margin-top:10px"><label>Catatan untuk pemilik (wajib)</label><input type="text" name="catatan_terima" value="{{ kirim.catatan_terima }}" placeholder="mis. 2 sak sobek, memang kurang 5"></div>
+{% else %}
+{% if pilihan_lokasi %}<div class="alat" style="margin-top:10px"><select id="lokasi-semua" aria-label="Semua ditaruh di"><option value="">Semua ditaruh di…</option>{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>{% endif %}
+<div class="dua" style="margin-top:10px">
   <div><label>Tanggal datang</label><input type="date" name="tanggal_terima" value="{% if kirim.tanggal_terima %}{{ kirim.tanggal_terima }}{% else %}{{ hari_ini|date:'Y-m-d' }}{% endif %}"></div>
   <div><label>Nomor surat jalan (kalau ada)</label><input type="text" name="surat_jalan" value="{{ kirim.surat_jalan }}"></div>
 </div>
-<div style="margin-top:10px"><label>Catatan (wajib kalau jumlah beda)</label><input type="text" name="catatan_terima" value="{{ kirim.catatan_terima }}" placeholder="mis. semen kurang 5 sak, 2 sak sobek"></div>
-<div class="bawah"><button class="tombol utama penuh" type="submit">Catat barang datang</button></div>
+<div style="margin-top:10px"><input type="text" name="catatan_terima" value="{{ kirim.catatan_terima }}" placeholder="Catatan (boleh kosong), mis. ada yang rusak" aria-label="Catatan"></div>
+{% endif %}
+<div class="bawah"><button class="tombol utama penuh" type="submit">{% if ulang %}Kirim hitungan ulang{% else %}Catat barang datang{% endif %}</button></div>
 </form>
+{% for b in baris %}{% if b.di_luar_pesanan and not ulang %}<form method="post" id="hapus-{{ b.id }}">{% csrf_token %}<input type="hidden" name="aksi" value="hapus_lain"><input type="hidden" name="id" value="{{ b.id }}"></form>{% endif %}{% endfor %}
+
+{% if not ulang %}
+<details class="kartu" style="margin-top:14px" {% if cari %}open{% endif %}><summary><b>Ada barang datang yang tidak ada di daftar?</b></summary>
+  <form method="get" class="alat" style="margin-top:10px"><input type="search" name="q" value="{{ cari }}" placeholder="Cari barangnya" aria-label="Cari barang"><button class="tombol" type="submit">Cari</button></form>
+  {% if hasil_cari %}<div class="daftar">{% for v in hasil_cari %}
+    <form method="post" class="brs">{% csrf_token %}<input type="hidden" name="aksi" value="tambah_lain"><input type="hidden" name="varian_id" value="{{ v.id }}">
+      <div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b></div>
+      <input class="angka" type="text" name="jumlah" inputmode="numeric" placeholder="jumlah" required autocomplete="off"><button class="tombol kecil" type="submit">Tambah</button></form>
+  {% endfor %}</div>{% elif cari %}<p class="redup kecil">Tidak ditemukan.</p>{% endif %}
+</details>
+{% endif %}
 <script>
+// Isian yang sudah diketik tidak hilang saat mencari/menambah barang di luar pesanan.
+const formDatang = document.getElementById('form-datang'), kunciSimpan = 'datang-{{ po.id }}-{{ ulang|yesno:"u,a" }}';
+function simpanIsian(){ try { const d = {}; formDatang.querySelectorAll('input[name],select[name]').forEach(i => { if (i.name !== 'csrfmiddlewaretoken' && i.name !== 'aksi') d[i.name] = i.value; }); sessionStorage.setItem(kunciSimpan, JSON.stringify(d)); } catch (e) {} }
+try { const d = JSON.parse(sessionStorage.getItem(kunciSimpan) || 'null');
+  if (d && !{{ kirim|yesno:"true,false" }}) formDatang.querySelectorAll('input[name],select[name]').forEach(i => { if (i.name in d && !i.value) i.value = d[i.name]; else if (i.tagName === 'SELECT' && i.name in d) i.value = d[i.name]; }); } catch (e) {}
+document.querySelectorAll('details form, form[id^="hapus-"]').forEach(f => f.addEventListener('submit', simpanIsian));
+formDatang.addEventListener('input', simpanIsian);
 const semua = document.getElementById('lokasi-semua');
 if (semua) semua.addEventListener('change', () => { if (semua.value) document.querySelectorAll('.pilih-lokasi').forEach(s => s.value = semua.value); });
-document.getElementById('isi-semua').addEventListener('click', () => {
-  document.querySelectorAll('[data-pesan]').forEach(i => { if (!i.value.trim()) i.value = i.dataset.pesan; });
-});
 document.getElementById('form-datang').addEventListener('submit', e => {
-  const f = e.target, kotak = [...f.querySelectorAll('[data-pesan]')];
-  if (kotak.some(i => !i.value.trim())){ e.preventDefault(); alert('Masih ada jumlah yang kosong. Isi 0 kalau barangnya tidak datang.'); return; }
-  if (kotak.some(i => i.value.trim() !== i.dataset.pesan) && !f.elements.catatan_terima.value.trim()){
-    e.preventDefault(); alert('Jumlah yang datang beda dari pesanan. Isi catatannya dulu.'); f.elements.catatan_terima.focus(); }
+  const kosong = [...e.target.querySelectorAll('input.wajib')].find(i => !i.value.trim());
+  if (kosong){ e.preventDefault(); kabar('Masih ada jumlah yang kosong. Isi 0 kalau barangnya tidak datang.', true); kosong.focus(); return; }
+  try { sessionStorage.removeItem(kunciSimpan); } catch (err) {}
 });
 </script>
 {% endblock %}

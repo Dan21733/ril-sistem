@@ -134,7 +134,7 @@ class LokasiAlurTest(Dasar):
         kecil, besar = po.baris.order_by("id")
         self.client.force_login(self.gudang)
         r = self.client.get(reverse("gudang:datang_detail", args=[po.id]))
-        self.assertContains(r, "Taruh di Gudang A")
+        self.assertContains(r, ">Gudang A</option>")
         self.client.post(reverse("gudang:datang_detail", args=[po.id]), {
             f"terima_{kecil.id}": "6", f"terima_{besar.id}": "2", "tanggal_terima": "2026-10-02",
             f"lokasi_{kecil.id}": self.ga.id, f"lokasi_{besar.id}": self.toko.id})
@@ -176,15 +176,21 @@ class LokasiAlurTest(Dasar):
         Rak.objects.filter(kode="TK-01").update(tempat=self.ga)
         VarianInfo.objects.filter(pk=info.pk).update(rak_id="TK-01")
         lokasi.pindah(self.admin, info, dari=self.toko, ke=self.ga, jumlah=7, hak=SEMUA_HAK)
+        from datetime import timedelta
+        from master.layanan import tiket
+        t = tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung gudang A", jenis="hitung", hak=SEMUA_HAK,
+                       batas=timezone.now() + timedelta(hours=1), lokasi=self.ga.id, rak=["TK-01"])
         self.client.force_login(self.gudang)
-        r = self.client.get(reverse("gudang:hitung") + f"?lokasi={self.ga.id}")
-        self.assertContains(r, "Menghitung di")
-        r = self.client.get(reverse("gudang:hitung") + "?semua=1")
+        url = reverse("gudang:tiket_hitung", args=[t.id])
+        r = self.client.get(url)
+        self.assertContains(r, "di Gudang A")
         self.assertContains(r, "Kecil")
-        self.assertNotContains(r, "Besar")
-        self.client.post(reverse("gudang:hitung") + "?semua=1", {"aksi": "simpan", f"hitung_{info.id}": "7"})
+        self.assertNotContains(r, "Besar")      # di luar rak yang ditugaskan
+        self.assertNotContains(r, ">7<")        # stok sistem tidak tampil
+        self.client.post(url, {"aksi": "simpan", f"hitung_{info.id}": "7", f"hitung_{self.info('Palu', 'Besar').id}": "2"})
         from master.models import Opname
-        self.assertEqual(Opname.objects.get(status="draf").lokasi, self.ga)
+        op = Opname.objects.get(status="draf")
+        self.assertEqual((op.lokasi, op.tiket_id, op.baris.count()), (self.ga, t.id, 1))
 
     def test_buka_dus_dari_gudang_ke_toko(self):
         from master.layanan import bukadus
@@ -374,12 +380,8 @@ class TiketTest(Dasar):
     def test_halaman_admin_dan_pemilik(self):
         t = self._tiket()
         self.client.force_login(self.adm)
-        # admin dengan hak lihat stok: beranda hanya kartu stok dan tugas
         r = self.client.get(reverse("gudang:beranda"))
-        self.assertContains(r, "tugas terbuka, isi sebelum batasnya")
-        self.assertContains(r, "Stok per lokasi")
         self.assertNotContains(r, "Hitung stok")
-        r = self.client.get(reverse("gudang:tiket"))
         self.assertContains(r, "Kerjakan")
         self.assertContains(r, t.tujuan)
         r = self.client.get(reverse("gudang:tiket_isi", args=[t.id]) + "?q=palu")
@@ -392,7 +394,6 @@ class TiketTest(Dasar):
         self.client.post(reverse("gudang:tiket_isi", args=[t.id]), {"aksi": "kirim"})
         t.refresh_from_db()
         self.assertEqual(t.status, "dikirim")
-        self.assertEqual(self.client.get(reverse("gudang:stok") + "?q=palu").status_code, 200)
         self.assertEqual(self.client.get(reverse("master:tiket")).status_code, 302)  # bukan master
         self.client.force_login(self.admin)
         r = self.client.get(reverse("master:tiket_detail", args=[t.id]))

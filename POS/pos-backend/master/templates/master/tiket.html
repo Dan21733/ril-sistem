@@ -8,7 +8,7 @@
 <form method="post" class="kartu" style="margin-bottom:18px">{% csrf_token %}
   <div class="baris">
     <div style="min-width:200px"><label>Jenis</label><select name="jenis" id="jenis">
-      <option value="lokasi">Pindah lokasi dan rak</option><option value="barang">Data barang</option></select></div>
+      <option value="lokasi">Pindah lokasi dan rak</option><option value="barang">Data barang</option><option value="hitung">Hitung stok</option></select></div>
     <div style="min-width:180px"><label>Untuk</label><select name="untuk" id="untuk" required>{% for a in admin %}<option value="{{ a.u.id }}" data-jenis="{{ a.jenis }}" data-izin="{{ a.izin }}">{{ a.u.first_name|default:a.u.username }}</option>{% endfor %}</select></div>
     <div style="flex:2;min-width:240px"><label>Tujuan</label><input type="text" name="tujuan" required placeholder="mis. rotasi sanitary, atau sesuaikan harga cat Avian"></div>
     <div style="min-width:200px"><label>Batas waktu</label><input type="datetime-local" name="batas" value="{{ batas_awal }}" required></div>
@@ -24,14 +24,25 @@
       <div style="flex:1;min-width:220px"><label>Brand (kosong = semua)</label><select name="brand" multiple size="6">{% for b in daftar_brand %}<option>{{ b }}</option>{% endfor %}</select></div>
     </div>
   </div>
+  <div id="bagian-hitung" hidden style="margin-top:10px">
+    <div class="baris">
+      <div style="min-width:200px"><label>Lokasi yang dihitung</label><select name="lokasi" required>{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:200px"><label>Rak (kosong = semua; Ctrl/Shift untuk pilih banyak)</label><select name="rak" multiple size="6">{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:200px"><label>atau Kategori (kosong = semua)</label><select name="kategori" multiple size="6">{% for k in daftar_kategori %}<option>{{ k }}</option>{% endfor %}</select></div>
+    </div>
+    <p class="kecil redup" style="margin:6px 0 0">Kepala gudang hanya bisa menghitung barang di lingkup ini, tanpa melihat stok sistem. Hasilnya masuk Stok opname untuk kamu ACC.</p>
+  </div>
   <div style="margin-top:12px"><button class="tombol utama" type="submit">Buka tiket</button></div>
 </form>
 <script>
 const jenis = document.getElementById('jenis'), untuk = document.getElementById('untuk');
 function aturJenis(){
   const j = jenis.value;
-  document.getElementById('bagian-lokasi').hidden = j !== 'lokasi';
-  document.getElementById('bagian-barang').hidden = j !== 'barang';
+  for (const [id, jenisnya] of [['bagian-lokasi', 'lokasi'], ['bagian-barang', 'barang'], ['bagian-hitung', 'hitung']]) {
+    const el = document.getElementById(id); el.hidden = j !== jenisnya;
+    // Isian bagian yang tersembunyi tidak ikut terkirim.
+    el.querySelectorAll('input, select').forEach(x => { if (!x.closest('label') || x.name !== 'izin') x.disabled = el.hidden; });
+  }
   let pilih = null;
   [...untuk.options].forEach(o => { o.hidden = !o.dataset.jenis.split(' ').includes(j); if (!o.hidden && !pilih) pilih = o; });
   if (untuk.selectedOptions[0]?.hidden) untuk.value = pilih ? pilih.value : '';

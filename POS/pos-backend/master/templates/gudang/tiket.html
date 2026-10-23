@@ -1,26 +1,34 @@
 {% extends "gudang/base.html" %}
 {% block judul %}Tugas{% endblock %}
 {% block isi %}
-<div class="kisi" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+<div class="kisi" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+{% if jumlah_ambil_tugas %}<a class="kartu" href="{% url 'gudang:ambil' %}">
+  <span class="ubin-judul">Ambil barang</span><span class="ubin-angka bahaya">{{ jumlah_ambil_tugas }}</span>
+  <span class="ubin-ket">barang menunggu diambilkan</span></a>{% endif %}
+{% for p in pesanan %}<a class="kartu" href="{% url 'gudang:datang_detail' p.id %}">
+  <span class="ubin-judul">{% if p.hitung_ulang %}Hitung ulang barang datang{% else %}Terima barang datang{% endif %}</span>
+  <b style="font-size:16px">{{ p.nomor }}</b><span>{{ p.ringkas }}</span>
+  <span class="ubin-ket">dipesan {{ p.tanggal_pesan|date:"d M" }} · {{ p.n }} barang{% if p.hitung_ulang %} · <b style="color:var(--aksen)">{{ p.hitung_ulang|length }} perlu dihitung ulang</b>{% endif %}</span></a>{% endfor %}
 {% for t in aktif %}
-<a class="kartu" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}">
+<a class="kartu" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% elif t.jenis == 'hitung' %}{% url 'gudang:tiket_hitung' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
     <div><b style="font-size:16px">#{{ t.id }} · {{ t.tujuan }}</b>
-      <div class="redup kecil" style="margin-top:4px">{% if t.jenis == 'barang' %}{{ t.izin_teks }} · {{ t.lingkup_teks }}{% else %}Pindah stok antar lokasi dan perubahan rak{% if t.lingkup %} · {{ t.lingkup }}{% endif %}{% endif %}</div></div>
+      <div class="redup kecil" style="margin-top:4px">{% if t.jenis == 'barang' %}{{ t.izin_teks }} · {{ t.lingkup_teks }}{% elif t.jenis == 'hitung' %}Hitung stok {{ t.lingkup_teks }}{% else %}Pindah stok antar lokasi dan perubahan rak{% if t.lingkup %} · {{ t.lingkup }}{% endif %}{% endif %}</div></div>
     <span class="label awas" style="white-space:nowrap">sisa {% if t.sisa_menit >= 60 %}{% widthratio t.sisa_menit 60 1 %} jam{% else %}{{ t.sisa_menit }} menit{% endif %}</span>
   </div>
-  <div class="kecil" style="margin-top:8px">Sampai {{ t.batas|date:"l, d M H:i" }} · {{ t.jumlah_usulan }} usulan · <span style="color:var(--aksen)">Kerjakan →</span></div>
+  <div class="kecil" style="margin-top:8px">Sampai {{ t.batas|date:"l, d M H:i" }} · {{ t.jumlah_usulan }} {% if t.jenis == 'hitung' %}dihitung{% else %}usulan{% endif %} · <span style="color:var(--aksen)">Kerjakan →</span></div>
 </a>
-{% empty %}
-<div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
 {% endfor %}
+{% if not jumlah_ambil_tugas and not pesanan and not aktif %}
+<div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
+{% endif %}
 </div>
 {% if lain %}
 <h3>Sebelumnya</h3>
 <div class="daftar">
   {% for t in lain %}
-  <a class="brs" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}" style="color:inherit"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>
-    <span class="redup kecil">{{ t.jumlah_usulan }} usulan{% if t.catatan_putusan %} · {{ t.catatan_putusan }}{% endif %}</span></div>
+  <a class="brs" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% elif t.jenis == 'hitung' %}{% url 'gudang:tiket_hitung' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}" style="color:inherit"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>
+    <span class="redup kecil">{{ t.jumlah_usulan }} {% if t.jenis == 'hitung' %}dihitung{% else %}usulan{% endif %}{% if t.catatan_putusan %} · {{ t.catatan_putusan }}{% endif %}</span></div>
     <span class="label {% if t.status == 'selesai' %}baik{% elif t.status == 'ditolak' or t.status == 'batal' %}bahaya{% else %}awas{% endif %}">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% else %}{{ t.get_status_display }}{% endif %}</span></a>
   {% endfor %}
 </div>

@@ -33,6 +33,10 @@ def atur_hak_ops(pengguna, worker_id, hak):
     if w is None:
         raise Tolak("Karyawan tidak ditemukan.")
     hak = [h for h in LABEL_HAK_OPS if h in set(hak or [])]
+    from master.akun.akses import HAK_BENTROK
+    for pasangan, pesan in HAK_BENTROK:
+        if pasangan <= set(hak):
+            raise Tolak(pesan)
     User = get_user_model()
     with transaction.atomic():
         akun = AkunKaryawan.objects.select_related("user").filter(worker_id=w.id).first()
@@ -81,10 +85,13 @@ def atur_semua(pengguna, worker_id, hak):
     """Simpan seluruh panel Hak akses satu karyawan (kasir + operasional)."""
     from master.layanan import karyawan as svc_karyawan
     hak = set(hak or [])
-    atur_jual(pengguna, worker_id, "pos_jual" in hak)
-    if ("penyetuju" in hak) != (worker_id in aturan.penyetuju_floor()):
-        svc_karyawan.atur_penyetuju(pengguna, worker_id, "penyetuju" in hak)
-    return atur_hak_ops(pengguna, worker_id, hak)
+    with transaction.atomic():
+        hasil = atur_hak_ops(pengguna, worker_id, hak)   # dicek dulu (hak bentrok), baru yang lain
+        atur_jual(pengguna, worker_id, "pos_jual" in hak)
+        if ("penyetuju" in hak) != (worker_id in aturan.penyetuju_floor()):
+            svc_karyawan.atur_penyetuju(pengguna, worker_id, "penyetuju" in hak)
+    aturan.lupakan_cache()
+    return hasil
 
 
 def worker_dari_user(user):

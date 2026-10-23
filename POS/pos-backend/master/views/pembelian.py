@@ -165,8 +165,10 @@ def detail(request, po_id):
                 svc.kembalikan(request.user, po)
                 messages.info(request, "Dikembalikan untuk diperbaiki.")
             elif aksi == "acc":
-                svc.acc(request.user, po)
-                messages.success(request, "Di-ACC. Stok, modal, dan hutang sudah diperbarui.")
+                hasil_acc = svc.acc(request.user, po, sisa=request.POST.get("sisa"))
+                lanjut = getattr(hasil_acc, "lanjutan_baru", None)
+                messages.success(request, "Di-ACC. Stok, modal, dan hutang sudah diperbarui."
+                                 + (f" Sisa yang belum datang dibuatkan {lanjut.nomor}." if lanjut else ""))
             elif aksi == "batal":
                 svc.batal(request.user, po, request.POST.get("alasan"))
                 messages.info(request, "PO dibatalkan.")
@@ -203,6 +205,9 @@ def detail(request, po_id):
         "tarif_sekarang": svc.tarif_pada(tanggal),
         "terlambat": bool(po.status == "diterima" and po.sisa > 0 and po.jatuh_tempo and po.jatuh_tempo < timezone.localdate()),
         "pilihan_lokasi": svc_lokasi.pilihan() if svc.stok_ikut(po) else [],
+        "kurang": svc.sisa_belum_datang(po) if po.status == "menunggu" else [],
+        "lanjutan": list(po.lanjutan.all()),
+        "tanpa_harga": [b for b in po.baris.all() if b.di_luar_pesanan and not b.harga] if po.status == "menunggu" else [],
     })
 
 

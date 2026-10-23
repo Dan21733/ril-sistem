@@ -69,13 +69,8 @@ input.harga{width:130px;text-align:right;font-variant-numeric:tabular-nums;paddi
 <header>
   <div class="atas"><b class="judul">{% if toko_gudang %}{{ toko_gudang.nama }}{% else %}Gudang{% endif %}</b>
   <nav>
-    {% if 'gudang_datang' in hak or 'gudang_hitung' in hak or 'gudang_buka_dus' in hak or 'gudang_ambil' in hak or 'ops_lihat_stok' in hak %}<a href="{% url 'gudang:beranda' %}" class="{% if menu == 'beranda' %}aktif{% endif %}">Beranda</a>{% endif %}
-    {% if 'gudang_ambil' in hak and toko_gudang.id == toko_stok.id %}<a href="{% url 'gudang:ambil' %}" class="{% if menu == 'ambil' %}aktif{% endif %}" title="Ambil barang">Ambil{% if jumlah_ambil %} <span class="label awas">{{ jumlah_ambil }}</span>{% endif %}</a>{% endif %}
-    {% if 'gudang_datang' in hak %}<a href="{% url 'gudang:datang' %}" class="{% if menu == 'datang' %}aktif{% endif %}" title="Barang datang">Datang</a>{% endif %}
-    {% if 'gudang_hitung' in hak %}<a href="{% url 'gudang:hitung' %}" class="{% if menu == 'hitung' %}aktif{% endif %}" title="Hitung stok">Hitung</a>{% endif %}
+    <a href="{% url 'gudang:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas</a>
     {% if 'gudang_buka_dus' in hak %}<a href="{% url 'gudang:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>{% endif %}
-    {% if 'ops_lihat_stok' in hak and toko_gudang.id == toko_stok.id %}<a href="{% url 'gudang:stok' %}" class="{% if menu == 'stok' %}aktif{% endif %}">Stok</a>{% endif %}
-    {% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak or 'ops_barang_harga' in hak or 'ops_barang_alias' in hak or 'ops_barang_aktif' in hak %}<a href="{% url 'gudang:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas</a>{% endif %}
   </nav>
     <div class="akun"><a class="panduan-link{% if menu == 'panduan' %} aktif{% endif %}" href="{% url 'gudang:panduan' %}" title="Panduan" aria-label="Panduan">?</a>{{ request.user.first_name|default:request.user.username }}<form method="post" action="{% url 'gudang:keluar' %}">{% csrf_token %}<button type="submit">Keluar</button></form></div>
   </div>
@@ -86,6 +81,12 @@ input.harga{width:130px;text-align:right;font-variant-numeric:tabular-nums;paddi
   {% block isi %}{% endblock %}
 </main>
 <script>
+// Pesan singkat di atas halaman (dipakai pemeriksaan form sebelum dikirim).
+function kabar(teks, bahaya){
+  const p = document.createElement('div'); p.className = 'pesan ' + (bahaya ? 'error' : 'success'); p.textContent = teks;
+  const m = document.querySelector('main'); m.querySelectorAll('.pesan.kabar').forEach(x => x.remove());
+  p.classList.add('kabar'); m.prepend(p); window.scrollTo({top: 0});
+}
 document.addEventListener('submit', e => { const t = e.target.dataset.tanya; if (t && !confirm(t)) e.preventDefault(); });
 // Enter di kotak angka pindah ke kotak berikutnya, bukan mengirim form.
 document.addEventListener('keydown', e => {

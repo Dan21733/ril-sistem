@@ -120,9 +120,23 @@ class PembelianTest(Dasar):
             self._datang(po, terima={"Palu": 6})
         po.refresh_from_db()
         self.assertEqual(po.status, "dibuat")
-        po = svc.acc(self.admin, self._datang(po, terima={"Palu": 6}, catatan="kurang 4, menyusul"))
+        po = self._datang(po, terima={"Palu": 6}, catatan="kurang 4, menyusul")
+        with self.assertRaises(Tolak):   # kiriman sebagian: sisanya wajib diputuskan
+            svc.acc(self.admin, po)
+        po = svc.acc(self.admin, po, sisa="batal")
         self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 16)
         self.assertEqual(po.total, 6660)
+        self.assertFalse(po.lanjutan.exists())
+
+    def test_kiriman_sebagian_ditunggu_jadi_po_lanjutan(self):
+        from master.layanan import pembelian as svc
+        po = self._po((("Palu", "Kecil", 10, 1110), ("Palu", "Besar", 4, 2000)))
+        po = self._datang(po, terima={"Palu": 6}, catatan="sisanya minggu depan")  # Kecil kurang 4, Besar lebih 2
+        po = svc.acc(self.admin, po, sisa="tunggu")
+        baru = po.lanjutan.get()
+        self.assertEqual((baru.status, baru.supplier_id, baru.catatan), ("dibuat", self.supplier.id, f"Sisa dari {po.nomor}"))
+        self.assertEqual([(b.variant, b.jumlah_pesan, b.harga) for b in baru.baris.all()], [("Kecil", 4, 1110)])
+        self.assertEqual(po.lanjutan_baru, baru)
 
     def test_stok_minus_dianggap_nol_untuk_modal_rata(self):
         from master.layanan import pembelian as svc

@@ -19,16 +19,16 @@
 </ul></div>{% endif %}
 
 {% if 'gudang_datang' in hak %}<div class="kartu"><h3>Barang datang</h3><ul>
-  <li>Pilih pesanan yang barangnya datang. Hitung barangnya, isi jumlah yang <b>benar-benar diterima</b>.</li>
-  <li>Barang yang tidak datang diisi 0. Kalau jumlah beda dari pesanan, catatan wajib diisi (mis. kurang 5 sak, 2 sobek).</li>
-  <li>Pilih barang ditaruh di mana. Isi nomor surat jalan kalau ada.</li>
-  <li>Stok baru bertambah setelah pemilik ACC. Barang datang tanpa pesanan di daftar: lapor pemilik.</li>
+  <li>Pesanan yang ditunggu muncul di Tugas. Hitung barangnya, isi jumlah yang <b>benar-benar ada</b>. Barang yang tidak datang diisi 0.</li>
+  <li>Jumlah pesanan sengaja tidak ditampilkan. Kalau ada yang beda, sistem meminta barang itu <b>dihitung ulang sekali</b>; hitung lagi dengan teliti dan isi catatannya (mis. sobek, memang kurang).</li>
+  <li>Ada barang datang yang tidak ada di daftar? Tambahkan lewat "Ada barang datang yang tidak ada di daftar?".</li>
+  <li>Pilih barang ditaruh di mana. Isi nomor surat jalan kalau ada. Stok baru bertambah setelah pemilik ACC.</li>
 </ul></div>{% endif %}
 
 {% if 'gudang_hitung' in hak %}<div class="kartu"><h3>Hitung stok</h3><ul>
-  <li>Pilih tempat yang sedang dihitung (toko atau gudang). Tiap tempat diajukan sendiri-sendiri.</li>
-  <li>Cari barang atau pilih rak, isi jumlah yang ada di rak, lalu <b>Simpan hitungan</b>. Kotak yang dikosongkan tidak disimpan; isi 0 kalau barangnya memang habis.</li>
-  <li>Hitungan bisa disimpan sedikit-sedikit. Kalau semua sudah, <b>Ajukan ke pemilik</b>; setelah diajukan tidak bisa diubah.</li>
+  <li>Hitung stok hanya lewat tugas dari pemilik: tempat dan rak/kategori yang dihitung sudah ditentukan.</li>
+  <li>Cari barang atau pilih rak, isi jumlah yang ada, lalu <b>Simpan hitungan</b>. Kotak yang dikosongkan tidak disimpan; isi 0 kalau barangnya memang habis.</li>
+  <li>Boleh disimpan sedikit-sedikit. Kalau semua sudah, <b>Kirim</b> sebelum batas waktu; setelah dikirim tidak bisa diubah.</li>
   <li>Kamu tidak melihat stok sistem. Hitung apa adanya.</li>
 </ul></div>{% endif %}
 
@@ -38,16 +38,12 @@
   <li>Pasangan kemasan dibuat oleh pemilik. Kalau tidak ada di daftar, lapor pemilik.</li>
 </ul></div>{% endif %}
 
-{% if 'ops_lihat_stok' in hak %}<div class="kartu"><h3>Stok per lokasi</h3><ul>
-  <li>Cari barang atau pilih rak untuk melihat jumlah di toko dan tiap gudang.</li>
-  <li>Angka toko = total stok dikurangi semua gudang. Angka minus (merah) berarti catatannya tidak cocok; lapor pemilik.</li>
-</ul></div>{% endif %}
-
-{% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak or 'ops_barang_harga' in hak or 'ops_barang_alias' in hak or 'ops_barang_aktif' in hak %}<div class="kartu"><h3>Tugas</h3><ul>
-  <li>Tugas dibuka pemilik untukmu, dengan batas waktu. Di luar tugas yang terbuka kamu tidak bisa mengisi apa pun.</li>
+<div class="kartu"><h3>Tugas</h3><ul>
+  <li>Semua pekerjaan muncul di halaman Tugas: barang yang harus diambilkan, pesanan yang datang, dan tugas dari pemilik (dengan batas waktu).</li>
+  <li>Di luar tugas yang terbuka kamu tidak bisa mengisi apa pun (kecuali Buka dus kalau kamu punya haknya).</li>
   <li>Isi usulan, lalu <b>Kirim</b> sebelum batas waktunya. Setelah dikirim tidak bisa diubah.</li>
   <li>Tidak ada yang berubah sebelum pemilik ACC; pemilik bisa menerima sebagian dan menolak sisanya.</li>
-</ul></div>{% endif %}
+</ul></div>
 
 {% if 'ops_tiket_pindah' in hak or 'ops_tiket_rak' in hak %}<div class="kartu"><h3>Tugas pindah lokasi dan rak</h3><ul>
   {% if 'ops_tiket_pindah' in hak %}<li><b>Pindah sekaligus</b>: semua barang di satu rak atau satu kategori yang ada stoknya di lokasi asal diusulkan pindah seluruhnya. Pemilik bisa mengubah per barang.</li>

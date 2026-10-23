@@ -262,7 +262,8 @@ def tiket_daftar(request):
             t = svc_tiket.buka(request.user, untuk=untuk, tujuan=request.POST.get("tujuan"),
                                lingkup=request.POST.get("lingkup"), batas=request.POST.get("batas"), hak=hak,
                                jenis=request.POST.get("jenis") or "lokasi", izin=request.POST.getlist("izin"),
-                               kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"))
+                               kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"),
+                               lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"))
             messages.success(request, f"Tiket #{t.id} dibuka untuk {t.untuk.first_name or t.untuk.username}.")
         except Tolak as tolak:
             messages.error(request, str(tolak))
@@ -277,12 +278,14 @@ def tiket_daftar(request):
             admin.append({"u": u, "jenis": " ".join(jenis), "izin": " ".join(svc_tiket.izin_barang_untuk(h))})
     daftar = list(Tiket.objects.select_related("untuk").prefetch_related("baris", "usulan")[:60])
     for t in daftar:
-        t.jumlah_usulan = len(t.usulan.all()) if t.jenis == "barang" else len(t.baris.all())
+        t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else
+                           (t.opname.baris.count() if t.jenis == "hitung" and hasattr(t, "opname") else len(t.baris.all())))
     return render(request, "master/tiket.html", {
         "menu": "tiket", "daftar": daftar,
         "admin": admin, "izin_barang": Tiket.IZIN_BARANG,
         "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
         "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
+        "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
         "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
     })
 
@@ -295,6 +298,8 @@ def tiket_detail(request, tiket_id):
     t = get_object_or_404(Tiket.objects.select_related("untuk"), pk=tiket_id)
     if t.jenis == "barang":
         return _tiket_barang_detail(request, t, hak)
+    if t.jenis == "hitung":
+        return _tiket_hitung_detail(request, t, hak)
     if request.method == "POST":
         aksi = request.POST.get("aksi")
         try:
@@ -317,6 +322,35 @@ def tiket_detail(request, tiket_id):
             b.stok_asal = svc.stok_di(b.varian, b.dari)
     return render(request, "master/tiket_detail.html", {
         "menu": "tiket", "t": t, "baris": baris, "pilihan_lokasi": svc.pilihan(),
+    })
+
+
+def _tiket_hitung_detail(request, t, hak):
+    """Tugas hitung: hasilnya diperiksa di Stok opname. Di sini hanya status, teruskan, tolak, batal."""
+    from master.layanan import opname as svc_opname
+    from master.layanan import tiket as svc_tiket
+    from master.models import Opname
+    op = Opname.objects.filter(tiket=t).first()
+    if request.method == "POST":
+        aksi = request.POST.get("aksi")
+        try:
+            if aksi == "teruskan":
+                op = svc_opname.teruskan_tugas(request.user, t, hak=hak)
+                return redirect("master:opname_detail", opname_id=op.id)
+            elif aksi == "tolak":
+                svc_tiket.tolak(request.user, t, request.POST.get("alasan"), hak=hak)
+                messages.info(request, "Tugas ditolak.")
+            elif aksi == "batal":
+                svc_tiket.batalkan(request.user, t, hak=hak)
+                messages.info(request, "Tugas dibatalkan.")
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+        return redirect("master:tiket_detail", t.id)
+    if op is not None and op.status != "draf":
+        return redirect("master:opname_detail", opname_id=op.id)
+    return render(request, "master/tiket_hitung.html", {
+        "menu": "tiket", "t": t, "op": op, "jumlah": op.baris.count() if op else 0,
+        "lingkup_teks": svc_opname.lingkup_teks(t),
     })
 
 

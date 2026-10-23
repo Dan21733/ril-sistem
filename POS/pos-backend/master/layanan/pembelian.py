@@ -249,36 +249,114 @@ def catat_datang(pengguna, po, data):
                       lama="Dipesan", baru="Menunggu ACC", catatan=po.nomor)
 
 
+def tambah_di_luar_pesanan(pengguna, po, *, varian_id, jumlah):
+    """Gudang mencatat barang yang datang tapi tidak ada di pesanan. Harganya diisi pemilik sebelum ACC."""
+    _harus(po, "dibuat")
+    if po.hitung_ulang:
+        raise Tolak("Selesaikan hitung ulang dulu.")
+    info = VarianInfo.objects.filter(pk=varian_id or 0, sampah__isnull=True).first()
+    if info is None:
+        raise Tolak("Pilih barang dari hasil pencarian.")
+    qty = baca_angka(jumlah, boleh_kosong=False)
+    if qty <= 0:
+        raise Tolak("Jumlah harus lebih dari nol.")
+    if po.baris.filter(varian=info).exists():
+        raise Tolak("Barang itu sudah ada di daftar pesanan. Isi jumlahnya di daftar.")
+    b = PembelianBaris.objects.create(
+        pembelian=po, varian=info, item_name=info.item_name, variant=info.variant, jumlah_pesan=0,
+        jumlah_terima=qty, jumlah_hitung1=qty, harga=harga_beli_terakhir(info) or 0, di_luar_pesanan=True)
+    layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="di luar pesanan",
+                  baru=f"{po.nomor}: {info.item_name} / {info.variant} x {qty}")
+    return b
+
+
+def hapus_di_luar_pesanan(pengguna, po, baris_id):
+    _harus(po, "dibuat")
+    po.baris.filter(pk=baris_id, di_luar_pesanan=True).delete()
+
+
 def catat_datang_gudang(pengguna, po, data):
-    """Barang datang dicatat kepala gudang: hanya jumlah. Harga dan data faktur diisi pemilik sebelum ACC."""
+    """Barang datang dicatat gudang tanpa melihat jumlah pesanan (terima buta).
+
+    Tahap 1: semua baris diisi. Baris pesanan yang jumlahnya beda dari pesanan diminta
+    dihitung ulang sekali (gudang tidak diberi tahu angka seharusnya, lebih atau kurangnya).
+    Tahap 2: hitungan ulang dipakai dan catatan wajib. Lalu menunggu ACC pemilik.
+    Hasil: "ulang" (masih ada yang harus dihitung ulang) atau "selesai".
+    """
     _harus(po, "dibuat")
     if not po.baris.exists():
         raise Tolak("Pesanan ini belum punya barang.")
-    catatan = rapikan_teks(data.get("catatan_terima"))
     surat_jalan = rapikan_teks(data.get("surat_jalan"))[:60]
+    catatan = rapikan_teks(data.get("catatan_terima"))
+    ulang = set(po.hitung_ulang or [])
     with transaction.atomic():
-        ada_beda = ada_isi = False
-        for b in po.baris.all():
-            mentah = data.get(f"terima_{b.id}")
-            if mentah is None or not str(mentah).strip():
-                raise Tolak(f"{b.item_name} / {b.variant}: jumlah yang datang belum diisi. Isi 0 kalau tidak datang.")
-            terima = baca_angka(mentah, boleh_kosong=False)
-            b.jumlah_terima = terima
-            b.save(update_fields=["jumlah_terima"])
-            _isi_lokasi(po, b, data)
-            ada_beda = ada_beda or terima != b.jumlah_pesan
-            ada_isi = ada_isi or terima > 0
-        if not ada_isi:
-            raise Tolak("Tidak ada barang yang datang. Kalau pesanannya batal, beri tahu pemilik.")
-        if ada_beda and not catatan:
-            raise Tolak("Jumlah yang datang beda dari pesanan. Isi catatannya.")
+        po = Pembelian.objects.select_for_update().get(pk=po.pk)
+        if ulang:
+            baris = list(po.baris.filter(pk__in=ulang))
+            for b in baris:
+                mentah = data.get(f"terima_{b.id}")
+                if mentah is None or not str(mentah).strip():
+                    raise Tolak(f"{b.item_name} / {b.variant}: hitungan ulang belum diisi.")
+                b.jumlah_terima = baca_angka(mentah, boleh_kosong=False)
+                if b.jumlah_terima < 0:
+                    raise Tolak("Jumlah tidak boleh minus.")
+                b.save(update_fields=["jumlah_terima"])
+            if not catatan:
+                raise Tolak("Isi catatan untuk pemilik, mis. ada yang rusak, sobek, atau memang kurang.")
+        else:
+            ada_isi = False
+            for b in po.baris.all():
+                mentah = data.get(f"terima_{b.id}")
+                if mentah is None or not str(mentah).strip():
+                    raise Tolak(f"{b.item_name} / {b.variant}: jumlah yang datang belum diisi. Isi 0 kalau tidak datang.")
+                terima = baca_angka(mentah, boleh_kosong=False)
+                if terima < 0:
+                    raise Tolak("Jumlah tidak boleh minus.")
+                b.jumlah_terima = b.jumlah_hitung1 = terima
+                b.save(update_fields=["jumlah_terima", "jumlah_hitung1"])
+                _isi_lokasi(po, b, data)
+                ada_isi = ada_isi or terima > 0
+            if not ada_isi:
+                raise Tolak("Tidak ada barang yang datang. Kalau pesanannya batal, beri tahu pemilik.")
+            po.tanggal_terima = baca_tanggal(data.get("tanggal_terima"), label="Tanggal barang datang") or timezone.localdate()
+            po.catatan_terima = " ".join(x for x in (f"Surat jalan {surat_jalan}." if surat_jalan else "", catatan) if x)
+            beda = [b.id for b in po.baris.filter(di_luar_pesanan=False) if b.jumlah_terima != b.jumlah_pesan]
+            if beda:
+                po.hitung_ulang = beda
+                po.diterima_oleh = (pengguna.first_name or pengguna.username)[:150]
+                po.save()
+                layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="hitung ulang",
+                              baru=f"{po.nomor}: {len(beda)} barang diminta dihitung ulang")
+                return "ulang"
+        if ulang:
+            po.catatan_terima = " ".join(x for x in (po.catatan_terima, f"Hitung ulang: {catatan}") if x)
+        po.hitung_ulang = []
         po.status = "menunggu"
-        po.tanggal_terima = baca_tanggal(data.get("tanggal_terima"), label="Tanggal barang datang") or timezone.localdate()
-        po.diterima_oleh = pengguna.username
-        po.catatan_terima = " ".join(x for x in (f"Surat jalan {surat_jalan}." if surat_jalan else "", catatan) if x)
+        po.diterima_oleh = (pengguna.first_name or pengguna.username)[:150]
         po.save()
         layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="status",
                       lama="Dipesan", baru="Menunggu ACC", catatan=f"{po.nomor}: dicatat gudang")
+    return "selesai"
+
+
+def sisa_belum_datang(po):
+    """Baris pesanan yang datang kurang dari pesanan: [(baris, sisa)]."""
+    return [(b, b.jumlah_pesan - (b.jumlah_terima or 0)) for b in po.baris.filter(di_luar_pesanan=False)
+            if b.jumlah_terima is not None and b.jumlah_terima < b.jumlah_pesan]
+
+
+def _buat_lanjutan(pengguna, po, sisa):
+    """PO baru untuk sisa yang belum datang (kiriman sebagian): pemasok, toko, harga sama."""
+    hari_ini = timezone.localdate()
+    baru = Pembelian.objects.create(
+        nomor=_nomor_baru(hari_ini), toko=po.toko, supplier=po.supplier, tanggal_pesan=hari_ini,
+        catatan=f"Sisa dari {po.nomor}", dibuat_oleh=pengguna.username, mode_ppn=po.mode_ppn, lanjutan_dari=po)
+    for b, n in sisa:
+        PembelianBaris.objects.create(pembelian=baru, varian=b.varian, item_name=b.item_name, variant=b.variant,
+                                      jumlah_pesan=n, harga=b.harga)
+    layanan.catat(pengguna, aksi="tambah", sumber="pembelian", objek="pembelian", kolom="pembelian",
+                  baru=f"{baru.nomor} - sisa dari {po.nomor} ({len(sisa)} barang)")
+    return baru
 
 
 def lengkapi_faktur(pengguna, po, data):
@@ -309,7 +387,8 @@ def lengkapi_faktur(pengguna, po, data):
 def kembalikan(pengguna, po):
     _harus(po, "menunggu")
     po.status = "dibuat"
-    po.save(update_fields=["status"])
+    po.hitung_ulang = []
+    po.save(update_fields=["status", "hitung_ulang"])
     layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="status",
                   lama="Menunggu ACC", baru="Dipesan", catatan=f"{po.nomor}: dikembalikan untuk diperbaiki")
 
@@ -327,12 +406,19 @@ def batal(pengguna, po, alasan):
                   catatan=f"{po.nomor}: {alasan}")
 
 
-def acc(pengguna, po):
-    """ACC: di sinilah stok, modal, dan hutang berubah."""
+def acc(pengguna, po, sisa=None):
+    """ACC: di sinilah stok, modal, dan hutang berubah.
+
+    Kiriman sebagian: kalau ada barang yang datang kurang dari pesanan, `sisa` wajib dipilih:
+    "tunggu" = dibuatkan PO lanjutan untuk sisanya, "batal" = sisanya tidak jadi.
+    """
     from master.layanan.lokasi import ubah_gudang
     with transaction.atomic():
         po = Pembelian.objects.select_for_update().get(pk=po.pk)
         _harus(po, "menunggu")
+        kurang = sisa_belum_datang(po)
+        if kurang and sisa not in ("tunggu", "batal"):
+            raise Tolak("Ada barang yang datang kurang dari pesanan. Pilih: sisanya ditunggu (PO lanjutan) atau tidak jadi.")
         tanggal = po.tanggal_faktur or po.tanggal_terima
         tarif = tarif_pada(tanggal) or Decimal(0)
         if po.mode_ppn != "tanpa" and not tarif:
@@ -377,6 +463,8 @@ def acc(pengguna, po):
                 info.modal_rata = rata_baru
                 info.save(update_fields=["modal_rata"])
 
+        if kurang and sisa == "tunggu":
+            po.lanjutan_baru = _buat_lanjutan(pengguna, po, kurang)
         po.status = "diterima"
         po.acc_oleh = pengguna.username
         po.acc_waktu = timezone.now()

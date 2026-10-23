@@ -96,23 +96,25 @@ Templat saat membuat akun: Pemilik (semua hak), Kepala gudang, Admin gudang, Kos
 | Kelompok | Hak |
 |---|---|
 | Master (pemilik) | Membuka master · melihat/mengubah modal · harga jual dan floor · data barang · ganti nama · hapus barang (sampah) · rak · lokasi, pindah stok, tiket admin · import Excel · lihat/ubah stok, buka dus · opname (ACC) · pembelian, faktur, hutang · supplier · transfer · nota dan laporan · log · pengaturan · toko · pengguna dan hak |
-| Aplikasi gudang | Membuka aplikasi gudang · catat barang datang · hitung stok (buta) · buka dus · konfirmasi barang diambil · lihat stok per lokasi (tanpa harga) · mengerjakan tiket pindah lokasi/rak |
+| Aplikasi gudang | Membuka aplikasi gudang · catat barang datang (buta) · hitung stok lewat tugas (buta) · buka dus · konfirmasi barang diambil · lihat jumlah stok di tugas pindah · mengerjakan tiket pindah lokasi/rak |
 
 | | Kepala gudang | Admin gudang | Pemilik |
 |---|---|---|---|
 | Catat barang datang, hitung stok, buka dus | ✓ | | ✓ |
 | Konfirmasi barang diambil dari gudang | ✓ | | ✓ (dari master) |
-| Lihat jumlah stok per lokasi | | ✓ | ✓ |
+| Lihat jumlah stok di tugas pindah | | ✓ | ✓ |
 | Ajukan pindah lokasi/rak | | hanya di dalam tiket dari pemilik | ✓ langsung |
 | ACC opname, tiket, selisih, PO | | | ✓ |
 
 Pengaman lain:
 
 - **Staf tidak pernah melihat harga beli, modal, harga jual, atau nama supplier.** Kepala
-  gudang juga tidak melihat stok sistem (hitungan buta); admin hanya melihat jumlah per lokasi.
+  gudang juga tidak melihat stok sistem (hitungan buta) maupun jumlah pesanan (terima buta); admin hanya
+  melihat jumlah per lokasi di dalam tugas pindah. Hak *Hitung stok* dan *Lihat jumlah stok* tidak bisa
+  diberikan ke orang yang sama.
 - Akun yang hanya punya hak gudang dan membuka `/master/` diarahkan ke `/gudang/`.
-- Login master dan gudang: salah kata sandi 5 kali untuk satu nama pengguna, nama itu
-  dikunci 15 menit (cache bersama milik POS).
+- Login master: salah kata sandi 5 kali untuk satu nama pengguna, nama itu dikunci 15 menit
+  (cache bersama milik POS). Aplikasi gudang hanya bisa dimasuki dengan PIN karyawan.
 - Cookie sesi master (`master_sessionid`) dan gudang (`gudang_sessionid`) terpisah dari
   satu sama lain dan dari POS.
 - Akun tidak bisa mencabut hak "Membuka master" atau "Kelola pengguna" dari dirinya sendiri.
@@ -246,18 +248,28 @@ Menu **Kasir** (hak "Kasir: karyawan, PIN, tablet, aturan kasir"):
 
 ## Aplikasi gudang (`/gudang/`)
 
-Tampilan untuk layar HP. Menu muncul sesuai hak akun.
+Tampilan untuk tablet/HP. Halaman utama = **Tugas**; tidak ada menu bebas selain *Buka dus*.
+Tugas berisi pekerjaan otomatis (barang menunggu diambil, pesanan yang ditunggu) dan tugas dari pemilik.
+Cara kerja tiap tugas ada di halaman **Panduan** (tombol `?`), hanya bagian yang sesuai hak akun.
 
-- **Barang datang**: memilih pesanan yang dibuat pemilik, mengisi jumlah yang datang dan
-  lokasi penyimpanannya. Harga, PPN, dan ongkir diisi pemilik di master sebelum ACC.
-- **Hitung stok**: pilih lokasi, cari barang atau pilih rak, isi jumlah fisik, ajukan. Stok
-  sistem tidak diperlihatkan. Stok berubah setelah pemilik ACC, dan yang diterapkan adalah
-  selisihnya supaya penjualan sesudah penghitungan tidak ikut terhapus.
-- **Buka dus**: hanya untuk pasangan yang dibuat pemilik; pilih dus diambil dari mana dan
-  isinya ditaruh di mana.
-- **Ambil**: daftar permintaan ambil (dengan angka di menu), konfirmasi jumlah sebenarnya.
-- **Stok per lokasi** (admin): jumlah per lokasi, tanpa harga.
-- **Tiket** (admin): mengisi tiket pindah lokasi/rak dari pemilik.
+- **Terima barang datang (terima buta)**: pesanan yang dibuat pemilik muncul di Tugas tanpa jumlah pesanan.
+  Gudang mengisi jumlah yang benar-benar datang (0 = tidak datang) dan lokasi penyimpanannya. Baris yang
+  beda dari pesanan diminta **dihitung ulang sekali** tanpa diberi tahu angka seharusnya, lebih, atau
+  kurangnya; hitung ulang wajib catatan. Master menampilkan dipesan, hitungan 1, dan datang. Barang yang
+  datang tapi tidak dipesan bisa ditambahkan (label *tidak dipesan*; harga diisi pemilik, ada peringatan
+  kalau masih 0). Harga, PPN, dan ongkir diisi pemilik sebelum ACC.
+- **Kiriman sebagian**: kalau ada barang yang datang kurang, saat ACC pemilik wajib memilih sisanya
+  *ditunggu* (dibuat PO lanjutan "Sisa dari PO-…", pemasok dan harga sama, muncul lagi di Tugas gudang)
+  atau *tidak jadi*.
+- **Hitung stok** hanya lewat tugas jenis *Hitung stok* dari pemilik (Gudang › Tiket admin): lokasi wajib,
+  rak dan/atau kategori (kosong = semua barang aktif). Gudang mencari/pilih rak, mengisi jumlah, lalu
+  mengirim. Stok sistem tidak diperlihatkan. Hasilnya menjadi opname yang terhubung ke tugas; tugas ikut
+  selesai/ditolak saat opname di-ACC/ditolak. Tugas yang lewat batas tapi sudah ada hitungan bisa
+  *diteruskan* pemilik ke opname. Yang diterapkan adalah selisihnya, jadi penjualan sesudah penghitungan
+  tidak ikut terhapus.
+- **Buka dus**: langsung, untuk yang punya haknya; hanya pasangan yang dibuat pemilik.
+- **Ambil**: dari kartu di Tugas, konfirmasi jumlah sebenarnya.
+- **Tugas pindah lokasi/rak** dan **tugas data barang**: lihat di bawah.
 
 Di PC bisa dibuka dari server master (`localhost:8001/gudang/`). Untuk HP staf pakai
 server gudang (di bawah).
@@ -289,7 +301,7 @@ server gudang (di bawah).
 - Hutang supplier: semua faktur belum lunas (PO dan di luar PO) dalam satu daftar, urut jatuh tempo.
 - Buka dus: pasangan konversi yang dikunci (kemasan besar -> eceran), isi tetap atau
   diisi saat dibuka; stok dan modal ikut pindah.
-- Stok opname: menyetujui (per baris) atau menolak hitungan stok dari kepala gudang.
+- Stok opname: menyetujui (per baris) atau menolak hitungan stok dari tugas hitung.
 - Pengaturan: tarif PPN bertanggal.
 - Toko: daftar toko, tidak dibatasi jumlahnya. Tiap toko punya kode, nama, atas nama
   (pemilik/NPWP), alamat, dan status PKP sendiri. Satu toko bertanda "stok di kasir":
@@ -546,12 +558,13 @@ Aplikasi operasional (`/gudang/`, dipakai admin dan kepala gudang) dijaga tiga l
    **Kasir › Karyawan & PIN**, kolom *Hak akses*:
    - Kasir: *Jualan di kasir* (dicabut = PIN tidak dikirim ke tablet dan ditolak untuk jualan/void/retur; nota offline
      lama yang telat terkirim masuk Nota perlu ACC) dan *Setujui harga di bawah floor*.
-   - Gudang: ambil barang, barang datang, hitung stok, buka dus, lihat stok per lokasi.
+   - Gudang: ambil barang, barang datang, hitung stok (lewat tugas), buka dus. Tugas lokasi juga punya *lihat jumlah
+     stok di tugas pindah*; hak ini tidak bisa digabung dengan hitung stok.
    - Tugas lokasi: usul pindah stok, usul ganti/pindah rak. Tugas data barang: usul harga+floor, alias, aktif/nonaktif.
    Tombol Kepala gudang / Admin gudang / Admin barang hanya mengisi centang. Sistem membuat akun `ops-<id>` tanpa kata
    sandi. 10 PIN salah per perangkat = tunggu 5 menit. Karyawan dinonaktifkan atau semua hak gudang/tugasnya dicabut =
-   langsung keluar. Sesi berakhir 10 jam setelah masuk. Masuk dengan nama pengguna + kata sandi (akun lama) masih ada di
-   `/gudang/masuk/sandi/`. Menu dan halaman hanya terbuka sesuai hak; tiket data barang hanya bisa diberi izin yang
+   langsung keluar. Sesi berakhir 10 jam setelah masuk. Masuk dengan nama pengguna + kata sandi
+   sudah dihapus; akun pengguna lama yang hanya punya hak gudang perlu diganti dengan PIN karyawan. Menu dan halaman hanya terbuka sesuai hak; tiket data barang hanya bisa diberi izin yang
    dimiliki admin, dan kalau haknya dicabut belakangan, isian itu ikut hilang dari tiketnya.
 3. **Tiket.** Admin tanpa peran kepala gudang tidak punya menu; setelah masuk hanya ada **Tugas**: tiket yang dibuka pemilik,
    apa yang boleh dikerjakan, dan sisa waktunya.

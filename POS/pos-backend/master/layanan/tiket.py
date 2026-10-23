@@ -27,7 +27,8 @@ HAK_RAK = "ops_tiket_rak"
 def jenis_untuk(hak):
     """Jenis tiket yang bisa dikerjakan akun dengan hak ini."""
     from master.akun.akses import HAK_TIKET_BARANG, HAK_TIKET_LOKASI
-    return [j for j, perlu in (("lokasi", HAK_TIKET_LOKASI), ("barang", HAK_TIKET_BARANG)) if hak & perlu]
+    return [j for j, perlu in (("lokasi", HAK_TIKET_LOKASI), ("barang", HAK_TIKET_BARANG), ("hitung", {"gudang_hitung"}))
+            if hak & perlu]
 
 
 def izin_barang_untuk(hak):
@@ -41,13 +42,14 @@ def izin_barang_untuk(hak):
 # ---------------------------------------------------------------------------
 
 
-def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izin=None, kategori=(), brand=()):
+def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izin=None, kategori=(), brand=(),
+         lokasi=None, rak=()):
     """Buka tiket. Jenis "lokasi" (pindah stok/rak) atau "barang" (usul harga, alias, aktif)."""
     from master.akun.akses import hak_pengguna
     from master.layanan import tiket_barang
     if HAK_BUKA not in hak:
         raise Tolak("Akun ini tidak boleh membuka tiket.")
-    if jenis not in ("lokasi", "barang"):
+    if jenis not in ("lokasi", "barang", "hitung"):
         raise Tolak("Jenis tiket tidak dikenal.")
     tujuan = rapikan_teks(tujuan)[:300]
     if not tujuan:
@@ -63,6 +65,16 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
             nama = untuk.first_name or untuk.username
             raise Tolak(f"{nama} tidak punya hak mengusulkan {', '.join(kurang)}. Atur haknya di Karyawan & PIN.")
         saring = tiket_barang.bersihkan_saring(kategori, brand)
+    if jenis == "hitung":
+        if "opname" not in hak:
+            raise Tolak("Akun ini tidak boleh membuka tugas hitung.")
+        from master.models import Lokasi
+        l = Lokasi.objects.filter(pk=lokasi if str(lokasi or "").isdigit() else 0, aktif=True).first()
+        if l is None:
+            raise Tolak("Pilih lokasi yang dihitung.")
+        rak_ada = set(Rak.objects.values_list("kode", flat=True))
+        saring = {"lokasi": l.pk, "rak": sorted({r for r in rak or [] if r in rak_ada}),
+                  "kategori": tiket_barang.bersihkan_saring(kategori, ())["kategori"]}
     if isinstance(batas, str):
         try:
             batas = datetime.fromisoformat(batas.strip())

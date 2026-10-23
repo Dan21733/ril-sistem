@@ -61,33 +61,6 @@ def _lokasi(request, toko):
 
 from master.akun.akses import HAK_TIKET_BARANG, HAK_TIKET_LOKASI, HAK_TUGAS
 
-HAK_KEPALA_GUDANG = {"gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil", "ops_lihat_stok"}
-
-
-@perlu("gudang")
-def beranda(request):
-    from master.akun.akses import hak_pengguna
-    hak = hak_pengguna(request.user)
-    if not hak & HAK_KEPALA_GUDANG:
-        # Admin: tidak ada menu. Yang tampil hanya tugas (tiket) yang sedang dibuka untuknya.
-        if hak & HAK_TUGAS:
-            return redirect("gudang:tiket")
-        return render(request, "gudang/kosong.html", {"menu": "beranda"})
-    toko = _toko(request)
-    op = opname.draf(request.user, buat=False, toko=toko)
-    return render(request, "gudang/beranda.html", {
-        "menu": "beranda", "toko": toko,
-        "jumlah_pesanan": Pembelian.objects.filter(status="dibuat", toko=toko).annotate(n=Count("baris")).filter(n__gt=0).count(),
-        "jumlah_draf": op.baris.count() if op else 0,
-        "jumlah_pasangan": Konversi.objects.filter(aktif=True).count(),
-        "punya_tugas": bool(hak & HAK_TUGAS),
-        "tiket_terbuka": [t for t in Tiket.objects.filter(
-            untuk=request.user, status="terbuka") if t.bisa_diisi],
-        "riwayat": Opname.objects.filter(dibuat_oleh=request.user.username, toko=toko).exclude(status="draf")
-                         .annotate(n=Count("baris"))[:6],
-    })
-
-
 @perlu("gudang")
 def panduan(request):
     """Cara kerja tiap menu (SOP), hanya bagian yang sesuai hak akun ini. Halaman lain dibuat tanpa penjelasan panjang."""
@@ -96,46 +69,70 @@ def panduan(request):
 
 @perlu("gudang_datang")
 def datang(request):
-    toko = _toko(request)
+    return redirect("gudang:tiket")
+
+
+def _pesanan_ditunggu(toko):
     pesanan = list(Pembelian.objects.filter(status="dibuat", toko=toko).prefetch_related("baris")
                    .annotate(n=Count("baris")).filter(n__gt=0).order_by("tanggal_pesan", "id"))
     for p in pesanan:
         # Nama supplier dirahasiakan dari gudang: pesanan dikenali dari nomor dan isinya.
         nama = list(dict.fromkeys(b.item_name for b in p.baris.all()))
         p.ringkas = ", ".join(nama[:3]) + (f", dan {len(nama) - 3} barang lain" if len(nama) > 3 else "")
-    return render(request, "gudang/datang.html", {
-        "menu": "datang", "pesanan": pesanan, "toko": toko,
-        "menunggu": Pembelian.objects.filter(status="menunggu", diterima_oleh=request.user.username, toko=toko)
-                             .order_by("-tanggal_terima")[:10],
-    })
+    return pesanan
 
 
 @perlu("gudang_datang")
 def datang_detail(request, po_id):
+    """Terima barang tanpa melihat jumlah pesanan (terima buta), lalu hitung ulang yang beda."""
     po = get_object_or_404(Pembelian, pk=po_id, status="dibuat")
     if request.method == "POST":
+        aksi = request.POST.get("aksi") or "catat"
         try:
-            svc.catat_datang_gudang(request.user, po, request.POST)
+            if aksi == "tambah_lain":
+                svc.tambah_di_luar_pesanan(request.user, po, varian_id=request.POST.get("varian_id"),
+                                           jumlah=request.POST.get("jumlah"))
+                messages.success(request, "Ditambahkan sebagai barang di luar pesanan.")
+                return redirect("gudang:datang_detail", po_id=po.id)
+            if aksi == "hapus_lain":
+                svc.hapus_di_luar_pesanan(request.user, po, request.POST.get("id"))
+                return redirect("gudang:datang_detail", po_id=po.id)
+            hasil = svc.catat_datang_gudang(request.user, po, request.POST)
+            if hasil == "ulang":
+                messages.warning(request, "Beberapa barang perlu dihitung ulang. Hitung sekali lagi dengan teliti.")
+                return redirect("gudang:datang_detail", po_id=po.id)
             messages.success(request, f"Barang datang untuk {po.nomor} sudah dicatat. Menunggu ACC pemilik.")
-            return redirect("gudang:datang")
+            return redirect("gudang:tiket")
         except Tolak as tolak:
             messages.error(request, str(tolak))
     from master.layanan import lokasi as svc_lokasi
+    po.refresh_from_db()
+    ulang = set(po.hitung_ulang or [])
     baris = list(po.baris.select_related("varian__rak__tempat"))
+    if ulang:
+        baris = [b for b in baris if b.id in ulang]
     for b in baris:
-        b.isi = request.POST.get(f"terima_{b.id}", "") if request.method == "POST" else ""
-        # Usulan lokasi: dari isian sebelumnya, atau lokasi rak barangnya.
+        # Isian tidak pernah diisi dari angka pesanan (terima buta). Barang di luar pesanan
+        # diisi jumlah yang dicatat gudang sendiri.
+        if request.method == "POST":
+            b.isi = request.POST.get(f"terima_{b.id}", "")
+        else:
+            b.isi = b.jumlah_terima if (b.di_luar_pesanan and not ulang) else ""
         rak = b.varian.rak
-        b.usul = request.POST.get(f"lokasi_{b.id}") or (str(rak.tempat_id) if rak and rak.tempat_id else "")
+        b.usul = request.POST.get(f"lokasi_{b.id}") or (str(b.lokasi_id) if b.lokasi_id else
+                                                        (str(rak.tempat_id) if rak and rak.tempat_id else ""))
+    cari = layanan.rapikan_teks(request.GET.get("q"))
+    hasil_cari = _cari_varian(cari, "")[0][:20] if (len(cari) >= 2 and not ulang) else []
     return render(request, "gudang/datang_detail.html", {
-        "menu": "datang", "po": po, "baris": baris, "hari_ini": timezone.localdate(), "kirim": request.POST,
+        "menu": "tiket", "po": po, "baris": baris, "ulang": bool(ulang), "hari_ini": timezone.localdate(),
+        "kirim": request.POST, "cari": cari, "hasil_cari": hasil_cari,
         "pilihan_lokasi": svc_lokasi.pilihan() if svc.stok_ikut(po) else [],
     })
 
 
-def _cari_varian(cari, rak, lokasi=None):
-    """Varian untuk dihitung: dicari lewat nama, varian, brand, alias, atau dibatasi rak."""
-    qs = VarianInfo.objects.filter(aktif=True, sampah__isnull=True).select_related("rak")
+def _cari_varian(cari, rak, lokasi=None, qs=None):
+    """Varian untuk dihitung: dicari lewat nama, varian, brand, alias, atau dibatasi rak (dan lingkup `qs`)."""
+    qs = (qs if qs is not None else VarianInfo.objects.filter(aktif=True, sampah__isnull=True)).select_related("rak")
     if rak:
         qs = qs.filter(rak_id=rak)
     elif lokasi is not None and not cari and lokasi.jenis == "gudang":
@@ -158,44 +155,54 @@ def _cari_varian(cari, rak, lokasi=None):
 
 @perlu("gudang_hitung")
 def hitung(request):
-    from master.layanan import lokasi as svc_lokasi
-    toko = _toko(request)
-    lokasi = _lokasi(request, toko)
+    """Hitung stok hanya lewat tugas dari pemilik."""
+    messages.info(request, "Hitung stok sekarang lewat tugas dari pemilik.")
+    return redirect("gudang:tiket")
+
+
+@perlu("gudang_hitung")
+def tiket_hitung(request, tiket_id):
+    """Tugas hitung: lokasi dan lingkup (rak/kategori) dari pemilik, tanpa stok sistem (hitung buta)."""
+    t = get_object_or_404(Tiket, pk=tiket_id, untuk=request.user, jenis="hitung")
+    lokasi = opname.lokasi_tugas(t)
+    toko = opname.t_toko(t)
+    lingkup = opname.lingkup_tugas(t)
     cari = layanan.rapikan_teks(request.GET.get("q"))
     rak = request.GET.get("rak", "")
     if request.method == "POST":
         aksi = request.POST.get("aksi")
         try:
+            from master.layanan.tiket import _harus_bisa_diisi
+            _harus_bisa_diisi(request.user, t)
             if aksi == "simpan":
-                n = opname.simpan_hitungan(request.user, request.POST, toko=toko, lokasi=lokasi)
+                n = opname.simpan_hitungan(request.user, request.POST, toko=toko, lokasi=lokasi, tiket=t,
+                                           boleh=set(lingkup.values_list("id", flat=True)))
                 messages.success(request, f"{n} hitungan tersimpan.")
             elif aksi == "hapus":
                 opname.hapus_baris(request.user, request.POST.get("id"))
-            elif aksi == "ajukan":
-                op = opname.ajukan(request.user, request.POST.get("catatan"), toko=toko, lokasi=lokasi)
-                messages.success(request, f"Hitungan #{op.id} sudah diajukan. Stok berubah setelah pemilik ACC.")
-                return redirect("gudang:beranda")
+            elif aksi == "kirim":
+                op = opname.kirim_tugas(request.user, t, request.POST.get("catatan"))
+                messages.success(request, f"Hitungan tugas #{t.id} dikirim ({op.baris.count()} barang). Stok berubah setelah pemilik ACC.")
+                return redirect("gudang:tiket")
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect(request.get_full_path())
-
-    op = opname.draf(request.user, buat=False, toko=toko, lokasi=lokasi)
+    op = Opname.objects.filter(tiket=t).first()
     sudah = list(op.baris.select_related("varian__rak")) if op else []
     terisi = {b.varian_id: b for b in sudah}
+    rak_lingkup = (t.saring or {}).get("rak") or []
+    daftar_rak = Rak.objects.filter(kode__in=rak_lingkup) if rak_lingkup else (
+        Rak.objects.filter(tempat=lokasi) if lokasi and lokasi.jenis == "gudang" else Rak.objects.all())
+    mencari = len(cari) >= 2 or bool(rak) or bool(rak_lingkup) or bool((t.saring or {}).get("kategori"))
     hasil, terpotong = ([], False)
-    lihat_lokasi = request.GET.get("semua") == "1" and lokasi is not None and lokasi.jenis == "gudang"
-    mencari = len(cari) >= 2 or bool(rak) or lihat_lokasi
-    if mencari:
-        hasil, terpotong = _cari_varian(cari, rak, lokasi if lihat_lokasi else None)
+    if mencari and t.bisa_diisi:
+        hasil, terpotong = _cari_varian(cari, rak, qs=lingkup)
         for v in hasil:
             v.terisi = terisi.get(v.id)
-    daftar_rak = Rak.objects.all()
-    if lokasi is not None and lokasi.jenis == "gudang":
-        daftar_rak = daftar_rak.filter(tempat=lokasi)
-    return render(request, "gudang/hitung.html", {
-        "menu": "hitung", "toko": toko, "cari": cari, "rak": rak, "daftar_rak": daftar_rak,
-        "hasil": hasil, "terpotong": terpotong, "sudah": sudah, "mencari": mencari,
-        "lokasi": lokasi, "pilihan_lokasi": svc_lokasi.pilihan() if toko.stok_di_kasir else [],
+    return render(request, "gudang/tiket_hitung.html", {
+        "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
+        "cari": cari, "rak": rak, "daftar_rak": daftar_rak, "hasil": hasil, "terpotong": terpotong,
+        "sudah": sudah, "mencari": mencari,
     })
 
 
@@ -229,7 +236,7 @@ def buka_dus(request):
 
 
 # ---------------------------------------------------------------------------
-# Admin: stok per lokasi (tanpa harga) dan tiket pindah lokasi
+# Tugas: tiket dari pemilik (pindah lokasi/rak, data barang, hitung stok)
 # ---------------------------------------------------------------------------
 
 
@@ -250,42 +257,37 @@ def _baris_stok(varian):
     return gudang
 
 
-@perlu("ops_lihat_stok")
-def stok_lokasi(request):
-    tolak = _hanya_toko_stok(request)
-    if tolak:
-        return tolak
-    from master.layanan import lokasi as svc_lokasi
-    cari = layanan.rapikan_teks(request.GET.get("q"))
-    rak = request.GET.get("rak", "")
-    hasil, terpotong = ([], False)
-    if len(cari) >= 2 or rak:
-        hasil, terpotong = _cari_varian(cari, rak)
-    gudang = _baris_stok(hasil)
-    return render(request, "gudang/stok_lokasi.html", {
-        "menu": "stok", "cari": cari, "rak": rak, "daftar_rak": Rak.objects.select_related("tempat"),
-        "hasil": hasil, "terpotong": terpotong, "gudang": gudang, "toko_display": svc_lokasi.lokasi_toko(),
-    })
-
-
 @perlu("gudang")
 def tiket(request):
-    """Tugas: semua tiket untuk akun ini. Yang masih bisa dikerjakan di atas, dengan sisa waktunya."""
+    """Tugas: pekerjaan otomatis (ambil barang, terima PO) dan tugas dari pemilik, dengan sisa waktunya."""
     from master.akun.akses import hak_pengguna
     from master.layanan import tiket_barang
-    from master.models import Tiket
-    if not hak_pengguna(request.user) & HAK_TUGAS:
-        raise PermissionDenied("Akun ini tidak punya hak untuk halaman tersebut.")
+    from master.layanan.toko import toko_gudang, utama
+    from master.models import PermintaanAmbil, Tiket
+    hak = hak_pengguna(request.user)
+    if not hak & HAK_TUGAS:
+        return render(request, "gudang/kosong.html", {"menu": "tiket"})
+    toko = toko_gudang(request)
+    toko_stok = utama()
+    di_toko_stok = toko is not None and toko_stok is not None and toko.pk == toko_stok.pk
+    jumlah_ambil = PermintaanAmbil.objects.filter(status="menunggu").count() if (
+        "gudang_ambil" in hak and di_toko_stok) else 0
+    pesanan = _pesanan_ditunggu(toko) if ("gudang_datang" in hak and toko) else []
     semua = list(Tiket.objects.filter(untuk=request.user).prefetch_related("baris", "usulan")[:40])
     sekarang = timezone.now()
     for t in semua:
-        t.jumlah_usulan = len(t.usulan.all()) if t.jenis == "barang" else len(t.baris.all())
+        t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else
+                           (t.opname.baris.count() if t.jenis == "hitung" and hasattr(t, "opname") else len(t.baris.all())))
         t.sisa_menit = max(0, int((t.batas - sekarang).total_seconds() // 60))
         if t.jenis == "barang":
             t.izin_teks, t.lingkup_teks = tiket_barang.izin_teks(t), tiket_barang.lingkup_teks(t)
+        elif t.jenis == "hitung":
+            t.lingkup_teks = opname.lingkup_teks(t)
     return render(request, "gudang/tiket.html", {
         "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
         "lain": [t for t in semua if not t.bisa_diisi][:20],
+        "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
+        "boleh_buka_dus": "gudang_buka_dus" in hak,
     })
 
 
@@ -349,6 +351,8 @@ def tiket_isi(request, tiket_id):
     t = get_object_or_404(Tiket, pk=tiket_id, untuk=request.user)
     if t.jenis == "barang":
         return redirect("gudang:tiket_barang", t.id)
+    if t.jenis == "hitung":
+        return redirect("gudang:tiket_hitung", t.id)
     if not hak & HAK_TIKET_LOKASI:
         raise PermissionDenied("Akun ini tidak punya hak untuk halaman tersebut.")
     if request.method == "POST":

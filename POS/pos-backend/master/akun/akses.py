@@ -58,7 +58,11 @@ HAK_TIKET_LOKASI = {"ops_tiket_pindah", "ops_tiket_rak"}
 # izin tiket data barang -> hak yang dibutuhkan admin
 HAK_IZIN_BARANG = {"harga": "ops_barang_harga", "alias": "ops_barang_alias", "aktif": "ops_barang_aktif"}
 HAK_TIKET_BARANG = set(HAK_IZIN_BARANG.values())
-HAK_TUGAS = HAK_TIKET_LOKASI | HAK_TIKET_BARANG
+# Semua yang membuka halaman Tugas (beranda aplikasi operasional).
+HAK_TUGAS = HAK_TIKET_LOKASI | HAK_TIKET_BARANG | {"gudang_hitung", "gudang_datang", "gudang_ambil", "gudang_buka_dus"}
+# Hitung buta: yang menghitung tidak boleh bisa melihat stok sistem.
+HAK_BENTROK = [({"gudang_hitung", "ops_lihat_stok"},
+                "Hitung stok dan lihat jumlah stok tidak boleh untuk orang yang sama: hitungannya bisa disalin dari angka sistem.")]
 
 # Label untuk halaman Pengguna, dikelompokkan. Urutan = urutan tampil.
 LABEL_HAK = [
@@ -89,10 +93,10 @@ LABEL_HAK = [
     ("Aplikasi operasional (/gudang/)", [
         ("gudang", "Membuka aplikasi operasional"),
         ("gudang_datang", "Catat barang datang"),
-        ("gudang_hitung", "Hitung stok (opname buta)"),
+        ("gudang_hitung", "Hitung stok lewat tugas (opname buta)"),
         ("gudang_buka_dus", "Buka dus"),
         ("gudang_ambil", "Konfirmasi barang diambil dari gudang"),
-        ("ops_lihat_stok", "Lihat stok per lokasi (tanpa harga)"),
+        ("ops_lihat_stok", "Lihat jumlah stok di tugas pindah (tanpa harga)"),
         ("ops_tiket_pindah", "Tugas: usul pindah stok antar lokasi"),
         ("ops_tiket_rak", "Tugas: usul ganti/pindah rak"),
         ("ops_barang_harga", "Tugas: usul harga jual dan floor"),
@@ -116,13 +120,13 @@ HAK_KARYAWAN_OPS = [
     ("Gudang", [
         ("gudang_ambil", "Ambil barang"),
         ("gudang_datang", "Barang datang"),
-        ("gudang_hitung", "Hitung stok"),
+        ("gudang_hitung", "Hitung stok (lewat tugas)"),
         ("gudang_buka_dus", "Buka dus"),
-        ("ops_lihat_stok", "Lihat stok per lokasi"),
     ]),
     ("Tugas lokasi", [
         ("ops_tiket_pindah", "Usul pindah stok antar lokasi"),
         ("ops_tiket_rak", "Usul ganti/pindah rak"),
+        ("ops_lihat_stok", "Lihat jumlah stok di tugas pindah"),
     ]),
     ("Tugas data barang", [
         ("ops_barang_harga", "Usul harga jual dan floor"),

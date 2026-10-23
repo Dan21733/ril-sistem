@@ -18,10 +18,11 @@ class HakAkunTest(Dasar):
         budi = get_user_model().objects.get(username="budi")
         self.assertEqual(hak_pengguna(budi), {"gudang", "gudang_hitung"})
         self.client.force_login(budi)
-        self.assertEqual(self.client.get(reverse("gudang:hitung")).status_code, 200)
+        # hitung stok hanya lewat tugas dari pemilik
+        self.assertRedirects(self.client.get(reverse("gudang:hitung")), reverse("gudang:tiket"))
         self.assertEqual(self.client.get(reverse("gudang:buka_dus")).status_code, 403)
         r = self.client.get(reverse("gudang:beranda"))
-        self.assertContains(r, "Hitung stok")
+        self.assertContains(r, "Belum ada tugas")
         self.assertNotContains(r, "Buka dus")
         self.assertRedirects(self.client.get(reverse("master:dashboard")), reverse("gudang:beranda"),
                              fetch_redirect_response=False)
@@ -93,27 +94,15 @@ class ServerGudangTest(Dasar):
         self.assertRedirects(r, "/gudang/masuk/?next=/gudang/hitung/", fetch_redirect_response=False)
         self.assertRedirects(self.client.get("/"), "/gudang/", fetch_redirect_response=False)
 
-    def test_masuk_dan_keluar(self):
-        r = self.client.post("/gudang/masuk/sandi/", {"username": "kepala", "password": "sandi-kepala-1"})
-        self.assertRedirects(r, "/gudang/", fetch_redirect_response=False)
+    def test_masuk_hanya_dengan_pin_lalu_keluar(self):
+        self.assertEqual(self.client.post("/gudang/masuk/sandi/", {"username": "kepala", "password": "sandi-kepala-1"}).status_code, 404)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.client.force_login(self.kepala)
         r = self.client.get("/gudang/")
-        self.assertContains(r, "Hitung stok")
         self.assertContains(r, 'action="/gudang/keluar/"')
         self.assertNotContains(r, "/master/")
         r = self.client.post("/gudang/keluar/")
         self.assertRedirects(r, "/gudang/masuk/", fetch_redirect_response=False)
-        self.assertNotIn("_auth_user_id", self.client.session)
-
-    def test_akun_tanpa_hak_gudang_ditolak(self):
-        r = self.client.post("/gudang/masuk/sandi/", {"username": "tanpa", "password": "sandi-tanpa-1"})
-        self.assertContains(r, "tidak punya akses")
-        self.assertNotIn("_auth_user_id", self.client.session)
-
-    def test_dikunci_setelah_5_salah(self):
-        for _ in range(5):
-            self.client.post("/gudang/masuk/sandi/", {"username": "kepala", "password": "salah"})
-        r = self.client.post("/gudang/masuk/sandi/", {"username": "kepala", "password": "sandi-kepala-1"})
-        self.assertContains(r, "Terlalu banyak percobaan")
         self.assertNotIn("_auth_user_id", self.client.session)
 
 
