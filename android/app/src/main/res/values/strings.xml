@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ril</string>
+    <string name="admin_label">Ril (pengelola perangkat)</string>
+    <string name="admin_desc">Mengunci tablet toko ke aplikasi Ril.</string>
+</resources>

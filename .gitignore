@@ -15,6 +15,9 @@
 # Kunci privat dalam bentuk apa pun.
 *.pem
 *.key
+*.jks
+*.keystore
+.kunci-ril/
 
 # Folder kerja lokal, bukan isi repo.
 _to_delete/

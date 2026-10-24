@@ -1,0 +1,65 @@
+# Membangun APK Ril (aplikasi kiosk tablet toko) setiap ada perubahan di android/.
+# Hasilnya diunduh dari tab Actions › run terakhir › Artifacts.
+#
+# Butuh dua secret di Settings › Secrets and variables › Actions:
+#   RIL_KEYSTORE_B64       isi berkas ril.jks dalam base64
+#   RIL_KEYSTORE_PASSWORD  kata sandi keystore
+# Tanpa keystore build sengaja gagal: aplikasi device owner hanya bisa diperbarui
+# dengan tanda tangan yang sama, jadi jangan pernah memakai kunci sementara.
+name: Ril Android
+
+on:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/ril-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Terima lisensi Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Siapkan keystore
+        env:
+          RIL_KEYSTORE_B64: ${{ secrets.RIL_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$RIL_KEYSTORE_B64" ]; then
+            echo "::error::Secret RIL_KEYSTORE_B64 belum diisi."
+            exit 1
+          fi
+          echo "$RIL_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ril.jks"
+          echo "RIL_KEYSTORE=$RUNNER_TEMP/ril.jks" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        env:
+          RIL_KEYSTORE_PASSWORD: ${{ secrets.RIL_KEYSTORE_PASSWORD }}
+          RIL_VERSION_CODE: ${{ github.run_number }}
+        run: gradle -p android assembleRelease --no-daemon
+
+      - name: Hapus keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ril.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ril-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
