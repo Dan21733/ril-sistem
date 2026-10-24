@@ -550,6 +550,60 @@ def tambah_varian(pengguna, *, item_name, variant, category, brand="", min_price
     return info
 
 
+class TolakBaris(Tolak):
+    """Penolakan yang menunjuk satu baris varian di formulir barang baru (urutan mulai 0)."""
+
+    def __init__(self, pesan, baris):
+        super().__init__(pesan)
+        self.baris = baris
+
+
+def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, hak):
+    """Barang baru dengan satu atau beberapa varian sekaligus. Semua tersimpan, atau tidak sama sekali.
+
+    `varian`: daftar dict berisi variant, min_price, max_price, cost_amount, in_stock, kode_rak.
+    Nama varian kosong hanya boleh kalau variannya satu ("tanpa varian").
+    """
+    item_name = rapikan_teks(item_name)
+    if not item_name:
+        raise Tolak("Nama barang wajib diisi.")
+    if Item.objects.filter(item_name__iexact=item_name).exists():
+        raise Tolak(f"Barang '{item_name}' sudah ada. Buka barangnya untuk menambah varian.")
+    baris = [v for v in (varian or []) if any(str(v.get(k) or "").strip() for k in
+                                               ("variant", "min_price", "max_price", "cost_amount", "kode_rak"))
+             or str(v.get("in_stock") or "0").strip() not in ("", "0")]
+    if not baris:
+        raise Tolak("Isi minimal satu varian (harga floor dan harga jual).")
+    nama_varian = [rapikan_varian(v.get("variant")).lower() for v in baris]
+    if len(baris) > 1:
+        for i, n in enumerate(nama_varian):
+            if n == VARIAN_KOSONG.lower():
+                raise TolakBaris("Nama varian wajib diisi kalau variannya lebih dari satu.", i)
+            if nama_varian.index(n) != i:
+                raise TolakBaris(f"Varian '{rapikan_varian(baris[i].get('variant'))}' tertulis dua kali.", i)
+    with transaction.atomic():
+        for i, v in enumerate(baris):
+            try:
+                if not str(v.get("min_price") or "").strip() or not str(v.get("max_price") or "").strip():
+                    raise Tolak("Harga floor dan harga jual wajib diisi.")
+                harga_floor = baca_angka(v.get("min_price"), boleh_kosong=False)
+                harga_jual = baca_angka(v.get("max_price"), boleh_kosong=False)
+                if harga_floor > harga_jual:
+                    raise Tolak("Floor tidak boleh di atas harga jual.")
+                tambah_varian(pengguna, hak=hak, item_name=item_name, variant=v.get("variant"),
+                              category=category, brand=brand, min_price=harga_floor, max_price=harga_jual,
+                              cost_amount=v.get("cost_amount"), in_stock=v.get("in_stock"),
+                              kode_rak=v.get("kode_rak") or None)
+            except TolakBaris:
+                raise
+            except Tolak as tolak:
+                raise TolakBaris(str(tolak), i) from None
+        item_info = ItemInfo.objects.get(item_name=item_name)
+        if rapikan_teks(alias):
+            ubah_alias_item(pengguna, item_info, alias, hak=hak)
+    return item_info
+
+
 # ---------------------------------------------------------------------------
 # Stok
 # ---------------------------------------------------------------------------

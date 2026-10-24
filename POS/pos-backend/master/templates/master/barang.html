@@ -5,7 +5,7 @@
   <div><h2>Daftar barang</h2><p class="sub">{{ halaman.paginator.count|ribuan }} barang. Klik barang untuk membukanya.</p></div>
   <div class="baris">
     <a class="tombol" href="?{{ qs_export }}{% if qs_export %}&{% endif %}export=1">Export Excel</a>
-    {% if 'ubah_info' in hak and 'ubah_harga' in hak %}<a class="tombol utama" href="{% url 'master:barang_baru' %}">Barang baru</a>{% endif %}
+    {% if 'ubah_info' in hak and 'ubah_harga' in hak %}<a class="tombol utama" href="{% url 'master:barang_baru' %}" id="tombol-baru">Barang baru</a>{% endif %}
   </div>
 </div>
 
@@ -69,6 +69,19 @@
 .baris-item{cursor:pointer}
 .baris-item.pilih td{background:var(--aksen-lembut)!important}
 .baris-item:focus{outline:2px solid var(--aksen);outline-offset:-2px}
+.ref{border:1px dashed var(--garis);border-radius:10px;padding:10px 12px;margin-bottom:14px;background:var(--latar,transparent)}
+.ref .ref-varian{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:14px;color:var(--redup)}
+.ref .ref-varian b{color:var(--teks);font-weight:600}
+.bb-atas{display:grid;gap:12px 14px;grid-template-columns:1fr 1fr;margin-bottom:14px}
+.bb-atas .bb-nama,.bb-atas .bb-alias{grid-column:1/-1}
+.bb-tabel th,.bb-tabel td{padding:4px 4px;vertical-align:middle}
+.bb-tabel input,.bb-tabel select{padding:8px 9px;min-width:0}
+.bb-tabel td:first-child{min-width:120px}
+.bb-tabel select{min-width:86px}
+#form-baru .label[hidden]{display:none}
+.bb-tabel input.uang{text-align:right;width:100%;min-width:84px}
+.bb-tabel tr.salah td{background:var(--bahaya-lembut)}
+.bb-tabel input.salah,.bb-atas input.salah{border-color:var(--bahaya);color:var(--bahaya)}
 @media (max-width:1100px){.belah.buka{grid-template-columns:1fr}.belah.buka .kiri{display:none}.kanan{position:static;max-height:none}}
 </style>
 <script>
@@ -96,16 +109,19 @@
     }catch(e){ panel.innerHTML = '<p class="pesan error">Barang tidak bisa dimuat. Coba muat ulang halaman.</p>'; }
   }
   function tutup(){
+    if (!boleh_buang()) return;
+    if (modeBaru) keluarBaru();
     belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = '';
     document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
     history.replaceState(null, '', alamatDengan(null));
   }
   document.getElementById('tabel-barang').addEventListener('click', e => {
-    const baris = e.target.closest('.baris-item'); if (baris && baris.dataset.item) buka(baris.dataset.item);
+    const baris = e.target.closest('.baris-item'); if (!baris || !baris.dataset.item) return;
+    if (modeBaru) referensi(baris.dataset.item); else buka(baris.dataset.item);
   });
   document.getElementById('tabel-barang').addEventListener('keydown', e => {
     const baris = e.target.closest('.baris-item'); if (!baris) return;
-    if (e.key === 'Enter'){ buka(baris.dataset.item); }
+    if (e.key === 'Enter'){ if (modeBaru) referensi(baris.dataset.item); else buka(baris.dataset.item); }
     if (e.key === 'ArrowDown' && baris.nextElementSibling){ e.preventDefault(); baris.nextElementSibling.focus(); }
     if (e.key === 'ArrowUp' && baris.previousElementSibling && baris.previousElementSibling.classList.contains('baris-item')){ e.preventDefault(); baris.previousElementSibling.focus(); }
   });
@@ -113,8 +129,167 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !panel.hidden && !e.target.matches('input,textarea,select')) tutup();
   });
-  const awal = new URL(location.href).searchParams.get('buka');
-  if (awal) buka(awal, true);
+
+  // ---------------- Barang baru di panel ----------------
+  const urlBaru = "{% url 'master:barang_baru' %}", urlRingkas = "{% url 'master:barang' %}item/";
+  let modeBaru = false, kotor = false, cekTimer = null;
+  const $ = sel => panel.querySelector(sel);
+  const angka = v => String(v || '').replace(/\D/g, '');
+
+  async function bukaBaru(){
+    document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
+    const u = alamatDengan(null); u.searchParams.set('baru', '1'); history.replaceState(null, '', u);
+    belah.classList.add('buka'); panel.hidden = false; panel.innerHTML = '<p class="redup">Memuat...</p>';
+    try{
+      const r = await fetch(urlBaru + '?panel=1');
+      if (!r.ok) throw new Error(r.status);
+      panel.innerHTML = await r.text(); panel.scrollTop = 0;
+      modeBaru = true; kotor = false;
+      tambahBaris(); $('#bb-nama').focus();
+    }catch(e){ panel.innerHTML = '<p class="pesan error">Formulir tidak bisa dimuat. Coba muat ulang halaman.</p>'; }
+  }
+  function boleh_buang(){ return !modeBaru || !kotor || confirm('Buang isian barang baru?'); }
+  function keluarBaru(){
+    modeBaru = false; kotor = false;
+    const u = new URL(location.href); u.searchParams.delete('baru'); history.replaceState(null, '', u);
+  }
+  function baris(){ return [...$('#bb-tabel tbody').rows]; }
+  function tambahBaris(){
+    const tb = $('#bb-tabel tbody'), tr = $('#bb-baris').content.firstElementChild.cloneNode(true);
+    const atas = tb.rows[tb.rows.length - 1];
+    if (atas) tr.querySelector('[data-k=kode_rak]').value = atas.querySelector('[data-k=kode_rak]').value;
+    tb.appendChild(tr); return tr;
+  }
+  function kosong(tr){
+    const v = k => (tr.querySelector('[data-k=' + k + ']') || {value: ''}).value.trim();
+    return !v('variant') && !v('min_price') && !v('max_price') && !v('cost_amount') && ['', '0'].includes(angka(v('in_stock')));
+  }
+  function cekHarga(tr){
+    const f = tr.querySelector('[data-k=min_price]'), j = tr.querySelector('[data-k=max_price]');
+    const salah = angka(f.value) && angka(j.value) && Number(angka(f.value)) > Number(angka(j.value));
+    f.classList.toggle('salah', !!salah); j.classList.toggle('salah', !!salah);
+    f.title = salah ? 'Floor di atas harga jual' : '';
+  }
+  function cekDaftar(input, jenis){
+    const opsi = [...document.getElementById('bb-dl-' + jenis).options].map(o => o.value);
+    const v = input.value.trim(), sama = opsi.find(o => o.toLowerCase() === v.toLowerCase());
+    if (sama && sama !== v) input.value = sama;   // ikut penulisan yang sudah ada
+    $('[data-baru-label=' + jenis + ']').hidden = !v || !!sama;
+  }
+  function cekNama(){
+    clearTimeout(cekTimer);
+    const nama = $('#bb-nama').value.trim(), info = $('#bb-ada');
+    if (!nama){ info.hidden = true; return; }
+    cekTimer = setTimeout(async () => {
+      try{
+        const d = await (await fetch(urlBaru + '?cek=' + encodeURIComponent(nama))).json();
+        info.hidden = !d.ada;
+        if (d.ada){
+          info.innerHTML = '';
+          const t = document.createElement('span'); t.className = 'label bahaya';
+          t.textContent = '"' + d.nama + '" sudah ada.';
+          const a = document.createElement('a'); a.href = '#'; a.dataset.bukaAda = d.id; a.textContent = ' Buka barangnya untuk menambah varian';
+          info.append(t, a);
+        }
+      }catch(e){}
+    }, 300);
+  }
+  async function referensi(id){
+    document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
+    const row = document.querySelector('.baris-item[data-item="' + id + '"]'); if (row) row.classList.add('pilih');
+    const box = $('#ref'); box.hidden = false; box.textContent = 'Memuat referensi...';
+    try{
+      const d = await (await fetch(urlRingkas + id + '/ringkas/')).json();
+      box.innerHTML = '';
+      const kepala = document.createElement('div'); kepala.className = 'baris'; kepala.style.cssText = 'justify-content:space-between;gap:8px;flex-wrap:nowrap';
+      const judul = document.createElement('div');
+      const b = document.createElement('b'); b.textContent = 'Referensi: ' + d.nama;
+      const sub = document.createElement('span'); sub.className = 'redup'; sub.textContent = ' · ' + [d.kategori, d.brand].filter(Boolean).join(' · ');
+      judul.append(b, sub);
+      const aksi = document.createElement('div'); aksi.className = 'baris'; aksi.style.cssText = 'gap:6px;flex-wrap:nowrap';
+      const pakai = document.createElement('button'); pakai.type = 'button'; pakai.className = 'tombol kecil'; pakai.textContent = 'Pakai kategori & brand';
+      pakai.addEventListener('click', () => {
+        $('#bb-kategori').value = d.kategori || ''; $('#bb-brand').value = d.brand || '';
+        cekDaftar($('#bb-kategori'), 'kategori'); cekDaftar($('#bb-brand'), 'brand'); kotor = true;
+      });
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'tombol kecil'; x.textContent = '×'; x.title = 'Tutup referensi';
+      x.addEventListener('click', () => { box.hidden = true; document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih')); });
+      aksi.append(pakai, x); kepala.append(judul, aksi);
+      const vr = document.createElement('div'); vr.className = 'ref-varian';
+      d.varian.slice(0, 12).forEach(v => {
+        const s = document.createElement('span');
+        const n = document.createElement('b'); n.textContent = (v.varian || 'tanpa varian') + ' ';
+        s.append(n, 'floor ' + ribuan(v.floor) + ' · jual ' + ribuan(v.jual) + ('modal' in v ? ' · modal ' + (ribuan(v.modal) || '-') : ''));
+        vr.append(s);
+      });
+      if (d.varian.length > 12){ const s = document.createElement('span'); s.textContent = '+' + (d.varian.length - 12) + ' varian lagi'; vr.append(s); }
+      box.append(kepala, vr);
+    }catch(e){ box.textContent = 'Referensi tidak bisa dimuat.'; }
+  }
+  async function simpanBaru(){
+    const tombol = $('[data-simpan-baru]'), galat = $('#bb-galat');
+    baris().forEach(tr => tr.classList.remove('salah')); galat.hidden = true;
+    const terpakai = baris().filter(tr => !kosong(tr));
+    const data = {varian: terpakai.map(tr => Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])))};
+    panel.querySelectorAll('[data-isi]').forEach(i => { data[i.dataset.isi] = i.value.trim(); });
+    tombol.disabled = true;
+    try{
+      const r = await fetch(urlBaru, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)});
+      const d = await r.json();
+      if (d.ok){ kotor = false; location.href = d.url; return; }
+      galat.textContent = d.pesan || 'Belum tersimpan.'; galat.hidden = false;
+      if (d.baris !== null && d.baris !== undefined && terpakai[d.baris]){
+        terpakai[d.baris].classList.add('salah'); galat.textContent = 'Baris ' + (d.baris + 1) + ': ' + galat.textContent;
+        terpakai[d.baris].querySelector('input').focus();
+      }
+    }catch(e){ galat.textContent = 'Gagal menyimpan. Periksa koneksi lalu coba lagi.'; galat.hidden = false; }
+    tombol.disabled = false;
+  }
+
+  panel.addEventListener('input', e => {
+    if (!modeBaru) return;
+    kotor = true;
+    const tr = e.target.closest('#bb-tabel tr');
+    if (tr && (e.target.dataset.k === 'min_price' || e.target.dataset.k === 'max_price')) cekHarga(tr);
+    if (e.target.id === 'bb-nama') cekNama();
+    if (e.target.id === 'bb-kategori') $('[data-baru-label=kategori]').hidden = true;
+    if (e.target.id === 'bb-brand') $('[data-baru-label=brand]').hidden = true;
+  });
+  panel.addEventListener('focusout', e => {
+    if (!modeBaru) return;
+    if (e.target.classList.contains('uang')){ const n = angka(e.target.value); e.target.value = n ? ribuan(Number(n)) : ''; }
+    if (e.target.id === 'bb-kategori') cekDaftar(e.target, 'kategori');
+    if (e.target.id === 'bb-brand') cekDaftar(e.target, 'brand');
+  });
+  panel.addEventListener('click', e => {
+    if (!modeBaru) return;
+    if (e.target.closest('[data-tambah-baris]')){ tambahBaris().querySelector('input').focus(); kotor = true; }
+    const h = e.target.closest('[data-hapus-baris]');
+    if (h){ const tr = h.closest('tr'); if (baris().length > 1) tr.remove(); else tr.querySelectorAll('input').forEach(i => i.value = i.dataset.k === 'in_stock' ? '0' : ''); }
+    if (e.target.closest('[data-simpan-baru]')) simpanBaru();
+    const ada = e.target.closest('[data-buka-ada]');
+    if (ada){ e.preventDefault(); if (boleh_buang()){ keluarBaru(); buka(ada.dataset.bukaAda); } }
+  });
+  panel.addEventListener('keydown', e => {
+    if (!modeBaru) return;
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); simpanBaru(); return; }
+    if (e.key !== 'Enter' || !e.target.matches('input,select')) return;
+    e.preventDefault();
+    const urut = [...panel.querySelectorAll('[data-isi], #bb-tabel [data-k]')];
+    const i = urut.indexOf(e.target);
+    if (i === urut.length - 1){ tambahBaris().querySelector('input').focus(); kotor = true; return; }
+    if (i >= 0) urut[i + 1].focus();
+  });
+
+  document.getElementById('tombol-baru')?.addEventListener('click', e => {
+    e.preventDefault();
+    if (modeBaru) { $('#bb-nama')?.focus(); return; }
+    bukaBaru();
+  });
+  window.addEventListener('beforeunload', e => { if (modeBaru && kotor){ e.preventDefault(); e.returnValue = ''; } });
+  const awal = new URL(location.href).searchParams;
+  if (awal.get('baru') === '1') bukaBaru();
+  else if (awal.get('buka')) buka(awal.get('buka'), true);
 })();
 </script>
 {% endblock %}

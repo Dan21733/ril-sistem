@@ -31,6 +31,7 @@ urlpatterns = [
     path("barang/", views.barang_daftar, name="barang"),
     path("barang/ubah/", views.barang_ubah, name="barang_ubah"),
     path("barang/baru/", views.barang_baru, name="barang_baru"),
+    path("barang/item/<int:item_id>/ringkas/", views.barang_ringkas, name="barang_ringkas"),
     path("barang/item/<int:item_id>/", views.item_detail, name="item"),
     path("barang/item/<int:item_id>/panel/", views.item_detail, {"panel": True}, name="item_panel"),
     path("harga/", views.harga, name="harga"),

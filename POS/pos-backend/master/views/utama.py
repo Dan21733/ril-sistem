@@ -281,34 +281,60 @@ def barang_ubah(request):
 
 @perlu("ubah_info")
 def barang_baru(request):
+    """Barang baru di panel kanan daftar barang (beberapa varian sekaligus).
+
+    GET ?panel=1: isi panel. GET ?cek=<nama>: apakah nama itu sudah ada (JSON).
+    POST (JSON): simpan; balasan JSON berisi alamat untuk membuka barangnya.
+    Dibuka langsung tanpa ?panel diarahkan ke daftar barang dengan panel ini terbuka.
+    """
     hak = hak_pengguna(request.user)
-    isi = {}
     if request.method == "POST":
-        isi = request.POST
         try:
-            info = layanan.tambah_varian(
-                request.user, hak=hak,
-                item_name=isi.get("item_name"), variant=isi.get("variant"),
-                category=isi.get("category"), brand=isi.get("brand"),
-                min_price=isi.get("min_price"), max_price=isi.get("max_price"),
-                cost_amount=isi.get("cost_amount"), in_stock=isi.get("in_stock"),
-                kode_rak=isi.get("kode_rak") or None,
-            )
-            alias = isi.get("alias")
-            item_info = ItemInfo.objects.get(item_name=info.item_name)
-            if alias and not item_info.alias:
-                layanan.ubah_alias_item(request.user, item_info, alias, hak=hak)
-            messages.success(request, f"Barang '{info.item_name}' ditambahkan.")
-            return redirect("master:item", item_id=item_info.id)
-        except Tolak as tolak:
-            messages.error(request, str(tolak))
-    return render(request, "master/barang_baru.html", {
-        "menu": "barang",
-        "isi": isi,
-        "awal_nama": request.GET.get("item_name", ""),
-        "daftar_kategori": Item.objects.order_by("category").values_list("category", flat=True).distinct(),
-        "daftar_brand": Item.objects.order_by("brand").values_list("brand", flat=True).distinct(),
+            data = json.loads(request.body.decode("utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("varian"), list):
+                raise ValueError
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
+        try:
+            item_info = layanan.tambah_barang(
+                request.user, hak=hak, item_name=data.get("item_name"), category=data.get("category"),
+                brand=data.get("brand"), alias=data.get("alias"),
+                varian=[v for v in data["varian"] if isinstance(v, dict)])
+        except layanan.Tolak as tolak:
+            return JsonResponse({"ok": False, "pesan": str(tolak), "baris": getattr(tolak, "baris", None)}, status=400)
+        n = Item.objects.filter(item_name=item_info.item_name).count()
+        messages.success(request, f"Barang '{item_info.item_name}' ditambahkan ({n} varian).")
+        return JsonResponse({"ok": True, "url": f"{reverse('master:barang')}?buka={item_info.id}"})
+    cek = request.GET.get("cek")
+    if cek is not None:
+        nama = layanan.rapikan_teks(cek)
+        ada = ItemInfo.objects.filter(item_name__iexact=nama).first() if nama else None
+        return JsonResponse({"ada": bool(ada and Item.objects.filter(item_name=ada.item_name).exists()),
+                             "id": ada.id if ada else None, "nama": ada.item_name if ada else ""})
+    if request.GET.get("panel") != "1":
+        return redirect(f"{reverse('master:barang')}?baru=1")
+    return render(request, "master/_barang_baru.html", {
+        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
+        "daftar_brand": sorted({k for k in Item.objects.values_list("brand", flat=True) if k}, key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
+    })
+
+
+@perlu()
+def barang_ringkas(request, item_id):
+    """Ringkasan satu barang untuk kotak referensi di formulir barang baru (JSON)."""
+    hak = hak_pengguna(request.user)
+    item_info = get_object_or_404(ItemInfo, pk=item_id)
+    baris = sorted(Item.objects.filter(item_name=item_info.item_name).values(*KOLOM_NILAI),
+                   key=lambda b: kunci_alami(b["variant"]))
+    lihat_modal = "lihat_modal" in hak
+    return JsonResponse({
+        "nama": item_info.item_name,
+        "kategori": baris[0]["category"] if baris else "",
+        "brand": baris[0]["brand"] if baris else "",
+        "varian": [{"varian": "" if b["variant"] == layanan.VARIAN_KOSONG else b["variant"],
+                    "floor": b["min_price"], "jual": b["max_price"],
+                    **({"modal": b["cost_amount"]} if lihat_modal else {})} for b in baris],
     })
 
 

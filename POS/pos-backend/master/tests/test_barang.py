@@ -229,8 +229,9 @@ class HalamanTest(Dasar):
 
     def test_semua_halaman_terbuka_untuk_admin(self):
         self.client.force_login(self.admin)
-        for nama in ["dashboard", "barang", "kategori", "brand", "rak", "impor", "log", "pengguna", "barang_baru"]:
+        for nama in ["dashboard", "barang", "kategori", "brand", "rak", "impor", "log", "pengguna"]:
             self.assertEqual(self.client.get(reverse(f"master:{nama}")).status_code, 200, nama)
+        self.assertEqual(self.client.get(reverse("master:barang_baru") + "?panel=1").status_code, 200)
         item_id = ItemInfo.objects.get(item_name="Palu").id
         self.assertEqual(self.client.get(reverse("master:item", args=[item_id])).status_code, 200)
 
@@ -624,3 +625,78 @@ class UrutAlamiTest(Dasar):
         wb = load_workbook(BytesIO(stok_excel.buat_workbook(Item.objects.all())))
         stok = [(r[1].value, r[2].value) for r in wb["stok"].iter_rows(min_row=2)]
         self.assertLess(stok.index(("Triplek", "5 MM")), stok.index(("Triplek", "12 MM")))
+
+
+class BarangBaruPanelTest(Dasar):
+    """Barang baru dari panel kanan: beberapa varian sekaligus, semua atau tidak sama sekali."""
+
+    def _kirim(self, **data):
+        import json
+        dasar = {"item_name": "Taketa Martil", "category": "Alat Tukang", "brand": "Taketa", "alias": "palu, penokok",
+                 "varian": [{"variant": "80 oz", "min_price": "68.000", "max_price": "70.000", "cost_amount": "60.000",
+                             "in_stock": "36", "kode_rak": ""},
+                            {"variant": "160 oz", "min_price": "82000", "max_price": "85000", "cost_amount": "",
+                             "in_stock": "0", "kode_rak": ""}]}
+        dasar.update(data)
+        return self.client.post(reverse("master:barang_baru"), json.dumps(dasar), content_type="application/json")
+
+    def test_simpan_banyak_varian_lalu_buka_di_panel(self):
+        self.client.force_login(self.admin)
+        r = self._kirim()
+        self.assertEqual(r.status_code, 200, r.content)
+        info = ItemInfo.objects.get(item_name="Taketa Martil")
+        self.assertEqual(r.json()["url"], reverse("master:barang") + f"?buka={info.id}")
+        v = {i.variant: (i.min_price, i.max_price, i.cost_amount, i.in_stock, i.category, i.brand)
+             for i in Item.objects.filter(item_name="Taketa Martil")}
+        self.assertEqual(v, {"80 oz": (68000, 70000, 60000, 36, "Alat Tukang", "Taketa"),
+                             "160 oz": (82000, 85000, None, 0, "Alat Tukang", "Taketa")})
+        self.assertEqual(info.alias, "palu, penokok")
+
+    def test_satu_baris_salah_tidak_ada_yang_tersimpan(self):
+        self.client.force_login(self.admin)
+        r = self._kirim(varian=[{"variant": "A", "min_price": "1000", "max_price": "2000"},
+                                {"variant": "B", "min_price": "3000", "max_price": "2000"}])
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()["baris"], 1)
+        self.assertFalse(Item.objects.filter(item_name="Taketa Martil").exists())
+        r = self._kirim(varian=[{"variant": "A", "min_price": "1000", "max_price": "2000"},
+                                {"variant": "a", "min_price": "1000", "max_price": "2000"}])
+        self.assertEqual(r.status_code, 400)
+        r = self._kirim(varian=[{"variant": "", "min_price": "1000", "max_price": "2000"},
+                                {"variant": "B", "min_price": "1000", "max_price": "2000"}])
+        self.assertEqual((r.status_code, r.json()["baris"]), (400, 0))
+        r = self._kirim(varian=[{"variant": "A", "min_price": "", "max_price": "2000"}])
+        self.assertIn("wajib diisi", r.json()["pesan"])
+        self.assertFalse(Item.objects.filter(item_name="Taketa Martil").exists())
+
+    def test_tanpa_varian_dan_nama_yang_sudah_ada(self):
+        self.client.force_login(self.admin)
+        r = self._kirim(varian=[{"variant": "", "min_price": "1000", "max_price": "2000", "in_stock": "0"}])
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(list(Item.objects.filter(item_name="Taketa Martil").values_list("variant", flat=True)), ["N/A"])
+        r = self._kirim(item_name="taketa martil")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("sudah ada", r.json()["pesan"])
+        d = self.client.get(reverse("master:barang_baru") + "?cek=PALU").json()
+        self.assertEqual((d["ada"], d["nama"]), (True, "Palu"))
+        self.assertFalse(self.client.get(reverse("master:barang_baru") + "?cek=Obeng%20Ajaib").json()["ada"])
+
+    def test_alamat_lama_dan_hak(self):
+        self.client.force_login(self.admin)
+        self.assertRedirects(self.client.get(reverse("master:barang_baru")), reverse("master:barang") + "?baru=1",
+                             fetch_redirect_response=False)
+        self.client.force_login(self.gudang)
+        self.assertNotEqual(self._kirim().status_code, 200)
+        self.assertFalse(Item.objects.filter(item_name="Taketa Martil").exists())
+
+    def test_referensi_modal_hanya_untuk_yang_boleh(self):
+        Item.objects.filter(item_name="Palu", variant="Kecil").update(cost_amount=987654)
+        item_id = ItemInfo.objects.get(item_name="Palu").id
+        self.client.force_login(self.admin)
+        d = self.client.get(reverse("master:barang_ringkas", args=[item_id])).json()
+        self.assertEqual(d["nama"], "Palu")
+        self.assertIn(987654, [v.get("modal") for v in d["varian"]])
+        self.client.force_login(self.finance)
+        isi = self.client.get(reverse("master:barang_ringkas", args=[item_id])).content.decode()
+        self.assertNotIn("987654", isi)
+        self.assertNotIn("modal", isi)

@@ -1,0 +1,45 @@
+<div id="form-baru" data-baru data-cek="{% url 'master:barang_baru' %}">
+<div class="baris" style="justify-content:space-between;align-items:start;flex-wrap:nowrap">
+  <h2>Barang baru</h2>
+  <button type="button" class="tombol kecil" data-tutup-panel title="Tutup (Esc)">Tutup</button>
+</div>
+<p class="sub kecil">Klik barang di daftar kiri untuk melihatnya sebagai referensi tanpa menutup formulir ini.</p>
+
+<div id="ref" class="ref" hidden></div>
+
+<div class="bb-atas">
+  <div class="bb-nama"><label for="bb-nama">Nama barang</label><input type="text" id="bb-nama" data-isi="item_name" autocomplete="off">
+    <div id="bb-ada" class="kecil" hidden></div></div>
+  <div><label for="bb-kategori">Kategori <span class="label netral" data-baru-label="kategori" hidden>baru</span></label>
+    <input type="text" id="bb-kategori" data-isi="category" list="bb-dl-kategori" autocomplete="off"></div>
+  <div><label for="bb-brand">Brand <span class="label netral" data-baru-label="brand" hidden>baru</span></label>
+    <input type="text" id="bb-brand" data-isi="brand" list="bb-dl-brand" autocomplete="off"></div>
+  <div class="bb-alias"><label for="bb-alias">Alias (pisahkan dengan koma)</label><input type="text" id="bb-alias" data-isi="alias" autocomplete="off" placeholder="mis. palu, penokok"></div>
+</div>
+
+<div class="gulir"><table class="bb-tabel" id="bb-tabel">
+  <thead><tr><th>Varian <span class="kecil redup">(kosong = tanpa varian)</span></th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'ubah_modal' in hak %}<th class="angka">Modal</th>{% endif %}<th class="angka">Stok awal</th><th>Rak</th><th></th></tr></thead>
+  <tbody></tbody>
+</table></div>
+<template id="bb-baris">
+  <tr>
+    <td><input type="text" data-k="variant" autocomplete="off"></td>
+    <td><input type="text" data-k="min_price" class="uang" inputmode="numeric" autocomplete="off"></td>
+    <td><input type="text" data-k="max_price" class="uang" inputmode="numeric" autocomplete="off"></td>
+    {% if 'ubah_modal' in hak %}<td><input type="text" data-k="cost_amount" class="uang" inputmode="numeric" autocomplete="off"></td>{% endif %}
+    <td><input type="text" data-k="in_stock" class="uang" inputmode="numeric" autocomplete="off" value="0"></td>
+    <td><select data-k="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></td>
+    <td><button type="button" class="tombol kecil" data-hapus-baris title="Hapus baris">×</button></td>
+  </tr>
+</template>
+<button type="button" class="tombol kecil" data-tambah-baris style="margin-top:8px">+ Varian</button>
+<span class="kecil redup" style="margin-left:8px">Enter = kotak berikutnya · Enter di baris terakhir = varian baru</span>
+
+<div id="bb-galat" class="pesan error" hidden style="margin-top:12px"></div>
+<div class="baris" style="margin-top:14px">
+  <button type="button" class="tombol utama" data-simpan-baru>Simpan <span class="kecil" style="opacity:.75">Ctrl+Enter</span></button>
+  <button type="button" class="tombol" data-tutup-panel>Batal</button>
+</div>
+<datalist id="bb-dl-kategori">{% for k in daftar_kategori %}<option value="{{ k }}">{% endfor %}</datalist>
+<datalist id="bb-dl-brand">{% for k in daftar_brand %}{% if k %}<option value="{{ k }}">{% endif %}{% endfor %}</datalist>
+</div>
