@@ -9,9 +9,9 @@
 {% elif t.bisa_diisi %}
 <form method="get" class="alat saring-barang">
   <input type="search" name="q" value="{{ cari }}" placeholder="Cari nama barang atau varian" aria-label="Cari barang">
-  {% if daftar_kategori|length > 1 %}<select name="kategori" style="max-width:220px" aria-label="Kategori" onchange="this.form.submit()"><option value="">Semua kategori</option>{% for k in daftar_kategori %}<option {% if k == kategori %}selected{% endif %}>{{ k }}</option>{% endfor %}</select>{% endif %}
-  {% if daftar_brand|length > 1 %}<select name="brand" style="max-width:220px" aria-label="Brand" onchange="this.form.submit()"><option value="">Semua brand</option>{% for b in daftar_brand %}<option {% if b == brand %}selected{% endif %}>{{ b }}</option>{% endfor %}</select>{% endif %}
-  {% if boleh_aktif %}<select name="status" style="max-width:200px" aria-label="Status" onchange="this.form.submit()"><option value="">Aktif &amp; nonaktif</option><option value="aktif" {% if status == 'aktif' %}selected{% endif %}>Hanya aktif</option><option value="nonaktif" {% if status == 'nonaktif' %}selected{% endif %}>Hanya nonaktif</option></select>{% endif %}
+  {% if daftar_kategori|length > 1 %}<select name="kategori" style="max-width:220px" aria-label="Kategori" data-saring><option value="">Semua kategori</option>{% for k in daftar_kategori %}<option {% if k == kategori %}selected{% endif %}>{{ k }}</option>{% endfor %}</select>{% endif %}
+  {% if daftar_brand|length > 1 %}<select name="brand" style="max-width:220px" aria-label="Brand" data-saring><option value="">Semua brand</option>{% for b in daftar_brand %}<option {% if b == brand %}selected{% endif %}>{{ b }}</option>{% endfor %}</select>{% endif %}
+  {% if boleh_aktif %}<select name="status" style="max-width:200px" aria-label="Status" data-saring><option value="">Aktif &amp; nonaktif</option><option value="aktif" {% if status == 'aktif' %}selected{% endif %}>Hanya aktif</option><option value="nonaktif" {% if status == 'nonaktif' %}selected{% endif %}>Hanya nonaktif</option></select>{% endif %}
   <button class="tombol" type="submit">Cari</button>
   {% if saring %}<a class="tombol" href="?">Reset</a>{% endif %}
   <span class="kecil redup">{{ total }} varian</span>
@@ -72,18 +72,37 @@
 <form method="post" data-tanya="Hapus semua {{ jumlah_usulan }} usulan di tiket ini?">{% csrf_token %}<input type="hidden" name="aksi" value="kosongkan"><button class="tombol kecil bahaya" type="submit">Hapus semua usulan</button></form>
 {% endif %}
 <script>
+// Pindah halaman / ganti saringan: isian yang sudah diubah DISIMPAN OTOMATIS dulu, tidak ada yang hilang.
 const isian = document.getElementById('isian');
 let kotor = false;
 if (isian) {
   isian.addEventListener('input', e => { kotor = true; e.target.classList.toggle('diubah', 'awal' in e.target.dataset && e.target.value !== e.target.dataset.awal); });
+  isian.addEventListener('change', () => { kotor = true; });
   isian.addEventListener('submit', () => { kotor = false; });
   document.querySelectorAll('[data-aktif-semua]').forEach(b => b.addEventListener('click', () => {
     const nyala = b.dataset.aktifSemua === '1';
     isian.querySelectorAll('input[type=checkbox][name^="ak_"]').forEach(c => { if (c.checked !== nyala){ c.checked = nyala; kotor = true; } });
   }));
+  async function simpanDulu(){
+    if (!kotor) return true;
+    kabar('Menyimpan isian halaman ini…');
+    try{
+      const r = await fetch(location.href, {method: 'POST', body: new FormData(isian), credentials: 'same-origin'});
+      if (!r.ok) throw new Error(r.status);
+      kotor = false; return true;
+    }catch(e){ kabar('Isian belum tersimpan. Periksa koneksi, lalu tekan "Simpan halaman ini".', true); return false; }
+  }
+  async function pindah(lanjut){ if (await simpanDulu()) lanjut(); }
+  const saring = document.querySelector('form.saring-barang');
+  if (saring){
+    saring.querySelectorAll('[data-saring]').forEach(el => el.addEventListener('change', () => pindah(() => saring.submit())));
+    saring.addEventListener('submit', e => { if (kotor){ e.preventDefault(); pindah(() => saring.submit()); } });
+  }
+  document.querySelectorAll('a.pindah, .saring-barang a, .judul-hal a').forEach(a => a.addEventListener('click', e => {
+    if (!kotor) return;
+    e.preventDefault(); pindah(() => { location.href = a.href; });
+  }));
   window.addEventListener('beforeunload', e => { if (kotor) { e.preventDefault(); e.returnValue = ''; } });
-  document.querySelectorAll('a.pindah').forEach(a => a.addEventListener('click', e => {
-    if (kotor && !confirm('Isian di halaman ini belum disimpan. Tetap pindah halaman?')) e.preventDefault(); else kotor = false; }));
 }
 </script>
 {% else %}
