@@ -325,9 +325,18 @@ def tiket_barang(request, tiket_id):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect(request.get_full_path())
-    kelompok, nomor, jumlah_halaman, total = svc_barang.halaman(t, cari, nomor, izin) if t.bisa_diisi and izin else ([], 1, 1, 0)
+    kategori = request.GET.get("kategori", "")
+    brand = request.GET.get("brand", "")
+    status = request.GET.get("status", "") if "aktif" in izin else ""
+    kelompok, nomor, jumlah_halaman, total = (svc_barang.halaman(t, cari, nomor, izin, kategori, brand, status)
+                                              if t.bisa_diisi and izin else ([], 1, 1, 0))
+    daftar_kategori, daftar_brand = svc_barang.pilihan_saring(t) if t.bisa_diisi and izin else ([], [])
+    from urllib.parse import urlencode
+    saring = urlencode({k: v for k, v in (("q", cari), ("kategori", kategori), ("brand", brand), ("status", status)) if v})
     return render(request, "gudang/tiket_barang.html", {
         "menu": "tiket", "t": t, "cari": cari, "kelompok": kelompok, "nomor": nomor,
+        "kategori": kategori, "brand": brand, "status": status, "saring": saring,
+        "daftar_kategori": daftar_kategori, "daftar_brand": daftar_brand,
         "jumlah_halaman": jumlah_halaman, "total": total, "jumlah_usulan": t.usulan.count(),
         "izin_teks": svc_barang.izin_teks(t), "lingkup_teks": svc_barang.lingkup_teks(t),
         "boleh_harga": "harga" in izin, "boleh_alias": "alias" in izin, "boleh_aktif": "aktif" in izin,

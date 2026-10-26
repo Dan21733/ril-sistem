@@ -12,8 +12,8 @@
 {% for t in aktif %}
 <a class="kartu" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% elif t.jenis == 'hitung' %}{% url 'gudang:tiket_hitung' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-    <div><b style="font-size:16px">#{{ t.id }} · {{ t.tujuan }}</b>
-      <div class="redup kecil" style="margin-top:4px">{% if t.jenis == 'barang' %}{{ t.izin_teks }} · {{ t.lingkup_teks }}{% elif t.jenis == 'hitung' %}Hitung stok {{ t.lingkup_teks }}{% else %}Pindah stok antar lokasi dan perubahan rak{% if t.lingkup %} · {{ t.lingkup }}{% endif %}{% endif %}</div></div>
+    <div style="min-width:0"><b class="potong2" style="font-size:16px">#{{ t.id }} · {{ t.tujuan }}</b>
+      <div class="redup kecil potong2" style="margin-top:4px">{% if t.jenis == 'barang' %}{{ t.izin_teks }} · {{ t.lingkup_teks }}{% elif t.jenis == 'hitung' %}Hitung stok {{ t.lingkup_teks }}{% else %}Pindah stok antar lokasi dan perubahan rak{% if t.lingkup %} · {{ t.lingkup }}{% endif %}{% endif %}</div></div>
     <span class="label awas" style="white-space:nowrap">sisa {% if t.sisa_menit >= 60 %}{% widthratio t.sisa_menit 60 1 %} jam{% else %}{{ t.sisa_menit }} menit{% endif %}</span>
   </div>
   <div class="kecil" style="margin-top:8px">Sampai {{ t.batas|date:"l, d M H:i" }} · {{ t.jumlah_usulan }} {% if t.jenis == 'hitung' %}dihitung{% else %}usulan{% endif %} · <span style="color:var(--aksen)">Kerjakan →</span></div>

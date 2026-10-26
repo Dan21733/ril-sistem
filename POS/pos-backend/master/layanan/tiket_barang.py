@@ -43,14 +43,29 @@ def bersihkan_saring(kategori=(), brand=()):
     return {"kategori": rapi(kategori), "brand": rapi(brand)}
 
 
+def _ringkas(nama, daftar, batas=3):
+    """'kategori A, B, C +70 lagi' supaya teks lingkup tetap pendek walau yang dipilih banyak."""
+    if len(daftar) <= batas:
+        return f"{nama} " + ", ".join(daftar)
+    return f"{nama} " + ", ".join(daftar[:batas]) + f" +{len(daftar) - batas} lagi"
+
+
 def lingkup_teks(t):
     s = t.saring or {}
     bagian = []
     if s.get("kategori"):
-        bagian.append("kategori " + ", ".join(s["kategori"]))
+        bagian.append(_ringkas("kategori", s["kategori"]))
     if s.get("brand"):
-        bagian.append("brand " + ", ".join(s["brand"]))
+        bagian.append(_ringkas("brand", s["brand"]))
     return "; ".join(bagian) or "semua barang"
+
+
+def pilihan_saring(t):
+    """Kategori dan brand yang ada di lingkup tiket, untuk saringan di halaman isian."""
+    qs = _barang(t)
+    kategori = sorted({k for k in qs.values_list("category", flat=True).distinct() if k}, key=str.lower)
+    brand = sorted({b for b in qs.values_list("brand", flat=True).distinct() if b}, key=str.lower)
+    return kategori, brand
 
 
 def izin_teks(t):
@@ -58,14 +73,21 @@ def izin_teks(t):
     return ", ".join(label[k] for k in t.izin if k in label)
 
 
-def _barang(t, cari=""):
-    """Baris item (tabel kasir) yang masuk lingkup tiket, tanpa barang di keranjang sampah."""
+def _barang(t, cari="", kategori="", brand=""):
+    """Baris item (tabel kasir) yang masuk lingkup tiket, tanpa barang di keranjang sampah.
+
+    `kategori`/`brand`: saringan tambahan dari halaman isian (tetap di dalam lingkup tiket).
+    """
     qs = Item.objects.all()
     s = t.saring or {}
     if s.get("kategori"):
         qs = qs.filter(category__in=s["kategori"])
     if s.get("brand"):
         qs = qs.filter(brand__in=s["brand"])
+    if kategori:
+        qs = qs.filter(category=kategori)
+    if brand:
+        qs = qs.filter(brand=brand)
     for kata in rapikan_teks(cari).split()[:6]:
         qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(category__icontains=kata)
                        | Q(brand__icontains=kata))
@@ -104,15 +126,17 @@ def _harus_bisa_diisi(pengguna, t):
 # ---------------------------------------------------------------------------
 
 
-def halaman(t, cari="", nomor=1, izin=None):
+def halaman(t, cari="", nomor=1, izin=None, kategori="", brand="", status=""):
     """Barang untuk satu halaman isian admin, dikelompokkan per nama barang.
 
     Hasil: (kelompok, nomor, jumlah_halaman, jumlah_varian). Tanpa modal/stok.
     """
     izin = t.izin if izin is None else izin
     hanya_aktif = "aktif" not in izin
-    baris = list(_barang(t, cari).values("item_name", "variant", "max_price", "min_price"))
+    baris = list(_barang(t, cari, kategori, brand).values("item_name", "variant", "max_price", "min_price"))
     info = _info_varian(baris, hanya_aktif)
+    if status in ("aktif", "nonaktif"):
+        info = {k: v for k, v in info.items() if v.aktif == (status == "aktif")}
     baris = urut_alami([b for b in baris if (b["item_name"], b["variant"]) in info])
     total = len(baris)
     jumlah_halaman = max(1, -(-total // PER_HALAMAN))

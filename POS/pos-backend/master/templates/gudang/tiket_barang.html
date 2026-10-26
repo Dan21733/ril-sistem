@@ -2,15 +2,23 @@
 {% block judul %}Tugas #{{ t.id }}{% endblock %}
 {% block isi %}
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
-  <span class="redup kecil">{{ izin_teks }} · {{ lingkup_teks }} · sampai {{ t.batas|date:"d M H:i" }} · <b>{{ jumlah_usulan }}</b> usulan</span></div>
+  <span class="redup kecil" style="overflow-wrap:anywhere">{{ izin_teks }} · {{ lingkup_teks }} · sampai {{ t.batas|date:"d M H:i" }} · <b>{{ jumlah_usulan }}</b> usulan</span></div>
 
 {% if tanpa_hak %}
 <div class="pesan info">Akunmu tidak punya hak mengusulkan apa pun di tugas ini. Hubungi pemilik.</div>
 {% elif t.bisa_diisi %}
-<form method="get" class="alat">
-  <input type="search" name="q" value="{{ cari }}" placeholder="Cari nama barang, varian, kategori, brand" aria-label="Cari barang">
-  <button class="tombol" type="submit">Cari</button><span class="kecil redup">{{ total }} varian</span>
+<form method="get" class="alat saring-barang">
+  <input type="search" name="q" value="{{ cari }}" placeholder="Cari nama barang atau varian" aria-label="Cari barang">
+  {% if daftar_kategori|length > 1 %}<select name="kategori" style="max-width:220px" aria-label="Kategori" onchange="this.form.submit()"><option value="">Semua kategori</option>{% for k in daftar_kategori %}<option {% if k == kategori %}selected{% endif %}>{{ k }}</option>{% endfor %}</select>{% endif %}
+  {% if daftar_brand|length > 1 %}<select name="brand" style="max-width:220px" aria-label="Brand" onchange="this.form.submit()"><option value="">Semua brand</option>{% for b in daftar_brand %}<option {% if b == brand %}selected{% endif %}>{{ b }}</option>{% endfor %}</select>{% endif %}
+  {% if boleh_aktif %}<select name="status" style="max-width:200px" aria-label="Status" onchange="this.form.submit()"><option value="">Aktif &amp; nonaktif</option><option value="aktif" {% if status == 'aktif' %}selected{% endif %}>Hanya aktif</option><option value="nonaktif" {% if status == 'nonaktif' %}selected{% endif %}>Hanya nonaktif</option></select>{% endif %}
+  <button class="tombol" type="submit">Cari</button>
+  {% if saring %}<a class="tombol" href="?">Reset</a>{% endif %}
+  <span class="kecil redup">{{ total }} varian</span>
 </form>
+{% if boleh_aktif and kelompok %}<div class="kecil" style="margin:-4px 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Di halaman ini:
+  <button type="button" class="tombol kecil" data-aktif-semua="1">Centang semua Aktif</button>
+  <button type="button" class="tombol kecil" data-aktif-semua="0">Hilangkan semua centang Aktif</button></div>{% endif %}
 
 <form method="post" id="isian">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
 {% for k in kelompok %}
@@ -50,8 +58,8 @@
 <div class="bawah" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
   <button class="tombol utama" type="submit">Simpan halaman ini</button>
   {% if jumlah_halaman > 1 %}<span class="kecil">Halaman {{ nomor }} dari {{ jumlah_halaman }}
-    {% if nomor > 1 %}<a class="tombol kecil pindah" href="?q={{ cari|urlencode }}&hal={{ nomor|add:'-1' }}">← Sebelumnya</a>{% endif %}
-    {% if nomor < jumlah_halaman %}<a class="tombol kecil pindah" href="?q={{ cari|urlencode }}&hal={{ nomor|add:'1' }}">Berikutnya →</a>{% endif %}</span>{% endif %}
+    {% if nomor > 1 %}<a class="tombol kecil pindah" href="?{{ saring }}{% if saring %}&{% endif %}hal={{ nomor|add:'-1' }}">← Sebelumnya</a>{% endif %}
+    {% if nomor < jumlah_halaman %}<a class="tombol kecil pindah" href="?{{ saring }}{% if saring %}&{% endif %}hal={{ nomor|add:'1' }}">Berikutnya →</a>{% endif %}</span>{% endif %}
 </div>
 {% endif %}
 </form>
@@ -69,6 +77,10 @@ let kotor = false;
 if (isian) {
   isian.addEventListener('input', e => { kotor = true; e.target.classList.toggle('diubah', 'awal' in e.target.dataset && e.target.value !== e.target.dataset.awal); });
   isian.addEventListener('submit', () => { kotor = false; });
+  document.querySelectorAll('[data-aktif-semua]').forEach(b => b.addEventListener('click', () => {
+    const nyala = b.dataset.aktifSemua === '1';
+    isian.querySelectorAll('input[type=checkbox][name^="ak_"]').forEach(c => { if (c.checked !== nyala){ c.checked = nyala; kotor = true; } });
+  }));
   window.addEventListener('beforeunload', e => { if (kotor) { e.preventDefault(); e.returnValue = ''; } });
   document.querySelectorAll('a.pindah').forEach(a => a.addEventListener('click', e => {
     if (kotor && !confirm('Isian di halaman ini belum disimpan. Tetap pindah halaman?')) e.preventDefault(); else kotor = false; }));

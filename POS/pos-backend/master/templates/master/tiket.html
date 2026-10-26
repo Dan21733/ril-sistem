@@ -170,7 +170,8 @@
         seret = null;
       });
     });
-    el.nilai = () => [...kanan.children].map(k => k.dataset.nilai);
+    // semua kartu dipilih = sama dengan tidak memilih (semua); tidak perlu mengirim ratusan nama
+    el.nilai = () => kiri.children.length ? [...kanan.children].map(k => k.dataset.nilai) : [];
     el.teks = () => [...kanan.children].map(k => k.dataset.nilai);
     hitung();
   }
@@ -282,8 +283,11 @@
     const off = -new Date(batas.value).getTimezoneOffset(), tanda = off >= 0 ? '+' : '-';
     document.getElementById('tb-batas-kirim').value = batas.value + tanda + duaDigit(Math.floor(Math.abs(off) / 60)) + ':' + duaDigit(Math.abs(off) % 60);
     const tujuan = document.getElementById('tb-tujuan');
-    if (!tujuan.value.trim()){   // pesan kosong: pakai ringkasan tugas
-      const t = ({barang: 'Data barang', hitung: 'Hitung stok', lokasi: 'Pindah barang/rak'})[jenis()] + (lingkupTeks() ? ': ' + lingkupTeks() : '');
+    if (!tujuan.value.trim()){   // pesan kosong: judul pendek; rincian lingkup tetap tersimpan terpisah
+      const j = jenis();
+      let t = ({barang: 'Data barang', hitung: 'Hitung stok', lokasi: 'Pindah barang/rak'})[j];
+      if (j === 'barang') t += ': ' + $$('input[name=izin]:checked').map(c => c.closest('.tb-chip').textContent.trim().toLowerCase()).join(', ');
+      if (j === 'hitung'){ const l = form.querySelector('input[name=lokasi]:checked'); if (l) t += ' di ' + l.closest('.tb-chip').textContent.trim(); }
       tujuan.value = t.slice(0, 300);
     }
   });

@@ -250,6 +250,29 @@ class TiketBarangTest(Dasar):
         data.update(lebih)
         return self.client.post(reverse("gudang:tiket_barang", args=[self.t.id]), data)
 
+    def test_saringan_brand_status_dan_lingkup_ringkas(self):
+        buat_item("Cat Nippon", "Putih 1kg", floor=40000, jual=46000, kategori="Cat", brand="Nippon")
+        Item.objects.filter(item_name="Cat Avian").update(brand="Avian")
+        layanan.sinkron_info()
+        VarianInfo.objects.filter(pk=self.hitam.pk).update(aktif=False)
+        self.client.force_login(self.sari)
+        url = reverse("gudang:tiket_barang", args=[self.t.id])
+        r = self.client.get(url)
+        self.assertContains(r, "Cat Nippon")
+        self.assertContains(r, "Semua brand")
+        r = self.client.get(url + "?brand=Nippon")
+        self.assertContains(r, "Cat Nippon")
+        self.assertNotContains(r, "Cat Avian")
+        self.assertContains(r, "<option selected>Nippon</option>")   # pilihan saringan tetap terpilih
+        r = self.client.get(url + "?status=nonaktif")
+        self.assertContains(r, "Hitam 1kg")
+        self.assertNotContains(r, "Putih 1kg")
+        self.assertContains(r, "Centang semua Aktif")
+        from master.layanan import tiket_barang
+        t = Tiket.objects.get(pk=self.t.pk)
+        t.saring = {"kategori": ["A", "B", "C", "D", "E"], "brand": []}
+        self.assertEqual(tiket_barang.lingkup_teks(t), "kategori A, B, C +2 lagi")
+
     def test_izin_tiket_dibatasi_hak_admin(self):
         akun_karyawan.atur_hak_ops(self.admin, self.wid, ["ops_barang_alias"])
         self.sari = get_user_model().objects.get(pk=self.sari.pk)   # hak di-cache per objek user
