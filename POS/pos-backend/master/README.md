@@ -142,7 +142,7 @@ Pengaman lain:
 
 Menu **Kasir** (hak "Kasir: karyawan, PIN, tablet, aturan kasir"):
 
-- **Karyawan & PIN**: tambah karyawan (PIN 6 angka dibuat sistem: tidak mudah ditebak dan tidak
+- **Karyawan & hak akses**: tambah karyawan (PIN 6 angka dibuat sistem: tidak mudah ditebak dan tidak
   sama dengan PIN siapa pun yang masih mungkin dipakai), ganti nama, reset PIN, nonaktifkan.
   PIN terbaca (`master_pin_tampil`) hanya disimpan 3 hari setelah mulai berlaku untuk dibagikan
   (ada slip cetak); setelah itu hanya bisa di-reset. Kasir sendiri hanya menyimpan hash.
@@ -154,7 +154,7 @@ Menu **Kasir** (hak "Kasir: karyawan, PIN, tablet, aturan kasir"):
   "berlaku sejak awal" saat menu dibuka.
 - **Ganti PIN berkala** (Aturan kasir): tiap N hari pada hari & jam tertentu. PIN baru dibuat
   `rotasi_siapkan_hari` sebelumnya oleh layanan `jadwal` (`manage.py master_jadwal --terus`),
-  muncul di Karyawan & PIN untuk dibagikan, lalu berlaku tepat pada jamnya. Mengubah jadwal
+  muncul di Karyawan & hak akses untuk dibagikan, lalu berlaku tepat pada jamnya. Mengubah jadwal
   membatalkan PIN yang sudah disiapkan untuk jadwal lama.
 - **Tablet kasir**: daftar tablet (kode, nama, terakhir terlihat), nonaktifkan/aktifkan, dan
   **pendaftaran tablet baru buka/tutup** (whitelist). Tertutup = pendaftaran baru ditolak 403;
@@ -175,7 +175,7 @@ Menu **Kasir** (hak "Kasir: karyawan, PIN, tablet, aturan kasir"):
   ditolak seperti biasa, supaya kasir bisa memperbaikinya. Konflik nomor (409) dan batas
   percobaan PIN (429) tidak ditahan.
 - **Harga di bawah floor** (keranjang tablet): boleh diketik, lalu di langkah PIN kasir wajib
-  memilih salah satu: **PIN penyetuju** (karyawan yang ditandai "penyetuju" di Karyawan & PIN,
+  memilih salah satu: **PIN penyetuju** (karyawan yang ditandai "penyetuju" di Karyawan & hak akses,
   pengaturan `penyetuju_floor`; diperiksa server, nota langsung masuk, persetujuan tercatat di
   `nota_persetujuan` dan tampil di panel nota master) atau **"tidak ada penyetuju"** (`minta_acc`:
   nota masuk Nota perlu ACC). Di atas pricelist dan harga pas (floor = pricelist) tetap ditolak.
@@ -261,7 +261,7 @@ Cara kerja tiap tugas ada di halaman **Panduan** (tombol `?`), hanya bagian yang
 - **Kiriman sebagian**: kalau ada barang yang datang kurang, saat ACC pemilik wajib memilih sisanya
   *ditunggu* (dibuat PO lanjutan "Sisa dari PO-…", pemasok dan harga sama, muncul lagi di Tugas gudang)
   atau *tidak jadi*.
-- **Hitung stok** hanya lewat tugas jenis *Hitung stok* dari pemilik (Gudang › Tiket admin): lokasi wajib,
+- **Hitung stok** hanya lewat tugas jenis *Hitung stok* dari pemilik (Karyawan › Tugas karyawan › Buka tugas baru): lokasi wajib,
   rak dan/atau kategori (kosong = semua barang aktif). Gudang mencari/pilih rak, mengisi jumlah, lalu
   mengirim. Stok sistem tidak diperlihatkan. Hasilnya menjadi opname yang terhubung ke tugas; tugas ikut
   selesai/ditolak saat opname di-ACC/ditolak. Tugas yang lewat batas tapi sudah ada hitungan bisa
@@ -277,6 +277,17 @@ server gudang (di bawah).
 ## Daftar fitur master
 
 - Login dengan hak per akun (lihat "Akses dan hak").
+- Menu samping (26 Okt 2026): Beranda · Laporan (penjualan, pergerakan stok, riwayat stok per barang,
+  selisih stok) · Penjualan (nota kasir, tulis tangan, perlu ACC, retur) · Barang · Stok & gudang ·
+  Pembelian · Karyawan (karyawan & hak akses, tugas karyawan, perangkat) · Pengaturan.
+- Beranda berisi widget yang bisa diatur per akun (tombol **Atur tampilan**: seret untuk memindah,
+  ◀ ▶, ⇔ lebar/sempit, × sembunyikan, + tambah, Kembalikan bawaan). Susunan disimpan di
+  `master_preferensi_akun.dasbor`. Widget yang butuh hak (laba = lihat modal, hutang = pembelian, dll.)
+  tidak muncul untuk akun tanpa hak itu. Angka penjualan = angka menu Laporan (penjualan barang, tanpa ongkir,
+  dikurangi refund/retur). **Laba bersih belum ada**: biaya operasional belum dicatat di sistem.
+- Laporan penjualan per jam (hanya nota kasir) dan per hari Senin–Minggu, dengan grafik batang.
+- Pergerakan stok: barang masuk / keluar / penyesuaian per periode, per kategori, dan barang tidak laku
+  (ada stok, tidak terjual 30/60/90/180 hari; modal mengendap hanya untuk yang boleh lihat modal).
 - Daftar barang: satu baris per barang; cari (nama, varian, brand, alias), filter
   kategori, brand, rak, status, dan "perlu diperbaiki". Klik barang untuk membuka
   panel di kanan dan mengedit variannya.
@@ -555,7 +566,7 @@ Aplikasi operasional (`/gudang/`, dipakai admin dan kepala gudang) dijaga tiga l
    halaman PIN pun tidak tampil. Mencabut perangkat langsung mengeluarkan siapa pun yang sedang masuk di situ.
    Cookie perangkat acak, ditandatangani, HttpOnly; database hanya menyimpan sidiknya. Data browser dihapus = perangkat baru.
 2. **PIN kasir + hak per karyawan.** Karyawan masuk dengan PIN kasirnya sendiri. Haknya dicentang satu-satu di
-   **Kasir › Karyawan & PIN**, kolom *Hak akses*:
+   **Kasir › Karyawan & hak akses**, kolom *Hak akses*:
    - Kasir: *Jualan di kasir* (dicabut = PIN tidak dikirim ke tablet dan ditolak untuk jualan/void/retur; nota offline
      lama yang telat terkirim masuk Nota perlu ACC) dan *Setujui harga di bawah floor*.
    - Gudang: ambil barang, barang datang, hitung stok (lewat tugas), buka dus. Tugas lokasi juga punya *lihat jumlah
@@ -569,7 +580,7 @@ Aplikasi operasional (`/gudang/`, dipakai admin dan kepala gudang) dijaga tiga l
 3. **Tiket.** Admin tanpa peran kepala gudang tidak punya menu; setelah masuk hanya ada **Tugas**: tiket yang dibuka pemilik,
    apa yang boleh dikerjakan, dan sisa waktunya.
 
-**Tiket data barang** (master: **Gudang › Tiket admin**, jenis *Data barang*): pemilik memilih admin, batas waktu, apa yang boleh
+**Tiket data barang** (master: **Karyawan › Tugas karyawan**, jenis *Data barang*): pemilik memilih admin, batas waktu, apa yang boleh
 diusulkan (harga jual dan floor, alias, aktif/nonaktif), dan kategori/brand (kosong = semua). Admin hanya melihat nama barang,
 varian, harga jual, floor, alias, dan status aktif, tanpa modal, stok, supplier, atau laba. Isiannya disimpan sebagai usulan
 (`master_tiket_usulan`), floor di atas harga jual ditolak. Di halaman ACC semua usulan tercentang di awal, ada tombol

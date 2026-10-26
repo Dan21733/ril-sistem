@@ -345,13 +345,24 @@ def kelompok_baris(baris, kunci, urut="omzet"):
     return _urut_dan_bagian(daftar, urut)
 
 
+HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+
+
 def kelompok_nota(nota, kunci, urut="omzet"):
-    """Kelompokkan nota. kunci: kasir | bayar | hari."""
+    """Kelompokkan nota. kunci: kasir | bayar | hari | jam | harian (hari dalam seminggu).
+
+    "jam" hanya nota kasir: nota tulis tangan tidak punya jam.
+    """
+    zona = timezone.get_current_timezone()
     ambil_kunci = {
         "kasir": lambda n: n["kasir"],
         "bayar": lambda n: n["metode"],
-        "hari": lambda n, zona=timezone.get_current_timezone(): n["transaction_time"].astimezone(zona).date(),
+        "hari": lambda n: n["transaction_time"].astimezone(zona).date(),
+        "jam": lambda n: n["transaction_time"].astimezone(zona).hour,
+        "harian": lambda n: n["transaction_time"].astimezone(zona).weekday(),
     }[kunci]
+    if kunci == "jam":
+        nota = [n for n in nota if not n.get("manual")]
     hasil = {}
     for n in nota:
         k = ambil_kunci(n)
@@ -365,11 +376,25 @@ def kelompok_nota(nota, kunci, urut="omzet"):
     for h in daftar:
         h["margin"] = round(h["laba"] / h["omzet"] * 100, 1) if h["omzet"] else None
         h["qty"] = h["nota"]
-    if kunci == "hari":
+    if kunci in ("hari", "jam", "harian"):
+        if kunci == "jam":
+            ada = {h["nama"] for h in daftar}
+            for j in range(min([7, *ada]), max([17, *ada]) + 1):   # jam kosong tetap tampil di grafik
+                if j not in ada:
+                    daftar.append({"nama": j, "nota": 0, "omzet": 0, "laba": 0, "total": 0, "tanpa_modal": False,
+                                   "margin": None, "qty": 0})
+        if kunci == "harian":
+            ada = {h["nama"] for h in daftar}
+            daftar += [{"nama": d, "nota": 0, "omzet": 0, "laba": 0, "total": 0, "tanpa_modal": False, "margin": None,
+                        "qty": 0} for d in range(7) if d not in ada]
         daftar.sort(key=lambda h: h["nama"])
         puncak = max((h["omzet"] for h in daftar), default=0)
         for h in daftar:
             h["bagian"] = round(h["omzet"] / puncak * 100) if puncak else 0
+            if kunci == "jam":
+                h["label"] = f"{h['nama']:02d}.00"
+            elif kunci == "harian":
+                h["label"] = HARI[h["nama"]]
         return daftar
     return _urut_dan_bagian(daftar, urut)
 

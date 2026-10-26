@@ -115,7 +115,7 @@ PERAN = {
 }
 
 # Hak karyawan (masuk dengan PIN kasir) di aplikasi operasional, dicentang satu-satu di
-# Kasir > Karyawan & PIN. "gudang" (boleh membuka aplikasinya) ikut otomatis kalau ada satu saja.
+# Karyawan > Karyawan & hak akses. "gudang" (boleh membuka aplikasinya) ikut otomatis kalau ada satu saja.
 HAK_KARYAWAN_OPS = [
     ("Gudang", [
         ("gudang_ambil", "Ambil barang"),
@@ -237,6 +237,12 @@ def konteks(request):
         from master.layanan.nota_tinjau import jumlah_menunggu as tinjau_menunggu
         return tinjau_menunggu()
 
+    def _tugas_acc():
+        if "kelola_lokasi" not in hak_pengguna(user):
+            return 0
+        from master.models import Tiket
+        return Tiket.objects.filter(status="dikirim").count()
+
     def _tema():
         if not getattr(user, "is_authenticated", False):
             return "oranye"
@@ -249,4 +255,5 @@ def konteks(request):
             "toko_gudang": SimpleLazyObject(_toko_gudang),
             "banyak_toko": SimpleLazyObject(lambda: len(daftar) > 1),
             "jumlah_ambil": SimpleLazyObject(_ambil), "jumlah_retur": SimpleLazyObject(_retur),
-            "jumlah_tinjau": SimpleLazyObject(_tinjau)}
+            "jumlah_tinjau": SimpleLazyObject(_tinjau), "jumlah_tugas_acc": SimpleLazyObject(_tugas_acc),
+            "jumlah_penjualan": SimpleLazyObject(lambda: str(int(str(_retur())) + int(str(_tinjau()))))}

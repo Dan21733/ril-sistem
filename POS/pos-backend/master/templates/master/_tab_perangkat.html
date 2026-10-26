@@ -1,0 +1,11 @@
+<h2>Perangkat</h2>
+<div class="tab-hal">
+  <a href="{% url 'master:tablet' %}" class="{% if tab_perangkat == 'tablet' %}aktif{% endif %}">Tablet kasir</a>
+  <a href="{% url 'master:perangkat_ops' %}" class="{% if tab_perangkat == 'ops' %}aktif{% endif %}">Tablet/HP gudang &amp; laptop admin</a>
+</div>
+<style>
+.tab-hal{display:flex;gap:4px;border-bottom:1px solid var(--garis);margin:6px 0 16px;flex-wrap:wrap}
+.tab-hal a{padding:10px 16px;color:var(--redup);border-bottom:3px solid transparent;margin-bottom:-1px;font-weight:600}
+.tab-hal a:hover{text-decoration:none;color:var(--teks)}
+.tab-hal a.aktif{color:var(--aksen);border-bottom-color:var(--aksen)}
+</style>

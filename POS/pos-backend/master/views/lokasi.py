@@ -247,7 +247,8 @@ def hitung_acak_detail(request, h_id):
 
 
 @perlu("kelola_lokasi")
-def tiket_daftar(request):
+def tiket_daftar(request, baru=False):
+    """Tugas karyawan: daftar (dikelompokkan per keadaan) atau formulir buka tugas baru (baru=True)."""
     from datetime import timedelta
 
     from django.contrib.auth import get_user_model
@@ -264,9 +265,11 @@ def tiket_daftar(request):
                                jenis=request.POST.get("jenis") or "lokasi", izin=request.POST.getlist("izin"),
                                kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"),
                                lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"))
-            messages.success(request, f"Tiket #{t.id} dibuka untuk {t.untuk.first_name or t.untuk.username}.")
+            messages.success(request, f"Tugas #{t.id} dibuka untuk {t.untuk.first_name or t.untuk.username}.")
         except Tolak as tolak:
             messages.error(request, str(tolak))
+            if baru:
+                return redirect("master:tiket_baru")
         return redirect("master:tiket")
     from pos.models import Item
     from master.layanan.inti import kunci_alami
@@ -276,18 +279,28 @@ def tiket_daftar(request):
         jenis = svc_tiket.jenis_untuk(h) if "gudang" in h and not u.is_superuser else []
         if jenis:
             admin.append({"u": u, "jenis": " ".join(jenis), "izin": " ".join(svc_tiket.izin_barang_untuk(h))})
-    daftar = list(Tiket.objects.select_related("untuk").prefetch_related("baris", "usulan")[:60])
+    if baru:
+        return render(request, "master/tiket_baru.html", {
+            "menu": "tiket", "admin": admin, "izin_barang": Tiket.IZIN_BARANG,
+            "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
+            "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
+            "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
+            "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
+        })
+    daftar = list(Tiket.objects.select_related("untuk").prefetch_related("baris", "usulan")[:120])
     for t in daftar:
         t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else
                            (t.opname.baris.count() if t.jenis == "hitung" and hasattr(t, "opname") else len(t.baris.all())))
-    return render(request, "master/tiket.html", {
-        "menu": "tiket", "daftar": daftar,
-        "admin": admin, "izin_barang": Tiket.IZIN_BARANG,
-        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
-        "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
-        "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
-        "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
-    })
+    acc = [t for t in daftar if t.status == "dikirim"]
+    jalan = [t for t in daftar if t.status == "terbuka" and not t.lewat_batas]
+    lewat = [t for t in daftar if t.status == "terbuka" and t.lewat_batas]
+    selesai = [t for t in daftar if t.status not in ("dikirim", "terbuka")][:40]
+    kelompok = [("Menunggu ACC kamu", acc, "Tidak ada yang menunggu ACC."),
+                ("Sedang dikerjakan", jalan, "Tidak ada tugas yang sedang berjalan.")]
+    if lewat:
+        kelompok.append(("Lewat batas waktu", lewat, ""))
+    kelompok.append(("Sudah selesai", selesai, "Belum ada."))
+    return render(request, "master/tiket.html", {"menu": "tiket", "admin": admin, "kelompok": kelompok})
 
 
 @perlu("kelola_lokasi")

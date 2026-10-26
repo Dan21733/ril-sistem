@@ -1,0 +1,72 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pergerakan stok{% endblock %}
+{% block isi %}
+<h2>Pergerakan stok</h2>
+<p class="sub">{{ periode.awal|date:"d M Y" }}{% if periode.awal != periode.akhir %} sampai {{ periode.akhir|date:"d M Y" }}{% endif %}. Angka dalam jumlah barang (biji/satuan), bukan rupiah.</p>
+
+<form method="get" class="kartu baris" style="margin-bottom:18px">
+  <div style="min-width:170px"><label>Periode</label><select name="periode" onchange="document.getElementById('atur-tgl').style.display = this.value === 'atur' ? 'flex' : 'none'; if (this.value !== 'atur') this.form.submit()">
+    <option value="hari" {% if periode.pilih == "hari" %}selected{% endif %}>Hari ini</option><option value="7" {% if periode.pilih == "7" %}selected{% endif %}>7 hari terakhir</option>
+    <option value="30" {% if periode.pilih == "30" %}selected{% endif %}>30 hari terakhir</option><option value="bulan" {% if periode.pilih == "bulan" %}selected{% endif %}>Bulan ini</option>
+    <option value="atur" {% if periode.pilih == "atur" %}selected{% endif %}>Atur tanggal</option></select></div>
+  <div id="atur-tgl" class="baris" style="display:{% if periode.pilih == "atur" %}flex{% else %}none{% endif %}">
+    <div style="width:180px"><label>Dari</label><input type="date" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"></div>
+    <div style="width:180px"><label>Sampai</label><input type="date" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
+  </div>
+  <input type="hidden" name="hari" value="{{ hari }}">
+  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+</form>
+
+<div class="kisi" style="margin-bottom:18px">
+  {% for k in kelompok %}
+  <div class="kartu"><div class="redup kecil">{{ k.judul }}</div>
+    <div style="font-size:24px;font-weight:600">{% if k.kunci == "masuk" %}+{{ k.tambah|ribuan }}{% elif k.kunci == "keluar" %}−{{ k.kurang|ribuan }}{% else %}+{{ k.tambah|ribuan }} / −{{ k.kurang|ribuan }}{% endif %}</div>
+    {% for b in k.baris %}<div class="kecil" style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px solid var(--garis)"><span>{{ b.label }}</span><span class="redup" style="white-space:nowrap">{% if b.tambah %}+{{ b.tambah|ribuan }}{% endif %}{% if b.tambah and b.kurang %} / {% endif %}{% if b.kurang %}−{{ b.kurang|ribuan }}{% endif %} · {{ b.kali|ribuan }}×</span></div>
+    {% empty %}<div class="redup kecil">Tidak ada.</div>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<h3>Per kategori: masuk vs keluar</h3>
+{% if per_kategori %}
+<div class="kartu">
+  <div class="kecil redup" style="margin-bottom:8px"><span class="tanda masuk"></span> masuk &nbsp; <span class="tanda keluar"></span> keluar (terjual, transfer, retur ke supplier)</div>
+  {% for d in per_kategori %}
+  <div class="pk-baris"><div class="pk-nama">{{ d.nama }}</div>
+    <div class="pk-bar"><div class="masuk" style="width:{{ d.bagian_masuk }}%"></div><div class="keluar" style="width:{{ d.bagian_keluar }}%"></div></div>
+    <div class="pk-angka">+{{ d.masuk|ribuan }} / −{{ d.keluar|ribuan }}</div></div>
+  {% endfor %}
+</div>
+{% else %}<p class="redup kecil">Tidak ada pergerakan di periode ini.</p>{% endif %}
+
+<div class="baris" style="justify-content:space-between;align-items:end;margin-top:24px">
+  <div><h3 style="margin-bottom:2px">Barang tidak laku</h3>
+    <p class="sub" style="margin:0">Masih ada stok, aktif, tapi tidak terjual sama sekali dalam {{ hari }} hari terakhir: <b>{{ jumlah_lambat|ribuan }} varian</b>{% if nilai_lambat is not None %}, modal mengendap <b>{{ nilai_lambat|rupiah }}</b>{% endif %}.</p></div>
+  <form method="get" class="baris" style="gap:6px">
+    <input type="hidden" name="periode" value="{{ periode.pilih }}">{% if periode.pilih == "atur" %}<input type="hidden" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}">{% endif %}
+    <select name="hari" onchange="this.form.submit()" aria-label="Tidak terjual selama">{% for h in pilihan_hari %}<option value="{{ h }}" {% if h == hari %}selected{% endif %}>{{ h }} hari</option>{% endfor %}</select>
+  </form>
+</div>
+<div class="gulir" style="margin-top:10px"><table>
+  <tr><th>Barang</th><th>Kategori</th><th class="angka">Stok</th>{% if lihat_modal %}<th class="angka">Modal mengendap</th>{% endif %}<th>Terakhir terjual di kasir</th></tr>
+  {% for b in lambat %}
+  <tr><td>{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">/ {{ b.variant }}</span>{% endif %}</td><td>{{ b.category }}</td><td class="angka">{{ b.in_stock|ribuan }}</td>
+    {% if lihat_modal %}<td class="angka">{{ b.nilai|ribuan }}</td>{% endif %}<td class="redup kecil">{% if b.terakhir %}{{ b.terakhir|date:"d M Y" }}{% else %}belum pernah{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:24px;text-align:center">Semua barang yang ada stoknya terjual dalam {{ hari }} hari terakhir.</td></tr>
+  {% endfor %}
+</table></div>
+{% if jumlah_lambat > lambat|length %}<p class="redup kecil">Menampilkan {{ lambat|length }} dari {{ jumlah_lambat|ribuan }}{% if lihat_modal %}, urut dari modal mengendap terbesar{% else %}, urut dari stok terbanyak{% endif %}.</p>{% endif %}
+<p class="redup kecil">Penjualan dihitung sejak sistem kasir baru dipakai; barang yang terjual lewat Moka tidak tercatat di sini.</p>
+
+<style>
+.pk-baris{display:grid;grid-template-columns:minmax(120px,220px) 1fr auto;gap:10px;align-items:center;padding:5px 0;font-size:15px}
+.pk-nama{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-bar{display:flex;flex-direction:column;gap:3px}
+.pk-bar div{height:8px;border-radius:4px;min-width:2px}
+.pk-bar .masuk,.tanda.masuk{background:var(--baik)}
+.pk-bar .keluar,.tanda.keluar{background:var(--aksen)}
+.tanda{display:inline-block;width:12px;height:8px;border-radius:3px;vertical-align:middle}
+.pk-angka{font-variant-numeric:tabular-nums;color:var(--redup);font-size:14px;white-space:nowrap}
+input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+</style>
+{% endblock %}

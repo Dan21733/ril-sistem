@@ -136,48 +136,39 @@ def halaman_alami(qs, kolom, per_halaman, hal):
 
 @perlu()
 def dashboard(request):
+    """Beranda: widget yang bisa diatur per akun (lihat master/layanan/dasbor.py)."""
+    from master.layanan import dasbor
+    from master.layanan.toko import toko_aktif
+    from master.models import PreferensiAkun
     hak = hak_pengguna(request.user)
+    pref = PreferensiAkun.objects.filter(user=request.user).first()
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            data = None
+        if not isinstance(data, dict):
+            return JsonResponse({"ok": False}, status=400)
+        pref = pref or PreferensiAkun(user=request.user)
+        pref.dasbor = [] if data.get("bawaan") else dasbor.bersihkan(data.get("susunan"), hak)
+        pref.save()
+        return JsonResponse({"ok": True})
+
     layanan.pastikan_info()
-    semua = Item.objects.all()
-    kotak = []
-    for aturan in masalah.aturan_untuk(hak):
-        kotak.append({**aturan, "jumlah": aturan["saring"](semua).count()})
-
-    sekarang = timezone.localtime()
-    awal = timezone.make_aware(datetime.combine(sekarang.date(), time.min))
-    from master.layanan.toko import saring as saring_toko, toko_aktif, utama
+    tampil = dasbor.susunan(pref, hak)
+    kunci = {w["k"] for w in tampil}
     toko = toko_aktif(request)
-    # Nota kasir milik toko yang memegang stok kasir; toko lain hanya punya nota tulis tangan.
-    hari_ini = Transactions.objects.filter(transaction_time__gte=awal, transaction_time__lt=awal + timedelta(days=1))
-    if toko is None or toko != utama():
-        hari_ini = hari_ini.none()
-    ringkas = hari_ini.aggregate(nota=Count("sync_id"), total=Sum("total_amount"))
-    from master.models import NotaManual
-    manual = saring_toko(NotaManual.objects.filter(batal=False, tanggal=sekarang.date()), request).aggregate(
-        nota=Count("id"), total=Sum("total"))
-    ringkas = {"nota": (ringkas["nota"] or 0) + (manual["nota"] or 0), "total": (ringkas["total"] or 0) + (manual["total"] or 0)}
-    # Uang yang dikembalikan hari ini (refund/retur/void) mengurangi total, sama dengan laporan.
-    from master.layanan import laporan as svc_laporan
-    if toko is None or toko == utama():
-        ringkas["total"] -= sum(k["uang"] for k in svc_laporan.ambil_kembali(awal, awal + timedelta(days=1)))
-
-    from master.layanan import pembelian as svc_beli
-    from master.models import Opname, Pembelian
-
+    jual = dasbor.penjualan(toko, hak) if kunci & {"omzet_hari", "laba_hari", "bulan", "minggu", "jam", "terlaris", "kategori"} else None
+    kotak = []
+    if "data_barang" in kunci:
+        semua = Item.objects.all()
+        kotak = [{**aturan, "jumlah": aturan["saring"](semua).count()} for aturan in masalah.aturan_untuk(hak)]
     return render(request, "master/dashboard.html", {
         "menu": "dashboard",
-        "hutang": svc_beli.ringkasan_hutang(toko=toko) if "pembelian" in hak else None,
-        "stok_habis": semua.filter(in_stock__lte=0).count(),
-        "stok_menipis": semua.filter(stock_alert__isnull=False, in_stock__lte=F("stock_alert"), in_stock__gt=0).count(),
-        "menunggu_acc": saring_toko(Pembelian.objects.filter(status="menunggu"), request).count() if "pembelian" in hak else 0,
-        "opname_menunggu": saring_toko(Opname.objects.filter(status="diajukan"), request).count() if "opname" in hak else None,
-        "kotak": kotak,
-        "jumlah_varian": semua.count(),
-        "jumlah_item": ItemInfo.objects.count(),
-        "jumlah_nonaktif": VarianInfo.objects.filter(aktif=False, sampah__isnull=True).count(),
-        "nota_hari_ini": ringkas["nota"] or 0,
-        "total_hari_ini": ringkas["total"] or 0,
-        "log_terbaru": Log.objects.all()[:8] if "lihat_log" in hak else [],
+        "tampil": tampil, "tersembunyi": dasbor.tersembunyi(tampil, hak),
+        "jual": jual, "lain": dasbor.lain(request, hak, toko), "kotak": kotak,
+        "jumlah_varian": Item.objects.count(), "jumlah_item": ItemInfo.objects.count(),
+        "log_terbaru": Log.objects.all()[:8] if "riwayat" in kunci else [],
     })
 
 
@@ -630,6 +621,30 @@ def stok_riwayat(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "daftar_jenis": [("jual_kasir", "Penjualan kasir"), *MutasiStok.JENIS],
         "daftar_pengguna": sorted(n for n in nama if n),
+    })
+
+
+@perlu("lihat_stok")
+def pergerakan(request):
+    """Laporan pergerakan stok (masuk, keluar, penyesuaian) dan barang yang tidak laku."""
+    from master.layanan import laporan as svc_laporan, pergerakan as svc
+    g = request.GET.copy()
+    if not g.get("periode"):
+        g["periode"] = "bulan"
+    periode = svc_laporan.baca_periode(g)
+    mulai, selesai = svc_laporan.rentang(periode["awal"], periode["akhir"])
+    kelompok, per_kategori = svc.ringkasan(mulai, selesai)
+    try:
+        hari = int(request.GET.get("hari") or 60)
+    except ValueError:
+        hari = 60
+    hari = hari if hari in (30, 60, 90, 180) else 60
+    lihat_modal = "lihat_modal" in hak_pengguna(request.user)
+    lambat, jumlah_lambat, nilai_lambat = svc.tidak_laku(hari, lihat_modal=lihat_modal)
+    return render(request, "master/pergerakan.html", {
+        "menu": "pergerakan", "periode": periode, "kelompok": kelompok, "per_kategori": per_kategori,
+        "hari": hari, "pilihan_hari": [30, 60, 90, 180], "lambat": lambat, "jumlah_lambat": jumlah_lambat, "nilai_lambat": nilai_lambat,
+        "lihat_modal": lihat_modal,
     })
 
 

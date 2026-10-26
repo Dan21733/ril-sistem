@@ -1,7 +1,7 @@
 {% extends "master/base.html" %}
-{% block judul %}Karyawan & PIN{% endblock %}
+{% block judul %}Karyawan & hak akses{% endblock %}
 {% block isi %}
-<h2>Karyawan &amp; PIN</h2>
+<h2>Karyawan &amp; hak akses</h2>
 <p class="sub">Karyawan yang memakai PIN di kasir. PIN dibuat sistem (6 angka, tidak mudah ditebak, tidak sama dengan PIN siapa pun) dan hanya terlihat di sini beberapa hari untuk dibagikan.</p>
 
 {% if pin_baru %}
@@ -74,7 +74,7 @@ document.querySelectorAll('.panel-hak form').forEach(f => {
   (nota offline lama atas namanya yang telat terkirim masuk Nota perlu ACC). Hak gudang dan tugas membuka menu di aplikasi operasional, hanya yang dicentang.<br>
 <b>Penyetuju</b>: PIN-nya bisa dipakai di tablet untuk menyetujui harga di bawah floor (biasanya kamu dan ibu, sebagai karyawan dengan PIN sendiri). Tanpa penyetuju, kasir bisa mengirim nota itu untuk di-ACC di Nota perlu ACC. Supaya PIN penyetuju tidak bisa ditebak dari data tablet, PIN-nya tidak disimpan di tablet dan hanya dicek server. Persetujuan saat offline tetap bisa: PIN dikunci di tablet dan dicek begitu nota terkirim (PIN salah = masuk Nota perlu ACC). Akibatnya, penyetuju tidak bisa menjadi kasir dengan PIN-nya sendiri saat tablet offline.
   <br><b>Aplikasi operasional</b>: karyawan yang punya hak gudang/tugas bisa masuk aplikasi admin/gudang dengan PIN kasir yang sama, tetapi hanya dari
-  <a href="{% url 'master:perangkat_ops' %}">perangkat yang kamu setujui</a>. Isinya hanya tugas (tiket) yang kamu buka di <a href="{% url 'master:tiket' %}">Tiket admin</a>.
+  <a href="{% url 'master:perangkat_ops' %}">perangkat yang kamu setujui</a>. Isinya hanya tugas yang kamu buka di <a href="{% url 'master:tiket' %}">Tugas karyawan</a>.
   Menonaktifkan karyawan atau mencabut semua hak gudang/tugasnya langsung mengeluarkannya.
   Ganti PIN berkala diatur di <a href="{% url 'master:aturan_kasir' %}">Aturan kasir</a>.
   Nota yang dibuat sebelum PIN diganti (misalnya nota offline yang telat terkirim) tetap diterima selama masa tenggang.</p>

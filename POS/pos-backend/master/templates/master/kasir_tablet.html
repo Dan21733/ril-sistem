@@ -1,7 +1,7 @@
 {% extends "master/base.html" %}
-{% block judul %}Tablet kasir{% endblock %}
+{% block judul %}Perangkat{% endblock %}
 {% block isi %}
-<h2>Tablet kasir</h2>
+{% include "master/_tab_perangkat.html" %}
 <p class="sub">Tablet yang pernah mendaftar ke kasir. Tablet nonaktif tidak bisa membuka daftar barang, mengirim nota, atau mengambil daftar PIN.</p>
 
 <div class="kartu" style="margin-bottom:20px;{% if terbuka %}border-color:#ecd89a{% endif %}">

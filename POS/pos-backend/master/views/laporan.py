@@ -25,6 +25,8 @@ JENIS = [
     ("barang", "Per barang"),
     ("kategori", "Per kategori"),
     ("brand", "Per brand"),
+    ("jam", "Per jam"),
+    ("harian", "Per hari (Senin–Minggu)"),
     ("kasir", "Per karyawan"),
     ("bayar", "Per cara bayar"),
 ]
@@ -159,6 +161,9 @@ def halaman(request):
         tabel = laporan.kelompok_baris(baris, jenis, urut)
     else:
         tabel = laporan.kelompok_nota(daftar, jenis, urut)
+    for h in tabel:   # label untuk tabel dan export (jam/hari dalam seminggu)
+        if "label" in h:
+            h["nama"] = h["label"]
 
     if request.GET.get("export") == "1":
         return _export(jenis, periode, tabel)
@@ -172,7 +177,8 @@ def halaman(request):
         "saring_barang": jenis in ("barang", "kategori", "brand"),
         "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
         "daftar_brand": sorted(set(Item.objects.values_list("brand", flat=True)), key=kunci_alami),
-        "satuan_qty": "Nota" if jenis in ("kasir", "bayar") else "Terjual",
+        "satuan_qty": "Nota" if jenis in ("kasir", "bayar", "jam", "harian") else "Terjual",
+        "grafik": jenis in ("jam", "harian"),
         **_konteks_filter(),
     })
 

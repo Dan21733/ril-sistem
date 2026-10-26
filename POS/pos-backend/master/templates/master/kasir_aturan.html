@@ -19,7 +19,7 @@
     <div style="width:200px"><label>PIN baru disiapkan (hari sebelumnya)</label><input type="number" name="rotasi_siapkan_hari" min="0" max="7" value="{{ a.rotasi_siapkan_hari }}"></div>
   </div>
   {% if a.rotasi_aktif == "1" and berikut %}
-  <p class="kecil">Ganti PIN berikutnya: <b>{{ berikut|date:"l, d M Y H:i" }}</b>. {% if siapkan_mulai <= now_waktu %}PIN baru sudah dibuat dan ada{% else %}PIN baru dibuat {{ siapkan_mulai|date:"l, d M H:i" }} dan muncul{% endif %} di <a href="{% url 'master:karyawan' %}">Karyawan &amp; PIN</a> untuk dibagikan.</p>
+  <p class="kecil">Ganti PIN berikutnya: <b>{{ berikut|date:"l, d M Y H:i" }}</b>. {% if siapkan_mulai <= now_waktu %}PIN baru sudah dibuat dan ada{% else %}PIN baru dibuat {{ siapkan_mulai|date:"l, d M H:i" }} dan muncul{% endif %} di <a href="{% url 'master:karyawan' %}">Karyawan &amp; hak akses</a> untuk dibagikan.</p>
   {% endif %}
 
   <h3>Nota offline yang telat terkirim</h3>

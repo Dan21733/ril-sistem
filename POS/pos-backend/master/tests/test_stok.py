@@ -484,7 +484,7 @@ class TiketHitungMasterTest(Dasar):
     def test_pemilik_buka_tugas_hitung_dari_halaman_tiket(self):
         from master.models import Lokasi, Tiket
         self.client.force_login(self.admin)
-        r = self.client.get(reverse("master:tiket"))
+        r = self.client.get(reverse("master:tiket_baru"))
         self.assertContains(r, 'value="hitung"')
         r = self.client.post(reverse("master:tiket"), {
             "aksi": "buka", "jenis": "hitung", "untuk": self.gudang.id, "tujuan": "hitung rak depan",

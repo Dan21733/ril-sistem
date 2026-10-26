@@ -747,6 +747,8 @@ class PreferensiAkun(models.Model):
     tema = models.CharField(max_length=20, choices=TEMA, default="oranye")
     # Toko yang terakhir dipilih di master; dibuka lagi saat masuk berikutnya.
     toko = models.ForeignKey("Toko", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # Susunan widget beranda: [{"k": kunci, "lebar": 1|2}, ...] urut tampil. Kosong = susunan bawaan.
+    dasbor = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "master_preferensi_akun"

@@ -1,6 +1,6 @@
 """Hak karyawan kasir (PIN) di kasir dan di aplikasi operasional, per hak.
 
-Pemilik mencentang hak satu-satu per karyawan (menu Kasir > Karyawan & PIN):
+Pemilik mencentang hak satu-satu per karyawan (menu Karyawan > Karyawan & hak akses):
 
 - Kasir: "Jualan di kasir" (pos.pengaturan `bukan_kasir`, daftar larangan supaya
   karyawan lama tetap boleh) dan "Setujui harga di bawah floor" (`penyetuju_floor`).

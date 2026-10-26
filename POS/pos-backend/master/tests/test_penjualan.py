@@ -255,6 +255,7 @@ class NotaManualTest(Dasar):
         self.assertContains(self.client.get(reverse("master:nota_manual_panel", args=[n.id])), "Pak Budi")
         self.assertEqual(self.client.get(reverse("master:nota_manual_foto", args=[n.foto.get().id])).status_code, 200)
         self.assertContains(self.client.get(reverse("master:laporan") + "?sumber=manual"), "Palu")
-        self.assertContains(self.client.get(reverse("master:dashboard")), "15.000")    # 3.000 kasir + 12.000 manual
+        # Beranda = angka Laporan: penjualan barang tanpa ongkir (3.000 kasir + 7.000 manual)
+        self.assertContains(self.client.get(reverse("master:dashboard")), "Rp10.000")
         r = self.client.post(reverse("master:nota_manual_baru"), self._data(baris=json.dumps([])), follow=True)
         self.assertContains(r, "minimal satu barang")

@@ -63,7 +63,7 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
         kurang = [i for i in izin_bersih if i not in izin_barang_untuk(hak_untuk)]
         if kurang:
             nama = untuk.first_name or untuk.username
-            raise Tolak(f"{nama} tidak punya hak mengusulkan {', '.join(kurang)}. Atur haknya di Karyawan & PIN.")
+            raise Tolak(f"{nama} tidak punya hak mengusulkan {', '.join(kurang)}. Atur haknya di Karyawan & hak akses.")
         saring = tiket_barang.bersihkan_saring(kategori, brand)
     if jenis == "hitung":
         if "opname" not in hak:

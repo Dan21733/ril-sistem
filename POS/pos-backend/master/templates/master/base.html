@@ -121,6 +121,14 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
 #kabar{position:fixed;right:22px;bottom:22px;padding:12px 18px;border-radius:10px;background:var(--sisi);color:#fff;display:none;max-width:400px;z-index:5}
 #kabar.bahaya{background:var(--bahaya)}
 @media (max-width:820px){.sisi,html:not(.menu-kunci) .sisi{position:static;width:auto;transform:none}main,html:not(.menu-kunci) main{margin-left:0;padding:18px}.pinggir,.geser,.sisi .kunci{display:none!important}}
+/* grafik batang (beranda dan laporan) */
+.grafik{display:flex;align-items:stretch;gap:6px;height:190px;margin-top:12px}
+.grafik .kolom{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0}
+.grafik .batang{width:100%;max-width:46px;background:var(--aksen);opacity:.55;border-radius:6px 6px 2px 2px;min-height:2px}
+.grafik .kolom.kini .batang{opacity:1}
+.grafik .kolom:hover .batang{opacity:.9}
+.grafik .nilai{font-size:12px;color:var(--redup);margin-bottom:4px;white-space:nowrap}
+.grafik .sumbu{display:block;font-size:13px;margin-top:6px;text-align:center;line-height:1.2}
 </style>
 </head>
 <body>
@@ -135,22 +143,25 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
         <select id="pilih-toko" name="toko" onchange="this.form.submit()">{% for t in daftar_toko %}<option value="{{ t.id }}" {% if t.id == toko_aktif.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></form>
       {% else %}<label>Toko</label><b>{{ toko_aktif.nama }}</b>{% endif %}
     </div>{% endif %}
-    <a href="{% url 'master:dashboard' %}" class="{% if menu == 'dashboard' %}aktif{% endif %}">Dashboard</a>
-    {% if 'laporan' in hak %}
-    <details{% if menu|dalam:"laporan nota nota_manual retur" %} open{% endif %}><summary>Penjualan{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</summary><div class="isi-grup">
-      <a href="{% url 'master:laporan' %}" class="{% if menu == 'laporan' %}aktif{% endif %}">Laporan penjualan</a>
-      <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
-      <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
-      <a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>
+    <a href="{% url 'master:dashboard' %}" class="{% if menu == 'dashboard' %}aktif{% endif %}">Beranda</a>
+    {% if 'laporan' in hak or 'lihat_stok' in hak or 'opname' in hak %}
+    <details{% if menu|dalam:"laporan pergerakan stok_riwayat laporan_selisih" %} open{% endif %}><summary>Laporan</summary><div class="isi-grup">
+      {% if 'laporan' in hak %}<a href="{% url 'master:laporan' %}" class="{% if menu == 'laporan' %}aktif{% endif %}">Penjualan</a>{% endif %}
+      {% if 'lihat_stok' in hak %}
+        <a href="{% url 'master:pergerakan' %}" class="{% if menu == 'pergerakan' %}aktif{% endif %}">Pergerakan stok</a>
+        <a href="{% url 'master:stok_riwayat' %}" class="{% if menu == 'stok_riwayat' %}aktif{% endif %}">Riwayat stok per barang</a>
+      {% endif %}
+      {% if 'opname' in hak %}<a href="{% url 'master:laporan_selisih' %}" class="{% if menu == 'laporan_selisih' %}aktif{% endif %}">Selisih stok</a>{% endif %}
     </div></details>
     {% endif %}
-    {% if "kelola_kasir" in hak %}
-    <details{% if menu|dalam:"karyawan tablet aturan_kasir nota_tinjau perangkat_ops" %} open{% endif %}><summary>Kasir{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</summary><div class="isi-grup">
-      <a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>
-      <a href="{% url 'master:karyawan' %}" class="{% if menu == 'karyawan' %}aktif{% endif %}">Karyawan &amp; PIN</a>
-      <a href="{% url 'master:tablet' %}" class="{% if menu == 'tablet' %}aktif{% endif %}">Tablet kasir</a>
-      <a href="{% url 'master:aturan_kasir' %}" class="{% if menu == 'aturan_kasir' %}aktif{% endif %}">Aturan kasir</a>
-      <a href="{% url 'master:perangkat_ops' %}" class="{% if menu == 'perangkat_ops' %}aktif{% endif %}">Perangkat operasional</a>
+    {% if 'laporan' in hak or 'kelola_kasir' in hak %}
+    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
+      {% if 'laporan' in hak %}
+      <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
+      <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
+      {% endif %}
+      {% if 'kelola_kasir' in hak %}<a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>{% endif %}
+      {% if 'laporan' in hak %}<a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>{% endif %}
     </div></details>
     {% endif %}
     <details{% if menu|dalam:"barang kategori brand harga impor sampah" %} open{% endif %}><summary>Barang</summary><div class="isi-grup">
@@ -167,36 +178,19 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
         <a href="{% url 'master:sampah' %}" class="{% if menu == 'sampah' %}aktif{% endif %}">Barang dihapus</a>
       {% endif %}
     </div></details>
-    {% if 'lihat_stok' in hak or 'transfer' in hak %}
-    <details{% if menu|dalam:"stok stok_lokasi stok_riwayat opname hitung_acak laporan_selisih buka_dus transfer" %} open{% endif %}><summary>Stok</summary><div class="isi-grup">
+    <details{% if menu|dalam:"stok stok_lokasi ambil buka_dus transfer opname hitung_acak lokasi rak" %} open{% endif %}><summary>Stok &amp; gudang{% if "lihat_stok" in hak and jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</summary><div class="isi-grup">
       {% if 'lihat_stok' in hak %}
         <a href="{% url 'master:stok' %}" class="{% if menu == 'stok' %}aktif{% endif %}">Stok barang</a>
         <a href="{% url 'master:stok_lokasi' %}" class="{% if menu == 'stok_lokasi' %}aktif{% endif %}">Stok per gudang</a>
-        <a href="{% url 'master:stok_riwayat' %}" class="{% if menu == 'stok_riwayat' %}aktif{% endif %}">Riwayat stok</a>
+        <a href="{% url 'master:ambil' %}" class="{% if menu == 'ambil' %}aktif{% endif %}">Pengambilan barang{% if jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</a>
       {% endif %}
+      {% if 'ubah_stok' in hak %}<a href="{% url 'master:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>{% endif %}
+      {% if 'transfer' in hak %}<a href="{% url 'master:transfer' %}" class="{% if menu == 'transfer' %}aktif{% endif %}">Transfer ke toko lain</a>{% endif %}
       {% if 'opname' in hak %}
         <a href="{% url 'master:opname' %}" class="{% if menu == 'opname' %}aktif{% endif %}">Stok opname</a>
         <a href="{% url 'master:hitung_acak' %}" class="{% if menu == 'hitung_acak' %}aktif{% endif %}">Cek stok acak</a>
-        <a href="{% url 'master:laporan_selisih' %}" class="{% if menu == 'laporan_selisih' %}aktif{% endif %}">Selisih stok</a>
       {% endif %}
-      {% if 'ubah_stok' in hak %}
-        <a href="{% url 'master:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>
-      {% endif %}
-      {% if 'transfer' in hak %}
-        <a href="{% url 'master:transfer' %}" class="{% if menu == 'transfer' %}aktif{% endif %}">Transfer ke toko lain</a>
-      {% endif %}
-    </div></details>
-    {% endif %}
-    <details{% if menu|dalam:"ambil tiket lokasi rak" %} open{% endif %}><summary>Gudang{% if "lihat_stok" in hak and jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</summary><div class="isi-grup">
-      {% if 'lihat_stok' in hak %}
-        <a href="{% url 'master:ambil' %}" class="{% if menu == 'ambil' %}aktif{% endif %}">Pengambilan barang{% if jumlah_ambil %}<span class="angka-menu">{{ jumlah_ambil }}</span>{% endif %}</a>
-      {% endif %}
-      {% if 'kelola_lokasi' in hak %}
-        <a href="{% url 'master:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tiket admin</a>
-      {% endif %}
-      {% if 'lihat_stok' in hak %}
-        <a href="{% url 'master:lokasi' %}" class="{% if menu == 'lokasi' %}aktif{% endif %}">Gudang &amp; lokasi</a>
-      {% endif %}
+      {% if 'lihat_stok' in hak %}<a href="{% url 'master:lokasi' %}" class="{% if menu == 'lokasi' %}aktif{% endif %}">Gudang &amp; lokasi</a>{% endif %}
       <a href="{% url 'master:rak' %}" class="{% if menu == 'rak' %}aktif{% endif %}">Rak</a>
     </div></details>
     {% if 'pembelian' in hak or 'kelola_supplier' in hak %}
@@ -211,20 +205,20 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
       {% endif %}
     </div></details>
     {% endif %}
-    <details{% if menu|dalam:"pengguna toko pengaturan log tampilan" %} open{% endif %}><summary>Pengaturan</summary><div class="isi-grup">
+    {% if 'kelola_kasir' in hak or 'kelola_lokasi' in hak %}
+    <details{% if menu|dalam:"karyawan tiket perangkat" %} open{% endif %}><summary>Karyawan{% if jumlah_tugas_acc %}<span class="angka-menu">{{ jumlah_tugas_acc }}</span>{% endif %}</summary><div class="isi-grup">
+      {% if 'kelola_kasir' in hak %}<a href="{% url 'master:karyawan' %}" class="{% if menu == 'karyawan' %}aktif{% endif %}">Karyawan &amp; hak akses</a>{% endif %}
+      {% if 'kelola_lokasi' in hak %}<a href="{% url 'master:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas karyawan{% if jumlah_tugas_acc %}<span class="angka-menu">{{ jumlah_tugas_acc }}</span>{% endif %}</a>{% endif %}
+      {% if 'kelola_kasir' in hak %}<a href="{% url 'master:tablet' %}" class="{% if menu == 'perangkat' %}aktif{% endif %}">Perangkat</a>{% endif %}
+    </div></details>
+    {% endif %}
+    <details{% if menu|dalam:"pengguna toko pengaturan log tampilan aturan_kasir" %} open{% endif %}><summary>Pengaturan</summary><div class="isi-grup">
+      {% if 'kelola_toko' in hak %}<a href="{% url 'master:toko' %}" class="{% if menu == 'toko' %}aktif{% endif %}">Toko</a>{% endif %}
+      {% if 'kelola_kasir' in hak %}<a href="{% url 'master:aturan_kasir' %}" class="{% if menu == 'aturan_kasir' %}aktif{% endif %}">Aturan kasir</a>{% endif %}
+      {% if 'pengaturan' in hak %}<a href="{% url 'master:pengaturan' %}" class="{% if menu == 'pengaturan' %}aktif{% endif %}">Pajak (PPN)</a>{% endif %}
+      {% if 'kelola_pengguna' in hak %}<a href="{% url 'master:pengguna' %}" class="{% if menu == 'pengguna' %}aktif{% endif %}">Akun master</a>{% endif %}
       <a href="{% url 'master:tema' %}" class="{% if menu == 'tampilan' %}aktif{% endif %}">Tampilan</a>
-      {% if 'kelola_pengguna' in hak %}
-        <a href="{% url 'master:pengguna' %}" class="{% if menu == 'pengguna' %}aktif{% endif %}">Pengguna &amp; hak akses</a>
-      {% endif %}
-      {% if 'kelola_toko' in hak %}
-        <a href="{% url 'master:toko' %}" class="{% if menu == 'toko' %}aktif{% endif %}">Toko</a>
-      {% endif %}
-      {% if 'pengaturan' in hak %}
-        <a href="{% url 'master:pengaturan' %}" class="{% if menu == 'pengaturan' %}aktif{% endif %}">Pajak (PPN)</a>
-      {% endif %}
-      {% if 'lihat_log' in hak %}
-        <a href="{% url 'master:log' %}" class="{% if menu == 'log' %}aktif{% endif %}">Riwayat perubahan</a>
-      {% endif %}
+      {% if 'lihat_log' in hak %}<a href="{% url 'master:log' %}" class="{% if menu == 'log' %}aktif{% endif %}">Riwayat perubahan</a>{% endif %}
     </div></details>
     <div class="akun">
       <b>{{ request.user.username }}</b>

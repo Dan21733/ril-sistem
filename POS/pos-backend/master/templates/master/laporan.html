@@ -47,6 +47,11 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
   {% endif %}
   {% if per_hari|length > 1 %}
   <h3>Per hari</h3>
+  <div class="kartu"><div class="grafik" style="height:220px">
+    {% for h in per_hari %}<div class="kolom" title="{{ h.nama|date:'l, d M' }}: {{ h.omzet|rupiah }} ({{ h.nota }} nota)">
+      <span class="nilai">{{ h.omzet|singkat }}</span><div class="batang" style="height:{{ h.bagian }}%"></div>
+      <span class="sumbu">{{ h.nama|date:"D" }}<br><span class="redup">{{ h.nama|date:"j/n" }}</span></span></div>{% endfor %}
+  </div></div>
   <div class="gulir"><table>
     <tr><th>Tanggal</th><th class="angka">Nota</th><th class="angka">Penjualan</th><th style="width:30%"></th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
     {% for h in per_hari %}<tr><td>{{ h.nama|date:"l, d M" }}</td><td class="angka">{{ h.nota }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td><td class="angka">{{ h.laba|ribuan }}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>{% endfor %}
@@ -54,8 +59,15 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
   {% endif %}
   <h3>10 barang dengan penjualan terbesar</h3>
 {% endif %}
+{% if grafik and tabel %}
+<div class="kartu" style="margin-bottom:14px"><div class="grafik" style="height:220px">
+  {% for h in tabel %}<div class="kolom" title="{{ h.nama }}: {{ h.omzet|rupiah }} ({{ h.nota }} nota)">
+    <span class="nilai">{% if h.omzet %}{{ h.omzet|singkat }}{% endif %}</span><div class="batang" style="height:{{ h.bagian }}%"></div>
+    <span class="sumbu">{{ h.nama }}</span></div>{% endfor %}
+</div>{% if jenis == "jam" %}<p class="redup kecil" style="margin:8px 0 0">Hanya nota kasir; nota tulis tangan tidak punya jam.</p>{% endif %}</div>
+{% endif %}
 <div class="gulir"><table>
-  <tr><th>{% if jenis == "kasir" %}Karyawan{% elif jenis == "bayar" %}Cara bayar{% elif jenis == "kategori" %}Kategori{% elif jenis == "brand" %}Brand{% else %}Barang{% endif %}</th>
+  <tr><th>{% if jenis == "jam" %}Jam{% elif jenis == "harian" %}Hari{% elif jenis == "kasir" %}Karyawan{% elif jenis == "bayar" %}Cara bayar{% elif jenis == "kategori" %}Kategori{% elif jenis == "brand" %}Brand{% else %}Barang{% endif %}</th>
     <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=qty" class="{% if urut == 'qty' %}kini{% endif %}">{{ satuan_qty }}</a></th>
     <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=omzet" class="{% if urut == 'omzet' %}kini{% endif %}">Penjualan</a></th><th style="width:22%"></th>
     <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=laba" class="{% if urut == 'laba' %}kini{% endif %}">Laba kotor</a></th>

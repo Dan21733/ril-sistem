@@ -288,7 +288,7 @@ class TiketBarangTest(Dasar):
         self._isi(**{f"h_{self.putih.id}": "99000", "al_Cat Avian": "avian"})
         self.assertEqual({u.kolom for u in self.t.usulan.all()}, {"alias"})
         self.client.force_login(self.admin)
-        self.assertContains(self.client.get(reverse("master:tiket")), 'data-izin="alias"')
+        self.assertContains(self.client.get(reverse("master:tiket_baru")), 'data-izin="alias"')
 
     def test_tiket_lokasi_per_hak(self):
         from master.layanan import lokasi
@@ -412,13 +412,17 @@ class TiketBarangTest(Dasar):
 
     def test_buka_tiket_barang_dari_master(self):
         self.client.force_login(self.admin)
-        r = self.client.get(reverse("master:tiket"))
+        r = self.client.get(reverse("master:tiket_baru"))
         self.assertContains(r, "Data barang")
         self.assertContains(r, 'data-jenis="barang"')
-        self.client.post(reverse("master:tiket"), {
+        r = self.client.post(reverse("master:tiket"), {
             "jenis": "barang", "untuk": self.sari.id, "tujuan": "Alias paku", "izin": ["alias"], "kategori": ["Paku"],
             "batas": (timezone.localtime() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")})
         t = Tiket.objects.get(tujuan="Alias paku")
+        self.assertRedirects(r, reverse("master:tiket"), fetch_redirect_response=False)
+        r = self.client.get(reverse("master:tiket"))
+        self.assertContains(r, "Alias paku")
+        self.assertContains(r, "Sedang dikerjakan")
         self.assertEqual((t.jenis, t.izin, t.saring["kategori"]), ("barang", ["alias"], ["Paku"]))
         self.client.force_login(self.sari)
         r = self.client.get(reverse("gudang:tiket_barang", args=[t.id]))

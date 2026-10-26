@@ -123,5 +123,8 @@ class TemaMenuTest(Dasar):
     def test_grup_menu_terbuka_sesuai_halaman(self):
         self.client.force_login(self.admin)
         isi = self.client.get(reverse("master:laporan")).content.decode()
-        self.assertIn("<details open><summary>Penjualan", isi)
+        self.assertIn("<details open><summary>Laporan", isi)
         self.assertIn("<details><summary>Stok", isi)
+        isi = self.client.get(reverse("master:tiket")).content.decode()
+        self.assertIn("<details open><summary>Karyawan", isi)
+        self.assertIn("<details><summary>Laporan", isi)

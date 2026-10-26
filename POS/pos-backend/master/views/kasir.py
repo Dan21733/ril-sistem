@@ -93,7 +93,7 @@ def perangkat_ops(request):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:perangkat_ops")
-    return render(request, "master/perangkat_ops.html", {"menu": "perangkat_ops", **svc_perangkat.daftar()})
+    return render(request, "master/perangkat_ops.html", {"menu": "perangkat", "tab_perangkat": "ops", **svc_perangkat.daftar()})
 
 
 @perlu("kelola_kasir")
@@ -126,7 +126,7 @@ def tablet(request):
             messages.error(request, str(tolak))
         return redirect("master:tablet")
     return render(request, "master/kasir_tablet.html", {
-        "menu": "tablet", "daftar": svc.daftar_tablet(),
+        "menu": "perangkat", "tab_perangkat": "tablet", "daftar": svc.daftar_tablet(),
         "terbuka": aturan.baca("pendaftaran_tablet") != "tutup",
     })
 

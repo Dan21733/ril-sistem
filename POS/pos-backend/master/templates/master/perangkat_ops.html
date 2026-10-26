@@ -1,7 +1,7 @@
 {% extends "master/base.html" %}
-{% block judul %}Perangkat operasional{% endblock %}
+{% block judul %}Perangkat{% endblock %}
 {% block isi %}
-<h2>Perangkat operasional</h2>
+{% include "master/_tab_perangkat.html" %}
 <p class="sub">Aplikasi operasional (admin dan gudang) hanya terbuka di perangkat yang kamu setujui di sini. Perangkat baru yang membuka alamatnya
   akan menampilkan kode, mis. <b>OPS-7K3P</b>. Cocokkan kodenya dengan layar perangkat itu, beri nama, lalu setujui. Sebelum disetujui, halaman masuk PIN pun tidak tampil.</p>
 
@@ -47,6 +47,6 @@
   {% endfor %}
 </table></div>
 {% endif %}
-<p class="kecil redup">Yang masuk di perangkat ini adalah karyawan dengan PIN kasirnya sendiri; aksesnya diatur di <a href="{% url 'master:karyawan' %}">Karyawan &amp; PIN</a>.
+<p class="kecil redup">Yang masuk di perangkat ini adalah karyawan dengan PIN kasirnya sendiri; aksesnya diatur di <a href="{% url 'master:karyawan' %}">Karyawan &amp; hak akses</a>.
   Kalau data browser di perangkat itu dihapus, perangkatnya muncul lagi di "Menunggu" dengan kode baru; cabut yang lama.</p>
 {% endblock %}

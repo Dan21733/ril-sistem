@@ -1,40 +1,164 @@
 {% extends "master/base.html" %}{% load master_tags %}
-{% block judul %}Dashboard{% endblock %}
+{% block judul %}Beranda{% endblock %}
 {% block isi %}
-<h2>Dashboard</h2>
-<p class="sub">{{ jumlah_item|ribuan }} barang, {{ jumlah_varian|ribuan }} varian{% if jumlah_nonaktif %}, {{ jumlah_nonaktif|ribuan }} nonaktif{% endif %}.</p>
-
-<div class="kisi">
-  <div class="kartu"><div class="redup kecil">Penjualan hari ini</div><div style="font-size:22px;font-weight:600">{{ total_hari_ini|rupiah }}</div><div class="redup kecil">{{ nota_hari_ini }} nota{% if 'laporan' in hak %} · <a href="{% url 'master:laporan' %}">laporan</a>{% endif %}</div></div>
-  {% if 'lihat_stok' in hak %}<a class="kartu" href="{% url 'master:stok' %}?stok=habis" style="color:inherit;text-decoration:none"><div class="redup kecil">Stok habis</div><div style="font-size:22px;font-weight:600;color:{% if stok_habis %}var(--bahaya){% endif %}">{{ stok_habis|ribuan }}</div><div class="redup kecil">{{ stok_menipis|ribuan }} lagi menipis</div></a>{% endif %}
-  {% if hutang %}
-  <a class="kartu" href="{% url 'master:pembelian' %}?status=menunggu" style="color:inherit;text-decoration:none"><div class="redup kecil">Pembelian menunggu ACC</div><div style="font-size:22px;font-weight:600;color:{% if menunggu_acc %}var(--aksen){% else %}inherit{% endif %}">{{ menunggu_acc }}</div><div class="redup kecil">barang datang yang belum disetujui</div></a>
-  <a class="kartu" href="{% url 'master:hutang' %}" style="color:inherit;text-decoration:none"><div class="redup kecil">Hutang ke supplier</div><div style="font-size:22px;font-weight:600">{{ hutang.total|rupiah }}</div><div class="kecil" style="color:{% if hutang.lewat %}var(--bahaya){% else %}var(--redup){% endif %}">{{ hutang.jumlah }} faktur{% if hutang.lewat %} · {{ hutang.lewat|length }} lewat jatuh tempo{% elif hutang.segera %} · {{ hutang.segera|length }} jatuh tempo minggu ini{% endif %}</div></a>
-  {% endif %}
-  {% if opname_menunggu is not None %}<a class="kartu" href="{% url 'master:opname' %}?status=diajukan" style="color:inherit;text-decoration:none"><div class="redup kecil">Opname menunggu ACC</div><div style="font-size:22px;font-weight:600;color:{% if opname_menunggu %}var(--aksen){% else %}inherit{% endif %}">{{ opname_menunggu }}</div><div class="redup kecil">hitungan stok dari kepala gudang</div></a>{% endif %}
+<div class="baris" style="justify-content:space-between;align-items:center">
+  <div><h2 style="margin-bottom:2px">Beranda</h2><p class="sub" style="margin:0">{% now "l, j F Y" %}</p></div>
+  <div class="baris">
+    <button type="button" class="tombol" id="tombol-atur">Atur tampilan</button>
+  </div>
 </div>
 
-<h3>Perlu diperbaiki</h3>
-<div class="kisi">
-{% for k in kotak %}
-  <a class="kartu" href="{% url 'master:barang' %}?masalah={{ k.kunci }}" style="color:inherit;text-decoration:none">
-    <div style="font-size:26px;font-weight:600;color:{% if k.jumlah %}var(--bahaya){% else %}var(--baik){% endif %}">{{ k.jumlah|ribuan }}</div>
-    <div style="font-weight:600">{{ k.label }}</div>
-    <div class="redup kecil">{{ k.akibat }}</div>
-  </a>
+<div class="atur-bar" id="atur-bar" hidden>
+  <div><b>Mengatur beranda.</b> Seret kotak untuk memindah, atau pakai tombol ◀ ▶. <b>⇔</b> = lebar/sempit, <b>×</b> = sembunyikan.</div>
+  {% if tersembunyi %}<div class="baris" style="gap:6px;margin-top:8px"><span class="kecil redup">Tambah:</span>
+    {% for t in tersembunyi %}<button type="button" class="tombol kecil" data-tambah="{{ t.k }}">+ {{ t.judul }}</button>{% endfor %}</div>{% endif %}
+  <div class="baris" style="margin-top:10px"><button type="button" class="tombol utama" id="tombol-selesai">Selesai</button>
+    <button type="button" class="tombol" id="tombol-bawaan">Kembalikan bawaan</button></div>
+</div>
+
+<div class="wg-kisi" id="wg-kisi">
+{% for w in tampil %}
+<section class="wg{% if w.lebar == 2 %} lebar{% endif %}" data-k="{{ w.k }}" data-lebar="{{ w.lebar }}">
+  <div class="wg-alat"><button type="button" data-geser="-1" title="Pindah ke kiri">◀</button><button type="button" data-geser="1" title="Pindah ke kanan">▶</button><button type="button" data-ukuran title="Lebar / sempit">⇔</button><button type="button" data-sembunyi title="Sembunyikan">×</button></div>
+  <div class="wg-judul">{{ w.judul }}</div>
+
+  {% if w.k == "omzet_hari" %}
+    <div class="wg-angka">{{ jual.hari.omzet|rupiah }}</div>
+    <div class="wg-ket">{{ jual.hari.nota }} nota · rata-rata {{ jual.hari.rata|rupiah }}</div>
+    {% if jual.banding is not None %}<div class="wg-ket"><span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}▲{% else %}▼{% endif %} {{ jual.banding }}%</span> dibanding kemarin ({{ jual.kemarin.omzet|singkat }})</div>{% endif %}
+    {% if 'laporan' in hak %}<a class="wg-link" href="{% url 'master:laporan' %}">Lihat laporan →</a>{% endif %}
+
+  {% elif w.k == "laba_hari" %}
+    <div class="wg-angka">{{ jual.hari.laba|rupiah }}</div>
+    <div class="wg-ket">Margin <b>{% if jual.hari.margin is not None %}{{ jual.hari.margin }}%{% else %}-{% endif %}</b> · minggu ini {{ jual.minggu_total.laba|singkat }} ({% if jual.minggu_total.margin is not None %}{{ jual.minggu_total.margin }}%{% else %}-{% endif %})</div>
+    <div class="wg-ket redup">Laba kotor = penjualan − modal barang. Laba bersih butuh catatan biaya (gaji, listrik), belum ada di sistem.</div>
+    {% if jual.tanpa_modal %}<div class="wg-ket" style="color:var(--awas)">Ada barang terjual yang modalnya belum diisi, laba bisa terlihat lebih besar.</div>{% endif %}
+
+  {% elif w.k == "bulan" %}
+    <div class="wg-angka">{{ jual.bulan.omzet|rupiah }}</div>
+    <div class="wg-ket">{{ jual.bulan.nota|ribuan }} nota · rata-rata {{ jual.bulan.rata|rupiah }}</div>
+    {% if jual.lihat_modal %}<div class="wg-ket">Laba kotor <b>{{ jual.bulan.laba|rupiah }}</b> · margin {% if jual.bulan.margin is not None %}{{ jual.bulan.margin }}%{% else %}-{% endif %}</div>{% endif %}
+
+  {% elif w.k == "minggu" %}
+    <div class="wg-ket">Total <b>{{ jual.minggu_total.omzet|rupiah }}</b> · {{ jual.minggu_total.nota|ribuan }} nota{% if jual.lihat_modal %} · laba kotor {{ jual.minggu_total.laba|rupiah }}{% endif %}</div>
+    <div class="grafik">
+      {% for d in jual.minggu %}<div class="kolom{% if d.hari_ini %} kini{% endif %}" title="{{ d.label }} {{ d.sub }}: {{ d.nilai|rupiah }} ({{ d.nota }} nota){% if jual.lihat_modal %} · laba {{ d.laba|rupiah }}{% endif %}">
+        <span class="nilai">{{ d.nilai|singkat }}</span><div class="batang" style="height:{{ d.tinggi }}%"></div>
+        <span class="sumbu">{{ d.label }}<br><span class="redup">{{ d.sub }}</span></span></div>{% endfor %}
+    </div>
+
+  {% elif w.k == "jam" %}
+    <div class="wg-ket">{% if jual.jam_ramai is not None %}Paling ramai jam <b>{{ jual.jam_ramai }}.00</b>{% else %}Belum ada penjualan kasir hari ini{% endif %} · nota tulis tangan tidak ikut (tidak ada jamnya)</div>
+    <div class="grafik">
+      {% for d in jual.jam %}<div class="kolom" title="Jam {{ d.label }}.00: {{ d.nilai|rupiah }} ({{ d.nota }} nota)">
+        <span class="nilai">{% if d.nilai %}{{ d.nilai|singkat }}{% endif %}</span><div class="batang" style="height:{{ d.tinggi }}%"></div>
+        <span class="sumbu">{{ d.label }}</span></div>{% endfor %}
+    </div>
+
+  {% elif w.k == "terlaris" %}
+    {% for h in jual.terlaris %}<div class="baris-bar"><div class="nama">{{ forloop.counter }}. {{ h.nama }}</div><div class="isi"><div class="bar" style="width:{{ h.bagian }}%"></div></div><div class="angka">{{ h.omzet|singkat }}</div></div>
+    {% empty %}<p class="redup kecil">Belum ada penjualan.</p>{% endfor %}
+
+  {% elif w.k == "kategori" %}
+    {% for h in jual.kategori %}<div class="baris-bar"><div class="nama">{{ h.nama }}</div><div class="isi"><div class="bar" style="width:{{ h.bagian }}%"></div></div><div class="angka">{{ h.omzet|singkat }}</div></div>
+    {% empty %}<p class="redup kecil">Belum ada penjualan.</p>{% endfor %}
+
+  {% elif w.k == "perlu_acc" %}
+    {% for p in lain.perlu %}<a class="perlu" href="{% url p.url %}"><span>{{ p.label }}</span><b>{{ p.jumlah }}</b></a>
+    {% empty %}<p class="wg-ket" style="color:var(--baik)">✓ Tidak ada yang menunggu.</p>{% endfor %}
+
+  {% elif w.k == "stok" %}
+    <div class="dua-angka">
+      <a href="{% url 'master:stok' %}?stok=habis"><div class="wg-angka" style="{% if lain.stok_habis %}color:var(--bahaya){% endif %}">{{ lain.stok_habis|ribuan }}</div><div class="wg-ket">stok habis</div></a>
+      <a href="{% url 'master:stok' %}"><div class="wg-angka" style="{% if lain.stok_menipis %}color:var(--awas){% endif %}">{{ lain.stok_menipis|ribuan }}</div><div class="wg-ket">menipis</div></a>
+    </div>
+
+  {% elif w.k == "hutang" %}
+    <a href="{% url 'master:hutang' %}" style="color:inherit;text-decoration:none"><div class="wg-angka">{{ lain.hutang.total|rupiah }}</div>
+    <div class="wg-ket" style="{% if lain.hutang.lewat %}color:var(--bahaya){% endif %}">{{ lain.hutang.jumlah }} faktur{% if lain.hutang.lewat %} · {{ lain.hutang.lewat|length }} lewat jatuh tempo{% elif lain.hutang.segera %} · {{ lain.hutang.segera|length }} jatuh tempo minggu ini{% endif %}</div></a>
+
+  {% elif w.k == "data_barang" %}
+    <p class="wg-ket" style="margin-top:0">{{ jumlah_item|ribuan }} barang, {{ jumlah_varian|ribuan }} varian.</p>
+    <div class="kotak-masalah">
+    {% for k in kotak %}<a href="{% url 'master:barang' %}?masalah={{ k.kunci }}"><b style="color:{% if k.jumlah %}var(--bahaya){% else %}var(--baik){% endif %}">{{ k.jumlah|ribuan }}</b> {{ k.label }}</a>{% endfor %}
+    </div>
+
+  {% elif w.k == "riwayat" %}
+    {% for l in log_terbaru %}<div class="kecil" style="padding:4px 0;border-bottom:1px solid var(--garis)"><span class="redup">{{ l.waktu|date:"d M H:i" }}</span> · {{ l.nama_pengguna }} · {{ l.item_name }}{% if l.variant and l.variant != "*" %} / {{ l.variant }}{% endif %} · {{ l.kolom }}</div>
+    {% empty %}<p class="redup kecil">Belum ada.</p>{% endfor %}
+    <a class="wg-link" href="{% url 'master:log' %}">Semua perubahan →</a>
+  {% endif %}
+</section>
+{% empty %}
+<p class="redup">Belum ada kotak di beranda. Klik <b>Atur tampilan</b> untuk menambahkan.</p>
 {% endfor %}
 </div>
 
-{% if log_terbaru %}
-<h3>Perubahan terakhir</h3>
-<div class="gulir"><table>
-  <tr><th>Waktu</th><th>Oleh</th><th>Barang</th><th>Kolom</th><th>Catatan</th></tr>
-  {% for l in log_terbaru %}
-  <tr><td class="kecil">{{ l.waktu|date:"d M H:i" }}</td><td>{{ l.nama_pengguna }}</td>
-      <td>{{ l.item_name }}{% if l.variant and l.variant != "*" %} <span class="redup">/ {{ l.variant }}</span>{% endif %}</td>
-      <td>{{ l.kolom }}</td><td class="redup kecil">{{ l.get_aksi_display }} · {{ l.get_sumber_display }}</td></tr>
-  {% endfor %}
-</table></div>
-<p class="kecil"><a href="{% url 'master:log' %}">Lihat semua log</a></p>
-{% endif %}
+<style>
+.wg-kisi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:16px}
+@media (max-width:1300px){.wg-kisi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:700px){.wg-kisi{grid-template-columns:1fr}.wg.lebar{grid-column:auto!important}}
+.wg{background:var(--kartu);border:1px solid var(--garis);border-radius:14px;padding:18px 20px;min-width:0;position:relative}
+.wg.lebar{grid-column:span 2}
+.wg-judul{font-size:15px;color:var(--redup);font-weight:600;margin-bottom:6px}
+.wg-angka{font-size:30px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.wg-ket{font-size:14px;color:var(--redup);margin-top:6px}
+.wg-ket b{color:var(--teks)}
+.wg-link{display:inline-block;margin-top:10px;font-size:14px}
+.naik{color:var(--baik);font-weight:700}.turun{color:var(--bahaya);font-weight:700}
+.baris-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:5px 0;font-size:15px}
+.baris-bar .nama{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.baris-bar .isi{grid-column:1 / -1;grid-row:2;background:var(--netral);border-radius:4px;height:8px}
+.baris-bar .bar{background:var(--aksen);height:8px;border-radius:4px}
+.baris-bar .angka{font-variant-numeric:tabular-nums;color:var(--redup);font-size:14px}
+.perlu{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin-top:6px;border-radius:10px;background:var(--aksen-lembut);color:var(--teks);font-size:15px}
+.perlu:hover{text-decoration:none;filter:brightness(.97)}
+.perlu b{font-size:18px;color:var(--aksen)}
+.dua-angka{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dua-angka a{color:inherit;text-decoration:none}
+.kotak-masalah{display:flex;flex-wrap:wrap;gap:8px}
+.kotak-masalah a{padding:7px 12px;border:1px solid var(--garis);border-radius:999px;color:var(--teks);font-size:14px}
+.kotak-masalah a:hover{text-decoration:none;border-color:var(--aksen)}
+.wg-alat{display:none;position:absolute;top:8px;right:8px;gap:4px}
+.wg-alat button{border:1px solid var(--garis-kuat);background:var(--kartu);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:13px}
+.atur-bar{background:var(--aksen-lembut);border:1px solid var(--aksen);border-radius:12px;padding:12px 16px;margin-top:14px;font-size:15px}
+body.atur .wg{padding-top:46px;cursor:grab;outline:2px dashed var(--garis-kuat);outline-offset:2px}
+body.atur .wg-alat{display:flex}
+body.atur .wg a{pointer-events:none}
+.wg.seret{opacity:.4}
+</style>
+<script>
+(function(){
+  const kisi = document.getElementById('wg-kisi'), bar = document.getElementById('atur-bar');
+  const kirim = data => fetch(location.pathname, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)});
+  const susunan = () => [...kisi.querySelectorAll('.wg')].map(w => ({k: w.dataset.k, lebar: +w.dataset.lebar}));
+  const atur = nyala => { document.body.classList.toggle('atur', nyala); bar.hidden = !nyala;
+    kisi.querySelectorAll('.wg').forEach(w => w.draggable = nyala); document.getElementById('tombol-atur').hidden = nyala; };
+  document.getElementById('tombol-atur').addEventListener('click', () => atur(true));
+  document.getElementById('tombol-selesai').addEventListener('click', async () => { await kirim({susunan: susunan()}); location.href = location.pathname; });
+  document.getElementById('tombol-bawaan').addEventListener('click', async () => {
+    if (!confirm('Kembalikan susunan beranda ke bawaan?')) return;
+    await kirim({bawaan: true}); location.href = location.pathname; });
+  bar.querySelectorAll('[data-tambah]').forEach(b => b.addEventListener('click', async () => {
+    await kirim({susunan: [...susunan(), {k: b.dataset.tambah, lebar: 1}]}); location.href = location.pathname + '?atur=1'; }));
+  kisi.addEventListener('click', e => {
+    const w = e.target.closest('.wg'); if (!w || !document.body.classList.contains('atur')) return;
+    const g = e.target.closest('[data-geser]');
+    if (g){ const lain = +g.dataset.geser < 0 ? w.previousElementSibling : w.nextElementSibling;
+      if (lain) (+g.dataset.geser < 0 ? lain.before(w) : lain.after(w)); }
+    if (e.target.closest('[data-ukuran]')){ const l = w.dataset.lebar === '2' ? 1 : 2; w.dataset.lebar = l; w.classList.toggle('lebar', l === 2); }
+    if (e.target.closest('[data-sembunyi]')) w.remove();
+  });
+  let seret = null;
+  kisi.addEventListener('dragstart', e => { seret = e.target.closest('.wg'); if (seret) seret.classList.add('seret'); });
+  kisi.addEventListener('dragend', () => { if (seret) seret.classList.remove('seret'); seret = null; });
+  kisi.addEventListener('dragover', e => {
+    if (!seret) return; e.preventDefault();
+    const target = e.target.closest('.wg'); if (!target || target === seret) return;
+    const kotak = target.getBoundingClientRect();
+    (e.clientX < kotak.left + kotak.width / 2) ? target.before(seret) : target.after(seret);
+  });
+  if (new URLSearchParams(location.search).get('atur') === '1') atur(true);
+})();
+</script>
 {% endblock %}

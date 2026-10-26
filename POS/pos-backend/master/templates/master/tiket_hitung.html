@@ -1,7 +1,7 @@
 {% extends "master/base.html" %}
 {% block judul %}Tiket #{{ t.id }}{% endblock %}
 {% block isi %}
-<p class="kecil"><a href="{% url 'master:tiket' %}">Tiket admin</a> /</p>
+<p class="kecil"><a href="{% url 'master:tiket' %}">Tugas karyawan</a> /</p>
 <h2>Tiket #{{ t.id }} · hitung stok · {{ t.untuk.first_name|default:t.untuk.username }}</h2>
 <p class="sub">{{ t.tujuan }} · hitung {{ lingkup_teks }}<br>
   Dibuka {{ t.dibuka_oleh }}, {{ t.dibuka_waktu|date:"d M Y H:i" }} · batas {{ t.batas|date:"d M Y H:i" }} · <b>{{ t.get_status_display }}</b>{% if t.status == 'terbuka' and t.lewat_batas %} (lewat batas){% endif %}
