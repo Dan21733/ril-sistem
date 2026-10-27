@@ -1022,6 +1022,19 @@ class PemasokBarang(models.Model):
         constraints = [models.UniqueConstraint(fields=["item_info", "supplier"], name="master_pemasok_barang_unik")]
 
 
+class KontakKaryawan(models.Model):
+    """Nomor WhatsApp karyawan kasir, untuk tombol "Kirim WA" saat ada PIN baru.
+
+    Disimpan di master (tabel worker milik kasir tidak diubah). Format 62xxxxxxxxxx.
+    """
+    worker_id = models.CharField(max_length=5, unique=True)
+    wa = models.CharField(max_length=20)
+    diubah = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "master_kontak_karyawan"
+
+
 class PinTampil(models.Model):
     """PIN karyawan dalam bentuk terbaca, hanya selama perlu dibagikan.
 

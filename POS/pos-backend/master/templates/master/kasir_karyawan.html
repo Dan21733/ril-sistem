@@ -2,7 +2,7 @@
 {% block judul %}Karyawan & hak akses{% endblock %}
 {% block isi %}
 <h2>Karyawan &amp; hak akses</h2>
-<p class="sub">Karyawan yang memakai PIN di kasir. PIN dibuat sistem (6 angka, tidak mudah ditebak, tidak sama dengan PIN siapa pun) dan hanya terlihat di sini beberapa hari untuk dibagikan.</p>
+<p class="sub">Karyawan yang memakai PIN di kasir. PIN dibuat sistem (6 angka, tidak mudah ditebak, tidak sama dengan PIN siapa pun) dan hanya terlihat di sini beberapa hari untuk dibagikan. Isi nomor WA (klik nama karyawan) supaya PIN baru bisa dikirim dengan satu klik.</p>
 
 {% if pin_baru %}
 <div class="kartu" style="margin-bottom:20px;border-color:var(--aksen)">
@@ -14,10 +14,12 @@
     </div>
   </div>
   <div class="gulir" style="margin-top:10px"><table>
-    <tr><th>Karyawan</th><th>PIN</th><th>Berlaku mulai</th><th></th></tr>
+    <tr><th>Karyawan</th><th>PIN</th><th>Berlaku mulai</th><th>Kirim</th><th></th></tr>
     {% for p in pin_baru %}
     <tr><td>{{ p.nama }}</td><td style="font-family:monospace;font-size:22px;letter-spacing:.15em"><b>{{ p.t.pin }}</b></td>
       <td>{% if p.t.berlaku_mulai > now_waktu %}{{ p.t.berlaku_mulai|date:"l, d M Y H:i" }}{% else %}sudah berlaku ({{ p.t.berlaku_mulai|date:"d M H:i" }}){% endif %}</td>
+      <td>{% if p.wa %}<a class="tombol kecil utama" href="{{ p.link_wa }}" target="_blank" rel="noopener" title="Buka WhatsApp dengan pesan PIN sudah terisi">Kirim WA</a> <span class="kecil redup">{{ p.wa_tampil }}</span>
+        {% else %}<a class="tombol kecil" href="{{ p.link_wa }}" target="_blank" rel="noopener" title="Belum ada nomor WA: pilih kontaknya di WhatsApp">Kirim WA (pilih kontak)</a>{% endif %}</td>
       <td class="kecil redup">terlihat sampai {{ p.t.hapus_setelah|date:"d M H:i" }}</td></tr>
     {% endfor %}
   </table></div>
@@ -28,9 +30,12 @@
   <tr><th>Nama</th><th>Status</th><th>PIN sekarang sejak</th><th>Ganti PIN berikutnya</th><th>Hak akses</th><th></th></tr>
   {% for d in daftar %}
   <tr class="{% if not d.aktif %}nonaktif{% endif %}">
-    <td><details><summary style="cursor:pointer"><b>{{ d.nama }}</b> <span class="kecil redup">{{ d.id }}</span></summary>
-      <form method="post" class="baris" style="margin-top:8px;flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ d.id }}">
-        <input type="text" name="nama" value="{{ d.nama }}" style="width:180px" required><button class="tombol kecil" type="submit">Simpan nama</button></form></details></td>
+    <td><details><summary style="cursor:pointer"><b>{{ d.nama }}</b> <span class="kecil redup">{{ d.id }}</span>
+        <div class="kecil {% if not d.wa %}redup{% endif %}">{% if d.wa %}WA {{ d.wa_tampil }}{% else %}belum ada nomor WA{% endif %}</div></summary>
+      <form method="post" style="margin-top:8px;display:grid;gap:6px;width:220px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ d.id }}">
+        <label class="kecil" style="margin:0">Nama<input type="text" name="nama" value="{{ d.nama }}" required></label>
+        <label class="kecil" style="margin:0">Nomor WA<input type="tel" name="wa" value="{{ d.wa_tampil }}" placeholder="0812 3456 7890" autocomplete="off"></label>
+        <button class="tombol kecil" type="submit">Simpan</button></form></details></td>
     <td>{% if d.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label netral">nonaktif</span>{% endif %}</td>
     <td class="kecil">{% if d.aktif %}{{ d.pin_sejak|date:"d M Y H:i"|default:"dari sistem lama" }}{% else %}-{% endif %}</td>
     <td class="kecil">{% if d.berikut %}{{ d.berikut|date:"l, d M H:i" }} <span class="label">PIN sudah disiapkan</span>{% elif d.aktif and rotasi_aktif and rotasi_berikut %}{{ rotasi_berikut|date:"l, d M H:i" }}{% else %}<span class="redup">-</span>{% endif %}</td>
@@ -60,6 +65,7 @@
 <h3>Tambah karyawan</h3>
 <form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
   <div style="width:260px"><label>Nama (tercetak di nota)</label><input type="text" name="nama" required maxlength="60" autocomplete="off"></div>
+  <div style="width:200px"><label>Nomor WA (boleh kosong)</label><input type="tel" name="wa" placeholder="0812 3456 7890" autocomplete="off"></div>
   <div><button class="tombol utama" type="submit">Tambah &amp; buat PIN</button></div>
 </form>
 <script>

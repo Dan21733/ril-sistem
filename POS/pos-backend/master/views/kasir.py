@@ -20,11 +20,17 @@ def karyawan(request):
         aksi, wid = request.POST.get("aksi"), request.POST.get("id")
         try:
             if aksi == "tambah":
+                svc.rapikan_wa(request.POST.get("wa"))   # tolak nomor salah sebelum karyawan dibuat
                 wid, _ = svc.tambah(request.user, request.POST.get("nama"))
+                svc.atur_wa(request.user, wid, request.POST.get("wa"))
                 messages.success(request, "Karyawan ditambahkan. PIN-nya ada di kotak PIN baru di atas.")
             elif aksi == "nama":
+                if "wa" in request.POST:
+                    svc.rapikan_wa(request.POST.get("wa"))   # nomor salah: tolak sebelum nama ikut tersimpan
                 svc.ganti_nama(request.user, wid, request.POST.get("nama"))
-                messages.success(request, "Nama tersimpan.")
+                if "wa" in request.POST:
+                    svc.atur_wa(request.user, wid, request.POST.get("wa"))
+                messages.success(request, "Tersimpan.")
             elif aksi == "reset":
                 svc.reset_pin(request.user, wid)
                 messages.success(request, "PIN baru langsung berlaku. PIN lama tidak bisa dipakai lagi untuk nota baru.")
@@ -60,9 +66,13 @@ def karyawan(request):
             ringkas.append(f"{len(o)} hak operasional")
         d["hak_ringkas"] = ringkas
         d["hak_ops_label"] = [LABEL_HAK_OPS[h] for h in o]
-    nama = {d["id"]: d["nama"] for d in daftar}
-    pin_baru = [{"nama": nama.get(t.worker_id, t.worker_id), "t": t} for t in
-                PinTampil.objects.filter(hapus_setelah__gt=timezone.now())]
+    orang = {d["id"]: d for d in daftar}
+    pin_baru = []
+    for t in PinTampil.objects.filter(hapus_setelah__gt=timezone.now()):
+        d = orang.get(t.worker_id, {})
+        nama = d.get("nama", t.worker_id)
+        pin_baru.append({"nama": nama, "t": t, "wa": d.get("wa", ""), "wa_tampil": d.get("wa_tampil", ""),
+                         "link_wa": svc.link_wa(d.get("wa", ""), svc.pesan_pin(nama, t.pin, t.berlaku_mulai))})
     return render(request, "master/kasir_karyawan.html", {
         "menu": "karyawan", "daftar": daftar, "pin_baru": pin_baru, "now_waktu": timezone.now(),
         "grup_hak": [("Kasir (tablet)", akun_karyawan.HAK_KASIR), *HAK_KARYAWAN_OPS],

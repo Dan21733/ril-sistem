@@ -23,7 +23,7 @@ from pos.worker_verification import cocokkan_pin
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak
-from master.models import PinTampil
+from master.models import KontakKaryawan, PinTampil
 
 NAMA_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 PIN_TAMPIL_HARI = 3  # PIN terbaca disimpan sampai 3 hari setelah mulai berlaku
@@ -167,6 +167,59 @@ def ganti_nama(pengguna, worker_id, nama):
     layanan.catat(pengguna, aksi="ubah", objek="karyawan", kolom="nama karyawan", lama=lama, baru=nama)
 
 
+def rapikan_wa(teks):
+    """'0812-3456 7890' / '+62 812...' / '62812...' / '812...' -> '628123457890'. Kosong -> ''."""
+    angka = re.sub(r"\D", "", teks or "")
+    if not angka:
+        return ""
+    if angka.startswith("0"):
+        angka = "62" + angka[1:]
+    elif angka.startswith("8"):
+        angka = "62" + angka
+    if not angka.startswith("62") or not 10 <= len(angka) <= 15:
+        raise Tolak("Nomor WA tidak dikenali. Tulis seperti 0812 3456 7890.")
+    return angka
+
+
+def atur_wa(pengguna, worker_id, teks):
+    if not Worker.objects.filter(id=worker_id).exists():
+        raise Tolak("Karyawan tidak ditemukan.")
+    wa = rapikan_wa(teks)
+    lama = KontakKaryawan.objects.filter(worker_id=worker_id).values_list("wa", flat=True).first() or ""
+    if wa == lama:
+        return wa
+    if wa:
+        KontakKaryawan.objects.update_or_create(worker_id=worker_id, defaults={"wa": wa})
+    else:
+        KontakKaryawan.objects.filter(worker_id=worker_id).delete()
+    layanan.catat(pengguna, aksi="ubah", objek="karyawan", kolom="nomor WA karyawan", lama=lama, baru=wa or "(dihapus)")
+    return wa
+
+
+def tampil_wa(wa):
+    """'6281234567890' -> '0812-3456-7890' untuk dibaca."""
+    if not wa:
+        return ""
+    lokal = "0" + wa[2:] if wa.startswith("62") else wa
+    return "-".join([lokal[:4], lokal[4:8], lokal[8:]]).strip("-")
+
+
+def pesan_pin(nama, pin, berlaku_mulai, sekarang=None):
+    from django.utils.formats import date_format
+    sekarang = sekarang or timezone.now()
+    if berlaku_mulai > sekarang:
+        kapan = "Berlaku mulai " + date_format(timezone.localtime(berlaku_mulai), "l, j F Y, H.i") + "."
+    else:
+        kapan = "Sudah berlaku sekarang."
+    return (f"Halo {nama}, PIN kamu untuk kasir dan aplikasi toko: {pin}\n{kapan}\n"
+            "Jangan beri tahu PIN ini ke siapa pun. Kalau lupa, minta reset ke pemilik.")
+
+
+def link_wa(wa, teks):
+    from urllib.parse import quote
+    return f"https://wa.me/{wa}?text={quote(teks)}" if wa else f"https://wa.me/?text={quote(teks)}"
+
+
 def reset_pin(pengguna, worker_id):
     if not Worker.objects.filter(id=worker_id).exists():
         raise Tolak("Karyawan tidak ditemukan.")
@@ -203,6 +256,7 @@ def daftar():
     for r in WorkerPin.objects.order_by("berlaku_mulai"):
         riwayat.setdefault(r.worker_id, []).append(r)
     hasil = []
+    kontak = dict(KontakKaryawan.objects.values_list("worker_id", "wa"))
     penyetuju = aturan.penyetuju_floor()
     bukan_kasir = aturan.bukan_kasir()
     for w in Worker.objects.only("id", "name").order_by("name"):
@@ -216,6 +270,7 @@ def daftar():
             "tampil": sorted(tampil.get(w.id, []), key=lambda t: t.berlaku_mulai),
             "penyetuju": w.id in penyetuju,
             "jual": w.id not in bukan_kasir,
+            "wa": kontak.get(w.id, ""), "wa_tampil": tampil_wa(kontak.get(w.id, "")),
         })
     hasil.sort(key=lambda d: (not d["aktif"], d["nama"].lower()))
     return hasil

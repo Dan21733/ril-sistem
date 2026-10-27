@@ -38,6 +38,46 @@ class KaryawanTest(Dasar):
         self.assertTrue(PinTampil.objects.filter(worker_id=wid, pin=pin).exists())
         self.assertTrue(Log.objects.filter(objek="karyawan", baru__contains="Amba").exists())
 
+    def test_nomor_wa_dirapikan(self):
+        for masuk in ["0812-3456 7890", "+62 812 3456 7890", "6281234567890", "81234567890"]:
+            self.assertEqual(svc.rapikan_wa(masuk), "6281234567890", masuk)
+        self.assertEqual(svc.rapikan_wa("  "), "")
+        for salah in ["12345", "021", "4412345678901"]:
+            with self.assertRaises(Tolak):
+                svc.rapikan_wa(salah)
+        self.assertEqual(svc.tampil_wa("6281234567890"), "0812-3456-7890")
+
+    def test_kirim_pin_lewat_wa(self):
+        from urllib.parse import unquote
+        from master.models import KontakKaryawan
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:karyawan"), {"aksi": "tambah", "nama": "Amba", "wa": "0812 3456 7890"}, follow=True)
+        wid = Worker.objects.get(name="Amba").id
+        self.assertEqual(KontakKaryawan.objects.get(worker_id=wid).wa, "6281234567890")
+        pin = PinTampil.objects.get(worker_id=wid).pin
+        isi = unquote(r.content.decode())
+        self.assertIn("https://wa.me/6281234567890?text=", isi)
+        self.assertIn(f"Halo Amba, PIN kamu untuk kasir dan aplikasi toko: {pin}", isi)
+        self.assertIn("WA 0812-3456-7890", isi)
+        # nomor salah ditolak dan nama tidak ikut berubah
+        r = self.client.post(reverse("master:karyawan"), {"aksi": "nama", "id": wid, "nama": "Amba B", "wa": "123"}, follow=True)
+        self.assertContains(r, "Nomor WA tidak dikenali")
+        self.assertEqual(Worker.objects.get(id=wid).name, "Amba")
+        # dikosongkan = dihapus; tombol tetap ada tapi memilih kontak
+        self.client.post(reverse("master:karyawan"), {"aksi": "nama", "id": wid, "nama": "Amba", "wa": ""})
+        self.assertFalse(KontakKaryawan.objects.filter(worker_id=wid).exists())
+        r = self.client.get(reverse("master:karyawan"))
+        self.assertContains(r, "Kirim WA (pilih kontak)")
+        self.assertContains(r, "https://wa.me/?text=")
+        # tambah dengan nomor salah tidak membuat karyawan
+        self.client.post(reverse("master:karyawan"), {"aksi": "tambah", "nama": "Cici", "wa": "999"})
+        self.assertFalse(Worker.objects.filter(name="Cici").exists())
+
+    def test_pesan_pin_menyebut_waktu_berlaku(self):
+        nanti = timezone.now() + datetime.timedelta(days=1)
+        self.assertIn("Berlaku mulai", svc.pesan_pin("Budi", "482915", nanti))
+        self.assertIn("Sudah berlaku sekarang", svc.pesan_pin("Budi", "482915", timezone.now() - datetime.timedelta(minutes=1)))
+
     def test_nama_kembar_ditolak(self):
         with self.assertRaises(Tolak):
             svc.tambah(self.admin, "rusdi")
