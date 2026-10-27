@@ -173,6 +173,9 @@ def lain(request, hak, toko):
     if "opname" in hak:
         tambah("Opname menunggu ACC", saring_toko(Opname.objects.filter(status="diajukan"), request).count(),
                "master:opname")
+    if "ubah_stok" in hak:
+        from master.layanan.bukadus import jumlah_menunggu as dus_menunggu
+        tambah("Buka dus menunggu ACC", dus_menunggu(), "master:buka_dus")
     if "kelola_lokasi" in hak:
         tambah("Tugas karyawan menunggu ACC", Tiket.objects.filter(status="dikirim").count(), "master:tiket")
     if "kelola_kasir" in hak:

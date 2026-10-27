@@ -22,7 +22,8 @@ export function mapApiItem(item = {}) {
       price: item.price,
       floor_price: item.floor_price,
     }),
-    stock: Number(item.stock),
+    /* null = stok sedang ditutup karena ada tugas hitung stok (hitung buta), bukan 0. */
+    stock: item.stock === null || item.stock === undefined ? null : Number(item.stock),
     stock_alert: stockAlert === null || stockAlert === undefined ? null : Number(stockAlert),
     /* Kode rak dari master; kunci hanya ada kalau rak diisi. */
     ...(item.rak ? { rak: String(item.rak) } : {}),

@@ -74,6 +74,19 @@ def baru(request):
     })
 
 
+def _buka_dus_menunggu():
+    daftar = list(BukaDus.objects.filter(status="menunggu").select_related(
+        "konversi__dari", "konversi__ke", "lokasi_dari", "lokasi_ke").order_by("waktu"))
+    kunci = {(v.item_name, v.variant) for b in daftar for v in (b.konversi.dari, b.konversi.ke)}
+    stok = {(r["item_name"], r["variant"]): r["in_stock"] for r in Item.objects.filter(
+        item_name__in={n for n, _ in kunci}).values("item_name", "variant", "in_stock")}
+    for b in daftar:
+        b.stok_dari = stok.get((b.konversi.dari.item_name, b.konversi.dari.variant))
+        b.stok_ke = stok.get((b.konversi.ke.item_name, b.konversi.ke.variant))
+        b.standar = b.jumlah * b.konversi.isi
+    return daftar
+
+
 @perlu("ubah_stok")
 def buka_dus(request):
     if request.method == "POST":
@@ -85,6 +98,15 @@ def buka_dus(request):
                     isi=request.POST.get("isi"), isi_tidak_tetap=request.POST.get("isi_tidak_tetap") == "1",
                     catatan=request.POST.get("catatan"))
                 messages.success(request, "Pasangan buka dus ditambahkan.")
+            elif aksi in ("acc", "tolak"):
+                bd = get_object_or_404(BukaDus.objects.select_related("konversi__dari", "konversi__ke"), pk=request.POST.get("bd"))
+                if aksi == "acc":
+                    bukadus.acc(request.user, bd)
+                    messages.success(request, f"Buka dus dari {bd.oleh} diterapkan: {bd.jumlah} {bd.konversi.dari.item_name} "
+                                              f"menjadi {bd.isi_total} {bd.konversi.ke.item_name}.")
+                else:
+                    bukadus.tolak(request.user, bd, request.POST.get("alasan"))
+                    messages.success(request, "Buka dus ditolak. Stok tidak berubah.")
             else:
                 k = get_object_or_404(Konversi.objects.select_related("dari", "ke"), pk=request.POST.get("id"))
                 if aksi == "buka":
@@ -111,7 +133,8 @@ def buka_dus(request):
         k.stok_ke = (stok.get((k.ke.item_name, k.ke.variant)) or {}).get("in_stock")
     return render(request, "master/buka_dus.html", {
         "menu": "buka_dus", "daftar": daftar, "pilihan_lokasi": svc_lokasi.pilihan(),
-        "riwayat": BukaDus.objects.select_related("konversi__dari", "konversi__ke")[:30],
+        "riwayat": BukaDus.objects.exclude(status="menunggu").select_related("konversi__dari", "konversi__ke")[:30],
+        "menunggu": _buka_dus_menunggu(),
     })
 
 

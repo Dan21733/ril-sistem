@@ -145,6 +145,44 @@ class BukaDusTest(Dasar):
         self.assertIn("Riwayat buka dus", isi)
         self.assertEqual(self.client.get(reverse("master:stok_riwayat") + "?jenis=buka_dus").status_code, 200)
 
+    def test_dari_gudang_menunggu_acc_pemilik(self):
+        from master.models import BukaDus, MutasiStok
+        k = self._pasangan()
+        self.client.force_login(self.gudang)
+        r = self.client.post(reverse("gudang:buka_dus"), {"id": k.id, "jumlah": "2"}, follow=True)
+        self.assertContains(r, "Menunggu ACC pemilik")
+        self.assertContains(r, "Menunggu ACC")
+        bd = BukaDus.objects.get()
+        self.assertEqual((bd.status, bd.jumlah, bd.isi_total, bd.oleh), ("menunggu", 2, 100, "gudang"))
+        sak = lambda: Item.objects.get(item_name="Semen", variant="50 Kg").in_stock
+        self.assertEqual(sak(), 10)                                   # stok belum berubah
+        self.assertFalse(MutasiStok.objects.exists())
+        self.client.force_login(self.admin)
+        isi = self.client.get(reverse("master:buka_dus")).content.decode()
+        self.assertIn("Menunggu ACC (1)", isi)
+        self.assertContains(self.client.get(reverse("master:dashboard")), "Buka dus menunggu ACC")
+        self.client.post(reverse("master:buka_dus"), {"aksi": "acc", "bd": bd.id})
+        bd.refresh_from_db()
+        self.assertEqual(bd.status, "diterapkan")
+        self.assertEqual((sak(), Item.objects.get(item_name="Semen", variant="Per Kg").in_stock), (8, 120))
+        self.assertEqual(set(MutasiStok.objects.values_list("nama_pengguna", flat=True)), {"gudang (ACC admin)"})
+        r = self.client.post(reverse("master:buka_dus"), {"aksi": "acc", "bd": bd.id}, follow=True)
+        self.assertContains(r, "sudah diputuskan")                   # tidak bisa diterapkan dua kali
+        self.assertEqual(sak(), 8)
+
+    def test_tolak_tidak_mengubah_stok(self):
+        from master.layanan import bukadus
+        bd = bukadus.ajukan(self.gudang, self._pasangan(), jumlah=3)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("master:buka_dus"), {"aksi": "tolak", "bd": bd.id, "alasan": "dusnya masih utuh"})
+        bd.refresh_from_db()
+        self.assertEqual((bd.status, bd.alasan), ("ditolak", "dusnya masih utuh"))
+        self.assertEqual(Item.objects.get(item_name="Semen", variant="50 Kg").in_stock, 10)
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:buka_dus"))
+        self.assertContains(r, "Ditolak")
+        self.assertContains(r, "dusnya masih utuh")
+
 
 class OpnameTest(Dasar):
     def _hitung(self, **isi):

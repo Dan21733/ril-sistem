@@ -215,11 +215,12 @@ def buka_dus(request):
         try:
             k = get_object_or_404(Konversi.objects.select_related("dari", "ke"), pk=request.POST.get("id"), aktif=True)
             from master.layanan import lokasi as svc_lokasi
-            hasil = bukadus.buka(request.user, k, jumlah=request.POST.get("jumlah"),
-                                 isi_total=request.POST.get("isi_total"), catatan=request.POST.get("catatan"),
-                                 lokasi_dari=svc_lokasi.baca(request.POST.get("lokasi_dari")),
-                                 lokasi_ke=svc_lokasi.baca(request.POST.get("lokasi_ke")))
-            messages.success(request, f"{hasil.jumlah} {k.dari.item_name} dibuka menjadi {hasil.isi_total} {k.ke.item_name}.")
+            hasil = bukadus.ajukan(request.user, k, jumlah=request.POST.get("jumlah"),
+                                   isi_total=request.POST.get("isi_total"), catatan=request.POST.get("catatan"),
+                                   lokasi_dari=svc_lokasi.baca(request.POST.get("lokasi_dari")),
+                                   lokasi_ke=svc_lokasi.baca(request.POST.get("lokasi_ke")))
+            messages.success(request, f"Tercatat: {hasil.jumlah} {k.dari.item_name} menjadi {hasil.isi_total} {k.ke.item_name}. "
+                                      "Menunggu ACC pemilik; stok berubah setelah di-ACC.")
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("gudang:buka_dus")
@@ -231,7 +232,7 @@ def buka_dus(request):
     return render(request, "gudang/buka_dus.html", {
         "menu": "buka_dus", "toko": toko, "pilihan_lokasi": svc_lokasi.pilihan(),
         "daftar": daftar,
-        "riwayat": BukaDus.objects.filter(oleh=request.user.username).select_related("konversi__dari", "konversi__ke")[:10],
+        "riwayat": BukaDus.objects.filter(oleh__in={request.user.username, request.user.first_name} - {""}).select_related("konversi__dari", "konversi__ke")[:10],
     })
 
 

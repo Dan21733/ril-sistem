@@ -660,7 +660,13 @@ class Konversi(models.Model):
 
 
 class BukaDus(models.Model):
+    """Satu kali buka dus. Dari aplikasi gudang statusnya menunggu sampai pemilik ACC."""
+    STATUS = [("menunggu", "Menunggu ACC"), ("diterapkan", "Diterapkan"), ("ditolak", "Ditolak")]
     konversi = models.ForeignKey(Konversi, on_delete=models.PROTECT, related_name="riwayat")
+    status = models.CharField(max_length=12, choices=STATUS, default="menunggu", db_index=True)
+    diputus_oleh = models.CharField(max_length=150, blank=True, default="")
+    diputus_waktu = models.DateTimeField(null=True, blank=True)
+    alasan = models.CharField(max_length=200, blank=True, default="")
     waktu = models.DateTimeField(auto_now_add=True, db_index=True)
     oleh = models.CharField(max_length=150, blank=True, default="")
     jumlah = models.IntegerField()

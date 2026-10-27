@@ -10,7 +10,28 @@
 @media (max-width:900px){.pasangan{grid-template-columns:1fr}}
 </style>
 <h2>Buka dus</h2>
-<p class="sub">Memecah kemasan besar menjadi satuan eceran. Stok dan modal ikut pindah; harga tidak berubah.</p>
+<p class="sub">Memecah kemasan besar menjadi satuan eceran. Stok dan modal ikut pindah; harga tidak berubah.
+  Buka dus dari aplikasi gudang menunggu ACC kamu dulu; yang kamu catat di sini langsung diterapkan.</p>
+
+{% if menunggu %}
+<div class="kartu" style="margin-bottom:18px;border-color:var(--aksen)">
+  <b style="font-size:17px">Menunggu ACC ({{ menunggu|length }})</b>
+  <div class="gulir" style="margin-top:8px"><table>
+    <tr><th>Waktu</th><th>Oleh</th><th>Dibuka</th><th>Menjadi</th><th>Catatan</th><th></th></tr>
+    {% for b in menunggu %}<tr>
+      <td class="kecil" style="white-space:nowrap">{{ b.waktu|date:"d M H:i" }}</td><td>{{ b.oleh }}</td>
+      <td><b>{{ b.jumlah|ribuan }}</b> {{ b.konversi.dari.item_name }} <span class="redup">{{ b.konversi.dari.variant|varian }}</span>
+        <div class="kecil redup">stok sekarang {{ b.stok_dari|ribuan|default:"-" }}{% if b.lokasi_dari %} · dari {{ b.lokasi_dari.nama }}{% endif %}</div></td>
+      <td><b>{{ b.isi_total|ribuan }}</b> {{ b.konversi.ke.item_name }} <span class="redup">{{ b.konversi.ke.variant|varian }}</span>
+        <div class="kecil redup">stok sekarang {{ b.stok_ke|ribuan|default:"-" }}{% if b.lokasi_ke %} · ke {{ b.lokasi_ke.nama }}{% endif %}{% if b.isi_total != b.standar %} · <b style="color:var(--aksen)">isi standar {{ b.standar|ribuan }}</b>{% endif %}</div></td>
+      <td class="kecil">{{ b.catatan }}</td>
+      <td><div class="baris" style="flex-wrap:nowrap;gap:6px">
+        <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="acc"><input type="hidden" name="bd" value="{{ b.id }}"><button class="tombol kecil utama" type="submit">ACC</button></form>
+        <form method="post" data-tanya="Tolak buka dus ini? Stok tidak berubah.">{% csrf_token %}<input type="hidden" name="aksi" value="tolak"><input type="hidden" name="bd" value="{{ b.id }}"><input type="text" name="alasan" placeholder="Alasan" style="width:120px"><button class="tombol kecil" type="submit">Tolak</button></form>
+      </div></td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endif %}
 
 {% for k in daftar %}
 <div class="kartu {% if not k.aktif %}nonaktif{% endif %}" style="margin-bottom:14px{% if not k.aktif %};opacity:.6{% endif %}">
@@ -64,11 +85,12 @@
 {% if riwayat %}
 <h3>Riwayat buka dus</h3>
 <div class="gulir"><table>
-  <tr><th>Waktu</th><th>Oleh</th><th>Dari</th><th>Menjadi</th><th class="angka">Dibuka</th><th class="angka">Isi</th><th class="angka">Modal eceran</th><th>Catatan</th></tr>
+  <tr><th>Waktu</th><th>Oleh</th><th>Dari</th><th>Menjadi</th><th class="angka">Dibuka</th><th class="angka">Isi</th><th class="angka">Modal eceran</th><th>Catatan</th><th>Status</th></tr>
   {% for r in riwayat %}<tr><td class="kecil" style="white-space:nowrap">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.oleh }}</td>
     <td>{{ r.konversi.dari.item_name }} <span class="redup">{{ r.konversi.dari.variant|varian }}</span></td>
     <td>{{ r.konversi.ke.item_name }} <span class="redup">{{ r.konversi.ke.variant|varian }}</span></td>
-    <td class="angka">{{ r.jumlah|ribuan }}</td><td class="angka">{{ r.isi_total|ribuan }}</td><td class="angka">{{ r.modal_satuan|ribuan|default:"-" }}</td><td class="kecil redup">{{ r.catatan }}</td></tr>{% endfor %}
+    <td class="angka">{{ r.jumlah|ribuan }}</td><td class="angka">{{ r.isi_total|ribuan }}</td><td class="angka">{{ r.modal_satuan|ribuan|default:"-" }}</td><td class="kecil redup">{{ r.catatan }}{% if r.alasan %} · ditolak: {{ r.alasan }}{% endif %}</td>
+    <td><span class="label {% if r.status == 'diterapkan' %}baik{% else %}bahaya{% endif %}">{{ r.get_status_display }}</span>{% if r.diputus_oleh and r.diputus_oleh != r.oleh %} <span class="kecil redup">{{ r.diputus_oleh }}</span>{% endif %}</td></tr>{% endfor %}
 </table></div>
 {% endif %}
 

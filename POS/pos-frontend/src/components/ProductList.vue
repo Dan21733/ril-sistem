@@ -101,7 +101,7 @@ function getStockStatus(item) {
    * tidak memberikan warning.
    */
 
-  if (item.stock_alert === null) {
+  if (item.stock_alert === null || item.stock === null) {
     return 'normal'
   }
 
@@ -136,7 +136,7 @@ function getStockStatus(item) {
  * pemilik di master.
  */
 function isOutOfStock(item) {
-  return Number(item.stock) <= 0
+  return item.stock !== null && Number(item.stock) <= 0
 }
 
 /*
@@ -239,9 +239,14 @@ function loadMore() {
                 {{ item.price == null ? 'Harga tidak tersedia' : formatPrice(item.price) }}
               </strong>
 
-              <span class="stock" :class="getStockStatus(item)">
+              <!-- Stok null: sedang ada tugas hitung stok untuk barang ini (hitung buta). Tetap boleh dijual. -->
+              <span
+                class="stock"
+                :class="getStockStatus(item)"
+                :title="item.stock === null ? 'Stok sedang dihitung' : undefined"
+              >
                 Stok
-                {{ item.stock }}
+                {{ item.stock === null ? '–' : item.stock }}
               </span>
             </span>
           </button>

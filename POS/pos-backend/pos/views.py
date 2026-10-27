@@ -238,7 +238,8 @@ class ItemListAPIView(ListAPIView):
     def get_serializer(self, *args, **kwargs):
         # Alias hanya untuk item di halaman ini: satu query kecil per halaman.
         if args and kwargs.get("many"):
-            items = list(args[0])
+            # Stok barang yang sedang dihitung (tugas hitung buta) tidak dikirim.
+            items = data_master.tutup_stok(list(args[0]))
             args = (items,) + args[1:]
             kwargs["context"] = {**self.get_serializer_context(),
                                  "alias": data_master.alias_untuk({i.item_name for i in items})}

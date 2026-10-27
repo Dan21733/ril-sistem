@@ -4,7 +4,7 @@
 {% if tanpa_stok %}<div class="kartu redup">{{ toko.nama }} belum punya kasir, jadi buka dus belum dicatat di sini.</div>{% else %}
 <div class="alat"><input type="search" id="saring" placeholder="Cari kemasan" autocomplete="off" aria-label="Cari kemasan"></div>
 {% for k in daftar %}
-<form method="post" class="kartu pasangan" data-isi="{{ k.isi }}" data-tanya="Catat buka dus ini?">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
+<form method="post" class="kartu pasangan" data-isi="{{ k.isi }}" data-tanya="Catat buka dus ini? Stok berubah setelah pemilik ACC.">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
   <b>{{ k.dari.item_name }}{% if k.dari.variant != "N/A" %} / {{ k.dari.variant }}{% endif %}</b><br>
   <span class="redup">menjadi {{ k.ke.item_name }}{% if k.ke.variant != "N/A" %} / {{ k.ke.variant }}{% endif %} · isi {{ k.isi }}{% if k.isi_tidak_tetap %} (bisa beda){% endif %}</span>
   <div class="dua" style="margin-top:8px">
@@ -22,7 +22,8 @@
 {% endfor %}
 {% if riwayat %}
 <h3>Terakhir kamu buka</h3>
-<div class="daftar">{% for r in riwayat %}<div class="brs"><div class="nama"><b>{{ r.jumlah }} {{ r.konversi.dari.item_name }}</b><span class="redup kecil">jadi {{ r.isi_total }} {{ r.konversi.ke.item_name }} · {{ r.waktu|date:"d M H:i" }}</span></div></div>{% endfor %}</div>
+<div class="daftar">{% for r in riwayat %}<div class="brs"><div class="nama"><b>{{ r.jumlah }} {{ r.konversi.dari.item_name }}</b><span class="redup kecil">jadi {{ r.isi_total }} {{ r.konversi.ke.item_name }} · {{ r.waktu|date:"d M H:i" }}{% if r.alasan %} · {{ r.alasan }}{% endif %}</span></div>
+  <span class="label {% if r.status == 'diterapkan' %}baik{% elif r.status == 'ditolak' %}bahaya{% else %}awas{% endif %}">{{ r.get_status_display }}</span></div>{% endfor %}</div>
 {% endif %}
 {% endif %}
 <script>

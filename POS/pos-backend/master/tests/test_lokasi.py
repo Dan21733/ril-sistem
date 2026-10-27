@@ -192,6 +192,34 @@ class LokasiAlurTest(Dasar):
         op = Opname.objects.get(status="draf")
         self.assertEqual((op.lokasi, op.tiket_id, op.baris.count()), (self.ga, t.id, 1))
 
+    def test_stok_ditutup_di_kasir_selama_tugas_hitung(self):
+        from datetime import timedelta
+        from master.layanan import tiket
+        from master.models import Tiket
+        from pos import data_master
+        buat_item("Cat Avian", "Putih", kategori="Cat", stok=5)
+        layanan.sinkron_info()
+        VarianInfo.objects.filter(item_name="Palu", variant="Kecil").update(rak_id="TK-01")
+
+        def stok():
+            return {(i.item_name, i.variant): i.in_stock for i in data_master.tutup_stok(list(Item.objects.all()))}
+        self.assertEqual(stok()[("Palu", "Kecil")], 10)                          # tanpa tugas: tampil
+        t = tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung rak", jenis="hitung", hak=SEMUA_HAK,
+                       batas=timezone.now() + timedelta(hours=1), lokasi=self.ga.id, rak=["TK-01"])
+        s = stok()
+        self.assertIsNone(s[("Palu", "Kecil")])                                 # sedang dihitung
+        self.assertEqual((s[("Palu", "Besar")], s[("Cat Avian", "Putih")]), (10, 5))
+        # lewat batas: tampil lagi
+        self.assertEqual({(i.item_name, i.variant): i.in_stock for i in data_master.tutup_stok(
+            list(Item.objects.all()), sekarang=timezone.now() + timedelta(hours=2))}[("Palu", "Kecil")], 10)
+        Tiket.objects.filter(pk=t.pk).update(status="dikirim")                  # sudah dikirim: tampil lagi
+        self.assertEqual(stok()[("Palu", "Kecil")], 10)
+        tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung cat", jenis="hitung", hak=SEMUA_HAK,
+                   batas=timezone.now() + timedelta(hours=1), lokasi=self.ga.id, kategori=["Cat"])
+        s = stok()
+        self.assertIsNone(s[("Cat Avian", "Putih")])
+        self.assertEqual(s[("Palu", "Kecil")], 10)
+
     def test_buka_dus_dari_gudang_ke_toko(self):
         from master.layanan import bukadus
         from master.layanan import lokasi

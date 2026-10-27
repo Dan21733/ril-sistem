@@ -87,3 +87,69 @@ def alias_untuk(nama_item):
     except DatabaseError:
         return {}
     return {k: " ".join(v) for k, v in hasil.items()}
+
+
+# ---------------------------------------------------------------------------
+# Stok ditutup selama tugas hitung (hitung buta)
+# ---------------------------------------------------------------------------
+# Selama ada tugas "Hitung stok" yang terbuka di master, stok barang yang masuk
+# lingkup tugas itu tidak dikirim ke tablet kasir (dikirim null), supaya yang
+# sedang menghitung tidak bisa menyontek angka sistem dari tablet kasir mana pun.
+# Lingkup sama dengan master/layanan/opname.py lingkup_tugas(): rak dan/atau
+# kategori; tanpa keduanya = semua barang. Kasir tetap bisa menjual barang itu.
+
+
+def _json(nilai):
+    import json
+    if isinstance(nilai, (dict, list)):
+        return nilai
+    try:
+        return json.loads(nilai or "{}")
+    except (TypeError, ValueError):
+        return {}
+
+
+def stok_ditutup(sekarang=None):
+    """(semua, {(item_name, variant)}) yang stoknya sedang ditutup. Tanpa tabel master: (False, set())."""
+    from django.utils import timezone
+
+    from .models import Item
+
+    if not tersedia():
+        return False, set()
+    sekarang = sekarang or timezone.now()
+    try:
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SELECT saring FROM master_tiket WHERE jenis = %s AND status = %s AND batas > %s",
+                           ["hitung", "terbuka", sekarang])
+            tugas = [_json(r[0]) for r in cursor.fetchall()]
+            if not tugas:
+                return False, set()
+            rak, kategori = set(), set()
+            for s in tugas:
+                if not s.get("rak") and not s.get("kategori"):
+                    return True, set()
+                rak.update(s.get("rak") or [])
+                kategori.update(s.get("kategori") or [])
+            kunci = set()
+            if rak:
+                tanda = ", ".join(["%s"] * len(rak))
+                cursor.execute(f"SELECT item_name, variant FROM {TABEL} WHERE rak_id IN ({tanda})", list(rak))
+                kunci.update((n, v) for n, v in cursor.fetchall())
+            if kategori:
+                kunci.update(Item.objects.filter(category__in=kategori).values_list("item_name", "variant"))
+            return False, kunci
+    except DatabaseError:
+        return False, set()
+
+
+def tutup_stok(items, sekarang=None):
+    """Kosongkan stok (None) item yang sedang dihitung. Mengubah objek di `items`."""
+    semua, kunci = stok_ditutup(sekarang)
+    if not semua and not kunci:
+        return items
+    for i in items:
+        if semua or (i.item_name, i.variant) in kunci:
+            i.in_stock = None
+            i.stock_alert = None
+    return items

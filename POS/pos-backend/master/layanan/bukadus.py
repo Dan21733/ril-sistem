@@ -1,6 +1,8 @@
 """Buka dus: memecah kemasan besar menjadi satuan eceran.
 
 - Pasangan (dari -> ke) dikunci di daftar konversi; tidak ada isian bebas.
+- Dari aplikasi gudang hanya dicatat (status menunggu); stok berubah setelah pemilik ACC.
+  Dari master (pemilik) langsung diterapkan.
 - Stok "dari" berkurang, stok "ke" bertambah, dua-duanya tercatat di riwayat stok.
 - Modal ikut pindah: modal satuan eceran = modal kemasan / isi sebenarnya.
 - Harga floor dan harga jual tidak disentuh.
@@ -48,16 +50,8 @@ def ubah_konversi(pengguna, k, *, isi, isi_tidak_tetap, aktif, catatan=""):
                       catatan=f"{k.dari.item_name} -> {k.ke.item_name}")
 
 
-def buka(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, lokasi_ke=None):
-    """Buka `jumlah` kemasan. `isi_total` hanya dipakai kalau isinya tidak tetap.
-
-    lokasi_dari: tempat dus diambil; lokasi_ke: tempat isinya ditaruh. Kosong = Toko.
-    Jumlah di gudang tidak diperiksa di sini, supaya kepala gudang tidak bisa mengintip
-    stok lewat pesan galat; gudang yang jadi minus tampil sebagai temuan di master.
-    """
-    from master.layanan.lokasi import lokasi_toko, ubah_gudang
-    lokasi_dari = lokasi_dari or lokasi_toko()
-    lokasi_ke = lokasi_ke or lokasi_toko()
+def _periksa(k, jumlah, isi_total):
+    """(jumlah dus, isi total) setelah diperiksa. Tidak mengubah apa pun."""
     if not k.aktif:
         raise Tolak("Pasangan ini nonaktif.")
     qty = baca_angka(jumlah, boleh_kosong=False)
@@ -75,9 +69,48 @@ def buka(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, l
             raise Tolak(f"Isi {total} terlalu jauh dari isi standar {standar}. Periksa lagi, atau ubah isi standarnya.")
     else:
         total = standar
-    catatan = rapikan_teks(catatan)[:300]
+    return qty, total
 
+
+def ajukan(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, lokasi_ke=None):
+    """Karyawan gudang mencatat buka dus. Stok belum berubah sampai pemilik ACC.
+
+    Jumlah di gudang tidak diperiksa di sini, supaya karyawan tidak bisa mengintip
+    stok lewat pesan galat; gudang yang jadi minus tampil sebagai temuan di master.
+    """
+    from master.layanan.lokasi import lokasi_toko
+    lokasi_dari = lokasi_dari or lokasi_toko()
+    lokasi_ke = lokasi_ke or lokasi_toko()
+    qty, total = _periksa(k, jumlah, isi_total)
+    return BukaDus.objects.create(konversi=k, oleh=pengguna.first_name or pengguna.username, jumlah=qty, isi_total=total,
+                                  catatan=rapikan_teks(catatan)[:300], status="menunggu",
+                                  lokasi_dari=lokasi_dari if lokasi_dari.jenis == "gudang" else None,
+                                  lokasi_ke=lokasi_ke if lokasi_ke.jenis == "gudang" else None)
+
+
+def buka(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, lokasi_ke=None):
+    """Pemilik membuka dus dari master: dicatat dan langsung diterapkan."""
     with transaction.atomic():
+        bd = ajukan(pengguna, k, jumlah=jumlah, isi_total=isi_total, catatan=catatan,
+                    lokasi_dari=lokasi_dari, lokasi_ke=lokasi_ke)
+        return acc(pengguna, bd)
+
+
+def acc(pengguna, bd):
+    """Terapkan buka dus yang menunggu: stok dus berkurang, stok eceran bertambah, modal ikut pindah."""
+    from django.utils import timezone
+    from master.layanan.lokasi import lokasi_toko, ubah_gudang
+    with transaction.atomic():
+        bd = BukaDus.objects.select_for_update().select_related("konversi").get(pk=bd.pk)
+        if bd.status != "menunggu":
+            raise Tolak("Buka dus ini sudah diputuskan.")
+        k = bd.konversi
+        if not k.aktif:
+            raise Tolak("Pasangan ini sudah nonaktif. Tolak saja, atau aktifkan pasangannya dulu.")
+        qty, total = bd.jumlah, bd.isi_total
+        lokasi_dari = bd.lokasi_dari or lokasi_toko()
+        lokasi_ke = bd.lokasi_ke or lokasi_toko()
+        catatan = bd.catatan
         dari = VarianInfo.objects.select_for_update().get(pk=k.dari_id)
         ke = VarianInfo.objects.select_for_update().get(pk=k.ke_id)
         baris_dari = Item.objects.select_for_update().filter(item_name=dari.item_name, variant=dari.variant)
@@ -90,7 +123,7 @@ def buka(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, l
 
         baris_dari.update(in_stock=stok_dari - qty)
         keterangan = f"{dari.item_name} / {dari.variant} -> {ke.item_name} / {ke.variant}"
-        nama = pengguna.username
+        nama = bd.oleh if bd.oleh in (pengguna.username, pengguna.first_name) else f"{bd.oleh} (ACC {pengguna.username})"[:150]
         MutasiStok.objects.create(pengguna=pengguna, nama_pengguna=nama, varian=dari, item_name=dari.item_name,
                                   variant=dari.variant, jenis="buka_dus", jumlah=-qty, stok_sebelum=stok_dari,
                                   stok_sesudah=stok_dari - qty, catatan=(keterangan + (". " + catatan if catatan else "")),
@@ -123,7 +156,23 @@ def buka(pengguna, k, *, jumlah, isi_total=None, catatan="", lokasi_dari=None, l
                 ke.modal_rata = rata_baru
                 ke.save(update_fields=["modal_rata"])
         baris_ke.update(**ubah)
-        return BukaDus.objects.create(konversi=k, oleh=nama, jumlah=qty, isi_total=total,
-                                      modal_satuan=modal_satuan, catatan=catatan,
-                                      lokasi_dari=lokasi_dari if lokasi_dari.jenis == "gudang" else None,
-                                      lokasi_ke=lokasi_ke if lokasi_ke.jenis == "gudang" else None)
+        bd.status, bd.modal_satuan = "diterapkan", modal_satuan
+        bd.diputus_oleh, bd.diputus_waktu = pengguna.username, timezone.now()
+        bd.save()
+        return bd
+
+
+def tolak(pengguna, bd, alasan=""):
+    from django.utils import timezone
+    with transaction.atomic():
+        bd = BukaDus.objects.select_for_update().get(pk=bd.pk)
+        if bd.status != "menunggu":
+            raise Tolak("Buka dus ini sudah diputuskan.")
+        bd.status, bd.alasan = "ditolak", rapikan_teks(alasan)[:200]
+        bd.diputus_oleh, bd.diputus_waktu = pengguna.username, timezone.now()
+        bd.save()
+        return bd
+
+
+def jumlah_menunggu():
+    return BukaDus.objects.filter(status="menunggu").count()

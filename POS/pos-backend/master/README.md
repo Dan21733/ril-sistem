@@ -248,7 +248,8 @@ Menu **Kasir** (hak "Kasir: karyawan, PIN, tablet, aturan kasir"):
 
 ## Aplikasi gudang (`/gudang/`)
 
-Tampilan untuk tablet/HP. Halaman utama = **Tugas**; tidak ada menu bebas selain *Buka dus*.
+Tampilan untuk tablet/HP. Halaman utama = **Tugas** (yang sudah lewat ada di tab **Riwayat**);
+tidak ada menu bebas selain *Buka dus*.
 Tugas berisi pekerjaan otomatis (barang menunggu diambil, pesanan yang ditunggu) dan tugas dari pemilik.
 Cara kerja tiap tugas ada di halaman **Panduan** (tombol `?`), hanya bagian yang sesuai hak akun.
 
@@ -267,7 +268,13 @@ Cara kerja tiap tugas ada di halaman **Panduan** (tombol `?`), hanya bagian yang
   selesai/ditolak saat opname di-ACC/ditolak. Tugas yang lewat batas tapi sudah ada hitungan bisa
   *diteruskan* pemilik ke opname. Yang diterapkan adalah selisihnya, jadi penjualan sesudah penghitungan
   tidak ikut terhapus.
-- **Buka dus**: langsung, untuk yang punya haknya; hanya pasangan yang dibuat pemilik.
+  **Selama tugas hitung terbuka** (sampai dikirim atau lewat batas), stok barang dalam lingkupnya
+  tidak dikirim ke tablet kasir: di kasir tampil "Stok –", barangnya tetap bisa dijual. Supaya yang
+  menghitung tidak bisa menyontek angka sistem dari tablet kasir mana pun (`pos/data_master.py`).
+  Tablet kasir yang sedang offline baru ikut setelah tersambung lagi.
+- **Buka dus**: hanya pasangan yang dibuat pemilik. Dari aplikasi gudang dicatat dulu dan **menunggu
+  ACC pemilik** (master › Stok & gudang › Buka dus, juga muncul di Beranda); stok baru berubah saat di-ACC.
+  Buka dus yang dicatat pemilik di master langsung diterapkan.
 - **Ambil**: dari kartu di Tugas, konfirmasi jumlah sebenarnya.
 - **Tugas pindah lokasi/rak** dan **tugas data barang**: lihat di bawah.
 

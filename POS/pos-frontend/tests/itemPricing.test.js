@@ -83,3 +83,14 @@ test('keranjang lama berharga 0 tidak lagi dituduh di bawah floor', () => {
     'above',
   )
 })
+
+test('stok null (sedang dihitung) tetap null, bukan 0', async () => {
+  // Impor tanpa ekstensi (gaya Vite) diarahkan ke berkas aslinya.
+  const { readFile } = await import('node:fs/promises')
+  const sumber = (await readFile(new URL('../src/utils/catalogItem.js', import.meta.url), 'utf8'))
+    .replace("from './priceRange'", `from '${new URL('../src/utils/priceRange.js', import.meta.url).href}'`)
+  const { mapApiItem } = await import('data:text/javascript,' + encodeURIComponent(sumber))
+  assert.equal(mapApiItem({ item_name: 'Palu', variant: 'Kecil', price: 1500, floor_price: 1000, stock: null, stock_alert: null }).stock, null)
+  assert.equal(mapApiItem({ item_name: 'Palu', variant: 'Kecil', price: 1500, floor_price: 1000, stock: 0, stock_alert: null }).stock, 0)
+  assert.equal(mapApiItem({ item_name: 'Palu', variant: 'Kecil', price: 1500, floor_price: 1000, stock: '7', stock_alert: null }).stock, 7)
+})
