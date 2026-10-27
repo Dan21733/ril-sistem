@@ -150,8 +150,11 @@ def cari_barang(request):
             Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
             | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name"))
         )
-    barang = list(qs.values("item_name", "variant", "in_stock")[:60])
-    barang.sort(key=lambda b: (kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
+    from master.layanan import cari as svc_cari
+    # Yang cocok lewat nama didahulukan SEBELUM dipotong, supaya tidak tergeser hasil alias.
+    barang = list(qs.annotate(t=svc_cari.tingkat(cari, lain=("brand",))).order_by("t", "item_name", "variant")
+                  .values("item_name", "variant", "in_stock", "t")[:60])
+    barang.sort(key=lambda b: (b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
     barang = barang[:25]
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in barang})}
     hasil = []

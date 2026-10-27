@@ -33,6 +33,10 @@ PER_HALAMAN = 50
 # ---------------------------------------------------------------------------
 
 
+def _cari(request):
+    return layanan.rapikan_teks(request.GET.get("q"))
+
+
 def _saring_barang(request, hak):
     """Queryset Item sesuai filter di alamat."""
     g = request.GET
@@ -114,13 +118,19 @@ def _qs_tanpa(request, *buang):
     return urlencode(data)
 
 
-def halaman_alami(qs, kolom, per_halaman, hal):
+def halaman_alami(qs, kolom, per_halaman, hal, cari=""):
     """Paginator dengan urutan alami di SELURUH hasil, bukan per halaman.
 
     Database mengurutkan teks huruf demi huruf (12 MM sebelum 4 MM), jadi kunci semua
     baris diurutkan di Python dulu, baru halaman yang diminta diambil isinya.
+    Kalau sedang mencari, yang cocok lewat nama didahulukan (master/layanan/cari.py).
     """
-    kunci = sorted(qs.values_list("item_name", "variant"), key=lambda k: (kunci_alami(k[0]), kunci_alami(k[1])))
+    from master.layanan import cari as svc_cari
+    if cari:
+        baris = qs.annotate(tingkat_cari=svc_cari.tingkat(cari)).values_list("item_name", "variant", "tingkat_cari")
+        kunci = [(n, v) for n, v, _ in sorted(baris, key=lambda k: (k[2], kunci_alami(k[0]), kunci_alami(k[1])))]
+    else:
+        kunci = sorted(qs.values_list("item_name", "variant"), key=lambda k: (kunci_alami(k[0]), kunci_alami(k[1])))
     halaman = Paginator(kunci, per_halaman).get_page(hal)
     pilih = list(halaman.object_list)
     if pilih:
@@ -194,9 +204,11 @@ def barang_daftar(request):
         return respons
 
     jumlah_varian = qs.count()
+    from master.layanan import cari as svc_cari
+    cari = _cari(request)
     kelompok_qs = qs.values("item_name").annotate(
         cocok=Count("variant"), harga_min=Min("max_price"), harga_max=Max("max_price"),
-        stok=Sum("in_stock"), nama_urut=Lower("item_name"),
+        stok=Sum("in_stock"), nama_urut=Lower("item_name"), tingkat_cari=Min(svc_cari.tingkat(cari)),
     )
     urut = {
         "harga": ("-harga_max", "nama_urut"),
@@ -205,10 +217,11 @@ def barang_daftar(request):
     }.get(request.GET.get("urut"), ("nama_urut",))
     if urut == ("nama_urut",):
         # Urutan alami di seluruh daftar (bukan huruf demi huruf dari database).
-        halaman = Paginator(sorted(kelompok_qs, key=lambda d: kunci_alami(d["item_name"])), PER_HALAMAN).get_page(
-            request.GET.get("hal"))
+        # Saat mencari: yang cocok lewat nama dulu, yang hanya cocok lewat alias paling akhir.
+        halaman = Paginator(sorted(kelompok_qs, key=lambda d: (d["tingkat_cari"], kunci_alami(d["item_name"]))),
+                            PER_HALAMAN).get_page(request.GET.get("hal"))
     else:
-        halaman = Paginator(kelompok_qs.order_by(*urut), PER_HALAMAN).get_page(request.GET.get("hal"))
+        halaman = Paginator(kelompok_qs.order_by("tingkat_cari", *urut), PER_HALAMAN).get_page(request.GET.get("hal"))
     daftar = list(halaman.object_list)
 
     nama = [d["item_name"] for d in daftar]
@@ -469,9 +482,8 @@ def harga(request):
         except Tolak as tolak:
             messages.error(request, str(tolak))
 
-    halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"))
-    barang = _lengkapi(list(halaman.object_list), hak)
-    barang.sort(key=lambda b: (kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
+    halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"), _cari(request))
+    barang = _lengkapi(list(halaman.object_list), hak)   # urutan dari halaman_alami (nama cocok dulu)
     return render(request, "master/harga.html", {
         "menu": "harga",
         "barang": barang,
@@ -502,9 +514,8 @@ def stok(request):
     hak = hak_pengguna(request.user)
     layanan.pastikan_info()
     qs = _saring_barang(request, hak)
-    halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"))
-    barang = _lengkapi(list(halaman.object_list), hak)
-    barang.sort(key=lambda b: (kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
+    halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"), _cari(request))
+    barang = _lengkapi(list(halaman.object_list), hak)   # urutan dari halaman_alami (nama cocok dulu)
     semua = Item.objects.all()
     return render(request, "master/stok.html", {
         "menu": "stok",

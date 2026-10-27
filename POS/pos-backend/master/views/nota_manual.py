@@ -83,8 +83,11 @@ def cari(request):
     for kata in teks.split(" "):
         qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
                        | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name")))
-    barang = list(qs.values("item_name", "variant", "in_stock", "min_price", "max_price")[:60])
-    barang.sort(key=lambda b: (kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
+    from master.layanan import cari as svc_cari
+    # Yang cocok lewat nama didahulukan SEBELUM dipotong, supaya tidak tergeser hasil alias.
+    barang = list(qs.annotate(t=svc_cari.tingkat(teks, lain=("brand",))).order_by("t", "item_name", "variant")
+                  .values("item_name", "variant", "in_stock", "min_price", "max_price", "t")[:60])
+    barang.sort(key=lambda b: (b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in barang[:25]})}
     hasil = []
     for b in barang[:25]:

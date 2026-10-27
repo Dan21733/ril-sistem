@@ -146,10 +146,13 @@ def _cari_varian(cari, rak, lokasi=None, qs=None):
             | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name"))
             | Q(item_name__in=Item.objects.filter(brand__icontains=kata).values("item_name"))
         )
+    from master.layanan import cari as svc_cari
+    # Yang cocok lewat nama didahulukan SEBELUM dipotong, supaya tidak tergeser hasil alias.
+    qs = qs.annotate(t=svc_cari.tingkat(cari, lain=("alias_tambahan",))).order_by("t", "item_name", "variant")
     hasil = list(qs[:BATAS_HASIL + 1])
     terpotong = len(hasil) > BATAS_HASIL
     hasil = hasil[:BATAS_HASIL]
-    hasil.sort(key=lambda v: (kunci_alami(v.item_name), kunci_alami(v.variant)))
+    hasil.sort(key=lambda v: (v.t, kunci_alami(v.item_name), kunci_alami(v.variant)))
     return hasil, terpotong
 
 

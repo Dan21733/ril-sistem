@@ -129,7 +129,8 @@ def stok(request):
         qs = qs.filter(in_stock__lt=F("di_gudang"))
     elif g.get("toko") == "semua_gudang":
         qs = qs.filter(di_gudang__gt=0, in_stock=F("di_gudang"))
-    halaman = halaman_alami(qs, (*KOLOM_NILAI, "di_gudang"), PER_HALAMAN, g.get("hal"))
+    halaman = halaman_alami(qs, (*KOLOM_NILAI, "di_gudang"), PER_HALAMAN, g.get("hal"),
+                            layanan.rapikan_teks(g.get("q")))
     barang = list(halaman.object_list)
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(
         item_name__in={b["item_name"] for b in barang}).select_related("rak__tempat")}
@@ -141,7 +142,6 @@ def stok(request):
         jumlah = per_varian.get(v.id, {}) if v else {}
         b["kolom"] = [jumlah.get(l.id, 0) for l in gudang]
         b["toko"] = (b["in_stock"] or 0) - b["di_gudang"]
-    barang.sort(key=lambda b: (kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
     semua = Item.objects.annotate(di_gudang=_total_gudang())
     return render(request, "master/stok_lokasi.html", {
         "menu": "stok_lokasi", "barang": barang, "halaman": halaman, "g": g, "gudang": gudang, "toko": toko,
