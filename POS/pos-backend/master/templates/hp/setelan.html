@@ -50,7 +50,7 @@
   <a class="sel" href="{% url 'master:dashboard' %}"><div class="ikon-sel" style="background:#8E8E93">⌘</div><div class="utama">Buka master (tampilan lengkap)</div></a>
 </div>
 
-<form method="post" action="{% url 'master:logout' %}" style="margin:24px 0">{% csrf_token %}<input type="hidden" name="next" value="{% url 'master:login' %}?next={% url 'hp:beranda' %}">
+<form method="post" action="{% url 'master:logout' %}" style="margin:24px 0">{% csrf_token %}<input type="hidden" name="next" value="{% url 'hp:masuk' %}">
   <button class="tombol merah penuh" type="submit">Keluar</button></form>
 {% endblock %}
 {% block skrip %}

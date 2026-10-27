@@ -1,12 +1,14 @@
 """Aplikasi pemilik di HP: /hp/ (lihat master/views/hp.py)."""
 from django.urls import path
 
+from master.akun.masuk import MasukHp
 from master.views import hp as v
 
 app_name = "hp"
 
 urlpatterns = [
     path("", v.beranda, name="beranda"),
+    path("masuk/", MasukHp.as_view(), name="masuk"),
     path("acc/", v.acc, name="acc"),
     path("transaksi/", v.transaksi, name="transaksi"),
     path("barang/", v.barang, name="barang"),

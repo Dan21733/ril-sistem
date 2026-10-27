@@ -286,3 +286,16 @@ class PushTest(Dasar):
         with mock.patch.object(push, "kirim_satu", return_value=201) as k:
             push.kirim_baru()
         k.assert_not_called()
+
+
+class HpMasukTest(Dasar):
+    def test_belum_masuk_diarahkan_ke_masuk_hp_yang_memuat_manifest(self):
+        r = self.client.get(reverse("hp:barang") + "?q=palu")
+        self.assertRedirects(r, reverse("hp:masuk") + "?next=/hp/barang/%3Fq%3Dpalu", fetch_redirect_response=False)
+        r = self.client.get(reverse("hp:masuk"))
+        self.assertContains(r, reverse("hp:manifest"))
+        r = self.client.post(reverse("hp:masuk"), {"username": "admin", "password": "rahasia-123", "next": ""})
+        self.assertRedirects(r, reverse("hp:beranda"), fetch_redirect_response=False)
+        self.client.logout()
+        r = self.client.post(reverse("hp:push"), "{}", content_type="application/json")
+        self.assertEqual(r.status_code, 401)

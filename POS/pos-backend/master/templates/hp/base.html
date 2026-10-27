@@ -213,7 +213,7 @@ details.lipat>summary::-webkit-details-marker{display:none}
 </header>
 <main class="isi">{% block isi %}{% endblock %}</main>
 
-<nav class="tab" aria-label="Menu">
+{% block tabbar %}<nav class="tab" aria-label="Menu">
   <a href="{% url 'hp:beranda' %}" class="{% if tab == 'beranda' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12.5 14 4l10 8.5V23a1.5 1.5 0 0 1-1.5 1.5h-5v-7h-7v7h-5A1.5 1.5 0 0 1 4 23z" {% if tab == 'beranda' %}fill="currentColor" stroke="none"{% endif %}/></svg>
     Beranda{% if jumlah_acc %}<span class="titik">{{ jumlah_acc }}</span>{% endif %}</a>
@@ -229,7 +229,7 @@ details.lipat>summary::-webkit-details-marker{display:none}
   <a href="{% url 'hp:setelan' %}" class="{% if tab == 'setelan' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="10" r="4.5" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/><path d="M5 24c.8-4.6 4.4-7 9-7s8.2 2.4 9 7" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/></svg>
     Setelan</a>
-</nav>
+</nav>{% endblock %}
 <div id="kabar" role="status"></div>
 <script>/* Service worker untuk notifikasi (didaftarkan di semua halaman supaya tetap aktif). */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register("{% url 'hp:sw' %}", {scope: "{% url 'hp:beranda' %}"}).catch(() => {});</script>

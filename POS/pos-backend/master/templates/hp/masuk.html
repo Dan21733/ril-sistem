@@ -1,0 +1,26 @@
+{% extends "hp/base.html" %}
+{% block judul %}Masuk · DB Toko{% endblock %}
+{% block gaya %}<style>
+body{padding-bottom:0}
+.masuk{min-height:calc(100vh - 80px);display:flex;flex-direction:column;justify-content:center;max-width:420px;margin:0 auto}
+.logo{width:76px;height:76px;border-radius:18px;margin:0 auto 14px;display:block;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.masuk h1{text-align:center;font-size:30px;margin:0}.masuk .anak-judul{text-align:center;margin-bottom:22px}
+.masuk .isian span{width:110px}.masuk .isian input{text-align:left}
+</style>{% endblock %}
+{% block isi %}
+<div class="masuk">
+  <img class="logo" src="{% url 'hp:ikon' 180 %}" alt="">
+  <h1>DB Toko</h1><p class="anak-judul">Masuk untuk melanjutkan</p>
+  {% if form.errors %}<div class="galat">{% for e in form.non_field_errors %}{{ e }}{% empty %}Nama pengguna atau kata sandi salah.{% endfor %}</div>{% endif %}
+  {% for p in messages %}<div class="galat" role="status">{{ p }}</div>{% endfor %}
+  <form method="post">{% csrf_token %}
+    <div class="grup">
+      <label class="isian"><span>Nama</span><input name="username" autocomplete="username" autocapitalize="none" autocorrect="off" required value="{{ form.username.value|default:'' }}"></label>
+      <label class="isian"><span>Kata sandi</span><input name="password" type="password" autocomplete="current-password" required></label>
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="tombol penuh" type="submit" style="margin-top:16px">Masuk</button>
+  </form>
+</div>
+{% endblock %}
+{% block tabbar %}{% endblock %}

@@ -21,6 +21,26 @@ from master.layanan.inti import Tolak, kunci_alami
 from master.models import BukaDus, ItemInfo, Pembelian, Supplier, Tiket, VarianInfo
 
 
+def perlu_hp(hak=None):
+    """Sama dengan `perlu`, tetapi yang belum masuk diarahkan ke halaman masuk HP (dalam cakupan PWA)."""
+    from functools import wraps
+    from urllib.parse import quote
+
+    def bungkus(view):
+        dijaga = perlu(hak)(view)
+
+        @wraps(view)
+        def dalam(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                from django.urls import reverse
+                if request.method != "GET" or request.headers.get("Content-Type", "").startswith("application/json"):
+                    return JsonResponse({"ok": False, "pesan": "Sesi habis. Muat ulang halaman lalu masuk lagi."}, status=401)
+                return redirect(f"{reverse('hp:masuk')}?next={quote(request.get_full_path())}")
+            return dijaga(request, *args, **kwargs)
+        return dalam
+    return bungkus
+
+
 def _json_badan(request):
     try:
         data = json.loads(request.body.decode("utf-8"))
@@ -64,7 +84,7 @@ def _jawab(ok=True, pesan="", status=200, **lain):
 # ---------------------------------------------------------------------------
 
 
-@perlu()
+@perlu_hp()
 def beranda(request):
     from master.layanan import dasbor
     from master.layanan.toko import toko_aktif
@@ -89,7 +109,7 @@ def beranda(request):
 
 
 @require_POST
-@perlu()
+@perlu_hp()
 def acc(request):
     """ACC/tolak dari beranda (JSON): nota di bawah floor dan buka dus."""
     hak = hak_pengguna(request.user)
@@ -125,7 +145,7 @@ def acc(request):
 # ---------------------------------------------------------------------------
 
 
-@perlu("laporan")
+@perlu_hp("laporan")
 def transaksi(request):
     """Nota kasir dan nota tulis tangan satu hari (bawaan hari ini), terbaru di atas."""
     from collections import defaultdict
@@ -167,7 +187,7 @@ def transaksi(request):
 # ---------------------------------------------------------------------------
 
 
-@perlu()
+@perlu_hp()
 def barang(request):
     from master.layanan import cari as svc_cari
     from django.db.models import Count, Max, Min, Sum
@@ -188,7 +208,7 @@ def barang(request):
     return _tampil(request, "hp/barang.html", {"tab": "barang", "q": q, "daftar": daftar})
 
 
-@perlu()
+@perlu_hp()
 def barang_detail(request, item_id):
     from master.layanan import lokasi as svc_lokasi
     hak = hak_pengguna(request.user)
@@ -224,7 +244,7 @@ def barang_detail(request, item_id):
 
 
 @require_POST
-@perlu("ubah_stok")
+@perlu_hp("ubah_stok")
 def stok(request):
     """Sesuaikan stok satu varian dari HP (JSON)."""
     hak = hak_pengguna(request.user)
@@ -263,7 +283,7 @@ JENIS_TUGAS = [("barang", "Data barang", "Harga jual, floor, alias, aktif/nonakt
                ("lokasi", "Pindah barang / rak", "Usul pindah stok antar lokasi atau ganti rak")]
 
 
-@perlu("kelola_lokasi")
+@perlu_hp("kelola_lokasi")
 def tugas(request):
     semua = list(Tiket.objects.select_related("untuk").prefetch_related("baris", "usulan").order_by("-id")[:80])
     for t in semua:
@@ -277,7 +297,7 @@ def tugas(request):
     })
 
 
-@perlu("kelola_lokasi")
+@perlu_hp("kelola_lokasi")
 def tugas_baru(request):
     from master.layanan import lokasi as svc_lokasi
     from master.layanan import tiket as svc_tiket
@@ -309,7 +329,7 @@ def tugas_baru(request):
     })
 
 
-@perlu("kelola_lokasi")
+@perlu_hp("kelola_lokasi")
 def tugas_detail(request, tiket_id):
     from master.layanan import lokasi as svc_lokasi
     from master.layanan import tiket as svc_tiket
@@ -362,7 +382,7 @@ def tugas_detail(request, tiket_id):
 # ---------------------------------------------------------------------------
 
 
-@perlu("pembelian")
+@perlu_hp("pembelian")
 def input_(request):
     from master.layanan import lokasi as svc_lokasi
     from master.layanan.faktur import MAKS_FOTO
@@ -375,7 +395,7 @@ def input_(request):
 
 
 @require_POST
-@perlu("pembelian")
+@perlu_hp("pembelian")
 def input_beli(request):
     """Pembelian dari distributor (multipart, `baris` berupa JSON).
 
@@ -429,7 +449,7 @@ def input_beli(request):
 # ---------------------------------------------------------------------------
 
 
-@perlu()
+@perlu_hp()
 def setelan(request):
     from master.layanan import push as svc_push
     from master.layanan.toko import toko_aktif
@@ -446,7 +466,7 @@ def setelan(request):
 
 
 @require_POST
-@perlu()
+@perlu_hp()
 def push(request):
     """Notifikasi web: simpan/hapus langganan HP ini, atau kirim pesan percobaan (JSON)."""
     from master.layanan import push as svc_push

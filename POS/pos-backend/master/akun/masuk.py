@@ -65,6 +65,16 @@ class MasukMaster(auth_views.LoginView):
     redirect_authenticated_user = True
 
 
+class MasukHp(MasukMaster):
+    """Halaman masuk aplikasi HP (/hp/masuk/). Berada di dalam cakupan PWA /hp/ dan memuat manifest,
+    supaya Chrome bisa memasang aplikasinya (halaman masuk master di luar cakupan itu)."""
+    template_name = "hp/masuk.html"
+
+    def get_default_redirect_url(self):
+        from django.urls import reverse
+        return reverse("hp:beranda")
+
+
 
 # ---------------------------------------------------------------------------
 # Aplikasi operasional: masuk dengan PIN kasir
