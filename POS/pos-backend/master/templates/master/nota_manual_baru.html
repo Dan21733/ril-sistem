@@ -15,7 +15,9 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
 .tombol-tanya{width:30px;height:30px;border-radius:50%;padding:0;font-weight:700;line-height:28px;text-align:center}</style>
 <p class="kecil"><a href="{% url 'master:nota_manual' %}">Nota tulis tangan</a> /</p>
 <h2>Input nota manual</h2>
-<p class="sub">Salin nota tulisan tangan. Barang dipilih dari daftar barang supaya stok dan laporan ikut benar.</p>
+<p class="sub">Salin nota tulisan tangan. Barang dipilih dari daftar barang supaya stok dan laporan ikut benar.
+  Isian tersimpan otomatis sebagai draf di browser ini, jadi aman ditinggal sebentar (mis. untuk menambah barang dulu).</p>
+<div id="ket-draf" class="pesan info" hidden></div>
 <form method="post" enctype="multipart/form-data" id="form-nota">{% csrf_token %}<input type="hidden" name="baris" id="isi-baris" value="{{ kirim.baris }}">
 <div class="kartu"><div class="kisi">
   <div><label>Toko</label><div style="padding:10px 0;font-weight:600">{{ toko_aktif.nama }}</div><input type="hidden" name="toko" value="{{ toko_aktif.id }}"></div>
@@ -91,8 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     r.q.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); r.h.focus(); r.h.select(); } });
     r.h.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); kotak.focus(); } });
     r.h.addEventListener('blur', () => { const n = angka(r.h.value); if (n != null) r.h.value = ribuan(n); });
-    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); hitung(); kotak.focus(); });
-    hitung();
+    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); hitung(); simpanDraf(); kotak.focus(); });
+    hitung(); simpanDraf();
     return r;
   }
   function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d); if (r){ r.q.focus(); } }
@@ -118,12 +120,49 @@ document.addEventListener('DOMContentLoaded', () => {
       i = e.key === 'ArrowDown' ? Math.min(i + 1, semua.length - 1) : Math.max(i - 1, 0); semua[i].classList.add('pilih'); semua[i].scrollIntoView({block:'nearest'}); }
   });
   document.getElementById('ongkir').addEventListener('input', hitung);
-  // Kalau simpan ditolak, baris yang sudah diisi dibangun ulang.
-  try { JSON.parse(document.getElementById('isi-baris').value || '[]').forEach(d => tambah(d, d.jumlah, angka(String(d.harga)))); } catch (e) {}
+
+  // ---- Draf: semua isian (kecuali foto) disimpan di browser ini dan dipulihkan saat kembali ke halaman ini ----
+  const formNota = document.getElementById('form-nota');
+  const KUNCI = 'ril-draf-nota-manual:{{ request.user.username|escapejs }}:{{ toko_aktif.id }}';
+  const KOLOM = ['tanggal', 'nomor_tulisan', 'pembeli', 'lokasi', 'cara_bayar', 'ongkir', 'catatan'];
+  let memulihkan = true;
+  function simpanDraf(){
+    if (memulihkan) return;
+    const d = {waktu: Date.now(), isi: {}, baris: rows.map(r => ({...r.data, jumlah: angka(r.q.value), harga: angka(r.h.value)}))};
+    KOLOM.forEach(k => { const el = formNota.elements[k]; if (el) d.isi[k] = el.value; });
+    const ada = d.baris.length || ['nomor_tulisan', 'pembeli', 'ongkir', 'catatan'].some(k => (d.isi[k] || '').trim());
+    try { ada ? localStorage.setItem(KUNCI, JSON.stringify(d)) : localStorage.removeItem(KUNCI); } catch (e) {}
+  }
+  formNota.addEventListener('input', () => { clearTimeout(simpanDraf.t); simpanDraf.t = setTimeout(simpanDraf, 300); });
+  formNota.addEventListener('change', simpanDraf);
+  window.addEventListener('pagehide', simpanDraf);
+
+  // Kalau simpan ditolak, baris yang sudah diisi dibangun ulang dari kiriman server (lebih baru dari draf).
+  let dariServer = [];
+  try { dariServer = JSON.parse(document.getElementById('isi-baris').value || '[]'); } catch (e) {}
+  if (dariServer.length) dariServer.forEach(d => tambah(d, d.jumlah, angka(String(d.harga))));
+  else {
+    let draf = null; try { draf = JSON.parse(localStorage.getItem(KUNCI) || 'null'); } catch (e) {}
+    if (draf && (draf.baris.length || Object.values(draf.isi || {}).some(v => v))){
+      KOLOM.forEach(k => { const el = formNota.elements[k]; if (el && draf.isi[k] != null && draf.isi[k] !== '') el.value = draf.isi[k]; });
+      if (draf.isi.tanggal){ document.getElementById('tanggal').classList.remove('terbawa'); document.getElementById('ket-terbawa')?.remove(); }
+      draf.baris.forEach(d => tambah(d, d.jumlah, d.harga));
+      const ket = document.getElementById('ket-draf'); ket.hidden = false;
+      const jam = new Date(draf.waktu).toLocaleString('id-ID', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+      ket.append('Draf dari ' + jam + ' dipulihkan (' + draf.baris.length + ' barang). Foto nota perlu dipilih lagi. ');
+      const buang = document.createElement('a'); buang.href = '#'; buang.textContent = 'Kosongkan formulir';
+      buang.addEventListener('click', e => { e.preventDefault(); if (!confirm('Kosongkan formulir dan buang draf ini?')) return;
+        try { localStorage.removeItem(KUNCI); } catch (er) {} location.href = location.pathname; });
+      ket.append(buang);
+    }
+  }
+  memulihkan = false; simpanDraf();
   document.getElementById('form-nota').addEventListener('submit', e => {
     if (!rows.length){ e.preventDefault(); kabar('Tambahkan minimal satu barang.', true); kotak.focus(); return; }
     if (rows.some(r => !(angka(r.q.value) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong.', true); return; }
     document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
+    // Draf dihapus saat dikirim. Kalau server menolak, halaman kembali dengan isian yang sama dan draf tersimpan lagi.
+    if (!e.defaultPrevented){ memulihkan = true; try { localStorage.removeItem(KUNCI); } catch (er) {} }
   });
   hitung();
 

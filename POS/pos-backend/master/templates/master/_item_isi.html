@@ -23,7 +23,23 @@
     {% if 'hapus_barang' in hak %}<td>{% if b.terjual %}<span class="kecil redup" title="Sudah ada di {{ b.terjual }} baris nota kasir. Database kasir mengunci barang yang sudah tercatat di nota, jadi belum bisa dihapus.">terjual</span>{% else %}<form method="post" action="{% url 'master:item' item_info.id %}" data-buang data-nama="{{ item_info.item_name }} / {{ b.variant|varian }}" data-stok="{{ b.in_stock|default:0 }}">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="buang"><input type="hidden" name="id" value="{{ b.id }}"><input type="hidden" name="alasan"><button class="tombol kecil" type="submit" title="Buang ke keranjang sampah">Hapus</button></form>{% endif %}</td>{% endif %}
   </tr>
   {% endfor %}
+  {% if 'ubah_info' in hak and 'ubah_harga' in hak %}
+  {# Varian baru langsung di bawah daftar varian, seperti formulir barang baru. Enter = tambah. #}
+  <tr class="varian-baru">
+    <td><input type="text" name="variant" form="form-varian-baru" placeholder="+ Varian baru" required autocomplete="off" aria-label="Varian baru"></td>
+    <td class="angka"><input type="text" name="min_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Floor" required aria-label="Floor"></td>
+    <td class="angka"><input type="text" name="max_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Harga jual" required aria-label="Harga jual"></td>
+    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}<input type="text" name="cost_amount" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Modal" aria-label="Modal">{% endif %}</td>{% endif %}
+    <td class="angka redup">0</td>
+    <td><select name="kode_rak" form="form-varian-baru" aria-label="Rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></td>
+    <td colspan="{% if 'hapus_barang' in hak %}2{% else %}1{% endif %}"><button class="tombol kecil utama" type="submit" form="form-varian-baru">Tambah</button></td>
+  </tr>
+  {% endif %}
 </table></div>
+{% if 'ubah_info' in hak and 'ubah_harga' in hak %}
+<form method="post" action="{% url 'master:item' item_info.id %}" id="form-varian-baru">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="tambah_varian"><input type="hidden" name="in_stock" value="0"></form>
+<style>.varian-baru td{background:var(--latar,#faf9f6);padding-top:8px;padding-bottom:8px}.varian-baru input,.varian-baru select{padding:7px 8px;min-width:0;width:100%}.varian-baru .uang-varian{text-align:right;min-width:80px}.varian-baru td:first-child input{min-width:120px}</style>
+{% endif %}
 
 {% if 'ubah_harga' in hak and barang|length > 1 %}
 <form method="post" action="{% url 'master:item' item_info.id %}" class="kartu baris" style="margin-top:10px;align-items:end">{% csrf_token %}
@@ -97,19 +113,7 @@
 </div>
 {% endif %}
 
-{% if 'ubah_info' in hak and 'ubah_harga' in hak %}
-<details class="lipat"><summary>Tambah varian</summary>
-<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu baris">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="tambah_varian">
-  <div style="flex:2;min-width:180px"><label>Varian</label><input type="text" name="variant" required></div>
-  <div style="flex:1;min-width:130px"><label>Floor</label><input type="text" name="min_price" inputmode="numeric" required></div>
-  <div style="flex:1;min-width:130px"><label>Harga jual</label><input type="text" name="max_price" inputmode="numeric" required></div>
-  {% if 'ubah_modal' in hak %}<div style="flex:1;min-width:130px"><label>Modal</label><input type="text" name="cost_amount" inputmode="numeric"></div>{% endif %}
-  <div style="min-width:120px"><label>Rak</label><select name="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></div>
-  <input type="hidden" name="in_stock" value="0">
-  <div><button class="tombol utama" type="submit">Tambah</button></div>
-</form>
-</details>
-{% endif %}
+
 
 {% if log_item %}
 <details class="lipat"><summary>Riwayat perubahan</summary>

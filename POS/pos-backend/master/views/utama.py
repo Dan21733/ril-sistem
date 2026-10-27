@@ -324,6 +324,22 @@ def barang_baru(request):
     })
 
 
+def _jawab_panel(request, *, hilang, aksi=""):
+    pesan = [{"jenis": m.tags, "teks": str(m)} for m in messages.get_messages(request)]
+    return JsonResponse({"ok": not any(p["jenis"] == "error" for p in pesan), "pesan": pesan,
+                         "hilang": hilang, "aksi": aksi})
+
+
+def _tanpa_buka(kembali, request):
+    """Alamat kembali ke daftar barang tanpa membuka barang yang sudah tidak ada (filter pencarian tetap)."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+    if not kembali or not url_has_allowed_host_and_scheme(kembali, allowed_hosts={request.get_host()}):
+        return ""
+    u = urlsplit(kembali)
+    qs = urlencode([(k, v) for k, v in parse_qsl(u.query) if k != "buka"])
+    return u.path + ("?" + qs if qs else "")
+
+
 @perlu()
 def barang_ringkas(request, item_id):
     """Ringkasan satu barang untuk kotak referensi di formulir barang baru (JSON)."""
@@ -404,9 +420,14 @@ def item_detail(request, item_id, panel=False):
                     messages.success(request, f"{info.item_name} / {info.variant} dibuang ke sampah"
                                      + (f" (stok {stok} ikut tersimpan)." if stok else "."))
                 if not Item.objects.filter(item_name=item_info.item_name).exists():
-                    return redirect("master:barang")
+                    if request.headers.get("X-Panel"):
+                        return _jawab_panel(request, hilang=True)
+                    return redirect(_tanpa_buka(request.POST.get("kembali", ""), request) or "master:barang")
         except Tolak as tolak:
             messages.error(request, str(tolak))
+        if request.headers.get("X-Panel"):
+            # Panel di daftar barang mengirim lewat fetch: jawab JSON, halaman tidak dimuat ulang.
+            return _jawab_panel(request, hilang=False, aksi=aksi)
         kembali = request.POST.get("kembali", "")
         if kembali and url_has_allowed_host_and_scheme(kembali, allowed_hosts={request.get_host()}):
             return HttpResponseRedirect(kembali)
@@ -644,7 +665,7 @@ def pergerakan(request):
         g["periode"] = "bulan"
     periode = svc_laporan.baca_periode(g)
     mulai, selesai = svc_laporan.rentang(periode["awal"], periode["akhir"])
-    kelompok, per_kategori = svc.ringkasan(mulai, selesai)
+    kelompok, per_kategori, laporan, total = svc.ringkasan(mulai, selesai)
     try:
         hari = int(request.GET.get("hari") or 60)
     except ValueError:
@@ -654,6 +675,7 @@ def pergerakan(request):
     lambat, jumlah_lambat, nilai_lambat = svc.tidak_laku(hari, lihat_modal=lihat_modal)
     return render(request, "master/pergerakan.html", {
         "menu": "pergerakan", "periode": periode, "kelompok": kelompok, "per_kategori": per_kategori,
+        "laporan": laporan, "total": total, "baris": {b["kunci"]: b for b in laporan},
         "hari": hari, "pilihan_hari": [30, 60, 90, 180], "lambat": lambat, "jumlah_lambat": jumlah_lambat, "nilai_lambat": nilai_lambat,
         "lihat_modal": lihat_modal,
     })

@@ -17,15 +17,30 @@
   <div><button class="tombol utama" type="submit">Terapkan</button></div>
 </form>
 
-<div class="kisi" style="margin-bottom:18px">
-  {% for k in kelompok %}
-  <div class="kartu"><div class="redup kecil">{{ k.judul }}</div>
-    <div style="font-size:24px;font-weight:600">{% if k.kunci == "masuk" %}+{{ k.tambah|ribuan }}{% elif k.kunci == "keluar" %}−{{ k.kurang|ribuan }}{% else %}+{{ k.tambah|ribuan }} / −{{ k.kurang|ribuan }}{% endif %}</div>
-    {% for b in k.baris %}<div class="kecil" style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px solid var(--garis)"><span>{{ b.label }}</span><span class="redup" style="white-space:nowrap">{% if b.tambah %}+{{ b.tambah|ribuan }}{% endif %}{% if b.tambah and b.kurang %} / {% endif %}{% if b.kurang %}−{{ b.kurang|ribuan }}{% endif %} · {{ b.kali|ribuan }}×</span></div>
-    {% empty %}<div class="redup kecil">Tidak ada.</div>{% endfor %}
-  </div>
-  {% endfor %}
+<div class="pg-ubin">
+  <div class="kartu"><div class="redup kecil">Terjual (bersih)</div><div class="pg-angka">{% widthratio baris.jual.bersih -1 1 as terjual %}{{ terjual|ribuan }}</div>
+    <div class="kecil redup">{% if baris.jual.masuk %}{{ baris.jual.keluar|ribuan }} keluar, {{ baris.jual.masuk|ribuan }} kembali karena nota diubah/dibatalkan{% endif %}{% if baris.retur_jual.masuk %}{% if baris.jual.masuk %} · {% endif %}retur {{ baris.retur_jual.masuk|ribuan }}{% endif %}&nbsp;</div></div>
+  <div class="kartu"><div class="redup kecil">Dibeli (masuk)</div><div class="pg-angka">{{ baris.beli.masuk|ribuan }}</div>
+    <div class="kecil redup">{% if baris.retur_beli.keluar %}retur ke supplier {{ baris.retur_beli.keluar|ribuan }}{% else %}&nbsp;{% endif %}</div></div>
+  <div class="kartu"><div class="redup kecil">Stock opname (selisih)</div>
+    <div class="pg-angka {% if baris.hitung.bersih < 0 %}turun{% elif baris.hitung.bersih > 0 %}naik{% endif %}">{% if baris.hitung.bersih > 0 %}+{% endif %}{{ baris.hitung.bersih|ribuan }}</div>
+    <div class="kecil redup">+{{ baris.hitung.masuk|ribuan }} / −{{ baris.hitung.keluar|ribuan }} · {{ baris.hitung.kali|ribuan }} barang dihitung</div></div>
+  <div class="kartu"><div class="redup kecil">Dipindah ke toko lain</div><div class="pg-angka">{{ baris.transfer_keluar.keluar|ribuan }}</div>
+    <div class="kecil redup">diterima dari toko lain {{ baris.transfer_masuk.masuk|ribuan }}</div></div>
 </div>
+
+<div class="gulir" style="margin-bottom:22px"><table class="pg-tabel">
+  <tr><th>Jenis</th><th class="angka">Masuk</th><th class="angka">Keluar</th><th class="angka">Bersih</th><th class="angka">Kejadian</th></tr>
+  {% for b in laporan %}
+  <tr class="{% if not b.kali %}kosong{% endif %}"><td><b>{{ b.judul }}</b>{% if b.ket %} <span class="redup kecil">· {{ b.ket }}</span>{% endif %}{% if b.kunci == 'jual' and b.masuk %}<div class="kecil redup">masuk = nota yang diubah atau dibatalkan</div>{% endif %}</td>
+    <td class="angka">{% if b.masuk %}+{{ b.masuk|ribuan }}{% else %}–{% endif %}</td>
+    <td class="angka">{% if b.keluar %}−{{ b.keluar|ribuan }}{% else %}–{% endif %}</td>
+    <td class="angka"><b class="{% if b.bersih < 0 %}turun{% elif b.bersih > 0 %}naik{% endif %}">{% if b.bersih > 0 %}+{% endif %}{% if b.bersih %}{{ b.bersih|ribuan }}{% else %}0{% endif %}</b></td>
+    <td class="angka redup">{{ b.kali|ribuan }}×</td></tr>
+  {% endfor %}
+  <tr class="total"><td><b>Total perubahan stok</b></td><td class="angka">+{{ total.masuk|ribuan }}</td><td class="angka">−{{ total.keluar|ribuan }}</td>
+    <td class="angka"><b>{% if total.bersih > 0 %}+{% endif %}{{ total.bersih|ribuan }}</b></td><td class="angka redup">{{ total.kali|ribuan }}×</td></tr>
+</table></div>
 
 <h3>Per kategori: masuk vs keluar</h3>
 {% if per_kategori %}
@@ -59,6 +74,12 @@
 <p class="redup kecil">Penjualan dihitung sejak sistem kasir baru dipakai; barang yang terjual lewat Moka tidak tercatat di sini.</p>
 
 <style>
+.pg-ubin{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.pg-angka{font-size:26px;font-weight:600;margin:2px 0;font-variant-numeric:tabular-nums}
+.naik{color:var(--baik)}.turun{color:var(--bahaya)}
+.pg-tabel tr.kosong td{color:var(--redup)}.pg-tabel tr.kosong b{font-weight:400}
+.pg-tabel tr.total td{border-top:2px solid var(--garis-kuat)}
+@media (max-width:900px){.pg-ubin{grid-template-columns:1fr 1fr}}
 .pk-baris{display:grid;grid-template-columns:minmax(120px,220px) 1fr auto;gap:10px;align-items:center;padding:5px 0;font-size:15px}
 .pk-nama{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pk-bar{display:flex;flex-direction:column;gap:3px}

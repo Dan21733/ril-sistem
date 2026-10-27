@@ -104,7 +104,10 @@ class PergerakanTest(Dasar):
         from master.layanan import pergerakan
         hari = timezone.localdate()
         from master.layanan import laporan
-        kelompok, kategori = pergerakan.ringkasan(*laporan.rentang(hari, hari))
+        kelompok, kategori, tabel, total = pergerakan.ringkasan(*laporan.rentang(hari, hari))
+        b = {x["kunci"]: x for x in tabel}
+        self.assertEqual((b["jual"]["keluar"], b["beli"]["masuk"], b["rusak_hilang"]["keluar"], b["hitung"]["kali"]), (2, 5, 1, 0))
+        self.assertEqual((total["masuk"], total["keluar"], total["bersih"]), (5, 3, 2))
         k = {x["kunci"]: x for x in kelompok}
         self.assertEqual((k["masuk"]["tambah"], k["keluar"]["kurang"], k["sesuai"]["kurang"]), (5, 2, 1))
         self.assertEqual(kategori[0]["nama"], "Paku")
@@ -125,7 +128,9 @@ class PergerakanTest(Dasar):
     def test_halaman(self):
         self.client.force_login(self.admin)
         r = self.client.get(reverse("master:pergerakan") + "?periode=hari&hari=90")
-        self.assertContains(r, "Barang masuk")
+        self.assertContains(r, "Stock opname / hitung ulang")
+        self.assertContains(r, "Dipindahkan ke toko lain")
+        self.assertContains(r, "Total perubahan stok")
         self.assertContains(r, "Gergaji")
         self.assertContains(r, "Modal mengendap")
         self.assertContains(r, '<option value="90" selected>')

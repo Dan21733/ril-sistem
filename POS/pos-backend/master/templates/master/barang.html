@@ -18,7 +18,7 @@
   <div style="min-width:170px"><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
   <div style="min-width:110px"><label>Status</label><select name="aktif"><option value="">Semua</option><option value="ya" {% if g.aktif == "ya" %}selected{% endif %}>Aktif</option><option value="tidak" {% if g.aktif == "tidak" %}selected{% endif %}>Nonaktif</option></select></div>
   <div style="min-width:130px"><label>Urut</label><select name="urut"><option value="nama">Nama</option><option value="harga" {% if g.urut == "harga" %}selected{% endif %}>Harga tertinggi</option><option value="harga_naik" {% if g.urut == "harga_naik" %}selected{% endif %}>Harga terendah</option><option value="stok" {% if g.urut == "stok" %}selected{% endif %}>Stok terkecil</option></select></div>
-  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:barang' %}">Reset</a></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:barang' %}?reset=1">Reset</a></div>
 </form>
 
 <div class="belah" id="belah">
@@ -85,6 +85,18 @@
 @media (max-width:1100px){.belah.buka{grid-template-columns:1fr}.belah.buka .kiri{display:none}.kanan{position:static;max-height:none}}
 </style>
 <script>
+const KUNCI_POSISI = 'ril-daftar-barang:{{ request.user.username|escapejs }}';
+(function(){
+  // Dibuka dari menu (tanpa filter): kembali ke pencarian dan barang terakhir. Tombol Reset mengosongkannya.
+  const q = new URLSearchParams(location.search);
+  if (q.get('reset') === '1'){
+    try{ localStorage.removeItem(KUNCI_POSISI); }catch(e){}
+    history.replaceState(null, '', location.pathname);
+  } else if (!location.search){
+    let p = null; try{ p = JSON.parse(localStorage.getItem(KUNCI_POSISI) || 'null'); }catch(e){}
+    if (p && p.cari && p.cari !== '?') { location.replace(location.pathname + p.cari); }
+  }
+})();
 (function(){
   const belah = document.getElementById('belah'), panel = document.getElementById('panel');
   const dasar = "{% url 'master:barang' %}item/";
@@ -93,27 +105,82 @@
     if (id) u.searchParams.set('buka', id); else u.searchParams.delete('buka');
     return u;
   }
-  async function buka(id, gulir){
+  let idBuka = null;
+  async function buka(id, gulir, opsi){
+    opsi = opsi || {};
     document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
     const baris = document.querySelector('.baris-item[data-item="'+id+'"]');
     if (baris) baris.classList.add('pilih');
     const u = alamatDengan(id);
-    history.replaceState(null, '', u);
-    belah.classList.add('buka'); panel.hidden = false;
-    panel.innerHTML = '<p class="redup">Memuat...</p>';
+    history.replaceState(null, '', u); simpanPosisi();
+    belah.classList.add('buka'); panel.hidden = false; idBuka = id;
+    const gulirLama = panel.scrollTop;
+    if (!opsi.diam) panel.innerHTML = '<p class="redup">Memuat...</p>';
     try{
       const r = await fetch(dasar + id + '/panel/?kembali=' + encodeURIComponent(u.pathname + u.search));
       if (!r.ok) throw new Error(r.status);
-      panel.innerHTML = await r.text(); panel.scrollTop = 0;
+      panel.innerHTML = await r.text(); panel.scrollTop = opsi.diam ? gulirLama : 0;
+      if (opsi.pesan) tampilPesan(opsi.pesan);
+      if (opsi.fokus) panel.querySelector(opsi.fokus)?.focus();
       if (gulir && baris) baris.scrollIntoView({block:'nearest'});
     }catch(e){ panel.innerHTML = '<p class="pesan error">Barang tidak bisa dimuat. Coba muat ulang halaman.</p>'; }
   }
+  function tampilPesan(daftar){
+    if (!daftar || !daftar.length) return;
+    const kotak = document.createElement('div');
+    daftar.forEach(p => { const d = document.createElement('div'); d.className = 'pesan ' + (p.jenis || 'info'); d.textContent = p.teks; kotak.append(d); });
+    panel.prepend(kotak);
+    setTimeout(() => kotak.remove(), 6000);
+  }
+
+  // Formulir di panel (hapus, tambah varian, samakan, simpan kategori/alias, supplier) dikirim lewat fetch:
+  // halaman tidak dimuat ulang, pencarian dan posisi daftar tetap. Didengar di window supaya
+  // konfirmasi (data-tanya, data-buang) di base.html sudah jalan lebih dulu.
+  window.addEventListener('submit', async e => {
+    const f = e.target;
+    if (e.defaultPrevented || modeBaru || !panel.contains(f) && !(f.id && panel.querySelector('[form="' + f.id + '"]'))) return;
+    if ((f.getAttribute('method') || '').toLowerCase() !== 'post' || !idBuka) return;
+    e.preventDefault();
+    const data = new FormData(f);
+    if (e.submitter && e.submitter.name) data.append(e.submitter.name, e.submitter.value);
+    panel.querySelectorAll('.uang-varian').forEach(i => { if (i.form === f) data.set(i.name, angka(i.value)); });
+    if (e.submitter) e.submitter.disabled = true;
+    try{
+      const r = await fetch(f.action, {method: 'POST', body: data, headers: {'X-Panel': '1'}});
+      const d = await r.json();
+      await segarkanDaftar();
+      if (d.hilang){
+        belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = ''; idBuka = null;
+        history.replaceState(null, '', alamatDengan(null)); simpanPosisi();
+        kabar((d.pesan[0] || {}).teks || 'Barang dihapus.', false);
+        return;
+      }
+      await buka(idBuka, false, {diam: true, pesan: d.pesan, fokus: d.aksi === 'tambah_varian' && d.ok ? '.varian-baru input' : null});
+    }catch(err){ f.submit(); }
+  });
+  // Baris daftar ikut diperbarui (harga, stok, label perlu diperbaiki, jumlah barang) tanpa memuat ulang halaman.
+  async function segarkanDaftar(){
+    try{
+      const html = await (await fetch(location.href)).text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const baru = doc.getElementById('tabel-barang'), lama = document.getElementById('tabel-barang');
+      if (!baru) return;
+      const pilih = idBuka;
+      lama.innerHTML = baru.innerHTML;
+      if (pilih) document.querySelector('.baris-item[data-item="' + pilih + '"]')?.classList.add('pilih');
+      const sub = doc.querySelector('h2 + .sub'), subLama = document.querySelector('h2 + .sub');
+      if (sub && subLama) subLama.textContent = sub.textContent;
+    }catch(e){}
+  }
+  panel.addEventListener('focusout', e => {
+    if (e.target.classList.contains('uang-varian')){ const n = angka(e.target.value); e.target.value = n ? ribuan(Number(n)) : ''; }
+  });
   function tutup(){
     if (!boleh_buang()) return;
     if (modeBaru) keluarBaru();
-    belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = '';
+    belah.classList.remove('buka'); panel.hidden = true; panel.innerHTML = ''; idBuka = null;
     document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
-    history.replaceState(null, '', alamatDengan(null));
+    history.replaceState(null, '', alamatDengan(null)); simpanPosisi();
   }
   document.getElementById('tabel-barang').addEventListener('click', e => {
     const baris = e.target.closest('.baris-item'); if (!baris || !baris.dataset.item) return;
@@ -145,10 +212,47 @@
       if (!r.ok) throw new Error(r.status);
       panel.innerHTML = await r.text(); panel.scrollTop = 0;
       modeBaru = true; kotor = false;
-      tambahBaris(); $('#bb-nama').focus();
+      tambahBaris();
+      pulihkanDraf();
+      $('#bb-nama').focus();
     }catch(e){ panel.innerHTML = '<p class="pesan error">Formulir tidak bisa dimuat. Coba muat ulang halaman.</p>'; }
   }
-  function boleh_buang(){ return !modeBaru || !kotor || confirm('Buang isian barang baru?'); }
+  function boleh_buang(){
+    if (!modeBaru || !kotor) return true;
+    // Isian tersimpan sebagai draf di browser ini; menutup panel tidak menghapusnya kecuali diminta.
+    return true;
+  }
+  // ---- Draf barang baru: tersimpan otomatis di browser ini, kembali lagi saat formulir dibuka ----
+  const KUNCI_DRAF = 'ril-draf-barang-baru:{{ request.user.username|escapejs }}';
+  function simpanDraf(){
+    if (!modeBaru) return;
+    const d = {waktu: Date.now(), isi: {}, varian: baris().filter(tr => !kosong(tr)).map(tr =>
+      Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value])))};
+    panel.querySelectorAll('[data-isi]').forEach(i => { d.isi[i.dataset.isi] = i.value; });
+    const ada = Object.values(d.isi).some(v => v.trim()) || d.varian.length;
+    try{ ada ? localStorage.setItem(KUNCI_DRAF, JSON.stringify(d)) : localStorage.removeItem(KUNCI_DRAF); }catch(e){}
+  }
+  function hapusDraf(){ try{ localStorage.removeItem(KUNCI_DRAF); }catch(e){} }
+  function pulihkanDraf(){
+    let d = null; try{ d = JSON.parse(localStorage.getItem(KUNCI_DRAF) || 'null'); }catch(e){}
+    if (!d) return;
+    Object.entries(d.isi || {}).forEach(([k, v]) => { const i = panel.querySelector('[data-isi="' + k + '"]'); if (i) i.value = v; });
+    const tb = $('#bb-tabel tbody'); tb.innerHTML = '';
+    (d.varian.length ? d.varian : [{}]).forEach(v => {
+      const tr = tambahBaris();
+      Object.entries(v).forEach(([k, isi]) => { const i = tr.querySelector('[data-k="' + k + '"]'); if (i) i.value = isi; });
+      cekHarga(tr);
+    });
+    if (d.isi.item_name) cekNama();
+    kotor = true;
+    const ket = document.createElement('div'); ket.className = 'pesan info'; ket.style.marginBottom = '10px';
+    const jam = new Date(d.waktu).toLocaleString('id-ID', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+    ket.append('Draf dari ' + jam + ' dipulihkan. ');
+    const buang = document.createElement('a'); buang.href = '#'; buang.textContent = 'Kosongkan formulir';
+    buang.addEventListener('click', ev => { ev.preventDefault(); if (!confirm('Kosongkan formulir dan buang draf?')) return; hapusDraf(); keluarBaru(); bukaBaru(); });
+    ket.append(buang);
+    $('#ref').before(ket);
+  }
   function keluarBaru(){
     modeBaru = false; kotor = false;
     const u = new URL(location.href); u.searchParams.delete('baru'); history.replaceState(null, '', u);
@@ -236,7 +340,7 @@
     try{
       const r = await fetch(urlBaru, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)});
       const d = await r.json();
-      if (d.ok){ kotor = false; location.href = d.url; return; }
+      if (d.ok){ kotor = false; hapusDraf(); location.href = d.url; return; }
       galat.textContent = d.pesan || 'Belum tersimpan.'; galat.hidden = false;
       if (d.baris !== null && d.baris !== undefined && terpakai[d.baris]){
         terpakai[d.baris].classList.add('salah'); galat.textContent = 'Baris ' + (d.baris + 1) + ': ' + galat.textContent;
@@ -248,7 +352,7 @@
 
   panel.addEventListener('input', e => {
     if (!modeBaru) return;
-    kotor = true;
+    kotor = true; clearTimeout(simpanDraf.t); simpanDraf.t = setTimeout(simpanDraf, 300);
     const tr = e.target.closest('#bb-tabel tr');
     if (tr && (e.target.dataset.k === 'min_price' || e.target.dataset.k === 'max_price')) cekHarga(tr);
     if (e.target.id === 'bb-nama') cekNama();
@@ -265,7 +369,7 @@
     if (!modeBaru) return;
     if (e.target.closest('[data-tambah-baris]')){ tambahBaris().querySelector('input').focus(); kotor = true; }
     const h = e.target.closest('[data-hapus-baris]');
-    if (h){ const tr = h.closest('tr'); if (baris().length > 1) tr.remove(); else tr.querySelectorAll('input').forEach(i => i.value = i.dataset.k === 'in_stock' ? '0' : ''); }
+    if (h){ const tr = h.closest('tr'); if (baris().length > 1) tr.remove(); else tr.querySelectorAll('input').forEach(i => i.value = i.dataset.k === 'in_stock' ? '0' : ''); simpanDraf(); }
     if (e.target.closest('[data-simpan-baru]')) simpanBaru();
     const ada = e.target.closest('[data-buka-ada]');
     if (ada){ e.preventDefault(); if (boleh_buang()){ keluarBaru(); buka(ada.dataset.bukaAda); } }
@@ -286,10 +390,18 @@
     if (modeBaru) { $('#bb-nama')?.focus(); return; }
     bukaBaru();
   });
-  window.addEventListener('beforeunload', e => { if (modeBaru && kotor){ e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('pagehide', () => { simpanDraf(); simpanPosisi(); });
+
+  // ---- Posisi daftar: pencarian, filter, barang yang terbuka, dan gulir dikembalikan saat kembali ke menu ini ----
+  function simpanPosisi(){
+    try{ localStorage.setItem(KUNCI_POSISI, JSON.stringify({cari: location.search, gulir: window.scrollY})); }catch(e){}
+  }
+  window.addEventListener('scroll', () => { clearTimeout(simpanPosisi.t); simpanPosisi.t = setTimeout(simpanPosisi, 250); }, {passive: true});
   const awal = new URL(location.href).searchParams;
   if (awal.get('baru') === '1') bukaBaru();
   else if (awal.get('buka')) buka(awal.get('buka'), true);
+  let posisi = null; try{ posisi = JSON.parse(localStorage.getItem(KUNCI_POSISI) || 'null'); }catch(e){}
+  if (posisi && posisi.cari === location.search && posisi.gulir) window.scrollTo(0, posisi.gulir);
 })();
 </script>
 {% endblock %}

@@ -20,6 +20,21 @@ KELOMPOK = {
 }
 LABEL = dict(MutasiStok.JENIS) | {"jual_kasir": "Penjualan kasir"}
 
+# Baris laporan yang mudah dibaca: (kunci, judul, keterangan, jenis mutasi).
+BARIS_LAPORAN = [
+    ("jual", "Penjualan", "kasir dan nota tulis tangan", ["jual_kasir", "jual_manual"]),
+    ("retur_jual", "Retur dari pembeli", "barang kembali ke toko", ["retur_jual"]),
+    ("beli", "Pembelian", "barang datang dari supplier (setelah ACC)", ["beli"]),
+    ("retur_beli", "Retur ke supplier", "", ["retur_beli"]),
+    ("transfer_keluar", "Dipindahkan ke toko lain", "", ["transfer_keluar"]),
+    ("transfer_masuk", "Diterima dari toko lain", "", ["transfer_masuk"]),
+    ("hitung", "Stock opname / hitung ulang", "selisih hitungan dengan sistem", ["hitung"]),
+    ("rusak_hilang", "Rusak dan hilang", "", ["rusak", "hilang"]),
+    ("koreksi", "Koreksi dan lainnya", "salah input, penyesuaian lain", ["koreksi", "lain"]),
+    ("buka_dus", "Buka dus", "kemasan besar berkurang, eceran bertambah", ["buka_dus"]),
+    ("awal", "Stok awal dan impor Excel", "", ["awal", "impor"]),
+]
+
 
 def ringkasan(mulai, selesai):
     """Per jenis: jumlah barang bertambah/berkurang dan jumlah kejadian; plus per kategori (masuk vs keluar)."""
@@ -45,6 +60,15 @@ def ringkasan(mulai, selesai):
     for m in MutasiKasir.objects.filter(waktu__gte=mulai, waktu__lt=selesai).values_list("item_name", "variant", "jumlah"):
         catat("jual_kasir", *m)
 
+    laporan = []
+    for kunci, judul, ket, daftar in BARIS_LAPORAN:
+        tambah = sum(per_jenis[j]["tambah"] for j in daftar if j in per_jenis)
+        kurang = sum(per_jenis[j]["kurang"] for j in daftar if j in per_jenis)
+        kali = sum(per_jenis[j]["kali"] for j in daftar if j in per_jenis)
+        laporan.append({"kunci": kunci, "judul": judul, "ket": ket, "masuk": tambah, "keluar": kurang,
+                        "bersih": tambah - kurang, "kali": kali})
+    total = {k: sum(b[k] for b in laporan) for k in ("masuk", "keluar", "bersih", "kali")}
+
     kelompok = []
     for kunci, (judul, daftar) in KELOMPOK.items():
         baris = [{"jenis": j, "label": LABEL.get(j, j), **per_jenis[j]} for j in daftar if j in per_jenis]
@@ -63,7 +87,7 @@ def ringkasan(mulai, selesai):
     for d in daftar_kat:
         d["bagian_masuk"] = round(d["masuk"] / puncak * 100) if puncak else 0
         d["bagian_keluar"] = round(d["keluar"] / puncak * 100) if puncak else 0
-    return kelompok, daftar_kat[:20]
+    return kelompok, daftar_kat[:20], laporan, total
 
 
 def tidak_laku(hari=60, batas=100, lihat_modal=False):
