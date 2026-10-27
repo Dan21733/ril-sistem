@@ -1,0 +1,378 @@
+"""Aplikasi pemilik di HP (/hp/): ringkas, besar, untuk iPhone dan Android (PWA, bukan kiosk).
+
+Semua aturan dan hak sama dengan master: halaman ini hanya tampilan lain di atas layanan yang
+sama (master/layanan/*). Tidak ada aturan bisnis baru di sini.
+"""
+import json
+from datetime import timedelta
+
+from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from pos.models import Item, Worker
+
+from master.akun.akses import hak_pengguna, perlu
+from master.layanan import inti as layanan
+from master.layanan.inti import Tolak, kunci_alami
+from master.models import BukaDus, ItemInfo, NotaManual, Pembelian, Supplier, Tiket, VarianInfo
+
+
+def _json_badan(request):
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (ValueError, UnicodeDecodeError):
+        return {}
+
+
+def _kembali(request, bawaan):
+    """Alamat kembali hanya boleh di dalam aplikasi HP (bukan alamat luar atau javascript:)."""
+    from django.urls import reverse
+    k = request.GET.get("kembali") or ""
+    return k if k.startswith("/hp/") and "//" not in k else reverse(bawaan)
+
+
+def _jumlah_acc(request):
+    """Angka di tab Beranda: yang menunggu keputusan pemilik (sesuai hak akun)."""
+    hak = hak_pengguna(request.user)
+    n = 0
+    if "kelola_kasir" in hak:
+        from pos.models import NotaTinjau
+        n += min(NotaTinjau.objects.filter(status="menunggu").count(), 30)
+    if "kelola_lokasi" in hak:
+        n += Tiket.objects.filter(status="dikirim").count()
+    if "ubah_stok" in hak:
+        n += BukaDus.objects.filter(status="menunggu").count()
+    return n
+
+
+def _tampil(request, nama, isi):
+    isi.setdefault("jumlah_acc", _jumlah_acc(request))
+    return render(request, nama, isi)
+
+
+def _jawab(ok=True, pesan="", status=200, **lain):
+    return JsonResponse({"ok": ok, "pesan": pesan, **lain}, status=status)
+
+
+# ---------------------------------------------------------------------------
+# Beranda
+# ---------------------------------------------------------------------------
+
+
+@perlu()
+def beranda(request):
+    from master.layanan import dasbor
+    from master.layanan.toko import toko_aktif
+    hak = hak_pengguna(request.user)
+    toko = toko_aktif(request)
+    jual = dasbor.penjualan(toko, hak) if "laporan" in hak else None
+    lain = dasbor.lain(request, hak, toko)
+    nota = []
+    if "kelola_kasir" in hak:
+        from master.layanan import nota_tinjau
+        nota = nota_tinjau.daftar()[:30]
+    tugas = list(Tiket.objects.filter(status="dikirim").select_related("untuk")[:30]) if "kelola_lokasi" in hak else []
+    dus = list(BukaDus.objects.filter(status="menunggu").select_related("konversi__dari", "konversi__ke")[:30]) \
+        if "ubah_stok" in hak else []
+    jam = timezone.localtime().hour
+    sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
+    return render(request, "hp/beranda.html", {
+        "tab": "beranda", "jual": jual, "lain": lain, "nota": nota, "tugas": tugas, "dus": dus,
+        "jumlah_acc": len(nota) + len(tugas) + len(dus), "sapa": sapa,
+        "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
+    })
+
+
+@require_POST
+@perlu()
+def acc(request):
+    """ACC/tolak dari beranda (JSON): nota di bawah floor dan buka dus."""
+    hak = hak_pengguna(request.user)
+    d = _json_badan(request)
+    jenis, aksi = d.get("jenis"), d.get("aksi")
+    try:
+        if jenis == "nota":
+            if "kelola_kasir" not in hak:
+                raise Tolak("Akun ini tidak boleh memutuskan nota.")
+            from master.layanan import nota_tinjau
+            if aksi == "terima":
+                n = nota_tinjau.terima(request.user, d.get("id"), d.get("worker_id"), d.get("catatan") or "")
+                return _jawab(pesan=f"Nota {n.transaction_id or ''} diterima.")
+            n = nota_tinjau.tolak(request.user, d.get("id"), d.get("alasan"))
+            return _jawab(pesan=f"Nota {n.transaction_id or ''} ditolak.")
+        if jenis == "dus":
+            if "ubah_stok" not in hak:
+                raise Tolak("Akun ini tidak boleh mengubah stok.")
+            from master.layanan import bukadus
+            bd = get_object_or_404(BukaDus, pk=d.get("id"))
+            if aksi == "terima":
+                bukadus.acc(request.user, bd)
+                return _jawab(pesan="Buka dus diterapkan.")
+            bukadus.tolak(request.user, bd, d.get("alasan") or "")
+            return _jawab(pesan="Buka dus ditolak.")
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    return _jawab(False, "Permintaan tidak dikenali.", 400)
+
+
+# ---------------------------------------------------------------------------
+# Barang: harga, modal, stok
+# ---------------------------------------------------------------------------
+
+
+@perlu()
+def barang(request):
+    from master.layanan import cari as svc_cari
+    from django.db.models import Count, Max, Min, Sum
+    q = layanan.rapikan_teks(request.GET.get("q"))
+    daftar = []
+    if q:
+        qs = Item.objects.all()
+        for kata in q.split(" "):
+            qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
+                           | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name")))
+        kelompok = (qs.values("item_name").annotate(n=Count("variant"), hmin=Min("max_price"), hmax=Max("max_price"),
+                                                    stok=Sum("in_stock"), t=Min(svc_cari.tingkat(q)))
+                    .order_by("t", "item_name")[:60])
+        daftar = sorted(kelompok, key=lambda d: (d["t"], kunci_alami(d["item_name"])))
+        ids = dict(ItemInfo.objects.filter(item_name__in=[d["item_name"] for d in daftar]).values_list("item_name", "pk"))
+        for d in daftar:
+            d["id"] = ids.get(d["item_name"])
+    return _tampil(request, "hp/barang.html", {"tab": "barang", "q": q, "daftar": daftar})
+
+
+@perlu()
+def barang_detail(request, item_id):
+    from master.layanan import lokasi as svc_lokasi
+    hak = hak_pengguna(request.user)
+    info_item = get_object_or_404(ItemInfo, pk=item_id)
+    baris = list(Item.objects.filter(item_name=info_item.item_name).values(
+        "item_name", "variant", "category", "brand", "min_price", "max_price", "cost_amount", "in_stock"))
+    baris.sort(key=lambda b: kunci_alami(b["variant"]))
+    info = {v.variant: v for v in VarianInfo.objects.filter(item_name=info_item.item_name).select_related("rak")}
+    gudang = svc_lokasi.jumlah_gudang([v.pk for v in info.values()])
+    from master.models import Lokasi
+    nama_lokasi = dict(Lokasi.objects.values_list("pk", "nama"))
+    lihat_modal = "lihat_modal" in hak
+    for b in baris:
+        v = info.get(b["variant"])
+        b["id"] = v.pk if v else None
+        b["aktif"] = v.aktif if v else True
+        b["rak"] = v.rak_id if v else None
+        per = gudang.get(v.pk, {}) if v else {}
+        b["gudang"] = [{"nama": nama_lokasi.get(l, "?"), "jumlah": n} for l, n in per.items()]
+        b["toko"] = (b["in_stock"] or 0) - sum(per.values())
+        if not lihat_modal:
+            b["cost_amount"] = None
+        b["margin"] = (round((b["max_price"] - b["cost_amount"]) / b["max_price"] * 100, 1)
+                       if lihat_modal and b["max_price"] and b["cost_amount"] else None)
+    aktif = [b for b in baris if b["aktif"]]
+    nonaktif = [b for b in baris if not b["aktif"]]
+    return _tampil(request, "hp/barang_detail.html", {
+        "tab": "barang", "item": info_item, "aktif": aktif, "nonaktif": nonaktif,
+        "kategori": baris[0]["category"] if baris else "", "brand": baris[0]["brand"] if baris else "",
+        "lihat_modal": lihat_modal, "jenis_stok": list(layanan.JENIS_MUTASI.items()),
+        "kembali": _kembali(request, "hp:barang"),
+    })
+
+
+@require_POST
+@perlu("ubah_stok")
+def stok(request):
+    """Sesuaikan stok satu varian dari HP (JSON)."""
+    hak = hak_pengguna(request.user)
+    d = _json_badan(request)
+    info = VarianInfo.objects.filter(pk=d.get("id") or 0, sampah__isnull=True).first()
+    if info is None:
+        return _jawab(False, "Barang tidak ditemukan.", 404)
+    try:
+        baru, selisih = layanan.sesuaikan_stok(request.user, info, cara=d.get("cara") or "tetapkan", angka=d.get("angka"),
+                                               jenis=d.get("jenis") or "hitung", catatan=d.get("catatan") or "", hak=hak)
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    tanda = f"+{selisih}" if selisih > 0 else str(selisih)
+    return _jawab(pesan=f"Stok jadi {baru} ({tanda})." if selisih else "Stok tidak berubah.", stok=baru)
+
+
+# ---------------------------------------------------------------------------
+# Tugas karyawan
+# ---------------------------------------------------------------------------
+
+
+def _karyawan_tugas():
+    from master.layanan import tiket as svc_tiket
+    hasil = []
+    for u in get_user_model().objects.filter(is_active=True).order_by("first_name", "username"):
+        h = hak_pengguna(u)
+        jenis = svc_tiket.jenis_untuk(h) if "gudang" in h and not u.is_superuser else []
+        if "barang" in jenis:
+            hasil.append({"u": u, "izin": svc_tiket.izin_barang_untuk(h)})
+    return hasil
+
+
+@perlu("kelola_lokasi")
+def tugas(request):
+    semua = list(Tiket.objects.select_related("untuk").order_by("-id")[:80])
+    for t in semua:
+        t.jumlah = t.usulan.count() if t.jenis == "barang" else None
+    return _tampil(request, "hp/tugas.html", {
+        "tab": "tugas",
+        "kelompok": [("Menunggu ACC kamu", [t for t in semua if t.status == "dikirim"]),
+                     ("Sedang dikerjakan", [t for t in semua if t.status == "terbuka" and not t.lewat_batas]),
+                     ("Lewat batas", [t for t in semua if t.status == "terbuka" and t.lewat_batas]),
+                     ("Selesai", [t for t in semua if t.status in ("selesai", "ditolak", "batal")][:20])],
+    })
+
+
+@perlu("kelola_lokasi")
+def tugas_baru(request):
+    from master.layanan import tiket as svc_tiket
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        untuk = get_user_model().objects.filter(pk=request.POST.get("untuk") or 0, is_active=True).first()
+        jam = request.POST.get("jam") or "4"
+        try:
+            batas = timezone.now() + timedelta(hours=int(jam)) if jam.isdigit() else None
+            t = svc_tiket.buka(request.user, untuk=untuk, tujuan=request.POST.get("tujuan"), batas=batas, hak=hak,
+                               jenis="barang", izin=request.POST.getlist("izin"),
+                               kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"))
+            return redirect("hp:tugas_detail", tiket_id=t.id)
+        except Tolak as e:
+            galat = str(e)
+    else:
+        galat = ""
+    return _tampil(request, "hp/tugas_baru.html", {
+        "tab": "tugas", "karyawan": _karyawan_tugas(), "galat": galat, "isi": request.POST,
+        "izin": Tiket.IZIN_BARANG,
+        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
+        "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
+    })
+
+
+@perlu("kelola_lokasi")
+def tugas_detail(request, tiket_id):
+    from master.layanan import tiket as svc_tiket
+    from master.layanan import tiket_barang as svc_barang
+    from master.views.lokasi import _ringkasan_tugas
+    hak = hak_pengguna(request.user)
+    t = get_object_or_404(Tiket.objects.select_related("untuk"), pk=tiket_id)
+    if request.method == "POST":
+        aksi = request.POST.get("aksi")
+        try:
+            if aksi == "terapkan":
+                ok, gagal, tolak = svc_barang.terapkan(request.user, t, request.POST, hak=hak)
+                pesan = f"{ok} usulan diterapkan, {tolak} tidak di-ACC." + (f" {gagal} gagal." if gagal else "")
+            elif aksi == "tolak":
+                svc_tiket.tolak(request.user, t, request.POST.get("alasan") or "Ditolak dari HP", hak=hak)
+                pesan = "Tugas ditolak."
+            elif aksi == "batal":
+                svc_tiket.batalkan(request.user, t, hak=hak)
+                pesan = "Tugas dibatalkan."
+            else:
+                raise Tolak("Aksi tidak dikenal.")
+            return _jawab(pesan=pesan)
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+    baris = svc_barang.rincian(t, lihat_modal="lihat_modal" in hak) if t.jenis == "barang" else []
+    return _tampil(request, "hp/tugas_detail.html", {
+        "tab": "tugas", "t": t, "baris": baris, "ringkas": _ringkasan_tugas(t), "lihat_modal": "lihat_modal" in hak,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Input: nota tulis tangan dan pembelian
+# ---------------------------------------------------------------------------
+
+
+@perlu()
+def input_(request):
+    from master.layanan import lokasi as svc_lokasi
+    from master.layanan import nota_manual
+    hak = hak_pengguna(request.user)
+    return _tampil(request, "hp/input.html", {
+        "tab": "input", "hak_nota": "laporan" in hak, "hak_beli": {"pembelian", "ubah_stok"} <= hak,
+        "mode_ppn": Pembelian.MODE_PPN,
+        "hari_ini": timezone.localdate(), "cara": NotaManual.CARA,
+        "supplier": Supplier.objects.filter(aktif=True).order_by("nama"), "lokasi": svc_lokasi.pilihan(),
+        "maks_foto": nota_manual.MAKS_FOTO,
+    })
+
+
+@require_POST
+@perlu("laporan")
+def input_nota(request):
+    from master.layanan import nota_manual
+    from master.layanan.toko import toko_aktif
+    data = request.POST.copy()
+    data.setdefault("toko", str(toko_aktif(request).pk) if toko_aktif(request) else "")
+    try:
+        n = nota_manual.buat(request.user, data, request.FILES.getlist("foto"))
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    return _jawab(pesan=f"Nota {n.nomor} tersimpan, total {n.total:,}".replace(",", ".") + ".")
+
+
+@require_POST
+@perlu("pembelian")
+def input_beli(request):
+    """Pembelian dari distributor: PO dibuat dengan barangnya. Kalau barang sudah datang semua,
+    sekalian dicatat datang dan di-ACC (stok, modal, dan hutang berubah)."""
+    from django.db import transaction
+    from master.layanan import pembelian as svc
+    from master.layanan.toko import toko_aktif
+    d = _json_badan(request)
+    baris = d.get("baris") or []
+    if not baris:
+        return _jawab(False, "Tambahkan minimal satu barang.", 400)
+    try:
+        with transaction.atomic():
+            po = svc.buat(request.user, supplier_id=d.get("supplier"), tanggal_pesan=d.get("tanggal"),
+                          catatan=d.get("catatan") or "", toko=toko_aktif(request))
+            for b in baris:
+                svc.tambah_baris(po, varian_id=b.get("id"), jumlah=b.get("jumlah"), harga=b.get("harga"))
+            if d.get("sudah_datang"):
+                isi = {"mode_ppn": d.get("mode_ppn") or po.mode_ppn, "tanggal_terima": d.get("tanggal"),
+                       "nomor_faktur": d.get("nomor_faktur") or "", "ongkir": d.get("ongkir") or "",
+                       "lokasi_semua": d.get("lokasi") or "", "tanggal_faktur": d.get("tanggal")}
+                for pb in po.baris.all():
+                    isi[f"terima_{pb.id}"] = pb.jumlah_pesan
+                    isi[f"harga_{pb.id}"] = pb.harga
+                svc.catat_datang(request.user, po, isi)
+                svc.acc(request.user, po)
+                pesan = f"{po.nomor} tersimpan dan diterima: stok, modal, dan hutang sudah diperbarui."
+            else:
+                pesan = f"{po.nomor} tersimpan. Barangnya dicatat datang oleh gudang, lalu di-ACC."
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    return _jawab(pesan=pesan)
+
+
+# ---------------------------------------------------------------------------
+# PWA: manifest dan ikon (server tidak melayani berkas statis)
+# ---------------------------------------------------------------------------
+
+
+def manifest(request):
+    from django.urls import reverse
+    data = {
+        "name": "DB Toko", "short_name": "DB Toko", "start_url": reverse("hp:beranda"), "scope": reverse("hp:beranda"),
+        "display": "standalone", "background_color": "#F2F2F7", "theme_color": "#F2F2F7",
+        "icons": [{"src": reverse("hp:ikon", args=[n]), "sizes": f"{n}x{n}", "type": "image/png"} for n in (192, 512)],
+    }
+    return HttpResponse(json.dumps(data), content_type="application/manifest+json")
+
+
+def ikon(request, ukuran):
+    from pathlib import Path
+    from django.http import Http404
+    if ukuran not in (180, 192, 512):
+        raise Http404
+    berkas = Path(__file__).resolve().parent.parent / "hp_aset" / f"ikon-{ukuran}.png"
+    resp = HttpResponse(berkas.read_bytes(), content_type="image/png")
+    resp["Cache-Control"] = "public, max-age=604800"
+    return resp

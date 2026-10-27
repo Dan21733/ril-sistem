@@ -447,6 +447,38 @@ Menyiapkan (sekali):
 
 PC harus menyala dan `jalankan_gudang.bat` berjalan selama staf memakai aplikasinya.
 
+## Aplikasi pemilik di HP (`/hp/`, prototipe 27 Okt 2026)
+
+Tampilan master untuk HP (iPhone dan Android), gaya iOS, terang/gelap mengikuti HP. Bukan
+kiosk: dibuka di Safari/Chrome lalu "Tambahkan ke Layar Utama" (ada manifest dan ikon).
+Semua aturan dan hak sama dengan master; `views/hp.py` hanya memanggil layanan yang sudah ada.
+
+- **Beranda**: omzet, laba kotor, bulan ini, grafik 7 hari, terlaris, stok habis/menipis, dan
+  **Perlu ACC**: nota ditahan (mis. di bawah floor) diterima/ditolak, tugas karyawan yang dikirim,
+  buka dus. Angka merah di tab Beranda = jumlah yang menunggu.
+- **Barang**: cari (urutan sama dengan master), harga jual/floor/modal, stok Toko dan tiap gudang.
+  Ubah harga (lewat `barang_ubah`, ada peringatan floor > jual dan floor < modal) dan
+  sesuaikan stok (`sesuaikan_stok`, tercatat di riwayat). Modal hanya untuk hak `lihat_modal`.
+- **Tugas**: buat tugas data barang untuk karyawan (izin harga/alias/aktif, kategori/brand,
+  batas jam), lihat usulan, ubah angkanya, ACC yang dicentang atau tolak.
+- **Catat**: nota tulis tangan (stok kasir berkurang, foto nota) dan pembelian dari distributor.
+  Pembelian: saklar "sudah datang semua" mati = PO saja (gudang mencatat datang, lalu ACC);
+  hidup = sekalian diterima dan di-ACC (stok, modal, hutang langsung berubah). Daftar barang
+  yang sedang diisi tersimpan di HP sampai disimpan.
+
+Membuka dari HP (server rumah, master tetap hanya di `127.0.0.1:8001`):
+
+1. Di server: `tailscale serve --bg --https=8444 http://127.0.0.1:8001`
+2. Di `server/.env` tambahkan (nama tailnet sendiri), lalu `docker compose up -d`:
+   ```
+   MASTER_ALLOWED_HOSTS=localhost,127.0.0.1,server-rumah.nama-tailnet.ts.net
+   MASTER_CSRF_TRUSTED_ORIGINS=https://server-rumah.nama-tailnet.ts.net:8444
+   ```
+3. HP pemilik: pasang Tailscale, masuk sebagai **anggota** tailnet (bukan perangkat yang
+   di-share/di-tag; aturan akses untuk tablet dan staf tidak membuka port 8444).
+4. Buka `https://server-rumah.nama-tailnet.ts.net:8444/hp/`, masuk, lalu Bagikan ›
+   Tambahkan ke Layar Utama.
+
 ## Server rumah (Docker)
 
 Master dan aplikasi gudang bisa dijalankan di server Linux rumah dengan Docker, memakai

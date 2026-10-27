@@ -1,0 +1,118 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Beranda · DB Toko{% endblock %}
+{% block judul_kecil %}Beranda{% endblock %}
+{% block kanan %}<a href="{% url 'master:dashboard' %}" class="kecil">Master</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{{ sapa }}, {{ request.user.first_name|default:request.user.username }}</h1>
+<p class="anak-judul">{% now "l, j F Y" %}{% if toko_aktif %} · {{ toko_aktif.nama }}{% endif %}</p>
+
+{% if jual %}
+<div class="ubin">
+  <div><div class="lbl">Penjualan hari ini</div><div class="angka">{{ jual.hari.omzet|singkat }}</div>
+    <div class="ket">{{ jual.hari.nota }} nota{% if jual.banding is not None %} · <span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}▲{% else %}▼{% endif %} {{ jual.banding }}%</span>{% endif %}</div></div>
+  {% if jual.lihat_modal %}<div><div class="lbl">Laba kotor hari ini</div><div class="angka">{{ jual.hari.laba|singkat }}</div>
+    <div class="ket">margin {% if jual.hari.margin is not None %}{{ jual.hari.margin }}%{% else %}-{% endif %}</div></div>{% endif %}
+  <div><div class="lbl">Bulan ini</div><div class="angka">{{ jual.bulan.omzet|singkat }}</div>
+    <div class="ket">{{ jual.bulan.nota }} nota{% if jual.lihat_modal %} · laba {{ jual.bulan.laba|singkat }}{% endif %}</div></div>
+  <div><div class="lbl">Rata-rata per nota</div><div class="angka">{{ jual.hari.rata|singkat }}</div>
+    <div class="ket">kemarin {{ jual.kemarin.omzet|singkat }}</div></div>
+</div>
+
+<div class="kepala-grup"><h2>7 hari terakhir</h2><span class="redup kecil">{{ jual.minggu_total.omzet|singkat }}</span></div>
+<div class="grup"><div class="batang">
+  {% for d in jual.minggu %}<div class="k{% if d.hari_ini %} kini{% endif %}"><div class="b" style="height:{{ d.tinggi }}%" title="{{ d.nilai|rupiah }}"></div><div class="l">{{ d.label }}</div></div>{% endfor %}
+</div></div>
+{% endif %}
+
+<div class="kepala-grup"><h2>Perlu ACC{% if jumlah_acc %} <span class="lencana merah">{{ jumlah_acc }}</span>{% endif %}</h2></div>
+{% if not jumlah_acc %}<div class="grup"><div class="kosong">Tidak ada yang menunggu. 👍</div></div>{% endif %}
+
+{% for d in nota %}
+<div class="grup kartu-acc" data-acc="nota" data-id="{{ d.n.sync_id }}" style="margin-bottom:10px">
+  <div class="sel"><div class="utama"><div class="nama"><b>{% if 'floor' in d.n.alasan|lower %}Harga di bawah floor{% else %}Nota ditahan{% endif %}</b></div>
+    <div class="sub">{{ d.kasir|default:"kasir tidak dikenal" }} · {{ d.waktu_nota|default:d.n.masuk|date:"d M H:i" }}{% if d.pembeli %} · {{ d.pembeli }}{% endif %}</div></div>
+    <div class="nilai"><b style="color:var(--teks)">{{ d.total|rupiah }}</b></div></div>
+  {% for b in d.baris %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.nama }}{% if b.varian and b.varian != "N/A" %} <span class="redup">/ {{ b.varian }}</span>{% endif %}</div>
+      <div class="sub">{{ b.jumlah }} × {{ b.harga|rupiah }}{% if b.floor %} · floor {{ b.floor|rupiah }}{% endif %}</div></div>
+    {% if b.di_bawah_floor %}<span class="lencana merah">di bawah floor</span>{% endif %}</div>{% endfor %}
+  {% if d.n.alasan %}<div class="sel"><div class="utama"><div class="sub" style="white-space:normal">Alasan ditahan: {{ d.n.alasan }}</div></div></div>{% endif %}
+  <div class="sel" style="flex-wrap:wrap">
+    {% if not d.n.worker_id %}<select class="kolom" data-worker style="background:var(--isi);flex:1 1 100%;margin-bottom:6px"><option value="">Pilih kasir…</option>{% for wid, nama in pekerja %}<option value="{{ wid }}">{{ nama }}</option>{% endfor %}</select>{% endif %}
+    <button class="tombol kecil hijau" data-aksi="terima">Terima</button>
+    <button class="tombol kecil merah" data-aksi="tolak">Tolak</button>
+  </div>
+</div>
+{% endfor %}
+
+{% if tugas %}
+<div class="grup" style="margin-bottom:10px">
+  {% for t in tugas %}<a class="sel" href="{% url 'hp:tugas_detail' t.id %}"><div class="utama"><div class="nama">Tugas #{{ t.id }} · {{ t.tujuan }}</div>
+    <div class="sub">dari {{ t.untuk.first_name|default:t.untuk.username }} · dikirim {{ t.dikirim_waktu|date:"d M H:i" }}</div></div>
+    <span class="lencana tint">periksa</span></a>{% endfor %}
+</div>
+{% endif %}
+
+{% for b in dus %}
+<div class="grup kartu-acc" data-acc="dus" data-id="{{ b.id }}" style="margin-bottom:10px">
+  <div class="sel"><div class="utama"><div class="nama"><b>Buka dus</b> <span class="redup">· {{ b.oleh }}</span></div>
+    <div class="sub" style="white-space:normal">{{ b.jumlah }} {{ b.konversi.dari.item_name }} → {{ b.isi_total }} {{ b.konversi.ke.item_name }}{% if b.catatan %} · {{ b.catatan }}{% endif %}</div></div></div>
+  <div class="sel"><button class="tombol kecil hijau" data-aksi="terima">ACC</button><button class="tombol kecil merah" data-aksi="tolak">Tolak</button></div>
+</div>
+{% endfor %}
+
+{% if lain.perlu %}
+<div class="grup">
+  {% for p in lain.perlu %}{% if p.url != "master:nota_tinjau" and p.url != "master:tiket" and p.url != "master:buka_dus" %}
+  <a class="sel" href="{% url p.url %}"><div class="utama"><div class="nama">{{ p.label }}</div><div class="sub">buka di master</div></div><span class="nilai">{{ p.jumlah }}</span></a>
+  {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+{% if jual and jual.terlaris %}
+<div class="kepala-grup"><h2>Terlaris 7 hari</h2></div>
+<div class="grup">
+  {% for h in jual.terlaris %}<div class="sel"><div class="utama"><div class="nama">{{ forloop.counter }}. {{ h.nama }}</div><div class="sub">{{ h.qty|ribuan }} terjual</div></div><span class="nilai">{{ h.omzet|singkat }}</span></div>{% endfor %}
+</div>
+{% endif %}
+
+{% if lain.stok_habis or lain.stok_menipis %}
+<div class="kepala-grup"><h2>Stok</h2></div>
+<div class="ubin">
+  <div><div class="lbl">Habis</div><div class="angka turun">{{ lain.stok_habis|ribuan }}</div><div class="ket">varian stok 0 atau minus</div></div>
+  <div><div class="lbl">Menipis</div><div class="angka" style="color:var(--kuning)">{{ lain.stok_menipis|ribuan }}</div><div class="ket">di bawah batas</div></div>
+</div>
+{% endif %}
+<div style="height:16px"></div>
+
+<dialog class="lembar" id="lembar-tolak">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup>Batal</button><b>Tolak</b><button class="kanan" id="kirim-tolak">Tolak</button></div>
+  <div class="badan"><div class="grup"><textarea class="kolom" id="alasan-tolak" rows="3" placeholder="Alasan (wajib untuk nota)"></textarea></div>
+    <p class="ket-grup">Nota yang ditolak tidak masuk penjualan. Kasir perlu membuat nota baru dengan harga yang benar.</p></div>
+</dialog>
+{% endblock %}
+{% block skrip %}
+<script>
+let tolakKartu = null;
+async function putuskan(kartu, aksi, alasan){
+  const data = {jenis: kartu.dataset.acc, id: kartu.dataset.id, aksi, alasan};
+  const w = kartu.querySelector('[data-worker]'); if (w) data.worker_id = w.value;
+  kartu.querySelectorAll('button').forEach(b => b.disabled = true);
+  try {
+    const d = await kirim("{% url 'hp:acc' %}", data);
+    kabar(d.pesan); kartu.style.transition = '.3s'; kartu.style.opacity = '0'; setTimeout(() => kartu.remove(), 300);
+  } catch (e) { kabar(e.message, true); kartu.querySelectorAll('button').forEach(b => b.disabled = false); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.kartu-acc [data-aksi]'); if (!b) return;
+  const kartu = b.closest('.kartu-acc');
+  if (b.dataset.aksi === 'terima') putuskan(kartu, 'terima');
+  else { tolakKartu = kartu; document.getElementById('alasan-tolak').value = ''; document.getElementById('lembar-tolak').showModal(); }
+});
+document.getElementById('kirim-tolak').addEventListener('click', () => {
+  const alasan = document.getElementById('alasan-tolak').value.trim();
+  if (tolakKartu.dataset.acc === 'nota' && !alasan){ kabar('Tulis alasannya dulu.', true); return; }
+  document.getElementById('lembar-tolak').close(); putuskan(tolakKartu, 'tolak', alasan);
+});
+</script>
+{% endblock %}

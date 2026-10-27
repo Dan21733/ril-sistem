@@ -1,0 +1,20 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Tugas · DB Toko{% endblock %}
+{% block judul_kecil %}Tugas karyawan{% endblock %}
+{% block kanan %}<a href="{% url 'hp:tugas_baru' %}" aria-label="Buat tugas" style="font-size:28px;line-height:1">＋</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Tugas karyawan</h1>
+<p class="anak-judul">Karyawan mengusulkan; tidak ada yang berubah sebelum kamu ACC.</p>
+<a class="tombol penuh" href="{% url 'hp:tugas_baru' %}">＋ Buat tugas baru</a>
+{% for judul, isi in kelompok %}{% if isi or forloop.first %}
+<div class="kepala-grup"><h2>{{ judul }}{% if isi %} <span class="redup" style="font-weight:400">{{ isi|length }}</span>{% endif %}</h2></div>
+<div class="grup">
+  {% for t in isi %}<a class="sel" href="{% url 'hp:tugas_detail' t.id %}">
+    <div class="utama"><div class="nama">#{{ t.id }} · {{ t.tujuan }}</div>
+      <div class="sub">{{ t.untuk.first_name|default:t.untuk.username }} · {{ t.get_jenis_display|default:t.jenis }}{% if t.jumlah is not None %} · {{ t.jumlah }} usulan{% endif %} · batas {{ t.batas|date:"d M H:i" }}</div></div>
+    {% if t.status == 'dikirim' %}<span class="lencana tint">ACC</span>{% elif t.status == 'selesai' %}<span class="lencana hijau">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="lencana merah">{{ t.get_status_display }}</span>{% elif t.lewat_batas %}<span class="lencana kuning">Lewat</span>{% endif %}
+  </a>{% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
+</div>
+{% endif %}{% endfor %}
+<div style="height:16px"></div>
+{% endblock %}

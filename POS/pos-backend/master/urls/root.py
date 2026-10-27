@@ -9,4 +9,5 @@ urlpatterns = [
     path("", RedirectView.as_view(pattern_name="master:dashboard", permanent=False)),
     path("master/", include("master.urls.master")),
     path("gudang/", include("master.urls.gudang")),
+    path("hp/", include("master.urls.hp")),
 ]

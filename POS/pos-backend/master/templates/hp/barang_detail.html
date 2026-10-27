@@ -1,0 +1,113 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}{{ item.item_name }} · DB Toko{% endblock %}
+{% block kiri %}<a href="{{ kembali }}">‹ Barang</a>{% endblock %}
+{% block judul_kecil %}{{ item.item_name }}{% endblock %}
+{% block gaya %}<style>
+.varian{margin-bottom:12px}
+.varian .kepala-v{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px 4px}
+.varian .kepala-v b{font-size:18px}
+.angka-v{display:grid;grid-template-columns:repeat(3,1fr);padding:4px 8px 10px}
+.angka-v div{padding:6px 8px}
+.angka-v .lbl{font-size:12px;color:var(--teks2)}
+.angka-v .n{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.stok-v{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{{ item.item_name }}</h1>
+<p class="anak-judul">{{ kategori }}{% if brand %} · {{ brand }}{% endif %} · {{ aktif|length }} varian aktif</p>
+
+{% for b in aktif %}{% include "hp/_varian.html" %}{% empty %}<div class="grup"><div class="kosong">Semua varian nonaktif.</div></div>{% endfor %}
+
+{% if nonaktif %}
+<details class="lipat"><summary class="kepala-grup"><h2 class="redup">Nonaktif ({{ nonaktif|length }})</h2><span class="aksi">Tampilkan</span></summary>
+{% for b in nonaktif %}{% include "hp/_varian.html" %}{% endfor %}
+</details>
+{% endif %}
+<p class="ket-grup" style="margin-bottom:20px">Ubah nama, pindah varian, dan lainnya ada di <a href="{% url 'master:barang' %}?buka={{ item.pk }}">master</a>.</p>
+
+<dialog class="lembar" id="lembar-harga">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup>Batal</button><b id="harga-judul">Ubah harga</b><button class="kanan" id="simpan-harga">Simpan</button></div>
+  <div class="badan">
+    <div class="grup">
+      <label class="isian"><span>Harga jual</span><input data-uang inputmode="numeric" id="h-jual"></label>
+      <label class="isian"><span>Floor</span><input data-uang inputmode="numeric" id="h-floor"></label>
+      {% if lihat_modal %}<label class="isian"><span>Modal</span><input data-uang inputmode="numeric" id="h-modal"></label>{% endif %}
+    </div>
+    <p class="ket-grup" id="h-ket"></p>
+  </div>
+</dialog>
+
+<dialog class="lembar" id="lembar-stok">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup>Batal</button><b id="stok-judul">Sesuaikan stok</b><button class="kanan" id="simpan-stok">Simpan</button></div>
+  <div class="badan">
+    <div class="seg" id="stok-cara">
+      <label><input type="radio" name="cara" value="tetapkan" checked><span>Hasil hitung</span></label>
+      <label><input type="radio" name="cara" value="tambah"><span>Tambah</span></label>
+      <label><input type="radio" name="cara" value="kurang"><span>Kurangi</span></label>
+    </div>
+    <div class="grup">
+      <div class="isian"><span>Stok sistem</span><b id="stok-kini" style="margin-left:auto"></b></div>
+      <label class="isian"><span id="stok-lbl">Stok sebenarnya</span><input inputmode="numeric" id="stok-angka" placeholder="0"></label>
+      <label class="isian"><span>Alasan</span><select id="stok-jenis">{% for k, l in jenis_stok %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="isian"><span>Catatan</span><input id="stok-catatan" placeholder="boleh kosong" style="text-align:right"></label>
+    </div>
+    <p class="ket-grup" id="stok-ket">Tercatat di riwayat stok atas namamu.</p>
+  </div>
+</dialog>
+{% endblock %}
+{% block skrip %}
+<script>
+let v = null;
+const kartu = el => el.closest('.varian');
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ubah-harga]');
+  if (b){ v = kartu(b); document.getElementById('harga-judul').textContent = v.dataset.nama;
+    document.getElementById('h-jual').value = ribuan(v.dataset.jual); document.getElementById('h-floor').value = ribuan(v.dataset.floor);
+    const m = document.getElementById('h-modal'); if (m) m.value = ribuan(v.dataset.modal);
+    cekHarga(); document.getElementById('lembar-harga').showModal(); }
+  const s = e.target.closest('[data-ubah-stok]');
+  if (s){ v = kartu(s); document.getElementById('stok-judul').textContent = v.dataset.nama;
+    document.getElementById('stok-kini').textContent = ribuan(v.dataset.stok) || '0'; document.getElementById('stok-angka').value = '';
+    document.getElementById('stok-catatan').value = ''; document.getElementById('lembar-stok').showModal(); }
+});
+function cekHarga(){
+  const j = angka(document.getElementById('h-jual').value), f = angka(document.getElementById('h-floor').value);
+  const m = document.getElementById('h-modal') ? angka(document.getElementById('h-modal').value) : null;
+  const ket = [];
+  if (j != null && f != null && f > j) ket.push('⚠️ Floor di atas harga jual.');
+  if (m != null && f != null && f < m) ket.push('⚠️ Floor di bawah modal: kasir bisa menjual rugi.');
+  if (m && j) ket.push('Margin ' + Math.round((j - m) / j * 1000) / 10 + '%.');
+  document.getElementById('h-ket').textContent = ket.join(' ');
+}
+document.getElementById('lembar-harga').addEventListener('input', cekHarga);
+document.getElementById('simpan-harga').addEventListener('click', async () => {
+  const ubah = [['max_price', 'h-jual', 'jual'], ['min_price', 'h-floor', 'floor'], ['cost_amount', 'h-modal', 'modal']]
+    .filter(([, id]) => document.getElementById(id))
+    .map(([kolom, id, k]) => [kolom, angka(document.getElementById(id).value), k])
+    .filter(([, nilai, k]) => String(nilai ?? '') !== String(v.dataset[k] ?? ''));
+  if (!ubah.length){ document.getElementById('lembar-harga').close(); return; }
+  try {
+    for (const [kolom, nilai, k] of ubah){
+      await kirim("{% url 'master:barang_ubah' %}", {id: v.dataset.id, kolom, nilai: nilai == null ? '' : String(nilai)});
+      v.dataset[k] = nilai ?? ''; v.querySelector('[data-n="' + k + '"]').textContent = nilai == null ? '–' : ribuan(nilai);
+    }
+    document.getElementById('lembar-harga').close(); kabar('Harga tersimpan.');
+  } catch (e) { kabar(e.message, true); }
+});
+document.getElementById('stok-cara').addEventListener('change', e => {
+  document.getElementById('stok-lbl').textContent = {tetapkan: 'Stok sebenarnya', tambah: 'Tambah', kurang: 'Kurangi'}[e.target.value];
+});
+document.getElementById('simpan-stok').addEventListener('click', async () => {
+  const cara = document.querySelector('#stok-cara input:checked').value, n = angka(document.getElementById('stok-angka').value);
+  if (n == null){ kabar('Isi jumlahnya.', true); return; }
+  try {
+    const d = await kirim("{% url 'hp:stok' %}", {id: v.dataset.id, cara, angka: n, jenis: document.getElementById('stok-jenis').value,
+                                                   catatan: document.getElementById('stok-catatan').value});
+    v.dataset.stok = d.stok; v.querySelector('[data-n="stok"]').textContent = ribuan(d.stok);
+    document.getElementById('lembar-stok').close(); kabar(d.pesan);
+  } catch (e) { kabar(e.message, true); }
+});
+</script>
+{% endblock %}

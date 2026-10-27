@@ -1,0 +1,18 @@
+{% load master_tags %}<div class="grup varian" data-id="{{ b.id }}" data-nama="{{ b.variant|varian }}" data-jual="{{ b.max_price|default_if_none:'' }}" data-floor="{{ b.min_price|default_if_none:'' }}" data-modal="{{ b.cost_amount|default_if_none:'' }}" data-stok="{{ b.in_stock|default:0 }}">
+  <div class="kepala-v"><b>{{ b.variant|varian }}</b>{% if b.rak %}<span class="lencana">Rak {{ b.rak }}</span>{% endif %}</div>
+  <div class="angka-v">
+    <div><div class="lbl">Harga jual</div><div class="n" data-n="jual">{{ b.max_price|ribuan|default:"–" }}</div></div>
+    <div><div class="lbl">Floor</div><div class="n" data-n="floor">{{ b.min_price|ribuan|default:"–" }}</div></div>
+    {% if lihat_modal %}<div><div class="lbl">Modal{% if b.margin is not None %} · {{ b.margin }}%{% endif %}</div><div class="n" data-n="modal">{{ b.cost_amount|ribuan|default:"–" }}</div></div>
+    {% else %}<div><div class="lbl">Stok</div><div class="n">{{ b.in_stock|ribuan }}</div></div>{% endif %}
+  </div>
+  <div class="stok-v">
+    <span class="lencana {% if b.in_stock <= 0 %}merah{% endif %}">Stok <b data-n="stok">{{ b.in_stock|ribuan }}</b></span>
+    <span class="lencana">Toko {{ b.toko|ribuan }}</span>
+    {% for g in b.gudang %}<span class="lencana">{{ g.nama }} {{ g.jumlah|ribuan }}</span>{% endfor %}
+  </div>
+  <div class="sel baris-tombol">
+    {% if 'ubah_harga' in hak %}<button class="tombol kecil abu" data-ubah-harga>Ubah harga</button>{% endif %}
+    {% if 'ubah_stok' in hak %}<button class="tombol kecil abu" data-ubah-stok>Sesuaikan stok</button>{% endif %}
+  </div>
+</div>
