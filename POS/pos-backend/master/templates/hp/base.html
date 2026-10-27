@@ -231,6 +231,7 @@ details.lipat>summary::-webkit-details-marker{display:none}
     Setelan</a>
 </nav>{% endblock %}
 <div id="kabar" role="status"></div>
+{% include "master/_tanya.html" %}
 <script>/* Service worker untuk notifikasi (didaftarkan di semua halaman supaya tetap aktif). */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register("{% url 'hp:sw' %}", {scope: "{% url 'hp:beranda' %}"}).catch(() => {});</script>
 <script>

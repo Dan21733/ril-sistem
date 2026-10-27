@@ -113,10 +113,10 @@ f?.addEventListener('change', hitung); if (f) hitung();
 document.getElementById('balik')?.addEventListener('click', () => { f.querySelectorAll('[name=pilih]').forEach(c => c.checked = !c.checked); hitung(); });
 document.getElementById('terapkan')?.addEventListener('click', () => {
   const n = f.querySelectorAll('[name=pilih]:checked').length, total = f.querySelectorAll('[name=pilih]').length;
-  if (confirm('ACC ' + n + ' usulan' + (total - n ? ' dan tolak ' + (total - n) + ' lainnya' : '') + '?')) kirimAksi('terapkan');
+  tanya('ACC ' + n + ' usulan' + (total - n ? ' dan tolak ' + (total - n) + ' lainnya' : '') + '?', {ya: 'ACC'}).then(ok => { if (ok) kirimAksi('terapkan'); });
 });
-document.querySelectorAll('[data-aksi=tolak]').forEach(b => b.addEventListener('click', () => { const a = prompt('Alasan menolak tugas ini:'); if (a !== null) kirimAksi('tolak', {alasan: a || 'Ditolak'}); }));
-document.querySelector('[data-aksi=teruskan]')?.addEventListener('click', () => { if (confirm('Teruskan hitungan ke Stok opname untuk diperiksa?')) kirimAksi('teruskan'); });
-document.getElementById('batal')?.addEventListener('click', () => { if (confirm('Batalkan tugas ini?')) kirimAksi('batal'); });
+document.querySelectorAll('[data-aksi=tolak]').forEach(b => b.addEventListener('click', async () => { const a = await tanya('Tolak tugas ini?', {ya: 'Tolak', bahaya: true, isian: 'Alasan'}); if (a !== false) kirimAksi('tolak', {alasan: a || 'Ditolak'}); }));
+document.querySelector('[data-aksi=teruskan]')?.addEventListener('click', async () => { if (await tanya('Teruskan hitungan ke Stok opname untuk diperiksa?', {ya: 'Teruskan'})) kirimAksi('teruskan'); });
+document.getElementById('batal')?.addEventListener('click', async () => { if (await tanya('Batalkan tugas ini?', {ya: 'Batalkan tugas', bahaya: true})) kirimAksi('batal'); });
 </script>
 {% endblock %}

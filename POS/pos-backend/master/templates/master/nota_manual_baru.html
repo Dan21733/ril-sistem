@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const jam = new Date(draf.waktu).toLocaleString('id-ID', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
       ket.append('Draf dari ' + jam + ' dipulihkan (' + draf.baris.length + ' barang). Foto nota perlu dipilih lagi. ');
       const buang = document.createElement('a'); buang.href = '#'; buang.textContent = 'Kosongkan formulir';
-      buang.addEventListener('click', e => { e.preventDefault(); if (!confirm('Kosongkan formulir dan buang draf ini?')) return;
+      buang.addEventListener('click', async e => { e.preventDefault(); if (!await tanya('Kosongkan formulir dan buang draf ini?', {ya: 'Kosongkan', bahaya: true})) return;
         try { localStorage.removeItem(KUNCI); } catch (er) {} location.href = location.pathname; });
       ket.append(buang);
     }

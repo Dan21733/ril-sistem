@@ -137,7 +137,7 @@ body.atur .wg a{pointer-events:none}
   document.getElementById('tombol-atur').addEventListener('click', () => atur(true));
   document.getElementById('tombol-selesai').addEventListener('click', async () => { await kirim({susunan: susunan()}); location.href = location.pathname; });
   document.getElementById('tombol-bawaan').addEventListener('click', async () => {
-    if (!confirm('Kembalikan susunan beranda ke bawaan?')) return;
+    if (!await tanya('Kembalikan susunan beranda ke bawaan?')) return;
     await kirim({bawaan: true}); location.href = location.pathname; });
   bar.querySelectorAll('[data-tambah]').forEach(b => b.addEventListener('click', async () => {
     await kirim({susunan: [...susunan(), {k: b.dataset.tambah, lebar: 1}]}); location.href = location.pathname + '?atur=1'; }));

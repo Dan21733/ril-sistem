@@ -27,7 +27,7 @@
         <div class="kecil redup" style="margin-top:6px">Tidak bisa dihapus permanen</div>
       {% else %}
         <details style="display:inline-block;margin-left:6px"><summary class="tombol kecil">Hapus permanen</summary>
-          <form method="post" class="kartu" style="margin-top:6px;min-width:220px" onsubmit="return confirm('Hapus permanen {{ s.item_name|escapejs }} / {{ s.variant|escapejs }}? Tidak bisa dibatalkan.')">{% csrf_token %}
+          <form method="post" class="kartu" style="margin-top:6px;min-width:220px" data-tanya="Hapus permanen {{ s.item_name }} / {{ s.variant }}? Tidak bisa dibatalkan.">{% csrf_token %}
             <input type="hidden" name="id" value="{{ s.id }}"><input type="hidden" name="aksi" value="hapus">
             <label>Password akunmu</label><input type="password" name="password" required autocomplete="current-password">
             <div style="margin-top:8px"><button class="tombol kecil" type="submit">Hapus permanen</button></div>

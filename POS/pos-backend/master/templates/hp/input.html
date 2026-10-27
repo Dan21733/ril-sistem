@@ -144,7 +144,7 @@ f.addEventListener('submit', async e => {
   if (!baris.length) { kabar('Tambahkan minimal satu barang.', true); return; }
   if (baris.some(b => !b.jumlah || b.harga == null)) { kabar('Isi jumlah dan harga semua barang.', true); return; }
   const datang = f.mode.value === 'datang';
-  if (datang && !confirm('Simpan dan terima? Stok, modal, dan hutang langsung berubah.')) return;
+  if (datang && !await tanya('Simpan dan terima? Stok, modal, dan hutang langsung berubah.', {ya: 'Simpan & terima'})) return;
   const tombol = f.querySelector('[type=submit]'); tombol.disabled = true;
   const data = new FormData(f);
   data.set('baris', JSON.stringify(baris.map(b => ({id: b.id, jumlah: b.jumlah, harga: b.harga}))));

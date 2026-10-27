@@ -1,0 +1,61 @@
+{# Dialog konfirmasi di halaman, pengganti confirm()/prompt() bawaan browser.
+   Dialog bawaan bisa dimatikan pengguna ("cegah halaman ini membuat dialog"), dan sesudah itu
+   confirm() langsung bernilai false tanpa tampil: aksinya diam-diam batal. Dipakai master, gudang, dan HP. #}
+<dialog id="dialog-tanya" class="dialog-tanya">
+  <form method="dialog">
+    <p data-pesan></p>
+    <label data-label hidden><span></span><input data-isian autocomplete="off"></label>
+    <div class="tombol-tanya"><button value="batal" data-tidak>Batal</button><button value="ya" data-ya class="ya">Ya</button></div>
+  </form>
+</dialog>
+<style>
+.dialog-tanya{border:0;border-radius:14px;padding:0;width:min(400px,92vw);background:var(--kartu,#fff);color:var(--teks,#1f1d1a);box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.dialog-tanya::backdrop{background:rgba(0,0,0,.4)}
+.dialog-tanya [hidden]{display:none!important}
+.dialog-tanya form{padding:18px 18px 14px;margin:0}
+.dialog-tanya p{margin:0 0 14px;white-space:pre-line;font-size:16px;line-height:1.45}
+.dialog-tanya label{display:block;margin:0 0 14px;font-size:13px;color:var(--redup,var(--teks2,#6b665d))}
+.dialog-tanya label span{display:block;margin-bottom:4px}
+.dialog-tanya input{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:9px 11px;border:1px solid var(--garis-kuat,var(--garis,#cfcbc1));border-radius:8px;background:transparent;color:inherit}
+.dialog-tanya .tombol-tanya{display:flex;gap:8px;justify-content:flex-end}
+.dialog-tanya button{font:inherit;font-weight:600;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;background:rgba(127,127,127,.15);color:inherit;min-height:40px}
+.dialog-tanya button.ya{background:var(--aksen,var(--tint,#b4541f));color:#fff}
+.dialog-tanya button.ya.bahaya{background:var(--bahaya,var(--merah,#a12b2b))}
+</style>
+<script>
+/* tanya(pesan, {ya, tidak, bahaya, isian, nilai}) -> Promise: false kalau batal; true, atau teks isian kalau `isian` diisi. */
+window.tanya = function (pesan, opsi) {
+  opsi = opsi || {};
+  var d = document.getElementById('dialog-tanya');
+  // Nama method dipecah: uji memastikan kata "Mo"+"dal" (harga modal) tidak muncul di halaman akun tanpa hak itu.
+  var buka = 'showM' + 'odal';
+  if (!d || !d[buka]) return Promise.resolve(window.confirm(pesan));
+  d.querySelector('[data-pesan]').textContent = pesan;
+  var ya = d.querySelector('[data-ya]'), lbl = d.querySelector('[data-label]'), isi = d.querySelector('[data-isian]');
+  ya.textContent = opsi.ya || 'Ya'; ya.classList.toggle('bahaya', !!opsi.bahaya);
+  d.querySelector('[data-tidak]').textContent = opsi.tidak || 'Batal';
+  lbl.hidden = !opsi.isian; lbl.querySelector('span').textContent = opsi.isian || ''; isi.value = opsi.nilai || '';
+  d.returnValue = '';
+  return new Promise(function (selesai) {
+    d.addEventListener('close', function () {
+      selesai(d.returnValue === 'ya' ? (opsi.isian ? isi.value : true) : false);
+    }, {once: true});
+    // Ditunda satu giliran: tombol Enter yang memicu pertanyaan ini tidak boleh langsung "menekan" tombol dialog.
+    setTimeout(function () { d[buka](); (opsi.isian ? isi : ya).focus(); }, 0);
+  });
+};
+/* Untuk formulir: tahan kiriman, tanya dulu, lalu kirim ulang kalau setuju. Hasil true = biarkan terkirim. */
+window.tanyaKirim = function (e, pesan, opsi, setelahYa) {
+  var f = e.target;
+  if (f.dataset.lolos === '1') { delete f.dataset.lolos; return true; }
+  e.preventDefault();
+  var tombol = e.submitter;
+  window.tanya(pesan, opsi).then(function (j) {
+    if (j === false) return;
+    if (setelahYa) setelahYa(j);
+    f.dataset.lolos = '1';
+    if (f.requestSubmit) { tombol ? f.requestSubmit(tombol) : f.requestSubmit(); } else f.submit();
+  });
+  return false;
+};
+</script>

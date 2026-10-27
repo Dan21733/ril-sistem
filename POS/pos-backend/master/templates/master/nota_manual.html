@@ -41,7 +41,7 @@
   document.getElementById('form-massal').addEventListener('submit', e => {
     const n = kotak().filter(c => c.checked).length, t = e.target.tanggal.value;
     if (!t || !e.target.alasan.value.trim()) { e.preventDefault(); kabar('Isi tanggal baru dan alasannya.', true); return; }
-    if (!confirm(`Ganti tanggal ${n} nota jadi ${t}?`)) e.preventDefault();
+    tanyaKirim(e, `Ganti tanggal ${n} nota jadi ${t}?`, {ya: 'Ganti tanggal'});
   });
 })();
 </script>

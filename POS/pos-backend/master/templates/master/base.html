@@ -329,19 +329,22 @@ document.addEventListener('dblclick', e => {
       ev.preventDefault();
       const baru = input.value.trim();
       if (!baru || baru === lama){ batal(); return; }
-      if (!confirm('Ganti nama "' + lama + '" menjadi "' + baru + '"?\n' + (el.dataset.tanya || ''))){ batal(); return; }
-      selesai = true;
+      selesai = true;   // dialog mengambil fokus; jangan sampai blur membatalkan
+      tanya('Ganti nama "' + lama + '" menjadi "' + baru + '"?\n' + (el.dataset.tanya || ''), {ya: 'Ganti nama'}).then(ok => {
+        if (!ok){ el.innerHTML = isiLama; return; }
+        el.textContent = baru;
       form.elements.aksi.value = el.dataset.ganti === 'item' ? 'ganti_nama_item' : 'ganti_nama_varian';
       form.elements.id.value = el.dataset.id || '';
       form.elements.nama_baru.value = baru; form.elements.varian_baru.value = baru;
       // requestSubmit (bukan submit) supaya panel daftar barang bisa mengirimnya tanpa memuat ulang halaman.
       if (form.requestSubmit) form.requestSubmit(); else form.submit();
+      });
     }
   });
   input.addEventListener('blur', batal);
 });
 document.addEventListener('submit', e => {
-  const t = e.target.dataset.tanya; if (t && !confirm(t)) e.preventDefault();
+  const t = e.target.dataset.tanya; if (t) tanyaKirim(e, t);
 });
 </script>
 <script>
@@ -366,10 +369,8 @@ document.addEventListener("submit", function (e) {
   var stok = parseInt(f.dataset.stok || "0", 10) || 0;
   var pesan = "Buang " + f.dataset.nama + " ke keranjang sampah?\n\nBarang akan hilang dari kasir. Bisa dipulihkan dari menu Barang dihapus.";
   if (stok) pesan = "PERHATIAN: stok masih " + stok.toLocaleString("id-ID") + ".\n\n" + pesan;
-  if (!confirm(pesan)) { e.preventDefault(); return; }
-  var alasan = prompt("Alasan (boleh dikosongkan):", "");
-  if (alasan === null) { e.preventDefault(); return; }
-  f.querySelector("input[name=alasan]").value = alasan;
+  tanyaKirim(e, pesan, {ya: "Buang", bahaya: true, isian: "Alasan (boleh dikosongkan)"},
+             function (alasan) { f.querySelector("input[name=alasan]").value = alasan; });
 });
 </script>
 <script>
@@ -527,5 +528,6 @@ document.addEventListener("submit", function (e) {
   });
 })();
 </script>
+{% include "master/_tanya.html" %}
 </body>
 </html>

@@ -123,11 +123,16 @@ const KUNCI_POSISI = 'ril-daftar-barang:{{ request.user.username|escapejs }}';
     history.replaceState(null, '', u); simpanPosisi();
     belah.classList.add('buka'); panel.hidden = false; idBuka = id;
     const gulirLama = panel.scrollTop;
+    // Saringan varian yang sedang dipakai tetap dipakai setelah panel dimuat ulang (mis. sesudah ganti nama).
+    const saringLama = opsi.diam ? (panel.querySelector('[data-saring-varian]') || {}).value : '';
     if (!opsi.diam) panel.innerHTML = '<p class="redup">Memuat...</p>';
     try{
       const r = await fetch(dasar + id + '/panel/?kembali=' + encodeURIComponent(u.pathname + u.search));
       if (!r.ok) throw new Error(r.status);
-      panel.innerHTML = await r.text(); panel.scrollTop = opsi.diam ? gulirLama : 0;
+      panel.innerHTML = await r.text();
+      const saring = panel.querySelector('[data-saring-varian]');
+      if (saring && saringLama){ saring.value = saringLama; saring.dispatchEvent(new Event('input', {bubbles: true})); }
+      panel.scrollTop = opsi.diam ? gulirLama : 0;
       if (opsi.pesan) tampilPesan(opsi.pesan);
       if (opsi.fokus) panel.querySelector(opsi.fokus)?.focus();
       if (gulir && baris) baris.scrollIntoView({block:'nearest'});
@@ -293,7 +298,7 @@ const KUNCI_POSISI = 'ril-daftar-barang:{{ request.user.username|escapejs }}';
     const jam = new Date(d.waktu).toLocaleString('id-ID', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
     ket.append('Draf dari ' + jam + ' dipulihkan. ');
     const buang = document.createElement('a'); buang.href = '#'; buang.textContent = 'Kosongkan formulir';
-    buang.addEventListener('click', ev => { ev.preventDefault(); if (!confirm('Kosongkan formulir dan buang draf?')) return; hapusDraf(); keluarBaru(); bukaBaru(); });
+    buang.addEventListener('click', async ev => { ev.preventDefault(); if (!await tanya('Kosongkan formulir dan buang draf?', {ya: 'Kosongkan', bahaya: true})) return; hapusDraf(); keluarBaru(); bukaBaru(); });
     ket.append(buang);
     $('#ref').before(ket);
   }

@@ -63,7 +63,7 @@
   document.getElementById('acc')?.addEventListener('change', hitung);
   document.getElementById('acc')?.addEventListener('submit', e => {
     const k = kotak(), n = k.filter(c => c.checked).length;
-    if (!confirm(`Terapkan ${n} usulan dan tolak ${k.length - n} sisanya?`)) e.preventDefault(); });
+    tanyaKirim(e, `Terapkan ${n} usulan dan tolak ${k.length - n} sisanya?`, {ya: 'Terapkan'}); });
   hitung();
 })();
 </script>

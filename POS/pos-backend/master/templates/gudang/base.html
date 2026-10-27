@@ -89,7 +89,7 @@ function kabar(teks, bahaya){
   const m = document.querySelector('main'); m.querySelectorAll('.pesan.kabar').forEach(x => x.remove());
   p.classList.add('kabar'); m.prepend(p); window.scrollTo({top: 0});
 }
-document.addEventListener('submit', e => { const t = e.target.dataset.tanya; if (t && !confirm(t)) e.preventDefault(); });
+document.addEventListener('submit', e => { const t = e.target.dataset.tanya; if (t) tanyaKirim(e, t); });
 // Enter di kotak angka pindah ke kotak berikutnya, bukan mengirim form.
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !e.target.matches('input.angka')) return;
@@ -97,5 +97,6 @@ document.addEventListener('keydown', e => {
   if (semua[i + 1]){ e.preventDefault(); semua[i + 1].focus(); semua[i + 1].select(); }
 });
 </script>
+{% include "master/_tanya.html" %}
 </body>
 </html>
