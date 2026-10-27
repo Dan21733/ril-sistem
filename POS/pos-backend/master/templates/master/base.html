@@ -321,7 +321,8 @@ document.addEventListener('dblclick', e => {
       form.elements.aksi.value = el.dataset.ganti === 'item' ? 'ganti_nama_item' : 'ganti_nama_varian';
       form.elements.id.value = el.dataset.id || '';
       form.elements.nama_baru.value = baru; form.elements.varian_baru.value = baru;
-      form.submit();
+      // requestSubmit (bukan submit) supaya panel daftar barang bisa mengirimnya tanpa memuat ulang halaman.
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
     }
   });
   input.addEventListener('blur', batal);
