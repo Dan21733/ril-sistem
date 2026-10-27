@@ -63,7 +63,8 @@ function tandai(){
   document.querySelectorAll('#aksen button').forEach(b => b.classList.toggle('aktif', b.dataset.aksen === (akar.dataset.aksen || '')));
 }
 document.getElementById('tema').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
-  b.dataset.tema ? akar.dataset.tema = b.dataset.tema : delete akar.dataset.tema; simpan('hp-tema', b.dataset.tema); tandai(); });
+  b.dataset.tema ? akar.dataset.tema = b.dataset.tema : delete akar.dataset.tema; simpan('hp-tema', b.dataset.tema);
+  document.querySelector('meta[name=color-scheme]').content = b.dataset.tema === 'gelap' ? 'dark' : b.dataset.tema === 'terang' ? 'light' : 'light dark'; tandai(); });
 document.getElementById('aksen').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
   b.dataset.aksen ? akar.dataset.aksen = b.dataset.aksen : delete akar.dataset.aksen; simpan('hp-aksen', b.dataset.aksen); tandai(); });
 tandai();

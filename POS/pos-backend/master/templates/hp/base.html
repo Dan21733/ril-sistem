@@ -8,11 +8,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="DB Toko">
+<!-- Halaman ini punya mode gelap sendiri: browser Android (Samsung Internet / Chrome) jangan menggelapkan paksa. -->
+<meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <script>/* Tema dan aksen dari Setelan, dipasang sebelum halaman tampil supaya tidak berkedip. */
 try { const t = localStorage.getItem('hp-tema'), a = localStorage.getItem('hp-aksen');
-  if (t) document.documentElement.dataset.tema = t; if (a) document.documentElement.dataset.aksen = a; } catch (_) {}</script>
+  if (t) { document.documentElement.dataset.tema = t;
+    document.querySelector('meta[name=color-scheme]').content = t === 'gelap' ? 'dark' : 'light'; }
+  if (a) document.documentElement.dataset.aksen = a; } catch (_) {}</script>
 <link rel="manifest" href="{% url 'hp:manifest' %}">
 <link rel="apple-touch-icon" href="{% url 'hp:ikon' 180 %}">
 <title>{% block judul %}DB Toko{% endblock %}</title>
