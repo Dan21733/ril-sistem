@@ -2,11 +2,9 @@
 {% block judul %}Tiket #{{ t.id }}{% endblock %}
 {% block isi %}
 <p class="kecil"><a href="{% url 'master:tiket' %}">Tugas karyawan</a> /</p>
-<h2>Tiket #{{ t.id }} · data barang · {{ t.untuk.first_name|default:t.untuk.username }}</h2>
-<p class="sub">{{ t.tujuan }} · boleh: {{ izin_teks }} · {{ lingkup_teks }}<br>
-  Dibuka {{ t.dibuka_oleh }}, {{ t.dibuka_waktu|date:"d M Y H:i" }} · batas {{ t.batas|date:"d M Y H:i" }} · <b>{{ t.get_status_display }}</b>{% if t.status == 'terbuka' and t.lewat_batas %} (lewat batas){% endif %}
-  {% if t.dikirim_waktu %}<br>Dikirim {{ t.dikirim_waktu|date:"d M Y H:i" }}{% if t.catatan_admin %}: “{{ t.catatan_admin }}”{% endif %}{% endif %}
-  {% if t.catatan_putusan %}<br>Alasan: {{ t.catatan_putusan }}{% endif %}</p>
+<h2>Tugas #{{ t.id }} · data barang</h2>
+{% include "master/_ringkasan_tugas.html" %}
+<h3>Usulan ({{ baris|length }}){% if jumlah_tanda %} · <span style="color:var(--aksen)">{{ jumlah_tanda }} perlu dilihat</span>{% endif %}</h3>
 
 {% if t.status == 'terbuka' and not t.lewat_batas %}<div class="pesan info">Admin masih mengisi ({{ baris|length }} usulan sejauh ini). Bisa diputuskan setelah dikirim atau lewat batas waktu.</div>{% endif %}
 

@@ -338,6 +338,27 @@ def tiket_detail(request, tiket_id):
     })
 
 
+def _ringkasan_tugas(t):
+    """Isi panel ringkasan tugas: izin, lokasi, dan lingkup lengkap (tidak dipotong), plus jumlah barang."""
+    from master.models import Tiket
+    s = t.saring or {}
+    if t.jenis == "barang":
+        from master.layanan import tiket_barang as svc_barang
+        label = dict(Tiket.IZIN_BARANG)
+        return {"izin": [label[k] for k in t.izin if k in label], "lokasi": "",
+                "lingkup": [("Kategori", s.get("kategori") or [], "Semua kategori"),
+                            ("Brand", s.get("brand") or [], "Semua brand")],
+                "jumlah_barang": svc_barang._barang(t).count()}
+    if t.jenis == "hitung":
+        from master.layanan import opname as svc_opname
+        l = svc_opname.lokasi_tugas(t)
+        kosong = "" if (s.get("rak") or s.get("kategori")) else "Semua barang aktif"
+        return {"izin": ["Hitung stok (buta: stok sistem tidak terlihat)"], "izin_judul": "Pekerjaan", "lokasi": l.nama if l else "",
+                "lingkup": [("Rak", s.get("rak") or [], kosong or "-"), ("Kategori", s.get("kategori") or [], kosong or "-")],
+                "jumlah_barang": svc_opname.lingkup_tugas(t).count()}
+    return {}
+
+
 def _tiket_hitung_detail(request, t, hak):
     """Tugas hitung: hasilnya diperiksa di Stok opname. Di sini hanya status, teruskan, tolak, batal."""
     from master.layanan import opname as svc_opname
@@ -363,7 +384,7 @@ def _tiket_hitung_detail(request, t, hak):
         return redirect("master:opname_detail", opname_id=op.id)
     return render(request, "master/tiket_hitung.html", {
         "menu": "tiket", "t": t, "op": op, "jumlah": op.baris.count() if op else 0,
-        "lingkup_teks": svc_opname.lingkup_teks(t),
+        "lingkup_teks": svc_opname.lingkup_teks(t), "ringkas": _ringkasan_tugas(t),
     })
 
 
@@ -396,6 +417,7 @@ def _tiket_barang_detail(request, t, hak):
         "menu": "tiket", "t": t, "baris": baris, "batas_persen": batas_persen,
         "lihat_modal": "lihat_modal" in hak, "jumlah_tanda": sum(1 for b in baris if b["tanda"]),
         "izin_teks": svc_barang.izin_teks(t), "lingkup_teks": svc_barang.lingkup_teks(t),
+        "ringkas": _ringkasan_tugas(t),
     })
 
 

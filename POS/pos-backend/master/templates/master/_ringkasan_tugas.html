@@ -1,0 +1,30 @@
+{# Ringkasan tugas karyawan: siapa, sampai kapan, boleh apa, dan barang mana saja (lengkap, tidak dipotong). #}
+<div class="kartu rt">
+  <div class="rt-atas">
+    <div><div class="rt-label">Untuk</div><div class="rt-besar">{{ t.untuk.first_name|default:t.untuk.username }}</div></div>
+    <div><div class="rt-label">Status</div><div class="rt-besar">
+      <span class="label {% if t.status == 'selesai' %}baik{% elif t.status == 'ditolak' or t.status == 'batal' %}bahaya{% elif t.lewat_batas and t.status == 'terbuka' %}awas{% else %}netral{% endif %}">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% elif t.status == 'terbuka' %}Sedang dikerjakan{% else %}{{ t.get_status_display }}{% endif %}</span></div></div>
+    <div><div class="rt-label">Batas waktu</div><div class="rt-besar">{{ t.batas|date:"d M Y, H:i" }}</div></div>
+    <div><div class="rt-label">Barang dalam lingkup</div><div class="rt-besar">{{ ringkas.jumlah_barang|default:0 }} varian</div></div>
+  </div>
+  <div class="rt-baris"><div class="rt-label">Tujuan</div><div>{{ t.tujuan }}</div></div>
+  {% if ringkas.izin %}<div class="rt-baris"><div class="rt-label">{{ ringkas.izin_judul|default:"Boleh mengusulkan" }}</div><div>{% for x in ringkas.izin %}<span class="rt-chip kuat">{{ x }}</span>{% endfor %}</div></div>{% endif %}
+  {% if ringkas.lokasi %}<div class="rt-baris"><div class="rt-label">Lokasi</div><div><span class="rt-chip kuat">{{ ringkas.lokasi }}</span></div></div>{% endif %}
+  {% for judul, isi, kosong in ringkas.lingkup %}
+  <div class="rt-baris"><div class="rt-label">{{ judul }}{% if isi %} ({{ isi|length }}){% endif %}</div>
+    <div>{% for x in isi %}<span class="rt-chip">{{ x }}</span>{% empty %}<span class="redup">{{ kosong }}</span>{% endfor %}</div></div>
+  {% endfor %}
+  <div class="rt-baris"><div class="rt-label">Riwayat</div><div class="kecil">Dibuka {{ t.dibuka_oleh }}, {{ t.dibuka_waktu|date:"d M Y H:i" }}{% if t.dikirim_waktu %} · dikirim {{ t.dikirim_waktu|date:"d M Y H:i" }}{% if t.catatan_admin %}: “{{ t.catatan_admin }}”{% endif %}{% endif %}{% if t.catatan_putusan %} · alasan: {{ t.catatan_putusan }}{% endif %}</div></div>
+</div>
+<style>
+.rt{margin:6px 0 18px;padding:18px 20px}
+.rt-atas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding-bottom:14px;margin-bottom:6px;border-bottom:1px solid var(--garis)}
+.rt-label{font-size:13px;color:var(--redup);font-weight:600;margin-bottom:3px}
+.rt-besar{font-size:19px;font-weight:600}
+.rt-besar .label{font-size:15px;padding:4px 10px}
+.rt-baris{display:grid;grid-template-columns:190px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--garis);align-items:start}
+.rt-baris:last-child{border-bottom:0}
+.rt-chip{display:inline-block;padding:3px 10px;margin:2px 4px 2px 0;border-radius:999px;background:var(--netral);font-size:14px}
+.rt-chip.kuat{background:var(--aksen-lembut);color:var(--aksen);font-weight:600}
+@media (max-width:800px){.rt-atas{grid-template-columns:1fr 1fr}.rt-baris{grid-template-columns:1fr;gap:4px}}
+</style>

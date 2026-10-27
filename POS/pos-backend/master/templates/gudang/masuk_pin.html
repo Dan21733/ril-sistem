@@ -3,14 +3,23 @@
 <title>Masuk · Operasional</title>
 <style>
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:#23211e;font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f1d1a}
-form{background:#fff;padding:26px 24px;border-radius:14px;width:min(340px,92vw);text-align:center}
+form{background:#fff;padding:26px 24px;border-radius:14px;width:min(380px,92vw);text-align:center;position:relative}
 h1{font-size:20px;margin:0 0 2px}p{color:#6b665d;margin:0 0 16px;font-size:14px}
 .titik{display:flex;justify-content:center;gap:12px;margin:6px 0 18px}
-.titik span{width:16px;height:16px;border-radius:50%;border:2px solid #cfcbc1}
-.titik span.isi{background:#b4541f;border-color:#b4541f}
+.titik span{width:18px;height:18px;border-radius:50%;border:2px solid #cfcbc1;transition:transform .12s,background .12s}
+.titik span.isi{background:#b4541f;border-color:#b4541f;transform:scale(1.15)}
+.titik.goyang{animation:goyang .35s}
+@keyframes goyang{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.pad button{font:inherit;font-size:24px;padding:14px 0;border:1px solid #e2dfd8;border-radius:12px;background:#f6f5f2;color:#1f1d1a;cursor:pointer}
-.pad button:active{background:#f7e9df}
+.pad button{font:inherit;font-size:26px;padding:16px 0;border:1px solid #e2dfd8;border-radius:12px;background:#f6f5f2;color:#1f1d1a;cursor:pointer;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .08s,transform .08s}
+.pad button:active,.pad button.tekan{background:#f0d6c4;border-color:#b4541f;transform:scale(.95)}
+.pad button[type=submit]{background:#b4541f;border-color:#b4541f;color:#fff;font-size:17px}
+.pad button[type=submit].tekan{background:#8f4117}
+.memeriksa{display:none;position:absolute;inset:0;border-radius:14px;background:rgba(255,255,255,.88);place-items:center;font-weight:600;font-size:17px}
+.memeriksa.tampil{display:grid}
+.putar{width:34px;height:34px;border-radius:50%;border:4px solid #f0d6c4;border-top-color:#b4541f;animation:putar .8s linear infinite;margin:0 auto 10px}
+@keyframes putar{to{transform:rotate(360deg)}}
 .pad .kecil{font-size:15px;color:#6b665d}
 .galat{background:#f8e3e1;color:#a12b2b;padding:9px 11px;border-radius:8px;margin-bottom:12px;font-size:14px}
 #pin{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
@@ -20,25 +29,39 @@ h1{font-size:20px;margin:0 0 2px}p{color:#6b665d;margin:0 0 16px;font-size:14px}
   <h1>Masuk</h1><p>Dunia Bangunan · masukkan PIN kasirmu</p>
   {% if galat %}<div class="galat" role="alert">{{ galat }}</div>{% endif %}
   {% for p in messages %}<div class="galat" role="status">{{ p }}</div>{% endfor %}
-  <input id="pin" name="pin" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" aria-label="PIN 6 angka" autofocus>
+  <input id="pin" name="pin" type="password" inputmode="none" readonly maxlength="6" pattern="[0-9]{6}" aria-label="PIN 6 angka">
   <div class="titik" aria-hidden="true">{% for _ in "123456" %}<span></span>{% endfor %}</div>
   <div class="pad">
     {% for n in "123456789" %}<button type="button" data-n="{{ n }}">{{ n }}</button>{% endfor %}
-    <button type="button" data-hapus class="kecil">Hapus</button><button type="button" data-n="0">0</button><button type="submit" class="kecil">Masuk</button>
+    <button type="button" data-hapus class="kecil">Hapus</button><button type="button" data-n="0">0</button><button type="submit">Masuk</button>
   </div>
   <input type="hidden" name="next" value="{{ next }}">
   {% if perangkat %}<div class="alat">Perangkat: {{ perangkat.nama|default:perangkat.kode }}</div>{% endif %}
+  <div class="memeriksa" id="memeriksa" role="status"><div><div class="putar"></div>Memeriksa PIN…</div></div>
 </form>
 <script>
 const pin = document.getElementById('pin'), titik = [...document.querySelectorAll('.titik span')], f = document.getElementById('f');
+let terkirim = false;
 const gambar = () => titik.forEach((t, i) => t.classList.toggle('isi', i < pin.value.length));
-const tambah = n => { if (pin.value.length < 6) { pin.value += n; gambar(); if (pin.value.length === 6) f.submit(); } };
+// Tanda jelas tiap tombol ditekan (di tablet :active sering tidak terlihat), plus getar kecil kalau bisa.
+const tekan = b => { b.classList.add('tekan'); setTimeout(() => b.classList.remove('tekan'), 140); try { navigator.vibrate && navigator.vibrate(12); } catch (e) {} };
+const kirim = () => {
+  if (terkirim) return;
+  if (pin.value.length < 6) { const t = document.querySelector('.titik'); t.classList.remove('goyang'); void t.offsetWidth; t.classList.add('goyang'); return; }
+  terkirim = true; document.getElementById('memeriksa').classList.add('tampil');
+  setTimeout(() => f.submit(), 120);   // beri waktu titik terakhir tergambar dulu
+};
+const tambah = n => { if (terkirim || pin.value.length >= 6) return; pin.value += n; gambar(); if (pin.value.length === 6) kirim(); };
+document.querySelectorAll('.pad button').forEach(b => b.addEventListener('pointerdown', () => tekan(b)));
 document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => tambah(b.dataset.n)));
-document.querySelector('[data-hapus]').addEventListener('click', () => { pin.value = pin.value.slice(0, -1); gambar(); });
+document.querySelector('[data-hapus]').addEventListener('click', () => { if (terkirim) return; pin.value = pin.value.slice(0, -1); gambar(); });
+f.addEventListener('submit', e => { e.preventDefault(); kirim(); });
+// Kembali ke halaman ini lewat tombol kembali: bersihkan isian lama.
+window.addEventListener('pageshow', () => { terkirim = false; pin.value = ''; gambar(); document.getElementById('memeriksa').classList.remove('tampil'); });
 document.addEventListener('keydown', e => {
   if (/^[0-9]$/.test(e.key)) { e.preventDefault(); tambah(e.key); }
   else if (e.key === 'Backspace') { e.preventDefault(); pin.value = pin.value.slice(0, -1); gambar(); }
-  else if (e.key === 'Enter') { e.preventDefault(); if (pin.value.length === 6) f.submit(); }
+  else if (e.key === 'Enter') { e.preventDefault(); kirim(); }
 });
 </script>
 </body></html>
