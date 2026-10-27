@@ -19,6 +19,7 @@ h1{font-size:20px;margin:0 0 2px}p{color:#6b665d;margin:0 0 16px;font-size:14px}
 <form method="post" id="f" autocomplete="off">{% csrf_token %}
   <h1>Masuk</h1><p>Dunia Bangunan · masukkan PIN kasirmu</p>
   {% if galat %}<div class="galat" role="alert">{{ galat }}</div>{% endif %}
+  {% for p in messages %}<div class="galat" role="status">{{ p }}</div>{% endfor %}
   <input id="pin" name="pin" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" aria-label="PIN 6 angka" autofocus>
   <div class="titik" aria-hidden="true">{% for _ in "123456" %}<span></span>{% endfor %}</div>
   <div class="pad">

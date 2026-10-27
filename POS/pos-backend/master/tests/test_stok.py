@@ -305,8 +305,8 @@ class OpnameTest(Dasar):
         self.assertEqual((t.status, t.catatan_putusan), ("ditolak", "hitung ulang besok"))
         self.client.force_login(self.gudang)
         r = self.client.get(reverse("gudang:tiket"))
-        self.assertContains(r, "Sebelumnya")
-        self.assertContains(r, "hitung ulang besok")
+        self.assertContains(r, "Lihat tugas sebelumnya")
+        self.assertContains(self.client.get(reverse("gudang:riwayat")), "hitung ulang besok")
         self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 10)
 
     def test_lewat_batas_diteruskan_pemilik(self):

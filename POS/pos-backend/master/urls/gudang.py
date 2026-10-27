@@ -20,6 +20,7 @@ urlpatterns = [
     path("ambil/", v.ambil, name="ambil"),
     path("", v.tiket, name="tiket"),
     path("tiket/", RedirectView.as_view(pattern_name="gudang:tiket")),   # alamat lama
+    path("riwayat/", v.riwayat, name="riwayat"),
     path("tiket/<int:tiket_id>/", v.tiket_isi, name="tiket_isi"),
     path("tiket/<int:tiket_id>/barang/", v.tiket_barang, name="tiket_barang"),
     path("tiket/<int:tiket_id>/hitung/", v.tiket_hitung, name="tiket_hitung"),

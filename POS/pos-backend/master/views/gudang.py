@@ -261,7 +261,6 @@ def _baris_stok(varian):
 def tiket(request):
     """Tugas: pekerjaan otomatis (ambil barang, terima PO) dan tugas dari pemilik, dengan sisa waktunya."""
     from master.akun.akses import hak_pengguna
-    from master.layanan import tiket_barang
     from master.layanan.toko import toko_gudang, utama
     from master.models import PermintaanAmbil, Tiket
     hak = hak_pengguna(request.user)
@@ -273,7 +272,18 @@ def tiket(request):
     jumlah_ambil = PermintaanAmbil.objects.filter(status="menunggu").count() if (
         "gudang_ambil" in hak and di_toko_stok) else 0
     pesanan = _pesanan_ditunggu(toko) if ("gudang_datang" in hak and toko) else []
-    semua = list(Tiket.objects.filter(untuk=request.user).prefetch_related("baris", "usulan")[:40])
+    semua = _tiket_saya(request.user, 40)
+    return render(request, "gudang/tiket.html", {
+        "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
+        "ada_riwayat": any(not t.bisa_diisi for t in semua),
+        "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
+        "boleh_buka_dus": "gudang_buka_dus" in hak,
+    })
+
+
+def _tiket_saya(user, batas):
+    from master.layanan import tiket_barang
+    semua = list(Tiket.objects.filter(untuk=user).prefetch_related("baris", "usulan")[:batas])
     sekarang = timezone.now()
     for t in semua:
         t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else
@@ -283,12 +293,17 @@ def tiket(request):
             t.izin_teks, t.lingkup_teks = tiket_barang.izin_teks(t), tiket_barang.lingkup_teks(t)
         elif t.jenis == "hitung":
             t.lingkup_teks = opname.lingkup_teks(t)
-    return render(request, "gudang/tiket.html", {
-        "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
-        "lain": [t for t in semua if not t.bisa_diisi][:20],
-        "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
-        "boleh_buka_dus": "gudang_buka_dus" in hak,
-    })
+    return semua
+
+
+@perlu("gudang")
+def riwayat(request):
+    """Tugas yang sudah selesai, ditolak, dibatalkan, atau lewat batas."""
+    from master.akun.akses import hak_pengguna
+    if not hak_pengguna(request.user) & HAK_TUGAS:
+        return render(request, "gudang/kosong.html", {"menu": "riwayat"})
+    lain = [t for t in _tiket_saya(request.user, 120) if not t.bisa_diisi][:80]
+    return render(request, "gudang/riwayat.html", {"menu": "riwayat", "lain": lain})
 
 
 @perlu("gudang")

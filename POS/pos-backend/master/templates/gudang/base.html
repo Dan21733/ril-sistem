@@ -71,6 +71,7 @@ input.harga{width:130px;text-align:right;font-variant-numeric:tabular-nums;paddi
   <div class="atas"><b class="judul">{% if toko_gudang %}{{ toko_gudang.nama }}{% else %}Gudang{% endif %}</b>
   <nav>
     <a href="{% url 'gudang:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas</a>
+    {% if hak_tugas %}<a href="{% url 'gudang:riwayat' %}" class="{% if menu == 'riwayat' %}aktif{% endif %}">Riwayat</a>{% endif %}
     {% if 'gudang_buka_dus' in hak %}<a href="{% url 'gudang:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>{% endif %}
   </nav>
     <div class="akun"><a class="panduan-link{% if menu == 'panduan' %} aktif{% endif %}" href="{% url 'gudang:panduan' %}" title="Panduan" aria-label="Panduan">?</a>{{ request.user.first_name|default:request.user.username }}<form method="post" action="{% url 'gudang:keluar' %}">{% csrf_token %}<button type="submit">Keluar</button></form></div>

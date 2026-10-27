@@ -51,6 +51,10 @@ SESSION_COOKIE_AGE = 60 * 60 * 12
 
 LANGUAGE_CODE = "id"
 
+# Formulir yang tokennya sudah basi (mis. tombol kembali ke halaman masuk setelah masuk,
+# atau halaman dibiarkan terbuka lama) tidak berakhir di halaman 403: diarahkan ulang.
+CSRF_FAILURE_VIEW = "master.akun.masuk.csrf_gagal"
+
 # Aplikasi operasional (/gudang/) hanya terbuka di perangkat yang disetujui pemilik
 # (master: Kasir > Perangkat operasional). Jangan dimatikan di server sungguhan.
 MIDDLEWARE = [*MIDDLEWARE, "master.akun.gerbang.GerbangPerangkat"]  # noqa: F405

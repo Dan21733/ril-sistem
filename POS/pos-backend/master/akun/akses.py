@@ -250,7 +250,8 @@ def konteks(request):
         p = PreferensiAkun.objects.filter(user=user).values_list("tema", flat=True).first()
         return p or "oranye"
 
-    return {"hak": hak_pengguna(user), "daftar_toko": daftar, "tema": SimpleLazyObject(_tema),
+    hak = hak_pengguna(user)
+    return {"hak": hak, "hak_tugas": bool(hak & HAK_TUGAS), "daftar_toko": daftar, "tema": SimpleLazyObject(_tema),
             "toko_aktif": SimpleLazyObject(_toko_aktif), "toko_stok": SimpleLazyObject(_toko_stok),
             "toko_gudang": SimpleLazyObject(_toko_gudang),
             "banyak_toko": SimpleLazyObject(lambda: len(daftar) > 1),

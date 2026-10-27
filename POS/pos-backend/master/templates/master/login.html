@@ -14,6 +14,7 @@ button{font:inherit;margin-top:18px;width:100%;padding:10px;border:0;border-radi
 <form method="post">{% csrf_token %}
   <h1>Master POS</h1><p>Dunia Bangunan</p>
   {% if form.errors %}<div class="galat">{% for e in form.non_field_errors %}{{ e }}{% empty %}Nama pengguna atau kata sandi salah.{% endfor %}</div>{% endif %}
+  {% for p in messages %}<div class="galat" role="status">{{ p }}</div>{% endfor %}
   <label for="id_username">Nama pengguna</label><input id="id_username" name="username" autofocus autocomplete="username" required>
   <label for="id_password">Kata sandi</label><input id="id_password" name="password" type="password" autocomplete="current-password" required>
   <input type="hidden" name="next" value="{{ next }}">

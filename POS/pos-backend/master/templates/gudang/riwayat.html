@@ -1,0 +1,15 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Riwayat tugas{% endblock %}
+{% block isi %}
+{% if lain %}
+<div class="daftar">
+  {% for t in lain %}
+  <a class="brs" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% elif t.jenis == 'hitung' %}{% url 'gudang:tiket_hitung' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}" style="color:inherit"><div class="nama"><b class="potong2">#{{ t.id }} · {{ t.tujuan }}</b>
+    <span class="redup kecil">{{ t.batas|date:"d M Y" }} · {{ t.jumlah_usulan }} {% if t.jenis == 'hitung' %}dihitung{% else %}usulan{% endif %}{% if t.catatan_putusan %} · {{ t.catatan_putusan }}{% endif %}</span></div>
+    <span class="label {% if t.status == 'selesai' %}baik{% elif t.status == 'ditolak' or t.status == 'batal' %}bahaya{% else %}awas{% endif %}">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% else %}{{ t.get_status_display }}{% endif %}</span></a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="kartu redup" style="text-align:center;padding:20px 14px">Belum ada tugas sebelumnya.</div>
+{% endif %}
+{% endblock %}

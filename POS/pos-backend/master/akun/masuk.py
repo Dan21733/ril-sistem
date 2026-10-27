@@ -122,3 +122,30 @@ def masuk_pin(request):
         "galat": galat, "next": request.GET.get("next") or request.POST.get("next") or "",
         "perangkat": perangkat,
     })
+
+
+def csrf_gagal(request, reason=""):
+    """Token formulir basi: arahkan ke halaman yang wajar dengan pesan, bukan halaman 403.
+
+    Permintaan dari JavaScript (fetch/JSON) tetap mendapat 403 berbentuk JSON.
+    """
+    from django.contrib import messages
+    from django.http import JsonResponse
+    from django.urls import reverse
+    jenis = request.headers.get("Content-Type", "") + " " + request.headers.get("Accept", "")
+    if "json" in jenis or request.headers.get("X-CSRFToken") or request.headers.get("X-Requested-With"):
+        return JsonResponse({"ok": False, "galat": "Halaman sudah kedaluwarsa. Muat ulang halaman lalu coba lagi."},
+                            status=403)
+    masuk = reverse("gudang:masuk")
+    if request.path.startswith(masuk[:-len("masuk/")]):
+        beranda = reverse("gudang:beranda")
+    else:   # server master (server gudang tidak memuat URL master)
+        masuk, beranda = reverse("master:login"), reverse("master:dashboard")
+    if request.path.rstrip("/").endswith("keluar"):
+        tujuan = masuk
+    elif request.path == masuk and request.user.is_authenticated:
+        tujuan = beranda
+    else:
+        tujuan = request.path
+        messages.warning(request, "Halaman tadi sudah kedaluwarsa, jadi isiannya tidak terkirim. Silakan ulangi.")
+    return redirect(tujuan)

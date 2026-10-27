@@ -23,14 +23,5 @@
 <div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
 {% endif %}
 </div>
-{% if lain %}
-<h3>Sebelumnya</h3>
-<div class="daftar">
-  {% for t in lain %}
-  <a class="brs" href="{% if t.jenis == 'barang' %}{% url 'gudang:tiket_barang' t.id %}{% elif t.jenis == 'hitung' %}{% url 'gudang:tiket_hitung' t.id %}{% else %}{% url 'gudang:tiket_isi' t.id %}{% endif %}" style="color:inherit"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>
-    <span class="redup kecil">{{ t.jumlah_usulan }} {% if t.jenis == 'hitung' %}dihitung{% else %}usulan{% endif %}{% if t.catatan_putusan %} · {{ t.catatan_putusan }}{% endif %}</span></div>
-    <span class="label {% if t.status == 'selesai' %}baik{% elif t.status == 'ditolak' or t.status == 'batal' %}bahaya{% else %}awas{% endif %}">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% else %}{{ t.get_status_display }}{% endif %}</span></a>
-  {% endfor %}
-</div>
-{% endif %}
+{% if ada_riwayat %}<p style="margin-top:16px"><a href="{% url 'gudang:riwayat' %}">Lihat tugas sebelumnya →</a></p>{% endif %}
 {% endblock %}

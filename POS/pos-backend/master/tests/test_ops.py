@@ -117,6 +117,22 @@ class MasukPinTest(Dasar):
         self.p.refresh_from_db()
         self.assertEqual(self.p.terakhir_akun, "Sari")
 
+    def test_formulir_basi_tidak_berakhir_di_403(self):
+        from django.test import Client
+        c = Client(enforce_csrf_checks=True)
+        _setujui_klien(c, self.admin)
+        r = c.post("/gudang/masuk/", {"pin": self.pin})            # tanpa token
+        self.assertRedirects(r, "/gudang/masuk/", fetch_redirect_response=False)
+        self.assertContains(c.get("/gudang/masuk/"), "kedaluwarsa")
+        c.force_login(get_user_model().objects.get(username=f"ops-{self.wid.lower()}"))
+        r = c.post("/gudang/masuk/", {"pin": self.pin})            # tombol kembali ke halaman masuk setelah masuk
+        self.assertRedirects(r, "/gudang/", fetch_redirect_response=False)
+        r = c.post("/gudang/keluar/")
+        self.assertRedirects(r, "/gudang/masuk/", fetch_redirect_response=False)
+        r = c.post("/gudang/", "{}", content_type="application/json")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("kedaluwarsa", r.json()["galat"])
+
     def test_pin_tanpa_peran_ditolak_dengan_pesan_umum(self):
         r = self.client.post("/gudang/masuk/", {"pin": self.pin2})
         self.assertContains(r, "PIN salah, atau belum diberi akses")
@@ -314,6 +330,20 @@ class TiketBarangTest(Dasar):
                            batas=timezone.now() + timedelta(hours=1))
         with self.assertRaises(Tolak):  # admin barang tidak bisa diberi tiket pindah lokasi
             svc_tiket.buka(self.admin, untuk=self.sari, tujuan="x", hak=PEMILIK, batas=timezone.now() + timedelta(hours=1))
+
+    def test_riwayat_tugas_di_tab_sendiri(self):
+        lama = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="Alias lama", hak=PEMILIK, jenis="barang",
+                              izin=["alias"], batas=timezone.now() + timedelta(hours=1))
+        Tiket.objects.filter(pk=lama.pk).update(status="selesai")
+        self.client.force_login(self.sari)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "Harga cat")
+        self.assertNotContains(r, "Alias lama")
+        self.assertContains(r, "Riwayat")
+        self.assertContains(r, "Lihat tugas sebelumnya")
+        r = self.client.get(reverse("gudang:riwayat"))
+        self.assertContains(r, "Alias lama")
+        self.assertNotContains(r, "Harga cat")
 
     def test_admin_tidak_melihat_modal_stok_atau_barang_di_luar_lingkup(self):
         self.client.force_login(self.sari)
