@@ -1,7 +1,8 @@
 """Penjadwal master: pekerjaan berkala yang tidak menunggu ada orang membuka halaman.
 
-Sekarang: ganti PIN karyawan terjadwal, dan menghapus PIN terbaca yang sudah
-lewat masa tampilnya. Di server rumah dijalankan layanan `jadwal` di compose:
+Sekarang: ganti PIN karyawan terjadwal, menghapus PIN terbaca yang sudah
+lewat masa tampilnya, dan notifikasi HP untuk permintaan ACC baru. Di server rumah
+dijalankan layanan `jadwal` di compose:
 
     python manage.py master_jadwal --terus --settings=master.settings
 """
@@ -18,6 +19,12 @@ def satu_putaran():
     dibuat = karyawan.jalankan_rotasi()
     dibersihkan = karyawan.bersihkan_pin_tampil()
     karyawan.detak()
+    try:
+        from master.layanan import push
+        push.kirim_baru()
+    except Exception:  # notifikasi tidak boleh menghentikan pekerjaan lain
+        import logging
+        logging.getLogger(__name__).exception("Kirim notifikasi gagal")
     return dibuat, dibersihkan
 
 

@@ -7,29 +7,56 @@
 .pilih-banyak label{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:.5px solid var(--garis)}
 .pilih-banyak label:first-child{border-top:0}
 .pilih-banyak input{width:22px;height:22px;accent-color:var(--tint)}
+.jenis-tugas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.jenis-tugas a{background:var(--kartu);border-radius:14px;padding:12px;color:var(--teks);border:1.5px solid transparent;box-shadow:var(--bayang)}
+.jenis-tugas a b{display:block;font-size:15px}.jenis-tugas a span{display:block;font-size:12px;color:var(--teks2);margin-top:3px;line-height:1.3}
+.jenis-tugas a.aktif{border-color:var(--tint);background:var(--tint-lembut)}
 </style>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">Tugas baru</h1>
-<p class="anak-judul">Minta karyawan mengusulkan perubahan data barang. Hasilnya kamu ACC dulu.</p>
+<p class="anak-judul">Karyawan mengusulkan atau menghitung. Tidak ada yang berubah sebelum kamu ACC.</p>
+<div class="jenis-tugas">{% for k, l, ket in jenis_tugas %}<a href="?jenis={{ k }}" class="{% if k == jenis %}aktif{% endif %}"><b>{{ l }}</b><span>{{ ket }}</span></a>{% endfor %}</div>
 {% if galat %}<div class="galat">{{ galat }}</div>{% endif %}
-<form method="post" id="f">{% csrf_token %}
+{% if jenis == 'hitung' and not boleh_hitung %}<div class="galat">Akun ini tidak punya hak Stok opname, jadi tidak bisa membuka tugas hitung.</div>{% endif %}
+<form method="post" id="f">{% csrf_token %}<input type="hidden" name="jenis" value="{{ jenis }}">
   <div class="kepala-grup"><h2>Untuk siapa</h2></div>
-  {% for k in karyawan %}<label class="chip"><input type="radio" name="untuk" value="{{ k.u.id }}" data-izin="{{ k.izin|join:' ' }}" {% if isi.untuk == k.u.id|stringformat:"s" %}checked{% endif %} required>{{ k.u.first_name|default:k.u.username }}</label>
-  {% empty %}<div class="grup"><div class="kosong">Belum ada karyawan dengan hak tugas data barang. Atur di master › Karyawan & hak akses.</div></div>{% endfor %}
+  {% for k in karyawan %}<label class="chip"><input type="radio" name="untuk" value="{{ k.u.id }}" data-izin="{{ k.izin|join:' ' }}" {% if isi.untuk == k.u.id|stringformat:"s" or karyawan|length == 1 %}checked{% endif %} required>{{ k.u.first_name|default:k.u.username }}</label>
+  {% empty %}<div class="grup"><div class="kosong">Belum ada karyawan yang punya hak tugas ini. Atur di master › Karyawan & hak akses.</div></div>{% endfor %}
 
+  <div class="kepala-grup"><h2>Tujuan</h2></div>
+  <div class="grup"><input class="kolom" name="tujuan" value="{{ isi.tujuan }}" required
+    placeholder="{% if jenis == 'hitung' %}mis. Hitung rak cat depan{% elif jenis == 'lokasi' %}mis. Rapikan sanitary ke Gudang B{% else %}mis. Cek harga cat Avian{% endif %}"></div>
+
+  {% if jenis == 'barang' %}
   <div class="kepala-grup"><h2>Boleh mengusulkan</h2></div>
   {% for k, l in izin %}<label class="chip"><input type="checkbox" name="izin" value="{{ k }}" {% if k == 'harga' or k in isi.izin %}checked{% endif %}>{{ l }}</label>{% endfor %}
   <p class="ket-grup" id="ket-izin"></p>
+  {% endif %}
 
-  <div class="kepala-grup"><h2>Tujuan</h2></div>
-  <div class="grup"><input class="kolom" name="tujuan" placeholder="mis. Cek harga cat Avian" value="{{ isi.tujuan }}" required></div>
+  {% if jenis == 'hitung' %}
+  <div class="kepala-grup"><h2>Lokasi yang dihitung</h2></div>
+  <div class="grup"><label class="isian"><span>Lokasi</span><select name="lokasi" required>{% for l in lokasi %}<option value="{{ l.id }}" {% if isi.lokasi == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></label></div>
+  <p class="ket-grup">Hitung buta: karyawan tidak melihat stok sistem.</p>
+  {% endif %}
 
+  {% if jenis == 'lokasi' %}
+  <div class="kepala-grup"><h2>Keterangan lingkup</h2></div>
+  <div class="grup"><input class="kolom" name="lingkup" value="{{ isi.lingkup }}" placeholder="opsional, mis. hanya barang sanitary"></div>
+  <p class="ket-grup">Karyawan mengusulkan pindah stok antar lokasi atau ganti rak. Kamu bisa ubah jumlah dan tujuannya saat ACC.</p>
+  {% endif %}
+
+  {% if jenis != 'lokasi' %}
   <div class="kepala-grup"><h2>Barang yang dikerjakan</h2><span class="aksi redup kecil" id="jumlah-pilih">semua barang</span></div>
-  <div class="seg" id="tab-saring"><button type="button" class="aktif" data-t="kategori">Kategori</button><button type="button" data-t="brand">Brand</button></div>
-  <div class="cari"><input type="search" id="saring" placeholder="Cari kategori atau brand" autocomplete="off"></div>
-  <div class="grup pilih-banyak" data-daftar="kategori">{% for k in daftar_kategori %}<label data-cari="{{ k|lower }}"><input type="checkbox" name="kategori" value="{{ k }}">{{ k }}</label>{% endfor %}</div>
+  <div class="seg" id="tab-saring"><button type="button" class="aktif" data-t="kategori">Kategori</button>{% if jenis == 'barang' %}<button type="button" data-t="brand">Brand</button>{% else %}<button type="button" data-t="rak">Rak</button>{% endif %}</div>
+  <div class="cari"><input type="search" id="saring" placeholder="Saring daftar" autocomplete="off"></div>
+  <div class="grup pilih-banyak" data-daftar="kategori">{% for k in daftar_kategori %}<label data-cari="{{ k|lower }}"><input type="checkbox" name="kategori" value="{{ k }}" {% if k in isi.kategori %}checked{% endif %}>{{ k }}</label>{% endfor %}</div>
+  {% if jenis == 'barang' %}
   <div class="grup pilih-banyak" data-daftar="brand" hidden>{% for k in daftar_brand %}<label data-cari="{{ k|lower }}"><input type="checkbox" name="brand" value="{{ k }}">{{ k }}</label>{% endfor %}</div>
-  <p class="ket-grup">Tidak memilih apa pun = semua barang.</p>
+  {% else %}
+  <div class="grup pilih-banyak" data-daftar="rak" hidden>{% for r in daftar_rak %}<label data-cari="{{ r.kode|lower }} {{ r.nama|lower }}"><input type="checkbox" name="rak" value="{{ r.kode }}">{{ r.kode }} <span class="redup">{{ r.nama }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</span></label>{% empty %}<div class="kosong">Belum ada rak.</div>{% endfor %}</div>
+  {% endif %}
+  <p class="ket-grup">Tidak memilih apa pun = semua barang{% if jenis == 'hitung' %} aktif di lokasi itu{% endif %}.</p>
+  {% endif %}
 
   <div class="kepala-grup"><h2>Batas waktu</h2></div>
   <div class="seg">
@@ -38,27 +65,29 @@
     <label><input type="radio" name="jam" value="8"><span>8 jam</span></label>
     <label><input type="radio" name="jam" value="24"><span>Besok</span></label>
   </div>
-  <button class="tombol penuh" type="submit" style="margin:10px 0 24px">Kirim tugas</button>
+  <button class="tombol penuh" type="submit" style="margin:10px 0 24px" {% if not karyawan %}disabled{% endif %}>Kirim tugas</button>
 </form>
 {% endblock %}
 {% block skrip %}
 <script>
 const f = document.getElementById('f');
-document.getElementById('tab-saring').addEventListener('click', e => {
+document.getElementById('tab-saring')?.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   document.querySelectorAll('#tab-saring button').forEach(x => x.classList.toggle('aktif', x === b));
   document.querySelectorAll('[data-daftar]').forEach(d => d.hidden = d.dataset.daftar !== b.dataset.t);
 });
-document.getElementById('saring').addEventListener('input', e => {
+document.getElementById('saring')?.addEventListener('input', e => {
   const k = e.target.value.trim().toLowerCase();
   document.querySelectorAll('.pilih-banyak label').forEach(l => l.style.display = l.dataset.cari.includes(k) ? '' : 'none');
 });
 function segar(){
-  const k = f.querySelectorAll('[name=kategori]:checked').length, b = f.querySelectorAll('[name=brand]:checked').length;
-  document.getElementById('jumlah-pilih').textContent = (k || b) ? [k && k + ' kategori', b && b + ' brand'].filter(Boolean).join(', ') : 'semua barang';
+  const n = nama => f.querySelectorAll('[name=' + nama + ']:checked').length;
+  const bagian = [n('kategori') && n('kategori') + ' kategori', n('brand') && n('brand') + ' brand', n('rak') && n('rak') + ' rak'].filter(Boolean);
+  const j = document.getElementById('jumlah-pilih'); if (j) j.textContent = bagian.length ? bagian.join(', ') : 'semua barang';
+  const ket = document.getElementById('ket-izin'); if (!ket) return;
   const u = f.querySelector('[name=untuk]:checked'), boleh = u ? u.dataset.izin.split(' ') : null;
   const kurang = boleh ? [...f.querySelectorAll('[name=izin]:checked')].filter(i => !boleh.includes(i.value)).map(i => i.parentElement.textContent.trim()) : [];
-  document.getElementById('ket-izin').textContent = kurang.length ? '⚠️ ' + u.parentElement.textContent.trim() + ' belum punya hak: ' + kurang.join(', ') + '.' : '';
+  ket.textContent = kurang.length ? '⚠️ ' + u.parentElement.textContent.trim() + ' belum punya hak: ' + kurang.join(', ') + '.' : '';
 }
 f.addEventListener('change', segar); segar();
 </script>

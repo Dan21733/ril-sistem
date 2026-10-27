@@ -626,3 +626,28 @@ def ringkasan_hutang(hari_ini=None, toko=None):
         "lewat": [p for p in aktif if p.jatuh_tempo and p.jatuh_tempo < hari_ini],
         "segera": [p for p in aktif if p.jatuh_tempo and 0 <= (p.jatuh_tempo - hari_ini).days <= 7],
     }
+
+
+def tambah_foto(pengguna, po, berkas):
+    """Simpan foto nota/faktur distributor untuk PO ini (aturan berkas sama dengan faktur manual)."""
+    import os
+    import uuid
+    from django.core.files.storage import default_storage
+    from master.layanan.faktur import JENIS_BERKAS, MAKS_FOTO, MAKS_UKURAN
+    from master.models import FotoPembelian
+    berkas = [b for b in berkas if b]
+    if not berkas:
+        return 0
+    if len(berkas) + po.foto.count() > MAKS_FOTO:
+        raise Tolak(f"Paling banyak {MAKS_FOTO} foto per pembelian.")
+    for f in berkas:
+        if f.content_type not in JENIS_BERKAS:
+            raise Tolak(f"{f.name}: hanya foto JPG/PNG/WEBP atau PDF.")
+        if f.size > MAKS_UKURAN:
+            raise Tolak(f"{f.name}: lebih dari 15 MB.")
+    for f in berkas:
+        kunci = default_storage.save(f"master/pembelian/{po.pk}/{uuid.uuid4().hex}{JENIS_BERKAS[f.content_type]}", f)
+        FotoPembelian.objects.create(pembelian=po, object_key=kunci, content_type=f.content_type,
+                                     nama_asli=os.path.basename(f.name)[:200], ukuran=f.size, oleh=pengguna.username)
+    layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="foto", baru=f"{po.nomor}: {len(berkas)} foto")
+    return len(berkas)

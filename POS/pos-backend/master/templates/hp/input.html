@@ -1,6 +1,6 @@
 {% extends "hp/base.html" %}{% load master_tags %}
-{% block judul %}Catat · DB Toko{% endblock %}
-{% block judul_kecil %}Catat{% endblock %}
+{% block judul %}Catat pembelian · DB Toko{% endblock %}
+{% block judul_kecil %}Catat pembelian{% endblock %}
 {% block gaya %}<style>
 .hasil-cari{margin-top:-6px}
 .hasil-cari .sel{cursor:pointer}
@@ -10,183 +10,154 @@
 .baris-barang .angka-baris input{border:0;background:var(--isi);border-radius:8px;padding:8px;font-size:17px;text-align:right;margin-top:2px;width:100%}
 .baris-barang .hapus{background:none;border:0;color:var(--merah);font-size:22px;padding:0 4px;align-self:flex-start}
 .baris-barang .sub-total{min-width:92px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;align-self:flex-end;padding-bottom:8px}
-.bilah-total{position:sticky;bottom:calc(76px + var(--aman-b));display:flex;align-items:center;gap:12px;background:var(--blur);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;padding:10px 10px 10px 16px;margin:12px 0;box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.bilah-total{position:sticky;bottom:calc(84px + var(--aman-b));display:flex;align-items:center;gap:12px;background:var(--kaca);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border:.5px solid var(--kaca-tepi);border-radius:20px;padding:10px 10px 10px 16px;margin:12px 0;box-shadow:var(--kaca-bayang);z-index:5}
 .bilah-total .t{flex:1}.bilah-total .t b{display:block;font-size:20px}
 .foto-pratinjau{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px}
-.foto-pratinjau img{width:64px;height:64px;object-fit:cover;border-radius:10px}
-.isian input.saklar{flex:none;width:51px;padding:0}
-.saklar{appearance:none;-webkit-appearance:none;width:51px;height:31px;border-radius:999px;background:var(--isi);position:relative;flex:none;transition:.2s;cursor:pointer}
-.saklar::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:.2s}
-.saklar:checked{background:var(--hijau)}.saklar:checked::after{left:22px}
+.foto-pratinjau img,.foto-pratinjau .pdf{width:64px;height:64px;object-fit:cover;border-radius:10px;background:var(--isi);display:grid;place-items:center;font-size:12px;font-weight:600}
 </style>{% endblock %}
 {% block isi %}
-<h1 class="judul-besar">Catat</h1>
-{% if not hak_nota and not hak_beli %}<div class="grup"><div class="kosong">Akun ini tidak punya hak mencatat nota atau pembelian.</div></div>{% endif %}
-{% if hak_nota and hak_beli %}
-<div class="seg" id="pilih-mode"><button type="button" class="aktif" data-mode="nota">Nota tulis tangan</button><button type="button" data-mode="beli">Beli dari distributor</button></div>
-{% endif %}
+<h1 class="judul-besar">Catat pembelian</h1>
+{% if not hak_beli %}<div class="galat">Akun ini tidak punya hak mengubah stok, jadi tidak bisa mencatat pembelian.</div>{% endif %}
+<div class="seg" id="pilih-mode">
+  <button type="button" class="aktif" data-mode="datang">Nota sudah datang</button>
+  <button type="button" data-mode="pesan">Pesan dulu</button>
+</div>
+<p class="anak-judul" id="ket-mode"></p>
 
-{% if hak_nota %}
-<form id="f-nota" data-mode-isi="nota" data-harga-label="Harga jual" data-cari="{% url 'master:nota_manual_cari' %}" data-kirim="{% url 'hp:input_nota' %}">
-  <p class="anak-judul">Penjualan yang ditulis di nota kertas. Stok kasir berkurang saat disimpan.</p>
+<form id="f-beli" data-cari="{% url 'master:pembelian_cari' %}" data-kirim="{% url 'hp:input_beli' %}">
+  <input type="hidden" name="mode" value="datang">
   <div class="grup">
+    <label class="isian"><span>Distributor</span><select name="supplier" required><option value="">Pilih</option>{% for s in supplier %}<option value="{{ s.id }}" data-pkp="{{ s.pkp|yesno:'1,' }}">{{ s.nama }}</option>{% endfor %}</select></label>
     <label class="isian"><span>Tanggal</span><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></label>
-    <label class="isian"><span>No. di nota</span><input name="nomor_tulisan" placeholder="opsional"></label>
-    <label class="isian"><span>Pembeli</span><input name="pembeli" placeholder="opsional"></label>
-    <label class="isian"><span>Bayar</span><select name="cara_bayar">{% for k, l in cara %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
-    <label class="isian"><span>Ambil dari</span><select name="lokasi">{% for l in lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></label>
-    <label class="isian"><span>Ongkir</span><input name="ongkir" inputmode="numeric" data-uang placeholder="0"></label>
+    <label class="isian" data-datang><span>No. nota</span><input name="nomor_faktur" placeholder="opsional"></label>
+    <label class="isian" data-datang><span>Jatuh tempo</span><input type="date" name="jatuh_tempo"></label>
   </div>
-  {% include "hp/_input_barang.html" %}
-  <div class="kepala-grup"><h2>Foto nota</h2><span class="redup kecil">maks {{ maks_foto }}</span></div>
-  <div class="grup">
-    <label class="sel" style="cursor:pointer"><div class="utama" style="color:var(--tint)">📷 Ambil / pilih foto</div><input type="file" name="foto" accept="image/*" multiple hidden data-foto></label>
-    <div class="foto-pratinjau" data-pratinjau hidden></div>
-  </div>
-  <div class="kepala-grup"><h2>Catatan</h2></div>
-  <div class="grup"><textarea class="kolom" name="catatan" rows="2" placeholder="opsional"></textarea></div>
-  <div class="bilah-total"><div class="t"><span class="redup kecil">Total</span><b data-total>Rp0</b></div><button class="tombol" type="submit">Simpan nota</button></div>
-</form>
-{% endif %}
 
-{% if hak_beli %}
-<form id="f-beli" data-mode-isi="beli" data-harga-label="Harga beli" {% if hak_nota %}hidden{% endif %} data-cari="{% url 'master:pembelian_cari' %}" data-kirim="{% url 'hp:input_beli' %}">
-  <p class="anak-judul">Barang dari distributor. Modal dan hutang berubah setelah barang diterima.</p>
-  <div class="grup">
-    <label class="isian"><span>Supplier</span><select name="supplier" required><option value="">Pilih</option>{% for s in supplier %}<option value="{{ s.id }}" data-pkp="{{ s.pkp|yesno:'1,' }}">{{ s.nama }}</option>{% endfor %}</select></label>
-    <label class="isian"><span>Tanggal</span><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></label>
-  </div>
-  {% include "hp/_input_barang.html" %}
-  <div class="grup" style="margin-top:12px">
-    <label class="isian"><span style="width:auto;flex:1">Barang sudah datang semua</span><input type="checkbox" class="saklar" name="sudah_datang"></label>
-  </div>
-  <p class="ket-grup" data-ket-datang>Mati: PO tersimpan, gudang mencatat barang datang, lalu kamu ACC.</p>
-  <div data-datang hidden>
-    <div class="kepala-grup"><h2>Faktur</h2></div>
+  <div class="kepala-grup"><h2>Barang</h2></div>
+  <div class="cari"><input type="search" data-cari-barang placeholder="Cari nama barang" autocomplete="off" enterkeyhint="search"></div>
+  <div class="grup hasil-cari" data-hasil hidden></div>
+  <div class="grup baris-barang" data-baris></div>
+  <p class="ket-grup">Harga terisi harga beli terakhir. Ubah kalau di nota berbeda.</p>
+
+  <div data-datang>
+    <div class="kepala-grup"><h2>PPN di nota</h2></div>
     <div class="seg">{% for k, l in mode_ppn %}<label><input type="radio" name="mode_ppn" value="{{ k }}" {% if forloop.first %}checked{% endif %}><span>{% if k == 'tanpa' %}Tanpa PPN{% elif k == 'termasuk' %}Termasuk PPN{% else %}PPN terpisah{% endif %}</span></label>{% endfor %}</div>
     <div class="grup">
-      <label class="isian"><span>No. faktur</span><input name="nomor_faktur" placeholder="opsional"></label>
       <label class="isian"><span>Ongkir</span><input name="ongkir" inputmode="numeric" data-uang placeholder="0"></label>
       <label class="isian"><span>Masuk ke</span><select name="lokasi">{% for l in lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></label>
     </div>
   </div>
+
+  <div class="kepala-grup"><h2>Foto nota</h2><span class="redup kecil">maks {{ maks_foto }}</span></div>
+  <div class="grup">
+    <label class="sel" style="cursor:pointer"><div class="utama" style="color:var(--tint)">📷 Foto / pilih nota</div><input type="file" name="foto" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden data-foto></label>
+    <div class="foto-pratinjau" data-pratinjau hidden></div>
+  </div>
   <div class="kepala-grup"><h2>Catatan</h2></div>
   <div class="grup"><textarea class="kolom" name="catatan" rows="2" placeholder="opsional"></textarea></div>
-  <div class="bilah-total"><div class="t"><span class="redup kecil">Total</span><b data-total>Rp0</b></div><button class="tombol" type="submit">Simpan</button></div>
+  <div class="bilah-total"><div class="t"><span class="redup kecil">Total</span><b data-total>Rp0</b></div><button class="tombol" type="submit" {% if not hak_beli %}disabled{% endif %}>Simpan</button></div>
 </form>
-{% endif %}
 {% endblock %}
 {% block skrip %}
 <script>
-const MAKS_FOTO = {{ maks_foto }};
+const MAKS_FOTO = {{ maks_foto }}, f = document.getElementById('f-beli');
 const rp = n => 'Rp' + ribuan(Math.round(n || 0));
-document.getElementById('pilih-mode')?.addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  document.querySelectorAll('#pilih-mode button').forEach(x => x.classList.toggle('aktif', x === b));
-  document.querySelectorAll('[data-mode-isi]').forEach(f => f.hidden = f.dataset.modeIsi !== b.dataset.mode);
-  try { localStorage.setItem('hp-catat-mode', b.dataset.mode); } catch (_) {}
-});
-try { const m = localStorage.getItem('hp-catat-mode'); if (m) document.querySelector('#pilih-mode [data-mode="' + m + '"]')?.click(); } catch (_) {}
-
-function pasang(f){
-  const kunci = 'hp-draf-' + f.id, daftar = f.querySelector('[data-baris]'), hasil = f.querySelector('[data-hasil]');
-  const cari = f.querySelector('[data-cari-barang]'), totalEl = f.querySelector('[data-total]');
-  let baris = [], tunda, nomorCari = 0;
-  const ongkir = () => f.querySelector('[data-datang]')?.hidden === true ? 0 : (angka(f.querySelector('[name=ongkir]')?.value) || 0);
-  function simpanDraf(){ try { localStorage.setItem(kunci, JSON.stringify(baris)); } catch (_) {} }
-  function gambar(){
-    daftar.innerHTML = baris.length ? '' : '<div class="kosong">Belum ada barang. Cari di atas.</div>';
-    baris.forEach((b, i) => {
-      const el = document.createElement('div'); el.className = 'sel';
-      const bawah = b.floor && b.harga && b.harga < b.floor;
-      el.innerHTML = `<div class="utama"><div class="nama" style="white-space:normal"></div><div class="sub"></div></div><button type="button" class="hapus" aria-label="Hapus">⊖</button>
-        <div class="angka-baris"><label>Jumlah<input inputmode="decimal" data-k="jumlah"></label><label>${f.dataset.hargaLabel || 'Harga'}<input inputmode="numeric" data-k="harga"></label><div class="sub-total"></div></div>`;
-      el.querySelector('.nama').textContent = b.nama + (b.varian ? ' / ' + b.varian : '');
-      el.querySelector('.sub').textContent = [b.stok != null ? 'stok ' + ribuan(b.stok) : '', b.floor ? 'floor ' + rp(b.floor) : ''].filter(Boolean).join(' · ');
-      if (bawah) el.querySelector('.sub').insertAdjacentHTML('beforeend', ' <span class="lencana merah">di bawah floor</span>');
-      el.querySelector('[data-k=jumlah]').value = b.jumlah ?? '';
-      el.querySelector('[data-k=harga]').value = b.harga != null ? ribuan(b.harga) : '';
-      el.querySelector('.sub-total').textContent = rp((b.jumlah || 0) * (b.harga || 0));
-      el.querySelector('.hapus').onclick = () => { baris.splice(i, 1); gambar(); };
-      el.querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
-        b[inp.dataset.k] = inp.dataset.k === 'jumlah' ? parseFloat(inp.value.replace(',', '.')) || 0 : angka(inp.value); gambar();
-      }));
-      daftar.appendChild(el);
-    });
-    totalEl.textContent = rp(baris.reduce((s, b) => s + (b.jumlah || 0) * (b.harga || 0), 0) + ongkir());
-    simpanDraf();
-  }
-  try { baris = JSON.parse(localStorage.getItem(kunci) || '[]'); } catch (_) { baris = []; }
+const KET = {datang: 'Barang dan nota (tulis tangan atau faktur) sudah di tangan. Saat disimpan, stok, modal, dan hutang langsung berubah.',
+             pesan: 'Pesanan yang ditulis ke distributor. Stok belum berubah; saat barang datang gudang mencatatnya, lalu kamu ACC.'};
+function pakaiMode(m){
+  f.mode.value = m;
+  document.querySelectorAll('#pilih-mode button').forEach(x => x.classList.toggle('aktif', x.dataset.mode === m));
+  f.querySelectorAll('[data-datang]').forEach(el => el.hidden = m !== 'datang');
+  document.getElementById('ket-mode').textContent = KET[m];
+  f.querySelector('[type=submit]').textContent = m === 'datang' ? 'Simpan & terima' : 'Simpan pesanan';
+  try { localStorage.setItem('hp-catat-mode', m); } catch (_) {}
   gambar();
-  f.querySelector('[name=ongkir]')?.addEventListener('input', gambar);
-  cari.addEventListener('input', () => {
-    clearTimeout(tunda); const q = cari.value.trim();
-    if (q.length < 2) { hasil.hidden = true; return; }
-    tunda = setTimeout(async () => {
-      const ini = ++nomorCari;
-      const d = await (await fetch(f.dataset.cari + '?q=' + encodeURIComponent(q))).json();
-      if (ini !== nomorCari) return;
-      hasil.innerHTML = ''; hasil.hidden = false;
-      if (!d.hasil.length) { hasil.innerHTML = '<div class="kosong">Tidak ketemu.</div>'; return; }
-      d.hasil.forEach(h => {
-        const el = document.createElement('div'); el.className = 'sel';
-        el.innerHTML = '<div class="utama"><div class="nama" style="white-space:normal"></div><div class="sub"></div></div><span class="nilai"></span>';
-        el.querySelector('.nama').textContent = h.nama + (h.varian ? ' / ' + h.varian : '');
-        el.querySelector('.sub').textContent = 'stok ' + ribuan(h.stok ?? 0);
-        el.querySelector('.nilai').textContent = h.harga != null ? rp(h.harga) : '–';
-        el.onclick = () => {
-          const ada = baris.find(b => b.id === h.id);
-          if (ada) ada.jumlah = (ada.jumlah || 0) + 1;
-          else baris.push({id: h.id, nama: h.nama, varian: h.varian, stok: h.stok, floor: h.floor || null, harga: h.harga ?? null, jumlah: 1});
-          cari.value = ''; hasil.hidden = true; gambar(); kabar((ada ? 'Jumlah ditambah: ' : 'Ditambahkan: ') + h.nama);
-        };
-        hasil.appendChild(el);
-      });
-    }, 250);
-  });
-  const foto = f.querySelector('[data-foto]');
-  foto?.addEventListener('change', () => {
-    const p = f.querySelector('[data-pratinjau]'); p.innerHTML = '';
-    if (foto.files.length > MAKS_FOTO) { kabar('Maksimal ' + MAKS_FOTO + ' foto.', true); foto.value = ''; }
-    [...foto.files].forEach(x => { const i = document.createElement('img'); i.src = URL.createObjectURL(x); p.appendChild(i); });
-    p.hidden = !foto.files.length;
-  });
-  const saklar = f.querySelector('[name=sudah_datang]');
-  saklar?.addEventListener('change', () => {
-    f.querySelector('[data-datang]').hidden = !saklar.checked;
-    f.querySelector('[data-ket-datang]').textContent = saklar.checked
-      ? 'Hidup: sekalian diterima dan di-ACC. Stok, modal, dan hutang langsung berubah.'
-      : 'Mati: PO tersimpan, gudang mencatat barang datang, lalu kamu ACC.';
-    gambar();
-  });
-  f.querySelector('[name=supplier]')?.addEventListener('change', e => {
-    const pkp = e.target.selectedOptions[0]?.dataset.pkp;
-    const r = f.querySelector('[name=mode_ppn][value=' + (pkp ? 'termasuk' : 'tanpa') + ']'); if (r) r.checked = true;
-  });
-  f.addEventListener('submit', async e => {
-    e.preventDefault();
-    if (!baris.length) { kabar('Tambahkan minimal satu barang.', true); return; }
-    if (baris.some(b => !b.jumlah || b.harga == null)) { kabar('Isi jumlah dan harga semua barang.', true); return; }
-    const tombol = f.querySelector('[type=submit]'); tombol.disabled = true;
-    const isi = baris.map(b => ({id: b.id, jumlah: b.jumlah, harga: b.harga}));
-    try {
-      let d;
-      if (f.id === 'f-nota') {
-        const data = new FormData(f); data.set('baris', JSON.stringify(isi)); data.set('ongkir', angka(data.get('ongkir')) || '');
-        data.set('csrfmiddlewaretoken', CSRF); d = await kirim(f.dataset.kirim, data, true);
-      } else {
-        const g = n => f.querySelector('[name=' + n + ']');
-        d = await kirim(f.dataset.kirim, {supplier: g('supplier').value, tanggal: g('tanggal').value, catatan: g('catatan').value, baris: isi,
-          sudah_datang: g('sudah_datang').checked, mode_ppn: f.querySelector('[name=mode_ppn]:checked')?.value,
-          nomor_faktur: g('nomor_faktur').value, ongkir: angka(g('ongkir').value) || '', lokasi: g('lokasi').value});
-      }
-      kabar(d.pesan); baris = []; f.reset(); f.querySelector('[data-pratinjau]')?.replaceChildren();
-      f.querySelector('[data-datang]') && (f.querySelector('[data-datang]').hidden = true); gambar();
-      scrollTo({top: 0, behavior: 'smooth'});
-    } catch (err) { kabar(err.message, true); }
-    tombol.disabled = false;
-  });
 }
-document.querySelectorAll('[data-mode-isi]').forEach(pasang);
+document.getElementById('pilih-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pakaiMode(b.dataset.mode); });
+
+const kunci = 'hp-draf-beli', daftar = f.querySelector('[data-baris]'), hasil = f.querySelector('[data-hasil]'), cari = f.querySelector('[data-cari-barang]');
+let baris = [], tunda, nomorCari = 0;
+try { baris = JSON.parse(localStorage.getItem(kunci) || '[]'); } catch (_) { baris = []; }
+const ongkir = () => f.mode.value === 'datang' ? (angka(f.ongkir.value) || 0) : 0;
+function gambar(){
+  daftar.innerHTML = baris.length ? '' : '<div class="kosong">Belum ada barang. Cari di atas.</div>';
+  baris.forEach((b, i) => {
+    const el = document.createElement('div'); el.className = 'sel';
+    el.innerHTML = `<div class="utama"><div class="nama" style="white-space:normal"></div><div class="sub"></div></div><button type="button" class="hapus" aria-label="Hapus">⊖</button>
+      <div class="angka-baris"><label>Jumlah<input inputmode="decimal" data-k="jumlah"></label><label>Harga beli<input inputmode="numeric" data-k="harga"></label><div class="sub-total"></div></div>`;
+    el.querySelector('.nama').textContent = b.nama + (b.varian ? ' / ' + b.varian : '');
+    el.querySelector('.sub').textContent = 'stok ' + ribuan(b.stok ?? 0) + (b.harga_lama ? ' · terakhir ' + rp(b.harga_lama) : '');
+    el.querySelector('[data-k=jumlah]').value = b.jumlah ?? '';
+    el.querySelector('[data-k=harga]').value = b.harga != null ? ribuan(b.harga) : '';
+    el.querySelector('.sub-total').textContent = rp((b.jumlah || 0) * (b.harga || 0));
+    el.querySelector('.hapus').onclick = () => { baris.splice(i, 1); gambar(); };
+    el.querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
+      b[inp.dataset.k] = inp.dataset.k === 'jumlah' ? parseFloat(inp.value.replace(',', '.')) || 0 : angka(inp.value); gambar();
+    }));
+    daftar.appendChild(el);
+  });
+  f.querySelector('[data-total]').textContent = rp(baris.reduce((s, b) => s + (b.jumlah || 0) * (b.harga || 0), 0) + ongkir());
+  try { localStorage.setItem(kunci, JSON.stringify(baris)); } catch (_) {}
+}
+f.ongkir.addEventListener('input', gambar);
+cari.addEventListener('input', () => {
+  clearTimeout(tunda); const q = cari.value.trim();
+  if (q.length < 2) { hasil.hidden = true; return; }
+  tunda = setTimeout(async () => {
+    const ini = ++nomorCari;
+    const d = await (await fetch(f.dataset.cari + '?q=' + encodeURIComponent(q))).json();
+    if (ini !== nomorCari) return;
+    hasil.innerHTML = ''; hasil.hidden = false;
+    if (!d.hasil.length) { hasil.innerHTML = '<div class="kosong">Tidak ketemu.</div>'; return; }
+    d.hasil.forEach(h => {
+      const el = document.createElement('div'); el.className = 'sel';
+      el.innerHTML = '<div class="utama"><div class="nama" style="white-space:normal"></div><div class="sub"></div></div><span class="nilai"></span>';
+      el.querySelector('.nama').textContent = h.nama + (h.varian ? ' / ' + h.varian : '');
+      el.querySelector('.sub').textContent = 'stok ' + ribuan(h.stok ?? 0);
+      el.querySelector('.nilai').textContent = h.harga != null ? rp(h.harga) : '–';
+      el.onclick = () => {
+        const ada = baris.find(b => b.id === h.id);
+        if (ada) ada.jumlah = (ada.jumlah || 0) + 1;
+        else baris.push({id: h.id, nama: h.nama, varian: h.varian, stok: h.stok, harga: h.harga ?? null, harga_lama: h.harga ?? null, jumlah: 1});
+        cari.value = ''; hasil.hidden = true; gambar(); kabar((ada ? 'Jumlah ditambah: ' : 'Ditambahkan: ') + h.nama);
+      };
+      hasil.appendChild(el);
+    });
+  }, 250);
+});
+const foto = f.querySelector('[data-foto]');
+foto.addEventListener('change', () => {
+  const p = f.querySelector('[data-pratinjau]'); p.innerHTML = '';
+  if (foto.files.length > MAKS_FOTO) { kabar('Maksimal ' + MAKS_FOTO + ' foto.', true); foto.value = ''; }
+  [...foto.files].forEach(x => { if (x.type === 'application/pdf') { p.insertAdjacentHTML('beforeend', '<div class="pdf">PDF</div>'); return; }
+    const i = document.createElement('img'); i.src = URL.createObjectURL(x); p.appendChild(i); });
+  p.hidden = !foto.files.length;
+});
+f.supplier.addEventListener('change', e => {
+  const pkp = e.target.selectedOptions[0]?.dataset.pkp;
+  const r = f.querySelector('[name=mode_ppn][value=' + (pkp ? 'termasuk' : 'tanpa') + ']'); if (r) r.checked = true;
+});
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!f.supplier.value) { kabar('Pilih distributor.', true); return; }
+  if (!baris.length) { kabar('Tambahkan minimal satu barang.', true); return; }
+  if (baris.some(b => !b.jumlah || b.harga == null)) { kabar('Isi jumlah dan harga semua barang.', true); return; }
+  const datang = f.mode.value === 'datang';
+  if (datang && !confirm('Simpan dan terima? Stok, modal, dan hutang langsung berubah.')) return;
+  const tombol = f.querySelector('[type=submit]'); tombol.disabled = true;
+  const data = new FormData(f);
+  data.set('baris', JSON.stringify(baris.map(b => ({id: b.id, jumlah: b.jumlah, harga: b.harga}))));
+  data.set('ongkir', angka(data.get('ongkir')) || '');
+  try {
+    const d = await kirim(f.dataset.kirim, data, true);
+    kabar(d.pesan); baris = []; const m = f.mode.value; f.reset(); pakaiMode(m);
+    f.querySelector('[data-pratinjau]').replaceChildren(); f.querySelector('[data-pratinjau]').hidden = true;
+    scrollTo({top: 0, behavior: 'smooth'});
+  } catch (err) { kabar(err.message, true); }
+  tombol.disabled = false;
+});
+let awal = 'datang'; try { awal = localStorage.getItem('hp-catat-mode') === 'pesan' ? 'pesan' : 'datang'; } catch (_) {}
+pakaiMode(awal);
 </script>
 {% endblock %}

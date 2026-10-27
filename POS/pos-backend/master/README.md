@@ -449,22 +449,38 @@ PC harus menyala dan `jalankan_gudang.bat` berjalan selama staf memakai aplikasi
 
 ## Aplikasi pemilik di HP (`/hp/`, prototipe 27 Okt 2026)
 
-Tampilan master untuk HP (iPhone dan Android), gaya iOS, terang/gelap mengikuti HP. Bukan
-kiosk: dibuka di Safari/Chrome lalu "Tambahkan ke Layar Utama" (ada manifest dan ikon).
-Semua aturan dan hak sama dengan master; `views/hp.py` hanya memanggil layanan yang sudah ada.
+Tampilan master untuk HP dan iPad (gaya iOS terbaru, bilah tab kaca mengambang). Bukan kiosk:
+dibuka di Safari/Chrome lalu "Tambahkan ke Layar Utama" (ada manifest dan ikon). Semua aturan dan
+hak sama dengan master; `views/hp.py` hanya memanggil layanan yang sudah ada. Di iPad (lebar
+≥ 760 px) beranda jadi dua kolom dan lembar isian tampil di tengah.
 
 - **Beranda**: omzet, laba kotor, bulan ini, grafik 7 hari, terlaris, stok habis/menipis, dan
   **Perlu ACC**: nota ditahan (mis. di bawah floor) diterima/ditolak, tugas karyawan yang dikirim,
-  buka dus. Angka merah di tab Beranda = jumlah yang menunggu.
-- **Barang**: cari (urutan sama dengan master), harga jual/floor/modal, stok Toko dan tiap gudang.
-  Ubah harga (lewat `barang_ubah`, ada peringatan floor > jual dan floor < modal) dan
-  sesuaikan stok (`sesuaikan_stok`, tercatat di riwayat). Modal hanya untuk hak `lihat_modal`.
-- **Tugas**: buat tugas data barang untuk karyawan (izin harga/alias/aktif, kategori/brand,
-  batas jam), lihat usulan, ubah angkanya, ACC yang dicentang atau tolak.
-- **Catat**: nota tulis tangan (stok kasir berkurang, foto nota) dan pembelian dari distributor.
-  Pembelian: saklar "sudah datang semua" mati = PO saja (gudang mencatat datang, lalu ACC);
-  hidup = sekalian diterima dan di-ACC (stok, modal, hutang langsung berubah). Daftar barang
-  yang sedang diisi tersimpan di HP sampai disimpan.
+  buka dus. Angka merah di tab Beranda = jumlah yang menunggu. Ubin penjualan membuka Transaksi.
+- **Transaksi**: nota kasir + nota tulis tangan per hari (bawaan hari ini, bisa mundur), ringkasan
+  per cara bayar, isi tiap nota, retur/refund/void. Laba hanya untuk hak `lihat_modal`.
+- **Barang**: cari, harga jual/floor/modal, stok Toko dan tiap gudang. Ubah harga dan sesuaikan stok.
+- **Tugas**: tiga jenis seperti master: data barang (harga/floor, alias, aktif), hitung stok (buta,
+  per lokasi, saring kategori/rak; hasil diperiksa di Stok opname master), dan pindah barang/rak
+  (jumlah dan tujuan bisa diubah saat ACC).
+- **Catat** (pembelian dari distributor saja):
+  - *Nota sudah datang*: barang + foto nota (tulis tangan atau faktur). Saat disimpan PO dibuat,
+    dicatat datang, dan di-ACC sekaligus: stok, modal, dan hutang berubah.
+  - *Pesan dulu*: hanya PO; gudang mencatat datang, lalu pemilik ACC.
+  - Foto tersimpan di `FotoPembelian` dan tampil di detail pembelian master (bisa ditambah di sana).
+- **Setelan**: tema (otomatis/terang/gelap) dan warna aksen (per perangkat), notifikasi, buka master,
+  keluar.
+
+Notifikasi (Web Push, `layanan/push.py`, tanpa pustaka tambahan):
+
+- Dinyalakan per perangkat di Setelan. iPhone/iPad: iOS 16.4+, **harus dibuka dari ikon Layar
+  Utama** (bukan tab Safari biasa) dan lewat HTTPS.
+- Dikirim oleh layanan `jadwal` (tiap menit) untuk permintaan ACC baru: nota kasir ditahan, tugas
+  dikirim karyawan, buka dus, PO menunggu ACC. Tiap permintaan diberitahukan sekali; hanya ke akun
+  yang punya hak memutuskannya. Server butuh internet keluar (ke layanan push Apple/Google).
+- Kunci VAPID dibuat otomatis dan disimpan di database (`PushKunci`). Opsional di `.env`:
+  `MASTER_PUSH_SUB=mailto:alamat@email` (bawaan: alamat HTTPS pertama di
+  `MASTER_CSRF_TRUSTED_ORIGINS`).
 
 Membuka dari HP (server rumah, master tetap hanya di `127.0.0.1:8001`):
 

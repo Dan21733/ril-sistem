@@ -205,6 +205,9 @@ def detail(request, po_id):
             elif aksi == "retur":
                 dok = svc.retur(request.user, po, request.POST)
                 messages.success(request, f"Retur dicatat. Stok berkurang dan hutang turun {dok.nilai:,}.".replace(",", "."))
+            elif aksi == "foto":
+                n = svc.tambah_foto(request.user, po, request.FILES.getlist("foto"))
+                messages.success(request, f"{n} foto ditambahkan.")
             elif aksi == "uang_kembali":
                 svc.uang_kembali(request.user, po, tanggal=request.POST.get("tanggal"), jumlah=request.POST.get("jumlah"),
                                  cara=request.POST.get("cara"), catatan=request.POST.get("catatan"))
@@ -225,6 +228,7 @@ def detail(request, po_id):
     return render(request, "master/pembelian_detail.html", {
         "menu": "pembelian", "po": po, "hasil": hasil,
         "pembayaran": po.pembayaran.all() if po.status == "diterima" else [],
+        "foto": list(po.foto.all()),
         "daftar_retur": daftar_retur, "bisa_retur": any(h.get("boleh_retur") for h in hasil["baris"]),
         "mode_ppn": Pembelian.MODE_PPN, "cara_bayar": Pembayaran.CARA,
         "hari_ini": timezone.localdate(),
@@ -268,3 +272,14 @@ def pengaturan(request):
         "menu": "pengaturan", "atur": atur, "daftar_tarif": TarifPPN.objects.all(),
         "semua_toko": Toko.objects.all(),
     })
+
+
+@perlu("pembelian")
+def foto(request, foto_id):
+    from django.core.files.storage import default_storage
+    from django.http import FileResponse, Http404
+    from master.models import FotoPembelian
+    berkas = get_object_or_404(FotoPembelian, pk=foto_id)
+    if not default_storage.exists(berkas.object_key):
+        raise Http404("Berkas foto tidak ada di server ini.")
+    return FileResponse(default_storage.open(berkas.object_key, "rb"), content_type=berkas.content_type)

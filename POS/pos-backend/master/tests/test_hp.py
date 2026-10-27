@@ -14,7 +14,7 @@ from master.layanan import akun_karyawan, bukadus
 from master.layanan import inti as layanan
 from master.layanan import karyawan as svc_karyawan
 from master.layanan import tiket as svc_tiket
-from master.models import BukaDus, NotaManual, Pembelian, Supplier, TarifPPN, Tiket, TiketUsulan, VarianInfo
+from master.models import BukaDus, Pembelian, Supplier, TarifPPN, Tiket, TiketUsulan, VarianInfo
 from master.tests.dasar import Dasar, buat_item
 
 
@@ -36,7 +36,9 @@ class HpTest(Dasar):
         from master.models import ItemInfo
         for url in (reverse("hp:beranda"), reverse("hp:barang") + "?q=cat",
                     reverse("hp:barang_detail", args=[ItemInfo.objects.get(item_name="Cat Avian").id]),
-                    reverse("hp:tugas"), reverse("hp:tugas_baru"), reverse("hp:input"), reverse("hp:manifest")):
+                    reverse("hp:tugas"), reverse("hp:tugas_baru"), reverse("hp:tugas_baru") + "?jenis=hitung",
+                    reverse("hp:tugas_baru") + "?jenis=lokasi", reverse("hp:input"), reverse("hp:manifest"),
+                    reverse("hp:transaksi"), reverse("hp:setelan")):
             self.assertEqual(self.client.get(url).status_code, 200, url)
         r = self.client.get(reverse("hp:ikon", args=[192]))
         self.assertEqual(r["Content-Type"], "image/png")
@@ -57,7 +59,7 @@ class HpTest(Dasar):
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, "31.000")
         self.assertEqual(self.client.get(reverse("hp:tugas")).status_code, 403)
-        self.assertEqual(self.client.post(reverse("hp:input_nota"), {}).status_code, 403)
+        self.assertEqual(self.client.post(reverse("hp:input_beli"), {}).status_code, 403)
         self.client.force_login(self.gudang)
         self.assertNotEqual(self.client.get(reverse("hp:beranda")).status_code, 200)
 
@@ -128,31 +130,159 @@ class HpTest(Dasar):
         self.assertFalse(Tiket.objects.exists())
         self.assertTrue(r.context["galat"])
 
-    def test_input_nota_tulis_tangan(self):
-        cat = VarianInfo.objects.get(item_name="Cat Avian", variant="Putih 1kg")
-        r = self.client.post(reverse("hp:input_nota"), {
-            "tanggal": date.today().isoformat(), "pembeli": "Pak Budi", "cara_bayar": "cash", "ongkir": "5000",
-            "baris": json.dumps([{"id": cat.id, "jumlah": 2, "harga": 45000}])})
-        self.assertTrue(r.json()["ok"], r.json())
-        n = NotaManual.objects.get()
-        self.assertEqual((n.pembeli, n.total), ("Pak Budi", 95000))
-        self.assertEqual(Item.objects.get(item_name="Cat Avian", variant="Putih 1kg").in_stock, 3)
-        r = self.client.post(reverse("hp:input_nota"), {"tanggal": date.today().isoformat(), "baris": "[]"})
-        self.assertEqual(r.status_code, 400)
-
-    def test_input_pembelian_belum_dan_sudah_datang(self):
+    def test_input_pembelian_pesan_dan_nota_datang_dengan_foto(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+        from master.models import FotoPembelian
+        from master.tests.dasar import PENYIMPANAN_UJI
         TarifPPN.objects.create(mulai=date(2025, 1, 1), persen="11")
         sup = Supplier.objects.create(nama="PT Avian")
         cat = VarianInfo.objects.get(item_name="Cat Avian", variant="Putih 1kg")
         hari = date.today().isoformat()
-        r = self.post_json("hp:input_beli", {"supplier": sup.id, "tanggal": hari, "baris": [{"id": cat.id, "jumlah": 4, "harga": 30000}]})
+        url = reverse("hp:input_beli")
+        stok = lambda: Item.objects.get(item_name="Cat Avian", variant="Putih 1kg").in_stock
+        r = self.client.post(url, {"mode": "pesan", "supplier": sup.id, "tanggal": hari,
+                                   "baris": json.dumps([{"id": cat.id, "jumlah": 4, "harga": 30000}])})
         self.assertTrue(r.json()["ok"], r.json())
-        self.assertEqual(Pembelian.objects.get().status, "dibuat")
-        self.assertEqual(Item.objects.get(item_name="Cat Avian", variant="Putih 1kg").in_stock, 5)
-        r = self.post_json("hp:input_beli", {"supplier": sup.id, "tanggal": hari, "sudah_datang": True, "mode_ppn": "tanpa",
-                                              "baris": [{"id": cat.id, "jumlah": 4, "harga": 30000}]})
-        self.assertTrue(r.json()["ok"], r.json())
-        self.assertEqual(Item.objects.get(item_name="Cat Avian", variant="Putih 1kg").in_stock, 9)
-        r = self.post_json("hp:input_beli", {"supplier": sup.id, "tanggal": hari, "baris": [{"id": cat.id, "jumlah": 0, "harga": 1}]})
+        self.assertEqual((Pembelian.objects.get().status, stok()), ("dibuat", 5))
+        with override_settings(STORAGES=PENYIMPANAN_UJI):
+            foto = SimpleUploadedFile("nota.jpg", b"\xff\xd8\xff" + b"0" * 100, content_type="image/jpeg")
+            r = self.client.post(url, {"mode": "datang", "supplier": sup.id, "tanggal": hari, "mode_ppn": "tanpa",
+                                       "nomor_faktur": "NT-77", "ongkir": "", "foto": [foto],
+                                       "baris": json.dumps([{"id": cat.id, "jumlah": 4, "harga": 30000}])})
+            self.assertTrue(r.json()["ok"], r.json())
+            po = Pembelian.objects.get(nomor_faktur="NT-77")
+            self.assertEqual((po.status, stok()), ("diterima", 9))
+            self.assertEqual(FotoPembelian.objects.filter(pembelian=po).count(), 1)
+            r = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
+            self.assertContains(r, reverse("master:pembelian_foto", args=[po.foto.get().id]))
+            self.assertEqual(self.client.get(reverse("master:pembelian_foto", args=[po.foto.get().id])).status_code, 200)
+            # berkas bukan foto ditolak dan PO tidak terbentuk
+            salah = SimpleUploadedFile("x.exe", b"MZ", content_type="application/octet-stream")
+            r = self.client.post(url, {"mode": "datang", "supplier": sup.id, "tanggal": hari, "mode_ppn": "tanpa", "foto": [salah],
+                                       "baris": json.dumps([{"id": cat.id, "jumlah": 1, "harga": 30000}])})
+            self.assertEqual(r.status_code, 400)
+        r = self.client.post(url, {"mode": "pesan", "supplier": sup.id, "tanggal": hari, "baris": json.dumps([{"id": cat.id, "jumlah": 0, "harga": 1}])})
         self.assertEqual(r.status_code, 400)
         self.assertEqual(Pembelian.objects.count(), 2)            # yang gagal tidak meninggalkan PO kosong
+        self.assertEqual(self.client.post(url, {"mode": "pesan", "supplier": sup.id, "tanggal": hari, "baris": "[]"}).status_code, 400)
+
+    def test_tugas_hitung_dan_pindah_dari_hp(self):
+        from master.models import Lokasi
+        from master.layanan import lokasi as svc_lokasi
+        wid, _ = svc_karyawan.tambah(self.admin, "Joko")
+        akun_karyawan.atur_hak_ops(self.admin, wid, ["gudang_hitung", "ops_tiket_pindah", "ops_tiket_rak"])
+        joko = get_user_model().objects.get(username=f"ops-{wid.lower()}")
+        r = self.client.get(reverse("hp:tugas_baru") + "?jenis=hitung")
+        self.assertContains(r, "Joko")
+        toko = svc_lokasi.lokasi_toko()
+        r = self.client.post(reverse("hp:tugas_baru"), {"jenis": "hitung", "untuk": joko.id, "tujuan": "Hitung cat",
+                                                         "lokasi": toko.id, "kategori": ["Cat"], "jam": "2"})
+        t = Tiket.objects.get(tujuan="Hitung cat")
+        self.assertEqual((t.jenis, t.saring["lokasi"], t.saring["kategori"]), ("hitung", toko.id, ["Cat"]))
+        self.assertContains(self.client.get(reverse("hp:tugas_detail", args=[t.id])), "Karyawan masih menghitung")
+        r = self.client.post(reverse("hp:tugas_baru"), {"jenis": "lokasi", "untuk": joko.id, "tujuan": "Rapikan cat", "jam": "4"})
+        t2 = Tiket.objects.get(tujuan="Rapikan cat")
+        self.assertEqual(t2.jenis, "lokasi")
+        gudang = Lokasi.objects.create(kode="GA", nama="Gudang A", jenis="gudang")
+        cat = VarianInfo.objects.get(item_name="Cat Avian", variant="Putih 1kg")
+        from master.models import TiketBaris
+        b = TiketBaris.objects.create(tiket=t2, jenis="pindah", varian=cat, dari=toko, ke=gudang, jumlah=3)
+        Tiket.objects.filter(pk=t2.pk).update(status="dikirim", dikirim_waktu=timezone.now())
+        r = self.client.get(reverse("hp:tugas_detail", args=[t2.id]))
+        self.assertContains(r, 'name="jumlah_%d"' % b.id)
+        r = self.client.post(reverse("hp:tugas_detail", args=[t2.id]), {"aksi": "terapkan", "pilih": [b.id], f"jumlah_{b.id}": "2", f"ke_{b.id}": gudang.id})
+        self.assertTrue(r.json()["ok"], r.json())
+        self.assertEqual(svc_lokasi.stok_di(cat, gudang), 2)
+        self.assertEqual(Tiket.objects.get(pk=t2.pk).status, "selesai")
+
+    def test_transaksi_hari_ini(self):
+        r = self.client.get(reverse("hp:transaksi"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "T01-000001")                      # nota uji dari Dasar (hari ini)
+        self.assertContains(r, "Palu")
+        self.assertContains(self.client.get(reverse("hp:transaksi") + "?tanggal=2001-01-01"), "Belum ada transaksi")
+        self.assertEqual(self.client.get(reverse("hp:transaksi") + "?tanggal=salah").status_code, 200)
+        self.client.force_login(self.finance)
+        self.assertEqual(self.client.get(reverse("hp:transaksi")).status_code, 403)
+
+    def test_setelan_dan_service_worker(self):
+        r = self.client.get(reverse("hp:setelan"))
+        self.assertContains(r, "Warna aksen")
+        self.assertContains(r, "Keluar")
+        sw = self.client.get(reverse("hp:sw"))
+        self.assertEqual(sw["Content-Type"], "application/javascript")
+        self.assertIn("showNotification", sw.content.decode())
+
+
+class PushTest(Dasar):
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _langganan(self):
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from master.layanan import push
+        self.ua = ec.generate_private_key(ec.SECP256R1())
+        pub = self.ua.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+        self.auth = b"0123456789abcdef"
+        return {"endpoint": "https://web.push.apple.com/QWERTY", "keys": {"p256dh": push.b64u(pub), "auth": push.b64u(self.auth)}}
+
+    def test_enkripsi_bisa_dibuka_penerima(self):
+        """Dekripsi mengikuti RFC 8291 dari sisi penerima, memakai kunci privat penerima."""
+        import hashlib
+        import hmac
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from master.layanan import push
+        sub = self._langganan()
+        badan = push.enkripsi(b'{"title":"x"}', sub["keys"]["p256dh"], sub["keys"]["auth"])
+        garam, idlen = badan[:16], badan[20]
+        as_pub = badan[21:21 + idlen]
+        h = lambda k, m: hmac.new(k, m, hashlib.sha256).digest()
+        ua_pub = self.ua.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+        bersama = self.ua.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), as_pub))
+        ikm = h(h(self.auth, bersama), b"WebPush: info\x00" + ua_pub + as_pub + b"\x01")
+        prk = h(garam, ikm)
+        isi = AESGCM(h(prk, b"Content-Encoding: aes128gcm\x00\x01")[:16]).decrypt(
+            h(prk, b"Content-Encoding: nonce\x00\x01")[:12], badan[21 + idlen:], None)
+        self.assertEqual(isi, b'{"title":"x"}\x02')
+
+    def test_langganan_dan_kirim_baru_sekali_saja(self):
+        from unittest import mock
+        from master.layanan import push
+        from master.models import PushLangganan
+        sid_lama = uuid.uuid4()
+        NotaTinjau.objects.create(sync_id=sid_lama, transaction_id="T01-1", device_code="T01", alasan="floor", payload={"total_amount": 1})
+        r = self.client.post(reverse("hp:push"), json.dumps({"aksi": "langganan", "langganan": self._langganan()}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"], r.json())
+        self.assertEqual(PushLangganan.objects.get().user, self.admin)
+        terkirim = []
+        with mock.patch.object(push, "kirim_satu", side_effect=lambda l, data, **k: terkirim.append(data) or 201):
+            self.assertEqual(push.kirim_baru(), 0)                 # yang menunggu sebelum langganan tidak dikirim
+            sid = uuid.uuid4()
+            NotaTinjau.objects.create(sync_id=sid, transaction_id="T01-2", device_code="T01", alasan="Harga di bawah floor",
+                                      payload={"total_amount": 25000})
+            self.assertEqual(push.kirim_baru(), 1)
+            self.assertEqual(push.kirim_baru(), 0)                 # tidak dikirim dua kali
+        self.assertEqual(terkirim[0]["title"], "Harga di bawah floor")
+        self.assertIn("Rp25.000", terkirim[0]["body"])
+        self.assertEqual(terkirim[0]["badge"], 2)
+        # langganan mati (410) dihapus
+        with mock.patch.object(push, "kirim_satu", return_value=410):
+            r = self.client.post(reverse("hp:push"), json.dumps({"aksi": "tes", "endpoint": "https://web.push.apple.com/QWERTY"}),
+                                 content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(PushLangganan.objects.exists())
+
+    def test_finance_tidak_dapat_notifikasi_nota(self):
+        from unittest import mock
+        from master.layanan import push
+        self.client.force_login(self.finance)
+        self.client.post(reverse("hp:push"), json.dumps({"aksi": "langganan", "langganan": self._langganan()}), content_type="application/json")
+        NotaTinjau.objects.create(sync_id=uuid.uuid4(), transaction_id="T01-3", device_code="T01", alasan="floor", payload={})
+        with mock.patch.object(push, "kirim_satu", return_value=201) as k:
+            push.kirim_baru()
+        k.assert_not_called()

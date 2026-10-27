@@ -1,0 +1,104 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Setelan · DB Toko{% endblock %}
+{% block judul_kecil %}Setelan{% endblock %}
+{% block gaya %}<style>
+.profil{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.avatar{width:58px;height:58px;border-radius:50%;background:var(--tint);background-image:linear-gradient(145deg,rgba(255,255,255,.18),rgba(0,0,0,.25));color:#fff;display:grid;place-items:center;font-size:24px;font-weight:600;flex:none}
+.profil b{font-size:20px;display:block}.profil span{color:var(--teks2);font-size:14px}
+.aksen{display:flex;gap:14px;padding:14px 16px;flex-wrap:wrap}
+.aksen button{width:34px;height:34px;border-radius:50%;border:0;padding:0;cursor:pointer;box-shadow:0 0 0 2px var(--kartu),0 0 0 4px transparent;transition:box-shadow .15s}
+.aksen button.aktif{box-shadow:0 0 0 2px var(--kartu),0 0 0 4px var(--teks3)}
+.ikon-sel{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:#fff;flex:none;font-size:16px}
+.status-push{font-size:15px}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Setelan</h1>
+<div class="grup"><div class="profil">
+  <div class="avatar">{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</div>
+  <div><b>{{ request.user.first_name|default:request.user.username }}</b><span>{{ request.user.username }}{% if toko %} · {{ toko.nama }}{% endif %}</span></div>
+</div></div>
+
+<div class="kepala-grup"><h2>Tampilan</h2></div>
+<div class="seg" id="tema">
+  <button type="button" data-tema="">Otomatis</button><button type="button" data-tema="terang">Terang</button><button type="button" data-tema="gelap">Gelap</button>
+</div>
+<div class="grup">
+  <div class="sel"><div class="utama">Warna aksen</div></div>
+  <div class="aksen" id="aksen">
+    <button type="button" data-aksen="" style="background:#C2571A" aria-label="Oranye"></button>
+    <button type="button" data-aksen="biru" style="background:#007AFF" aria-label="Biru"></button>
+    <button type="button" data-aksen="hijau" style="background:#248A3D" aria-label="Hijau"></button>
+    <button type="button" data-aksen="ungu" style="background:#8944AB" aria-label="Ungu"></button>
+    <button type="button" data-aksen="merah-muda" style="background:#D30F45" aria-label="Merah muda"></button>
+  </div>
+</div>
+<p class="ket-grup">Tersimpan di perangkat ini saja.</p>
+
+<div class="kepala-grup"><h2>Notifikasi</h2></div>
+<div class="grup">
+  <div class="sel"><div class="ikon-sel" style="background:var(--merah)">🔔</div><div class="utama"><div class="nama">Permintaan ACC</div><div class="sub status-push" id="status-push">Memeriksa…</div></div>
+    <input type="checkbox" class="saklar" id="saklar-push" aria-label="Notifikasi" disabled></div>
+  <button type="button" class="sel" id="tes-push" hidden style="border:0;background:none;width:100%;text-align:left;color:var(--tint);font-size:17px">Kirim notifikasi percobaan</button>
+</div>
+<p class="ket-grup">Yang diberitahukan: {{ dapat|join:"; "|default:"tidak ada (akun ini tidak memegang ACC)" }}.
+  {% if perangkat %}Menyala di {{ perangkat|length }} perangkat.{% endif %}</p>
+<p class="ket-grup" id="petunjuk-ios" hidden>Di iPhone/iPad: buka di Safari, ketuk Bagikan › <b>Tambahkan ke Layar Utama</b>, lalu buka DB Toko dari layar utama dan nyalakan di sini.</p>
+
+<div class="kepala-grup"><h2>Lainnya</h2></div>
+<div class="grup">
+  <a class="sel" href="{% url 'hp:transaksi' %}"><div class="ikon-sel" style="background:#34C759">₨</div><div class="utama">Transaksi hari ini</div></a>
+  <a class="sel" href="{% url 'master:dashboard' %}"><div class="ikon-sel" style="background:#8E8E93">⌘</div><div class="utama">Buka master (tampilan lengkap)</div></a>
+</div>
+
+<form method="post" action="{% url 'master:logout' %}" style="margin:24px 0">{% csrf_token %}<input type="hidden" name="next" value="{% url 'master:login' %}?next={% url 'hp:beranda' %}">
+  <button class="tombol merah penuh" type="submit">Keluar</button></form>
+{% endblock %}
+{% block skrip %}
+<script>
+const KUNCI = "{{ kunci_push }}", URL_PUSH = "{% url 'hp:push' %}";
+const akar = document.documentElement;
+function simpan(k, v){ try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (_) {} }
+function tandai(){
+  document.querySelectorAll('#tema button').forEach(b => b.classList.toggle('aktif', b.dataset.tema === (akar.dataset.tema || '')));
+  document.querySelectorAll('#aksen button').forEach(b => b.classList.toggle('aktif', b.dataset.aksen === (akar.dataset.aksen || '')));
+}
+document.getElementById('tema').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  b.dataset.tema ? akar.dataset.tema = b.dataset.tema : delete akar.dataset.tema; simpan('hp-tema', b.dataset.tema); tandai(); });
+document.getElementById('aksen').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  b.dataset.aksen ? akar.dataset.aksen = b.dataset.aksen : delete akar.dataset.aksen; simpan('hp-aksen', b.dataset.aksen); tandai(); });
+tandai();
+
+const saklar = document.getElementById('saklar-push'), status = document.getElementById('status-push'), tes = document.getElementById('tes-push');
+const keUint8 = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...b].map(c => c.charCodeAt(0))); };
+const mandiri = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let reg = null, sub = null;
+async function periksa(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    status.textContent = ios && !mandiri ? 'Tambahkan ke Layar Utama dulu' : 'Browser ini tidak mendukung notifikasi';
+    document.getElementById('petunjuk-ios').hidden = !ios; return;
+  }
+  reg = await navigator.serviceWorker.register("{% url 'hp:sw' %}", {scope: "{% url 'hp:beranda' %}"});
+  sub = await reg.pushManager.getSubscription();
+  saklar.disabled = Notification.permission === 'denied'; saklar.checked = !!sub && Notification.permission === 'granted';
+  status.textContent = Notification.permission === 'denied' ? 'Diblokir. Izinkan lewat Pengaturan HP › Notifikasi' : (saklar.checked ? 'Menyala di perangkat ini' : 'Mati');
+  tes.hidden = !saklar.checked;
+}
+saklar.addEventListener('change', async () => {
+  saklar.disabled = true;
+  try {
+    if (saklar.checked) {
+      if (await Notification.requestPermission() !== 'granted') throw new Error('Izin notifikasi tidak diberikan.');
+      await navigator.serviceWorker.ready;
+      sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: keUint8(KUNCI)});
+      kabar((await kirim(URL_PUSH, {aksi: 'langganan', langganan: sub.toJSON()})).pesan);
+    } else if (sub) {
+      await kirim(URL_PUSH, {aksi: 'berhenti', endpoint: sub.endpoint}); await sub.unsubscribe(); sub = null; kabar('Notifikasi dimatikan.');
+    }
+  } catch (e) { kabar(e.message, true); }
+  await periksa();
+});
+tes.addEventListener('click', async () => { try { kabar((await kirim(URL_PUSH, {aksi: 'tes', endpoint: sub.endpoint})).pesan); } catch (e) { kabar(e.message, true); } });
+periksa().catch(e => status.textContent = 'Gagal memeriksa: ' + e.message);
+</script>
+{% endblock %}

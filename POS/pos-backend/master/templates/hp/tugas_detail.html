@@ -7,6 +7,7 @@
 .usul input[type=checkbox]{width:24px;height:24px;accent-color:var(--tint);margin-top:2px;flex:none}
 .usul .dari-ke{font-size:15px;margin-top:4px;font-variant-numeric:tabular-nums}
 .usul .dari-ke s{color:var(--teks2)}
+.usul select.pilih-ke{border:0;background:var(--isi);border-radius:8px;padding:6px 8px;font-size:15px;max-width:150px}
 .usul input.nilai-usul{width:120px;border:0;background:var(--isi);border-radius:8px;padding:6px 8px;text-align:right;font-size:16px}
 .bilah-aksi{position:sticky;bottom:calc(76px + var(--aman-b));display:flex;gap:8px;padding:10px 0}
 .bilah-aksi .tombol{flex:1;box-shadow:0 6px 18px rgba(0,0,0,.15)}
@@ -22,8 +23,51 @@
   {% for judul, isi, kosong in ringkas.lingkup %}<div class="sel"><div class="utama">{{ judul }}</div><span class="nilai" style="white-space:normal;max-width:65%">{% if isi %}{{ isi|join:", " }}{% else %}{{ kosong }}{% endif %}</span></div>{% endfor %}
 </div>
 
-{% if t.jenis != 'barang' %}
-<p class="ket-grup">Tugas jenis ini diperiksa di master: <a href="{% url 'master:tiket_detail' t.id %}">buka di master</a>.</p>
+{% if t.jenis == 'hitung' %}
+<div class="kepala-grup"><h2>Hitungan</h2></div>
+<div class="grup">
+  <div class="sel"><div class="utama">Barang sudah dihitung</div><span class="nilai">{{ jumlah_hitung|ribuan }}</span></div>
+  {% if op %}<div class="sel"><div class="utama">Stok opname</div><span class="nilai">{{ op.get_status_display }}</span></div>{% endif %}
+</div>
+{% if op and op.status != 'draf' %}<a class="tombol penuh" style="margin-top:12px" href="{% url 'master:opname_detail' op.id %}">Periksa hasil di Stok opname</a>
+<p class="ket-grup">Halaman pemeriksaan opname masih memakai tampilan master.</p>
+{% elif t.status == 'terbuka' %}
+<p class="ket-grup" style="margin:8px 4px">{% if t.lewat_batas %}Batas waktu lewat. Hitungan yang ada bisa diteruskan ke Stok opname.{% else %}Karyawan masih menghitung. Hasilnya masuk Stok opname setelah dikirim.{% endif %}</p>
+{% if t.lewat_batas and jumlah_hitung %}<button type="button" class="tombol penuh" data-aksi="teruskan">Teruskan {{ jumlah_hitung }} hitungan</button>{% endif %}
+{% if not t.lewat_batas %}<button type="button" class="tombol merah penuh" style="margin-top:8px" data-aksi="tolak">Tolak tugas</button>{% endif %}
+{% endif %}
+
+{% elif t.jenis == 'lokasi' %}
+<div class="kepala-grup"><h2>Usulan {{ baris|length }}</h2>{% if t.bisa_diputus and baris %}<button type="button" class="aksi" id="balik" style="background:none;border:0;color:var(--tint)">Balik pilihan</button>{% endif %}</div>
+{% if t.status == 'terbuka' and not t.lewat_batas %}<p class="ket-grup" style="margin:0 4px 10px">Karyawan masih mengisi. Bisa diputuskan setelah dikirim atau lewat batas waktu.</p>{% endif %}
+<form id="f">{% csrf_token %}
+<div class="grup usul">
+  {% for b in baris %}
+  <label class="sel">
+    {% if t.bisa_diputus %}<input type="checkbox" name="pilih" value="{{ b.id }}" checked>{% endif %}
+    <div class="utama">
+      <div class="nama" style="white-space:normal">{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != 'N/A' %} <span class="redup">/ {{ b.varian.variant }}</span>{% endif %}{% else %}Rak {{ b.rak.kode }} <span class="redup">{{ b.rak.nama }}</span>{% endif %}</div>
+      <div class="sub">{{ b.get_jenis_display }}{% if b.catatan %} · {{ b.catatan }}{% endif %}</div>
+      <div class="dari-ke">
+      {% if b.jenis == 'pindah' %}{{ b.dari.nama }}{% if t.bisa_diputus %} <span class="redup kecil">(ada {{ b.stok_asal|ribuan }})</span>{% endif %} →
+        {% if t.bisa_diputus %}<select name="ke_{{ b.id }}" class="pilih-ke">{% for l in lokasi %}<option value="{{ l.id }}" {% if b.ke_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>
+        <input class="nilai-usul" name="jumlah_{{ b.id }}" value="{{ b.jumlah }}" inputmode="numeric" style="width:70px">{% else %}{{ b.ke.nama }} · <b>{{ b.jumlah|ribuan }}</b>{% endif %}
+      {% elif b.jenis == 'rak' %}<s>rak {{ b.varian.rak.kode|default:"-" }}</s> → <b>rak {{ b.rak.kode|default:"(kosong)" }}</b>
+      {% else %}<s>{{ b.rak.tempat.nama|default:"-" }}</s> → <b>{{ b.ke.nama }}</b>{% endif %}
+      </div>
+      {% if not t.bisa_diputus and b.hasil %}<div class="sub">{% if b.diterapkan %}✓ Diterapkan{% else %}{{ b.hasil }}{% endif %}</div>{% endif %}
+    </div>
+  </label>
+  {% empty %}<div class="kosong">Belum ada usulan.</div>{% endfor %}
+</div>
+{% if t.bisa_diputus %}
+<div class="bilah-aksi">
+  {% if baris %}<button type="button" class="tombol" id="terapkan">ACC yang dicentang</button>{% endif %}
+  <button type="button" class="tombol merah" data-aksi="tolak">Tolak semua</button>
+</div>
+{% endif %}
+</form>
+
 {% else %}
 <div class="kepala-grup"><h2>Usulan {{ baris|length }}</h2>{% if t.bisa_diputus and baris %}<button type="button" class="aksi" id="balik" style="background:none;border:0;color:var(--tint)">Balik pilihan</button>{% endif %}</div>
 {% if t.status == 'terbuka' and not t.lewat_batas %}<p class="ket-grup" style="margin:0 4px 10px">Karyawan masih mengisi. Bisa diputuskan setelah dikirim atau lewat batas waktu.</p>{% endif %}
@@ -45,7 +89,7 @@
 {% if t.bisa_diputus %}
 <div class="bilah-aksi">
   {% if baris %}<button type="button" class="tombol" id="terapkan">ACC yang dicentang</button>{% endif %}
-  <button type="button" class="tombol merah" id="tolak">Tolak semua</button>
+  <button type="button" class="tombol merah" data-aksi="tolak">Tolak semua</button>
 </div>
 {% endif %}
 </form>
@@ -60,7 +104,7 @@ async function kirimAksi(aksi, tambahan){
   const data = f ? new FormData(f) : new FormData();
   data.set('aksi', aksi); Object.entries(tambahan || {}).forEach(([k, v]) => data.set(k, v));
   if (!f) data.set('csrfmiddlewaretoken', CSRF);
-  [...data.keys()].filter(k => k.startsWith('nilai_')).forEach(k => data.set(k, angka(data.get(k)) ?? ''));
+  [...data.keys()].filter(k => k.startsWith('nilai_') || k.startsWith('jumlah_')).forEach(k => data.set(k, angka(data.get(k)) ?? ''));
   try { const d = await kirim(location.pathname, data, true); kabar(d.pesan); setTimeout(() => location.reload(), 900); }
   catch (e) { kabar(e.message, true); }
 }
@@ -71,7 +115,8 @@ document.getElementById('terapkan')?.addEventListener('click', () => {
   const n = f.querySelectorAll('[name=pilih]:checked').length, total = f.querySelectorAll('[name=pilih]').length;
   if (confirm('ACC ' + n + ' usulan' + (total - n ? ' dan tolak ' + (total - n) + ' lainnya' : '') + '?')) kirimAksi('terapkan');
 });
-document.getElementById('tolak')?.addEventListener('click', () => { const a = prompt('Alasan menolak tugas ini:'); if (a !== null) kirimAksi('tolak', {alasan: a || 'Ditolak'}); });
+document.querySelectorAll('[data-aksi=tolak]').forEach(b => b.addEventListener('click', () => { const a = prompt('Alasan menolak tugas ini:'); if (a !== null) kirimAksi('tolak', {alasan: a || 'Ditolak'}); }));
+document.querySelector('[data-aksi=teruskan]')?.addEventListener('click', () => { if (confirm('Teruskan hitungan ke Stok opname untuk diperiksa?')) kirimAksi('teruskan'); });
 document.getElementById('batal')?.addEventListener('click', () => { if (confirm('Batalkan tugas ini?')) kirimAksi('batal'); });
 </script>
 {% endblock %}

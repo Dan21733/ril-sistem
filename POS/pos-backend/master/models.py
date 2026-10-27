@@ -367,6 +367,21 @@ class PembelianBaris(models.Model):
         ]
 
 
+class FotoPembelian(models.Model):
+    """Foto nota/faktur distributor untuk satu pembelian (mis. nota tulis tangan dari HP)."""
+    pembelian = models.ForeignKey(Pembelian, on_delete=models.CASCADE, related_name="foto")
+    object_key = models.CharField(max_length=300, unique=True)
+    content_type = models.CharField(max_length=60)
+    nama_asli = models.CharField(max_length=200, blank=True, default="")
+    ukuran = models.IntegerField(default=0)
+    oleh = models.CharField(max_length=150, blank=True, default="")
+    waktu = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_pembelian_foto"
+        ordering = ["id"]
+
+
 class Pembayaran(models.Model):
     CARA = [("tunai", "Tunai"), ("transfer", "Transfer"), ("lain", "Lainnya")]
 
@@ -1059,3 +1074,38 @@ class PinTampil(models.Model):
     class Meta:
         db_table = "master_pin_tampil"
         ordering = ["berlaku_mulai", "worker_id"]
+
+
+class PushKunci(models.Model):
+    """Kunci VAPID untuk notifikasi web (aplikasi HP). Satu baris, dibuat otomatis saat pertama dipakai."""
+    kunci_privat = models.TextField()
+    kunci_publik = models.CharField(max_length=120)
+    dibuat = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_push_kunci"
+
+
+class PushLangganan(models.Model):
+    """Satu HP/iPad yang menyalakan notifikasi untuk satu akun."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_master")
+    endpoint = models.CharField(max_length=700, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=60)
+    perangkat = models.CharField(max_length=120, blank=True, default="")
+    dibuat = models.DateTimeField(auto_now_add=True)
+    terakhir_ok = models.DateTimeField(null=True, blank=True)
+    gagal = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "master_push_langganan"
+        ordering = ["-dibuat"]
+
+
+class PushTerkirim(models.Model):
+    """Penanda permintaan ACC yang sudah diberitahukan, supaya tidak dikirim dua kali."""
+    kunci = models.CharField(max_length=120, unique=True)
+    waktu = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "master_push_terkirim"

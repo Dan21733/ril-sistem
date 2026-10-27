@@ -69,6 +69,7 @@ urlpatterns = [
     path("pembelian/", views_pembelian.daftar, name="pembelian"),
     path("pembelian/baru/", views_pembelian.baru, name="pembelian_baru"),
     path("pembelian/cari/", views_pembelian.cari_barang, name="pembelian_cari"),
+    path("pembelian/foto/<int:foto_id>/", views_pembelian.foto, name="pembelian_foto"),
     path("pembelian/<int:po_id>/", views_pembelian.detail, name="pembelian_detail"),
     path("nota/", views_laporan.nota, name="nota"),
     path("nota/retur/", views_laporan.retur, name="retur"),

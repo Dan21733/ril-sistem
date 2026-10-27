@@ -1,0 +1,56 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Transaksi · DB Toko{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block judul_kecil %}{% if tanggal == hari_ini %}Transaksi hari ini{% else %}{{ tanggal|date:"j M Y" }}{% endif %}{% endblock %}
+{% block gaya %}<style>
+.navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}
+.navhari a,.navhari span.mati{width:36px;height:36px;border-radius:50%;background:var(--isi);display:grid;place-items:center;font-size:20px;color:var(--tint)}
+.navhari span.mati{color:var(--teks3)}
+.navhari input{flex:1;border:0;background:var(--kartu);border-radius:10px;padding:8px 10px;font-size:16px;text-align:center}
+details.nota>summary{list-style:none;cursor:pointer}
+details.nota>summary::-webkit-details-marker{display:none}
+details.nota[open]>summary{background:var(--isi)}
+.isi-nota{padding:4px 16px 12px 16px;font-size:15px}
+.isi-nota .b{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:.5px solid var(--garis)}
+.isi-nota .b:first-child{border-top:0}
+.isi-nota .b span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.metode{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:10px}
+.metode div{background:var(--kartu);border-radius:12px;padding:8px 12px;flex:none;box-shadow:var(--bayang)}
+.metode b{display:block;font-size:16px}.metode span{font-size:12px;color:var(--teks2)}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{% if tanggal == hari_ini %}Transaksi hari ini{% else %}Transaksi{% endif %}</h1>
+<div class="navhari">
+  <a href="?tanggal={{ kemarin|date:'Y-m-d' }}" aria-label="Hari sebelumnya">‹</a>
+  <input type="date" value="{{ tanggal|date:'Y-m-d' }}" max="{{ hari_ini|date:'Y-m-d' }}" onchange="location.search='?tanggal='+this.value">
+  {% if besok %}<a href="?tanggal={{ besok|date:'Y-m-d' }}" aria-label="Hari berikutnya">›</a>{% else %}<span class="mati">›</span>{% endif %}
+</div>
+<div class="ubin">
+  <div class="lebar"><div class="lbl">Penjualan bersih</div><div class="angka">{{ omzet|rupiah }}</div><div class="ket">{{ nota|length }} nota{% if manual %} · {{ manual }} tulis tangan{% endif %}</div></div>
+  {% if lihat_modal %}<div><div class="lbl">Laba kotor</div><div class="angka">{{ laba|rupiah }}</div><div class="ket">{% if omzet %}margin {% widthratio laba omzet 100 %}%{% else %}-{% endif %}</div></div>
+  {% else %}<div><div class="lbl">Ongkir</div><div class="angka">{{ ongkir|rupiah }}</div><div class="ket">di luar penjualan</div></div>{% endif %}
+</div>
+{% if per_metode %}<div class="metode">{% for m, v in per_metode %}<div><span>{{ m }} · {{ v.0 }}</span><b>{{ v.1|rupiah }}</b></div>{% endfor %}</div>{% endif %}
+
+<div class="kepala-grup"><h2>Nota</h2><span class="redup kecil">terbaru di atas</span></div>
+<div class="grup">
+  {% for n in nota %}
+  <details class="nota">
+    <summary class="sel panah"><div class="utama"><div class="nama">{{ n.transaction_time|date:"H:i" }} · {{ n.transaction_id|default:"tanpa nomor" }}</div>
+      <div class="sub">{{ n.kasir }} · {{ n.metode }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · {{ n.baris|length }} barang</div></div>
+      <div class="nilai"><b style="color:var(--teks)">{{ n.total_amount|rupiah }}</b>{% if n.laba is not None %}<div class="kecil {% if n.laba < 0 %}turun{% else %}naik{% endif %}">laba {{ n.laba|rupiah }}</div>{% endif %}</div></summary>
+    <div class="isi-nota">
+      {% for b in n.baris %}<div class="b"><span>{{ b.item_name }}{% if b.variant and b.variant != 'N/A' %} <span class="redup">/ {{ b.variant }}</span>{% endif %}<br><span class="redup kecil">{{ b.quantity }} × {{ b.unit_price|rupiah }}{% if b.discount %} · diskon {{ b.discount|rupiah }}{% endif %}</span></span><span>{{ b.subtotal|rupiah }}</span></div>{% endfor %}
+      {% if n.shipping_amount %}<div class="b"><span>Ongkir</span><span>{{ n.shipping_amount|rupiah }}</span></div>{% endif %}
+      {% if n.change_amount %}<div class="b redup"><span>Dibayar {{ n.payment_amount|rupiah }}</span><span>kembali {{ n.change_amount|rupiah }}</span></div>{% endif %}
+    </div>
+  </details>
+  {% empty %}<div class="kosong">Belum ada transaksi{% if tanggal == hari_ini %} hari ini{% endif %}.</div>{% endfor %}
+</div>
+{% if kembali %}
+<div class="kepala-grup"><h2>Retur, refund, void</h2></div>
+<div class="grup">{% for k in kembali %}<div class="sel"><div class="utama"><div class="nama">{{ k.waktu|date:"H:i" }} · {{ k.label }} {{ k.transaction_id|default:"" }}</div>
+  <div class="sub">{{ k.kasir }}{% if k.alasan %} · {{ k.alasan }}{% endif %}{% if k.menunggu %} · barang belum diterima{% endif %}</div></div><span class="nilai turun">−{{ k.uang|rupiah }}</span></div>{% endfor %}</div>
+{% endif %}
+<div style="height:16px"></div>
+{% endblock %}

@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="DB Toko">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<script>/* Tema dan aksen dari Setelan, dipasang sebelum halaman tampil supaya tidak berkedip. */
+try { const t = localStorage.getItem('hp-tema'), a = localStorage.getItem('hp-aksen');
+  if (t) document.documentElement.dataset.tema = t; if (a) document.documentElement.dataset.aksen = a; } catch (_) {}</script>
 <link rel="manifest" href="{% url 'hp:manifest' %}">
 <link rel="apple-touch-icon" href="{% url 'hp:ikon' 180 %}">
 <title>{% block judul %}DB Toko{% endblock %}</title>
@@ -20,15 +23,39 @@
   --garis:rgba(60,60,67,.18);--isi:rgba(120,120,128,.12);--tint:#C2571A;--tint-lembut:rgba(194,87,26,.12);
   --hijau:#248A3D;--hijau-lembut:rgba(52,199,89,.15);--merah:#D70015;--merah-lembut:rgba(255,59,48,.12);
   --kuning:#B25000;--kuning-lembut:rgba(255,149,0,.15);--bayang:0 1px 2px rgba(0,0,0,.04);
-  --blur:rgba(249,249,249,.78);--aman-b:env(safe-area-inset-bottom,0px);--aman-a:env(safe-area-inset-top,0px);
+  --blur:rgba(249,249,249,.78);--kaca:rgba(255,255,255,.62);--kaca-tepi:rgba(255,255,255,.75);--kaca-bayang:0 8px 30px rgba(0,0,0,.14);
+  --aman-b:env(safe-area-inset-bottom,0px);--aman-a:env(safe-area-inset-top,0px);color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root{
+@media (prefers-color-scheme: dark){:root:not([data-tema="terang"]){
   --latar:#000;--kartu:#1C1C1E;--kartu2:#2C2C2E;--teks:#fff;--teks2:rgba(235,235,245,.62);--teks3:rgba(235,235,245,.3);
   --garis:rgba(84,84,88,.55);--isi:rgba(118,118,128,.24);--tint:#FF8A4C;--tint-lembut:rgba(255,138,76,.16);
   --hijau:#30D158;--hijau-lembut:rgba(48,209,88,.16);--merah:#FF453A;--merah-lembut:rgba(255,69,58,.16);
   --kuning:#FF9F0A;--kuning-lembut:rgba(255,159,10,.16);--blur:rgba(22,22,24,.78);
+  --kaca:rgba(40,40,44,.6);--kaca-tepi:rgba(255,255,255,.12);--kaca-bayang:0 8px 30px rgba(0,0,0,.5);color-scheme:dark;
 }}
+:root[data-tema="gelap"]{
+  --latar:#000;--kartu:#1C1C1E;--kartu2:#2C2C2E;--teks:#fff;--teks2:rgba(235,235,245,.62);--teks3:rgba(235,235,245,.3);
+  --garis:rgba(84,84,88,.55);--isi:rgba(118,118,128,.24);--tint:#FF8A4C;--tint-lembut:rgba(255,138,76,.16);
+  --hijau:#30D158;--hijau-lembut:rgba(48,209,88,.16);--merah:#FF453A;--merah-lembut:rgba(255,69,58,.16);
+  --kuning:#FF9F0A;--kuning-lembut:rgba(255,159,10,.16);--blur:rgba(22,22,24,.78);
+  --kaca:rgba(40,40,44,.6);--kaca-tepi:rgba(255,255,255,.12);--kaca-bayang:0 8px 30px rgba(0,0,0,.5);color-scheme:dark;
+}
+/* Warna aksen pilihan (Setelan). Nilai terang lalu gelap. */
+:root[data-aksen="biru"]{--tint:#007AFF;--tint-lembut:rgba(0,122,255,.12)}
+:root[data-aksen="hijau"]{--tint:#248A3D;--tint-lembut:rgba(52,199,89,.14)}
+:root[data-aksen="ungu"]{--tint:#8944AB;--tint-lembut:rgba(175,82,222,.13)}
+:root[data-aksen="merah-muda"]{--tint:#D30F45;--tint-lembut:rgba(255,45,85,.12)}
+@media (prefers-color-scheme: dark){:root:not([data-tema="terang"])[data-aksen="biru"]{--tint:#0A84FF;--tint-lembut:rgba(10,132,255,.18)}
+  :root:not([data-tema="terang"])[data-aksen="hijau"]{--tint:#30D158;--tint-lembut:rgba(48,209,88,.16)}
+  :root:not([data-tema="terang"])[data-aksen="ungu"]{--tint:#BF5AF2;--tint-lembut:rgba(191,90,242,.18)}
+  :root:not([data-tema="terang"])[data-aksen="merah-muda"]{--tint:#FF375F;--tint-lembut:rgba(255,55,95,.18)}}
+:root[data-tema="gelap"][data-aksen="biru"]{--tint:#0A84FF;--tint-lembut:rgba(10,132,255,.18)}
+:root[data-tema="gelap"][data-aksen="hijau"]{--tint:#30D158;--tint-lembut:rgba(48,209,88,.16)}
+:root[data-tema="gelap"][data-aksen="ungu"]{--tint:#BF5AF2;--tint-lembut:rgba(191,90,242,.18)}
+:root[data-tema="gelap"][data-aksen="merah-muda"]{--tint:#FF375F;--tint-lembut:rgba(255,55,95,.18)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+.ubin a.ubin-link{color:inherit;display:block}
 html{background:var(--latar)}
 body{margin:0;background:var(--latar);color:var(--teks);font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;padding-bottom:calc(84px + var(--aman-b));min-height:100vh}
@@ -118,13 +145,18 @@ a.sel:active{background:var(--isi)}
 .batang .k.kini .b{opacity:1}
 .batang .l{font-size:11px;color:var(--teks2);padding:5px 0 8px}
 
-/* Bilah tab bawah */
-.tab{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:space-around;padding:6px 6px calc(6px + var(--aman-b));
-  background:var(--blur);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--garis)}
-.tab a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--teks2);position:relative;padding-top:2px}
-.tab a svg{width:27px;height:27px}
-.tab a.aktif{color:var(--tint)}
-.tab .titik{position:absolute;top:-2px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--merah);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px}
+/* Bilah tab bawah: kapsul kaca mengambang (gaya iOS terbaru) */
+.tab{position:fixed;left:50%;transform:translateX(-50%);bottom:max(10px,calc(var(--aman-b) - 8px));z-index:30;display:flex;gap:2px;
+  width:calc(100% - 24px);max-width:470px;padding:5px;border-radius:999px;background:var(--kaca);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);
+  border:.5px solid var(--kaca-tepi);box-shadow:var(--kaca-bayang),inset 0 1px 0 var(--kaca-tepi)}
+.tab a{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10.5px;font-weight:600;color:var(--teks);position:relative;
+  padding:6px 0 5px;border-radius:999px;transition:background .2s,color .2s}
+.tab a svg{width:25px;height:25px}
+.tab a.aktif{color:var(--tint);background:var(--isi)}
+.tab a:active{transform:scale(.94)}
+.tab .titik{position:absolute;top:1px;left:calc(50% + 5px);min-width:18px;height:18px;border-radius:9px;background:var(--merah);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px}
+body{padding-bottom:calc(96px + var(--aman-b))}
 
 /* Lembar dari bawah */
 dialog.lembar{border:0;padding:0;margin:0;width:100%;max-width:720px;max-height:92vh;inset:auto 0 0 0;margin-inline:auto;border-radius:14px 14px 0 0;background:var(--latar);color:var(--teks);
@@ -140,13 +172,30 @@ dialog.lembar[open]{animation:naikk .28s cubic-bezier(.2,.8,.2,1)}
 .lembar .badan{padding:4px 16px 20px}
 
 /* Kabar singkat */
-#kabar{position:fixed;left:50%;bottom:calc(96px + var(--aman-b));transform:translateX(-50%) translateY(20px);opacity:0;transition:.25s;z-index:60;
+#kabar{position:fixed;left:50%;top:calc(var(--aman-a) + 10px);transform:translateX(-50%) translateY(-20px);opacity:0;transition:.25s;z-index:60;
   background:rgba(30,30,30,.92);color:#fff;padding:11px 16px;border-radius:14px;font-size:15px;max-width:88vw;text-align:center;pointer-events:none}
 #kabar.tampil{opacity:1;transform:translateX(-50%)}
 #kabar.bahaya{background:rgba(215,0,21,.95)}
 .kosong{text-align:center;color:var(--teks2);padding:28px 16px;font-size:15px}
 .redup{color:var(--teks2)}.kecil{font-size:13px}
 .galat{background:var(--merah-lembut);color:var(--merah);padding:12px 14px;border-radius:12px;margin:8px 0;font-size:15px}
+.saklar{appearance:none;-webkit-appearance:none;width:51px;height:31px;border-radius:999px;background:var(--isi);position:relative;flex:none;transition:.2s;cursor:pointer;margin:0;padding:0}
+.saklar::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:.2s}
+.saklar:checked{background:var(--hijau)}.saklar:checked::after{left:22px}.saklar:disabled{opacity:.5}
+.isian input.saklar{flex:none;width:51px;padding:0}
+/* iPad dan layar lebar */
+@media (min-width:760px){
+  .isi{max-width:980px;padding:0 28px}
+  .atas{padding-left:28px;padding-right:28px}
+  .ubin{grid-template-columns:repeat(4,1fr)}
+  .dua-kolom .ubin{grid-template-columns:1fr 1fr}
+  .dua-kolom{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 24px;align-items:start}
+  dialog.lembar{max-width:560px;inset:0;margin:auto;border-radius:16px;max-height:86vh}
+  dialog.lembar[open]{animation:muncul .22s ease-out}
+  .judul-besar{font-size:38px}
+}
+@keyframes muncul{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
+
 details.lipat>summary{list-style:none;cursor:pointer}
 details.lipat>summary::-webkit-details-marker{display:none}
 </style>
@@ -173,8 +222,13 @@ details.lipat>summary::-webkit-details-marker{display:none}
   <a href="{% url 'hp:input' %}" class="{% if tab == 'input' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="14" cy="14" r="10.5" {% if tab == 'input' %}fill="currentColor"{% endif %}/><path d="M14 9v10M9 14h10" stroke="{% if tab == 'input' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
     Catat</a>
+  <a href="{% url 'hp:setelan' %}" class="{% if tab == 'setelan' %}aktif{% endif %}">
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="10" r="4.5" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/><path d="M5 24c.8-4.6 4.4-7 9-7s8.2 2.4 9 7" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/></svg>
+    Setelan</a>
 </nav>
 <div id="kabar" role="status"></div>
+<script>/* Service worker untuk notifikasi (didaftarkan di semua halaman supaya tetap aktif). */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register("{% url 'hp:sw' %}", {scope: "{% url 'hp:beranda' %}"}).catch(() => {});</script>
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 function ribuan(n){ return (n === null || n === undefined || n === '') ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
