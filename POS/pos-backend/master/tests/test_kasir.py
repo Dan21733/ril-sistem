@@ -38,6 +38,21 @@ class KaryawanTest(Dasar):
         self.assertTrue(PinTampil.objects.filter(worker_id=wid, pin=pin).exists())
         self.assertTrue(Log.objects.filter(objek="karyawan", baru__contains="Amba").exists())
 
+    def test_reset_pin_hanya_menampilkan_pin_terbaru(self):
+        wid, lama = svc.tambah(self.admin, "Eva")
+        baru = svc.reset_pin(self.admin, wid)
+        self.assertEqual(list(PinTampil.objects.filter(worker_id=wid).values_list("pin", flat=True)), [baru])
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:karyawan"))
+        self.assertContains(r, baru)
+        self.assertNotContains(r, f"<b>{lama}</b>")
+        # data lama yang sudah terlanjur dobel: yang tampil hanya yang terbaru
+        PinTampil.objects.create(worker_pin_id=999999, worker_id=wid, pin=lama,
+                                 berlaku_mulai=timezone.now() - datetime.timedelta(days=1),
+                                 hapus_setelah=timezone.now() + datetime.timedelta(days=1))
+        self.assertEqual([t.pin for t in svc.pin_untuk_dibagikan() if t.worker_id == wid], [baru])
+        self.assertNotContains(self.client.get(reverse("master:karyawan")), f"<b>{lama}</b>")
+
     def test_nomor_wa_dirapikan(self):
         for masuk in ["0812-3456 7890", "+62 812 3456 7890", "6281234567890", "81234567890"]:
             self.assertEqual(svc.rapikan_wa(masuk), "6281234567890", masuk)

@@ -112,6 +112,9 @@ def pasang_pin(worker_id, *, mulai=None, pin=None):
         if mulai <= sekarang:
             # worker.pin ikut diperbarui untuk kode lama yang masih membacanya.
             Worker.objects.filter(id=worker_id).update(pin=hash_baru)
+        # PIN terbaca yang lama untuk karyawan ini tidak perlu dibagikan lagi (sudah mati
+        # atau segera diganti): hapus, supaya tidak tertukar dan tidak ikut terkirim.
+        PinTampil.objects.filter(worker_id=worker_id).delete()
         _tampilkan(baris, pin)
     return baris, pin
 
@@ -292,6 +295,14 @@ def sembunyikan_pin(pengguna, worker_id=None):
     if worker_id:
         qs = qs.filter(worker_id=worker_id)
     qs.delete()
+
+
+def pin_untuk_dibagikan(sekarang=None):
+    """PIN terbaca yang masih perlu dibagikan: satu per karyawan, yang terbaru."""
+    terbaru = {}
+    for t in PinTampil.objects.filter(hapus_setelah__gt=sekarang or timezone.now()).order_by("berlaku_mulai", "id"):
+        terbaru[t.worker_id] = t
+    return sorted(terbaru.values(), key=lambda t: (t.berlaku_mulai, t.worker_id))
 
 
 def bersihkan_pin_tampil(sekarang=None):

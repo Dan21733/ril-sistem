@@ -11,7 +11,6 @@ from master.akun.akses import perlu
 from master.layanan import karyawan as svc
 from master.layanan import nota_tinjau as svc_tinjau
 from master.layanan.inti import Tolak
-from master.models import PinTampil
 
 
 @perlu("kelola_kasir")
@@ -68,7 +67,7 @@ def karyawan(request):
         d["hak_ops_label"] = [LABEL_HAK_OPS[h] for h in o]
     orang = {d["id"]: d for d in daftar}
     pin_baru = []
-    for t in PinTampil.objects.filter(hapus_setelah__gt=timezone.now()):
+    for t in svc.pin_untuk_dibagikan():
         d = orang.get(t.worker_id, {})
         nama = d.get("nama", t.worker_id)
         pin_baru.append({"nama": nama, "t": t, "wa": d.get("wa", ""), "wa_tampil": d.get("wa_tampil", ""),
@@ -111,7 +110,7 @@ def karyawan_slip(request):
     sekarang = timezone.now()
     nama = {d["id"]: d["nama"] for d in svc.daftar()}
     slip = [{"nama": nama.get(t.worker_id, t.worker_id), "t": t}
-            for t in PinTampil.objects.filter(hapus_setelah__gt=sekarang)]
+            for t in svc.pin_untuk_dibagikan(sekarang)]
     return render(request, "master/kasir_slip.html", {"slip": slip, "sekarang": sekarang})
 
 
