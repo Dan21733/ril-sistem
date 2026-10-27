@@ -665,9 +665,11 @@ class BarangBaruPanelTest(Dasar):
         r = self._kirim(varian=[{"variant": "", "min_price": "1000", "max_price": "2000"},
                                 {"variant": "B", "min_price": "1000", "max_price": "2000"}])
         self.assertEqual((r.status_code, r.json()["baris"]), (400, 0))
-        r = self._kirim(varian=[{"variant": "A", "min_price": "", "max_price": "2000"}])
-        self.assertIn("wajib diisi", r.json()["pesan"])
         self.assertFalse(Item.objects.filter(item_name="Taketa Martil").exists())
+        # Harga boleh menyusul (27 Okt 2026): barang tersimpan tanpa harga, kasir belum bisa menjualnya.
+        r = self._kirim(varian=[{"variant": "A", "min_price": "", "max_price": ""}])
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(Item.objects.filter(item_name="Taketa Martil", max_price__isnull=True).exists())
 
     def test_tanpa_varian_dan_nama_yang_sudah_ada(self):
         self.client.force_login(self.admin)

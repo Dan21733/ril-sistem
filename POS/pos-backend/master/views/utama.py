@@ -340,6 +340,51 @@ def _tanpa_buka(kembali, request):
     return u.path + ("?" + qs if qs else "")
 
 
+@perlu("ganti_nama")
+def barang_nama(request):
+    """Semua nama barang (JSON) untuk saran nama tujuan saat memindah/menggabung."""
+    return JsonResponse({"nama": sorted(set(Item.objects.values_list("item_name", flat=True)), key=kunci_alami)})
+
+
+@require_POST
+@perlu()
+def barang_atur(request):
+    """Atur ulang barang/varian sekaligus (JSON): susun rencana, periksa, terapkan; juga aktif/nonaktif massal."""
+    from master.layanan import atur_barang
+    hak = hak_pengguna(request.user)
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError
+        aksi = data.get("aksi")
+        ids = [int(x) for x in data.get("varian") or []]
+        item_ids = [int(x) for x in data.get("item") or []]
+        baris = data.get("baris") or []
+        if not isinstance(baris, list) or not all(isinstance(b, dict) and "id" in b for b in baris):
+            raise ValueError
+    except (ValueError, TypeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
+    try:
+        if aksi == "susun":
+            if atur_barang.HAK not in hak:
+                raise Tolak("Akun ini tidak boleh mengganti nama atau memindah varian.")
+            rencana = atur_barang.susun(data.get("jenis"), varian_ids=ids, item_ids=item_ids, tujuan=data.get("tujuan"))
+            return JsonResponse({"ok": True, "baris": atur_barang.periksa(rencana)})
+        if aksi == "periksa":
+            return JsonResponse({"ok": True, "baris": atur_barang.periksa(baris)})
+        if aksi == "terapkan":
+            n, tujuan = atur_barang.terapkan(request.user, baris, hak=hak)
+            buka = ItemInfo.objects.filter(item_name__in=tujuan).order_by("item_name").values_list("pk", flat=True).first()
+            return JsonResponse({"ok": True, "pesan": f"{n} varian dipindah." if n else "Tidak ada yang berubah.",
+                                 "buka": buka, "jumlah_tujuan": len(tujuan)})
+        if aksi in ("aktifkan", "nonaktifkan"):
+            n = atur_barang.ubah_aktif(request.user, ids, aksi == "aktifkan", hak=hak)
+            return JsonResponse({"ok": True, "pesan": f"{n} varian {'diaktifkan' if aksi == 'aktifkan' else 'dinonaktifkan'}."})
+    except Tolak as tolak:
+        return JsonResponse({"ok": False, "pesan": str(tolak)}, status=400)
+    return JsonResponse({"ok": False, "pesan": "Aksi tidak dikenal."}, status=400)
+
+
 @perlu()
 def barang_ringkas(request, item_id):
     """Ringkasan satu barang untuk kotak referensi di formulir barang baru (JSON)."""
@@ -451,6 +496,9 @@ def item_detail(request, item_id, panel=False):
         "kembali": request.GET.get("kembali", ""),
         "item_info": item_info,
         "barang": barang,
+        "barang_aktif": [b for b in barang if b["aktif"]],
+        "barang_nonaktif": [b for b in barang if not b["aktif"]],
+        "boleh_pilih": bool({"ganti_nama", "ubah_info"} & hak),
         "kategori": kepala.get("category", ""),
         "brand": kepala.get("brand", ""),
         "kategori_campur": len({b["category"] for b in barang}) > 1,

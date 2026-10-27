@@ -420,6 +420,11 @@ def _kolom_tabel(nama_tabel):
     return [kolom.name for kolom in deskripsi]
 
 
+def _tabel_ada_semua():
+    with connection.cursor() as cursor:
+        return set(connection.introspection.table_names(cursor))
+
+
 def _pindah_kunci(pasangan):
     """pasangan: daftar ((nama_lama, varian_lama), (nama_baru, varian_baru))."""
     q = connection.ops.quote_name
@@ -427,6 +432,7 @@ def _pindah_kunci(pasangan):
     lain = [k for k in kolom if k not in ("item_name", "variant")]
     daftar_kolom = ", ".join(q(k) for k in ["item_name", "variant", *lain])
     daftar_pilih = ", ".join(["%s", "%s", *[q(k) for k in lain]])
+    tabel_lain = [t for t in ("refund_event_detail", "mutasi_kasir") if t in _tabel_ada_semua()]
     with connection.cursor() as cursor:
         for (nama_lama, varian_lama), (nama_baru, varian_baru) in pasangan:
             cursor.execute(
@@ -439,6 +445,13 @@ def _pindah_kunci(pasangan):
                 "WHERE item_name = %s AND variant = %s",
                 [nama_baru, varian_baru, nama_lama, varian_lama],
             )
+            # Retur dan mutasi kasir dicocokkan lewat nama juga: ikut pindah supaya jatah retur nota
+            # lama tetap terhitung (tanpa ini barang yang sudah diretur bisa diretur lagi setelah ganti nama).
+            for tabel in tabel_lain:
+                cursor.execute(
+                    f"UPDATE {tabel} SET item_name = %s, variant = %s WHERE item_name = %s AND variant = %s",
+                    [nama_baru, varian_baru, nama_lama, varian_lama],
+                )
             cursor.execute(
                 "DELETE FROM item WHERE item_name = %s AND variant = %s",
                 [nama_lama, varian_lama],
@@ -526,8 +539,12 @@ def tambah_varian(pengguna, *, item_name, variant, category, brand="", min_price
     if VarianInfo.objects.filter(item_name=item_name, variant=variant).exists():
         raise Tolak("Barang dengan nama dan varian itu ada di keranjang sampah. Pulihkan dari menu Sampah, "
                     "atau hapus permanen dulu.")
-    harga_floor = baca_angka(min_price, boleh_kosong=False)
-    harga_jual = baca_angka(max_price, boleh_kosong=False)
+    # Harga boleh kosong dulu: barang tampil di kasir sebagai "Harga tidak tersedia" dan tidak bisa
+    # dimasukkan ke keranjang sampai harganya diisi. Muncul di "Perlu diperbaiki" (harga kosong).
+    harga_floor = baca_angka(min_price, boleh_kosong=True)
+    harga_jual = baca_angka(max_price, boleh_kosong=True)
+    if harga_floor is not None and harga_jual is not None and harga_floor > harga_jual:
+        raise Tolak("Floor tidak boleh di atas harga jual.")
     modal = baca_angka(cost_amount, boleh_kosong=True) if "ubah_modal" in hak else None
     stok = baca_angka(in_stock, boleh_kosong=True) or 0
     batas = baca_angka(stock_alert, boleh_kosong=True)
@@ -573,7 +590,7 @@ def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, 
                                                ("variant", "min_price", "max_price", "cost_amount", "kode_rak"))
              or str(v.get("in_stock") or "0").strip() not in ("", "0")]
     if not baris:
-        raise Tolak("Isi minimal satu varian (harga floor dan harga jual).")
+        raise Tolak("Isi minimal satu varian.")
     nama_varian = [rapikan_varian(v.get("variant")).lower() for v in baris]
     if len(baris) > 1:
         for i, n in enumerate(nama_varian):
@@ -584,11 +601,10 @@ def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, 
     with transaction.atomic():
         for i, v in enumerate(baris):
             try:
-                if not str(v.get("min_price") or "").strip() or not str(v.get("max_price") or "").strip():
-                    raise Tolak("Harga floor dan harga jual wajib diisi.")
-                harga_floor = baca_angka(v.get("min_price"), boleh_kosong=False)
-                harga_jual = baca_angka(v.get("max_price"), boleh_kosong=False)
-                if harga_floor > harga_jual:
+                # Harga boleh menyusul (mis. belum tanya sales); kasir tidak bisa menjualnya sampai diisi.
+                harga_floor = baca_angka(v.get("min_price"), boleh_kosong=True)
+                harga_jual = baca_angka(v.get("max_price"), boleh_kosong=True)
+                if harga_floor is not None and harga_jual is not None and harga_floor > harga_jual:
                     raise Tolak("Floor tidak boleh di atas harga jual.")
                 tambah_varian(pengguna, hak=hak, item_name=item_name, variant=v.get("variant"),
                               category=category, brand=brand, min_price=harga_floor, max_price=harga_jual,

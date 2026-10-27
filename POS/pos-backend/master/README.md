@@ -292,6 +292,14 @@ server gudang (di bawah).
   `master_preferensi_akun.dasbor`. Widget yang butuh hak (laba = lihat modal, hutang = pembelian, dll.)
   tidak muncul untuk akun tanpa hak itu. Angka penjualan = angka menu Laporan (penjualan barang, tanpa ongkir,
   dikurangi refund/retur). **Laba bersih belum ada**: biaya operasional belum dicatat di sistem.
+- Atur ulang barang (27 Okt 2026): di panel barang, centang varian lalu **Pindah ke barang lain**,
+  **Jadikan barang sendiri-sendiri** (jadi "<nama barang> <varian>"), atau aktif/nonaktif sekaligus; di daftar
+  barang, centang beberapa barang lalu **Gabung jadi satu barang** (nama varian = nama barang tanpa awalan yang
+  sama). Rencana selalu ditampilkan dulu dan bisa diubah; baris yang bentrok ditandai merah. Nota kasir, retur,
+  mutasi kasir, stok per gudang, dan riwayat ikut pindah (`master/layanan/atur_barang.py`). Varian nonaktif ada
+  di kelompok **Nonaktif** yang terlipat.
+- Barang/varian boleh disimpan **tanpa harga** dulu: tampil di kasir sebagai "Harga tidak tersedia" dan tidak bisa
+  dimasukkan ke keranjang sampai harganya diisi; muncul di filter "Perlu diperbaiki".
 - Laporan penjualan per jam (hanya nota kasir) dan per hari Senin–Minggu, dengan grafik batang.
 - Pergerakan stok: barang masuk / keluar / penyesuaian per periode, per kategori, dan barang tidak laku
   (ada stok, tidak terjual 30/60/90/180 hari; modal mengendap hanya untuk yang boleh lihat modal).

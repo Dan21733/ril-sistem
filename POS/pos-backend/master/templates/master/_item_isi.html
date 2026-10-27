@@ -6,29 +6,26 @@
 <p class="sub">{{ kategori }}{% if brand %} · {{ brand }}{% endif %}{% if 'ganti_nama' in hak %} · <span class="kecil">klik dua kali nama untuk menggantinya</span>{% endif %}</p>
 
 {% if barang|length > 6 %}<div style="margin-bottom:10px;max-width:320px"><input type="search" data-saring-varian placeholder="Cari varian, mis. 011 atau mocha" autocomplete="off"></div>{% endif %}
+{% if boleh_pilih %}
+<div class="atur-alat" data-atur-alat hidden>
+  <b><span data-atur-jumlah>0</span> varian dipilih</b>
+  {% if 'ganti_nama' in hak %}<button type="button" class="tombol kecil" data-atur="pindah">Pindah ke barang lain…</button>
+  <button type="button" class="tombol kecil" data-atur="pisah">Jadikan barang sendiri-sendiri</button>{% endif %}
+  {% if 'ubah_info' in hak %}<button type="button" class="tombol kecil" data-atur="nonaktifkan">Nonaktifkan</button>
+  <button type="button" class="tombol kecil" data-atur="aktifkan">Aktifkan</button>{% endif %}
+  <button type="button" class="tombol kecil" data-atur="batal">Batal pilih</button>
+</div>
+{% endif %}
 <div class="gulir"><table data-tabel-varian>
-  <tr><th>Varian</th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
-  {% for b in barang %}
-  <tr class="{% if not b.aktif %}nonaktif{% endif %}" data-cari="{{ b.variant|lower }}">
-    <td>{% if 'ganti_nama' in hak %}<span data-ganti="varian" data-id="{{ b.id }}" data-nilai="{{ b.variant }}" data-tanya="Baris nota lama ikut diperbarui." title="Klik dua kali untuk ganti nama">{{ b.variant|varian }}</span>{% else %}{{ b.variant|varian }}{% endif %}
-      <span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
-    {% if 'ubah_harga' in hak %}
-    <td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>
-    <td class="angka">{% include "master/_sel.html" with kolom="max_price" nilai=b.max_price label="Harga jual" %}</td>
-    {% else %}<td class="angka">{{ b.min_price|ribuan }}</td><td class="angka">{{ b.max_price|ribuan }}</td>{% endif %}
-    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}</td>{% endif %}
-    <td class="angka">{% if 'lihat_stok' in hak and b.id %}<a href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}" title="Stok per gudang dan pindah">{{ b.in_stock|ribuan }}</a>{% else %}{{ b.in_stock|ribuan }}{% endif %}</td>
-    <td>{% if 'ubah_info' in hak %}<select class="sel" data-id="{{ b.id }}" data-kolom="kode_rak" data-awal="{{ b.kode_rak|default:'' }}"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if b.kode_rak == r.kode %}selected{% endif %}>{{ r.kode }}</option>{% endfor %}</select>{% else %}{{ b.kode_rak|default:"-" }}{% endif %}</td>
-    <td>{% if 'ubah_info' in hak %}<input type="checkbox" class="sel" data-id="{{ b.id }}" data-kolom="aktif" {% if b.aktif %}checked{% endif %}>{% else %}{{ b.aktif|yesno:"ya,tidak" }}{% endif %}</td>
-    {% if 'hapus_barang' in hak %}<td>{% if b.terjual %}<span class="kecil redup" title="Sudah ada di {{ b.terjual }} baris nota kasir. Database kasir mengunci barang yang sudah tercatat di nota, jadi belum bisa dihapus.">terjual</span>{% else %}<form method="post" action="{% url 'master:item' item_info.id %}" data-buang data-nama="{{ item_info.item_name }} / {{ b.variant|varian }}" data-stok="{{ b.in_stock|default:0 }}">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="buang"><input type="hidden" name="id" value="{{ b.id }}"><input type="hidden" name="alasan"><button class="tombol kecil" type="submit" title="Buang ke keranjang sampah">Hapus</button></form>{% endif %}</td>{% endif %}
-  </tr>
-  {% endfor %}
+  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
+  {% for b in barang_aktif %}{% include "master/_item_varian_baris.html" %}{% empty %}<tr><td colspan="9" class="redup">Semua varian nonaktif.</td></tr>{% endfor %}
   {% if 'ubah_info' in hak and 'ubah_harga' in hak %}
-  {# Varian baru langsung di bawah daftar varian, seperti formulir barang baru. Enter = tambah. #}
+  {# Varian baru langsung di bawah daftar varian, seperti formulir barang baru. Enter = tambah. Harga boleh menyusul. #}
   <tr class="varian-baru">
+    {% if boleh_pilih %}<td></td>{% endif %}
     <td><input type="text" name="variant" form="form-varian-baru" placeholder="+ Varian baru" required autocomplete="off" aria-label="Varian baru"></td>
-    <td class="angka"><input type="text" name="min_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Floor" required aria-label="Floor"></td>
-    <td class="angka"><input type="text" name="max_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Harga jual" required aria-label="Harga jual"></td>
+    <td class="angka"><input type="text" name="min_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Floor" aria-label="Floor"></td>
+    <td class="angka"><input type="text" name="max_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Harga jual" aria-label="Harga jual"></td>
     {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}<input type="text" name="cost_amount" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Modal" aria-label="Modal">{% endif %}</td>{% endif %}
     <td class="angka redup">0</td>
     <td><select name="kode_rak" form="form-varian-baru" aria-label="Rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></td>
@@ -36,6 +33,15 @@
   </tr>
   {% endif %}
 </table></div>
+{% if barang_nonaktif %}
+<details class="lipat grup-nonaktif"{% if not barang_aktif %} open{% endif %}><summary>Nonaktif ({{ barang_nonaktif|length }}) <span class="kecil redup">· tidak tampil di kasir</span></summary>
+<div class="gulir"><table data-tabel-varian>
+  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
+  {% for b in barang_nonaktif %}{% include "master/_item_varian_baris.html" %}{% endfor %}
+</table></div>
+</details>
+{% endif %}
+<div data-atur-rencana></div>
 {% if 'ubah_info' in hak and 'ubah_harga' in hak %}
 <form method="post" action="{% url 'master:item' item_info.id %}" id="form-varian-baru">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="tambah_varian"><input type="hidden" name="in_stock" value="0"></form>
 <style>.varian-baru td{background:var(--latar,#faf9f6);padding-top:8px;padding-bottom:8px}.varian-baru input,.varian-baru select{padding:7px 8px;min-width:0;width:100%}.varian-baru .uang-varian{text-align:right;min-width:80px}.varian-baru td:first-child input{min-width:120px}</style>

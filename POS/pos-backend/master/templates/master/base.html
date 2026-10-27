@@ -129,6 +129,19 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
 .grafik .kolom:hover .batang{opacity:.9}
 .grafik .nilai{font-size:12px;color:var(--redup);margin-bottom:4px;white-space:nowrap}
 .grafik .sumbu{display:block;font-size:13px;margin-top:6px;text-align:center;line-height:1.2}
+/* Atur ulang varian/barang (pilih banyak, pindah, pisah, gabung) */
+.pilih-sel{width:34px;text-align:center}
+.pilih-sel input{width:auto;margin:0}
+.atur-alat[hidden]{display:none}
+.atur-alat{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--aksen-lembut);border:1px solid var(--aksen);border-radius:10px;padding:10px 12px;margin-bottom:10px;position:sticky;top:0;z-index:2}
+.atur-rencana{border:2px solid var(--aksen);border-radius:12px;padding:16px;margin:14px 0;background:var(--kartu)}
+.atur-rencana table input{padding:6px 8px;min-width:0;width:100%}
+.atur-rencana td:nth-child(3) input{min-width:220px}.atur-rencana td:nth-child(4) input{min-width:150px}
+.atur-rencana tr.salah td{background:var(--bahaya-lembut)}
+.atur-rencana tr.sama td{color:var(--redup)}
+.atur-rencana .ket{font-size:13px;color:var(--redup)}
+.atur-rencana .ket.bahaya{color:var(--bahaya);font-weight:600}
+.grup-nonaktif>summary{font-weight:600}
 </style>
 </head>
 <body>
@@ -336,10 +349,9 @@ document.addEventListener('submit', e => {
 document.addEventListener("input", function (e) {
   var el = e.target;
   if (!el.matches || !el.matches("input[data-saring-varian]")) return;
-  var tabel = el.closest("div").parentElement.querySelector("table[data-tabel-varian]");
-  if (!tabel) return;
+  var wadah = el.closest("#panel") || el.closest("div").parentElement;
   var kata = el.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  tabel.querySelectorAll("tr[data-cari]").forEach(function (tr) {
+  wadah.querySelectorAll("table[data-tabel-varian] tr[data-cari]").forEach(function (tr) {
     var teks = tr.dataset.cari;
     tr.style.display = kata.every(function (k) { return teks.indexOf(k) >= 0; }) ? "" : "none";
   });
@@ -393,6 +405,126 @@ document.addEventListener("submit", function (e) {
     geser.addEventListener('pointermove', gerak); geser.addEventListener('pointerup', lepas);
   });
   geser.addEventListener('dblclick', function(){ h.style.removeProperty('--lebar-menu'); simpan('menu_lebar', ''); });
+})();
+</script>
+<script>
+/* Atur ulang barang: pilih varian (panel barang) atau barang (daftar), lalu pindah / pisah / gabung / aktif.
+   Rencana selalu ditampilkan dulu; baru diterapkan setelah tombol Terapkan. Tanpa memuat ulang halaman
+   kalau halamannya menyediakan window.rilSetelahAtur (daftar barang). */
+(function(){
+  const URL_ATUR = "{% url 'master:barang_atur' %}";
+  async function api(data){
+    const r = await fetch(URL_ATUR, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)});
+    let d = {}; try { d = await r.json(); } catch (e) { throw new Error('Gagal tersambung ke server.'); }
+    if (!d.ok) throw new Error(d.pesan || 'Gagal.');
+    return d;
+  }
+  const lingkup = el => el.closest('#panel') || document;
+  const dipilih = sc => [...sc.querySelectorAll('[data-pilih-varian]:checked')].map(c => +c.value);
+  function segarAlat(sc){
+    const alat = sc.querySelector('[data-atur-alat]'); if (!alat) return;
+    const n = dipilih(sc).length; alat.hidden = !n; alat.querySelector('[data-atur-jumlah]').textContent = n;
+  }
+  async function selesai(d){
+    kabar(d.pesan || 'Selesai.', false);
+    if (window.rilSetelahAtur) await window.rilSetelahAtur(d); else location.reload();
+  }
+  const el = (tag, props, ...isi) => { const e = Object.assign(document.createElement(tag), props || {}); e.append(...isi); return e; };
+  const namaVarian = v => v === 'N/A' ? '' : v;
+
+  /* Tampilkan rencana: tiap baris bisa diubah nama barang/variannya sebelum diterapkan. */
+  function tampilRencana(wadah, baris, judul){
+    wadah.innerHTML = '';
+    const kotak = el('div', {className: 'atur-rencana'});
+    const ringkas = el('div', {className: 'kecil', style: 'margin:4px 0 10px'});
+    const tabel = el('table');
+    tabel.append(el('tr', {}, el('th', {}, '#'), el('th', {}, 'Sekarang'), el('th', {}, 'Barang baru'), el('th', {}, 'Varian baru'), el('th', {className: 'angka'}, 'Stok'), el('th', {}, 'Catatan')));
+    const rows = baris.map((b, i) => {
+      const item = el('input', {value: b.item}), varian = el('input', {value: namaVarian(b.varian), placeholder: 'tanpa varian'});
+      const ket = el('td');
+      const tr = el('tr', {}, el('td', {className: 'redup'}, String(i + 1)),
+        el('td', {}, el('b', {}, b.asal_item), el('span', {className: 'redup'}, ' / ' + (namaVarian(b.asal_varian) || 'tanpa varian'))),
+        el('td', {}, item), el('td', {}, varian), el('td', {className: 'angka'}, b.stok == null ? '' : ribuan(b.stok)), ket);
+      return {b, tr, item, varian, ket};
+    });
+    function gambar(hasil){
+      let salah = 0, ubah = 0, nota = 0, adaBarang = 0;
+      hasil.forEach((h, i) => {
+        const r = rows[i]; r.b = h; r.item.value = h.item; r.varian.value = namaVarian(h.varian);
+        r.tr.className = h.masalah.length ? 'salah' : (h.berubah ? '' : 'sama');
+        r.ket.innerHTML = '';
+        h.masalah.forEach(m => r.ket.append(el('div', {className: 'ket bahaya'}, m)));
+        h.catatan.forEach(m => r.ket.append(el('div', {className: 'ket'}, m)));
+        if (!h.berubah && !h.masalah.length) r.ket.append(el('div', {className: 'ket'}, 'Tidak berubah.'));
+        salah += h.masalah.length ? 1 : 0; ubah += h.berubah ? 1 : 0; nota += h.berubah ? (h.nota || 0) : 0;
+        adaBarang += h.catatan.some(c => c.startsWith('Masuk ke barang yang sudah ada')) ? 1 : 0;
+      });
+      ringkas.textContent = ubah + ' varian akan berubah' + (nota ? ', ' + nota + ' baris nota kasir ikut memakai nama baru' : '') +
+        (adaBarang ? ', ' + adaBarang + ' masuk ke barang yang sudah ada' : '') + '.' + (salah ? ' Perbaiki ' + salah + ' baris merah dulu.' : ' Periksa sekali lagi, lalu Terapkan.');
+      ringkas.className = salah ? 'kecil pesan error' : 'kecil';
+      terapkan.disabled = !!salah || !ubah;
+      terapkan.textContent = 'Terapkan (' + ubah + ' perubahan)';
+    }
+    const kirimBaris = () => rows.map(r => ({id: r.b.id, item: r.item.value, varian: r.varian.value}));
+    const periksa = el('button', {type: 'button', className: 'tombol kecil'}, 'Periksa lagi');
+    const terapkan = el('button', {type: 'button', className: 'tombol kecil utama'}, 'Terapkan');
+    const batal = el('button', {type: 'button', className: 'tombol kecil'}, 'Batal');
+    periksa.addEventListener('click', async () => { try { gambar((await api({aksi: 'periksa', baris: kirimBaris()})).baris); } catch (e) { kabar(e.message, true); } });
+    rows.forEach(r => [r.item, r.varian].forEach(i => i.addEventListener('change', () => periksa.click())));
+    terapkan.addEventListener('click', async () => {
+      terapkan.disabled = true;
+      try { const d = await api({aksi: 'terapkan', baris: kirimBaris()}); wadah.innerHTML = ''; await selesai(d); }
+      catch (e) { kabar(e.message, true); periksa.click(); }
+    });
+    batal.addEventListener('click', () => { wadah.innerHTML = ''; });
+    rows.forEach(r => tabel.append(r.tr));
+    kotak.append(el('b', {style: 'font-size:17px'}, judul), ringkas, el('div', {className: 'gulir'}, tabel),
+      el('div', {className: 'baris', style: 'margin-top:12px;gap:8px'}, terapkan, periksa, batal));
+    wadah.append(kotak);
+    gambar(baris);
+    kotak.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  }
+
+  /* Minta nama barang tujuan di tempat (tanpa jendela pop-up), lalu susun rencana. */
+  function mintaTujuan(wadah, judul, saran, susun){
+    wadah.innerHTML = '';
+    const isi = el('input', {value: saran || '', placeholder: 'Nama barang', style: 'flex:1;min-width:220px'});
+    isi.setAttribute('list', 'dl-semua-barang');
+    if (!document.getElementById('dl-semua-barang')){
+      const dl = el('datalist', {id: 'dl-semua-barang'}); document.body.append(dl);
+      fetch("{% url 'master:barang_nama' %}").then(r => r.json()).then(d => d.nama.forEach(n => dl.append(el('option', {value: n})))).catch(() => {});
+    }
+    const lanjut = el('button', {type: 'button', className: 'tombol kecil utama'}, 'Lihat rencana');
+    const batal = el('button', {type: 'button', className: 'tombol kecil'}, 'Batal');
+    const jalan = async () => { if (!isi.value.trim()) { isi.focus(); return; }
+      try { tampilRencana(wadah, (await susun(isi.value.trim())).baris, judul + ' → ' + isi.value.trim()); } catch (e) { kabar(e.message, true); } };
+    lanjut.addEventListener('click', jalan);
+    isi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); jalan(); } });
+    batal.addEventListener('click', () => { wadah.innerHTML = ''; });
+    wadah.append(el('div', {className: 'atur-rencana'}, el('b', {}, judul),
+      el('p', {className: 'kecil redup', style: 'margin:4px 0 8px'}, 'Ketik nama barang baru, atau nama barang yang sudah ada untuk menggabung ke sana.'),
+      el('div', {className: 'baris', style: 'gap:8px'}, isi, lanjut, batal)));
+    isi.focus(); isi.select();
+  }
+  window.RilAtur = {api, tampilRencana, mintaTujuan};
+
+  document.addEventListener('change', e => {
+    if (e.target.matches('[data-pilih-semua]')){
+      e.target.closest('table').querySelectorAll('[data-pilih-varian]').forEach(c => { if (c.closest('tr').style.display !== 'none') c.checked = e.target.checked; });
+    }
+    if (e.target.matches('[data-pilih-varian],[data-pilih-semua]')) segarAlat(lingkup(e.target));
+  });
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-atur]'); if (!b) return;
+    const sc = lingkup(b), ids = dipilih(sc), jenis = b.dataset.atur, wadah = sc.querySelector('[data-atur-rencana]');
+    if (jenis === 'batal'){ sc.querySelectorAll('[data-pilih-varian],[data-pilih-semua]').forEach(c => c.checked = false); segarAlat(sc); if (wadah) wadah.innerHTML = ''; return; }
+    if (!ids.length) return;
+    try {
+      if (jenis === 'aktifkan' || jenis === 'nonaktifkan'){ b.disabled = true; await selesai(await api({aksi: jenis, varian: ids})); return; }
+      if (jenis === 'pindah'){ mintaTujuan(wadah, 'Pindah ' + ids.length + ' varian', '', t => api({aksi: 'susun', jenis, varian: ids, tujuan: t})); return; }
+      if (jenis === 'pisah'){ tampilRencana(wadah, (await api({aksi: 'susun', jenis, varian: ids})).baris, 'Jadikan ' + ids.length + ' varian barang sendiri-sendiri'); }
+    } catch (err) { kabar(err.message, true); b.disabled = false; }
+  });
 })();
 </script>
 </body>

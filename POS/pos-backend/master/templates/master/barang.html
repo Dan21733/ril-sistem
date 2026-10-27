@@ -23,11 +23,18 @@
 
 <div class="belah" id="belah">
 <div class="kiri">
+{% if 'ganti_nama' in hak %}
+<div class="atur-alat" id="gabung-alat" hidden>
+  <b><span id="gabung-jumlah">0</span> barang dipilih</b>
+  <button type="button" class="tombol kecil utama" id="tombol-gabung">Gabung jadi satu barang…</button>
+  <button type="button" class="tombol kecil" id="batal-gabung">Batal pilih</button>
+</div>
+{% endif %}
 <div class="gulir"><table id="tabel-barang">
   <tr><th>Barang</th><th class="sempit">Kategori</th><th class="sempit">Brand</th><th class="angka">Harga jual</th><th class="angka sempit">Stok</th></tr>
   {% for d in daftar %}
   <tr class="baris-item" data-item="{{ d.item_id }}" tabindex="0">
-    <td title="{{ d.item_name }}"><b>{{ d.item_name }}</b>{% if d.nonaktif %} <span class="label netral">{{ d.nonaktif }} nonaktif</span>{% endif %}
+    <td title="{{ d.item_name }}">{% if 'ganti_nama' in hak %}<input type="checkbox" class="pilih-barang" data-pilih-barang value="{{ d.item_id }}" data-nama="{{ d.item_name }}" aria-label="Pilih {{ d.item_name }}">{% endif %}<b>{{ d.item_name }}</b>{% if d.nonaktif %} <span class="label netral">{{ d.nonaktif }} nonaktif</span>{% endif %}
       <span class="masalah-teks">{% for m in d.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
     <td class="sempit">{{ d.category }}</td>
     <td class="sempit">{{ d.brand }}</td>
@@ -67,6 +74,7 @@
 .kanan{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:22px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;min-width:0}
 .kanan h2{font-size:22px}
 .baris-item{cursor:pointer}
+.pilih-barang{float:left;width:auto;margin:4px 9px 0 0;cursor:pointer}
 .baris-item.pilih td{background:var(--aksen-lembut)!important}
 .baris-item:focus{outline:2px solid var(--aksen);outline-offset:-2px}
 .ref{border:1px dashed var(--garis);border-radius:10px;padding:10px 12px;margin-bottom:14px;background:var(--latar,transparent)}
@@ -172,6 +180,41 @@ const KUNCI_POSISI = 'ril-daftar-barang:{{ request.user.username|escapejs }}';
       if (sub && subLama) subLama.textContent = sub.textContent;
     }catch(e){}
   }
+  // Sesudah pindah/pisah/gabung/aktif massal: daftar dan panel diperbarui tanpa memuat ulang halaman.
+  window.rilSetelahAtur = async d => {
+    await segarkanDaftar(); segarGabung();
+    if (d.buka) await buka(String(d.buka), true, {pesan: [{jenis: 'success', teks: d.pesan}]});
+    else if (idBuka) await buka(idBuka, false, {diam: true, pesan: [{jenis: 'success', teks: d.pesan}]});
+  };
+  // ---- Gabung beberapa barang jadi satu (centang di daftar kiri) ----
+  const alatGabung = document.getElementById('gabung-alat');
+  const barangDipilih = () => [...document.querySelectorAll('[data-pilih-barang]:checked')];
+  function segarGabung(){
+    if (!alatGabung) return;
+    const n = barangDipilih().length; alatGabung.hidden = !n; document.getElementById('gabung-jumlah').textContent = n;
+  }
+  document.getElementById('tabel-barang').addEventListener('change', e => { if (e.target.matches('[data-pilih-barang]')) segarGabung(); });
+  document.getElementById('batal-gabung')?.addEventListener('click', () => { barangDipilih().forEach(c => c.checked = false); segarGabung(); });
+  document.getElementById('tombol-gabung')?.addEventListener('click', () => {
+    const pilih = barangDipilih(); if (!pilih.length) return;
+    const ids = pilih.map(c => +c.value), nama = pilih.map(c => c.dataset.nama);
+    // Saran nama: kata-kata awal yang sama (mis. "Keramik 50 X 50").
+    const kata = nama.map(n => n.split(/\s+/)); let n = 0;
+    while (kata.every(k => k.length > n) && new Set(kata.map(k => k[n].toLowerCase())).size === 1) n++;
+    const saran = kata[0].slice(0, n).join(' ');
+    belah.classList.add('buka'); panel.hidden = false; idBuka = null;
+    document.querySelectorAll('.baris-item.pilih').forEach(el => el.classList.remove('pilih'));
+    panel.innerHTML = '';
+    const kepala = document.createElement('div'); kepala.className = 'baris'; kepala.style.cssText = 'justify-content:space-between;flex-wrap:nowrap';
+    const h = document.createElement('h2'); h.textContent = 'Gabung ' + ids.length + ' barang';
+    const tutupB = document.createElement('button'); tutupB.type = 'button'; tutupB.className = 'tombol kecil'; tutupB.dataset.tutupPanel = ''; tutupB.textContent = 'Tutup';
+    kepala.append(h, tutupB);
+    const ket = document.createElement('p'); ket.className = 'sub';
+    ket.textContent = 'Barang yang dipilih jadi varian dari satu barang. Nama varian diambil dari nama barang tanpa awalan yang sama; bisa diubah sebelum diterapkan.';
+    const wadah = document.createElement('div');
+    panel.append(kepala, ket, wadah);
+    RilAtur.mintaTujuan(wadah, 'Nama barang gabungan', saran, t => RilAtur.api({aksi: 'susun', jenis: 'gabung', item: ids, tujuan: t}));
+  });
   panel.addEventListener('focusout', e => {
     if (e.target.classList.contains('uang-varian')){ const n = angka(e.target.value); e.target.value = n ? ribuan(Number(n)) : ''; }
   });
@@ -183,6 +226,7 @@ const KUNCI_POSISI = 'ril-daftar-barang:{{ request.user.username|escapejs }}';
     history.replaceState(null, '', alamatDengan(null)); simpanPosisi();
   }
   document.getElementById('tabel-barang').addEventListener('click', e => {
+    if (e.target.closest('[data-pilih-barang]')) return;   // centang untuk gabung, bukan membuka barang
     const baris = e.target.closest('.baris-item'); if (!baris || !baris.dataset.item) return;
     if (modeBaru) referensi(baris.dataset.item); else buka(baris.dataset.item);
   });
