@@ -74,6 +74,12 @@ class MasukHp(MasukMaster):
         from django.urls import reverse
         return reverse("hp:beranda")
 
+    def form_valid(self, form):
+        from master.akun.kunci_hp import tandai_terbuka
+        hasil = super().form_valid(form)
+        tandai_terbuka(self.request)
+        return hasil
+
 
 
 # ---------------------------------------------------------------------------

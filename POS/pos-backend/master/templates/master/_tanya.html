@@ -1,6 +1,6 @@
-{# Dialog konfirmasi di halaman, pengganti confirm()/prompt() bawaan browser.
+{% comment %}Dialog konfirmasi di halaman, pengganti confirm()/prompt() bawaan browser.
    Dialog bawaan bisa dimatikan pengguna ("cegah halaman ini membuat dialog"), dan sesudah itu
-   confirm() langsung bernilai false tanpa tampil: aksinya diam-diam batal. Dipakai master, gudang, dan HP. #}
+   confirm() langsung bernilai false tanpa tampil: aksinya diam-diam batal. Dipakai master, gudang, dan HP.{% endcomment %}
 <dialog id="dialog-tanya" class="dialog-tanya">
   <form method="dialog">
     <p data-pesan></p>

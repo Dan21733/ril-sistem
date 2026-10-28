@@ -13,14 +13,29 @@ body{padding-bottom:0}
   <h1>DB Toko</h1><p class="anak-judul">Masuk untuk melanjutkan</p>
   {% if form.errors %}<div class="galat">{% for e in form.non_field_errors %}{{ e }}{% empty %}Nama pengguna atau kata sandi salah.{% endfor %}</div>{% endif %}
   {% for p in messages %}<div class="galat" role="status">{{ p }}</div>{% endfor %}
+  <button type="button" class="tombol penuh" id="masuk-pk" hidden style="margin-bottom:14px">Masuk dengan <span data-label-pk>Face ID</span></button>
   <form method="post">{% csrf_token %}
     <div class="grup">
       <label class="isian"><span>Nama</span><input name="username" autocomplete="username" autocapitalize="none" autocorrect="off" required value="{{ form.username.value|default:'' }}"></label>
       <label class="isian"><span>Kata sandi</span><input name="password" type="password" autocomplete="current-password" required></label>
     </div>
     <input type="hidden" name="next" value="{{ next }}">
-    <button class="tombol penuh" type="submit" style="margin-top:16px">Masuk</button>
+    <button class="tombol penuh abu" type="submit" style="margin-top:16px">Masuk dengan kata sandi</button>
   </form>
 </div>
 {% endblock %}
 {% block tabbar %}{% endblock %}
+{% block skrip %}
+<script>
+const tombolPk = document.getElementById('masuk-pk');
+if (PK.dukung()) {
+  tombolPk.hidden = false; document.querySelector('[data-label-pk]').textContent = PK.label();
+  tombolPk.addEventListener('click', async () => {
+    tombolPk.disabled = true;
+    try { const d = await PK.masuk("{% url 'hp:masuk_opsi' %}", "{% url 'hp:masuk_passkey' %}", {next: "{{ next|escapejs }}"}); location.replace(d.next); }
+    catch (e) { kabar(PK.pesanGagal(e) + ' Masuk dengan kata sandi.', true); }
+    tombolPk.disabled = false;
+  });
+}
+</script>
+{% endblock %}

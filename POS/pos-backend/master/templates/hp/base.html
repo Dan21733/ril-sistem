@@ -243,12 +243,59 @@ function kabar(teks, bahaya){
   clearTimeout(kabar.t); kabar.t = setTimeout(() => k.className = '', bahaya ? 4500 : 2600);
 }
 async function kirim(url, data, form){
-  const r = await fetch(url, {method: 'POST', headers: form ? {'X-CSRFToken': CSRF} : {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+  const r = await fetch(url, {method: 'POST', headers: form ? {'X-CSRFToken': CSRF, 'Accept': 'application/json'} : {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
                                body: form ? data : JSON.stringify(data)});
+  if (r.status === 423) { keKunci(); throw new Error('Aplikasi terkunci.'); }
   let d = {}; try { d = await r.json(); } catch (e) { throw new Error('Tidak tersambung ke server. Coba lagi.'); }
   if (!d.ok) throw new Error(d.pesan || 'Gagal.');
   return d;
 }
+// ---- Kunci aplikasi: tidak dipakai beberapa menit -> server meminta Face ID / sidik jari lagi ----
+const KUNCI_MS = {{ request.hp_kunci_detik|default:300 }} * 1000;
+function keKunci(){ location.href = "{% url 'hp:kunci' %}?next=" + encodeURIComponent(location.pathname + location.search); }
+{% if request.user.is_authenticated %}
+let pakaiTerakhir = Date.now(), detakTerakhir = Date.now(), tersembunyi = 0;
+['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(ev => addEventListener(ev, () => {
+  pakaiTerakhir = Date.now();
+  if (Date.now() - detakTerakhir > 60000) { detakTerakhir = Date.now();
+    fetch("{% url 'hp:detak' %}", {headers: {'Accept': 'application/json'}}).then(r => { if (r.status === 423) keKunci(); }).catch(() => {}); }
+}, {passive: true, capture: true}));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { tersembunyi = Date.now(); return; }
+  if (tersembunyi && Date.now() - Math.max(tersembunyi, pakaiTerakhir) > KUNCI_MS - 5000) location.reload();
+});
+addEventListener('pageshow', e => { if (e.persisted && Date.now() - pakaiTerakhir > KUNCI_MS - 5000) location.reload(); });
+setInterval(() => { if (!document.hidden && Date.now() - pakaiTerakhir > KUNCI_MS) location.reload(); }, 20000);
+{% endif %}
+// ---- Passkey (Face ID / sidik jari) ----
+const PK = {
+  dukung: () => !!(window.PublicKeyCredential && navigator.credentials),
+  label: () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'Face ID'
+             : /Android/.test(navigator.userAgent) ? 'sidik jari' : 'kunci perangkat',
+  keBytes: s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); s += '='.repeat((4 - s.length % 4) % 4); return Uint8Array.from(atob(s), c => c.charCodeAt(0)); },
+  keTeks: b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+  json(c){
+    const r = c.response, hasil = {id: c.id, rawId: PK.keTeks(c.rawId), type: c.type, response: {clientDataJSON: PK.keTeks(r.clientDataJSON)}};
+    if (r.attestationObject) hasil.response.attestationObject = PK.keTeks(r.attestationObject);
+    if (r.authenticatorData) { hasil.response.authenticatorData = PK.keTeks(r.authenticatorData); hasil.response.signature = PK.keTeks(r.signature);
+      if (r.userHandle) hasil.response.userHandle = PK.keTeks(r.userHandle); }
+    return hasil;
+  },
+  async opsi(url){ const r = await fetch(url, {headers: {'Accept': 'application/json'}}); if (r.status === 423) { keKunci(); throw new Error('Terkunci.'); } return r.json(); },
+  async masuk(urlOpsi, urlKirim, lain){
+    const o = await PK.opsi(urlOpsi);
+    o.challenge = PK.keBytes(o.challenge); (o.allowCredentials || []).forEach(c => c.id = PK.keBytes(c.id));
+    const c = await navigator.credentials.get({publicKey: o});
+    return kirim(urlKirim, Object.assign({kredensial: PK.json(c)}, lain || {}));
+  },
+  async daftar(urlOpsi, urlKirim){
+    const o = await PK.opsi(urlOpsi);
+    o.challenge = PK.keBytes(o.challenge); o.user.id = PK.keBytes(o.user.id); o.excludeCredentials.forEach(c => c.id = PK.keBytes(c.id));
+    const c = await navigator.credentials.create({publicKey: o});
+    return kirim(urlKirim, {kredensial: PK.json(c)});
+  },
+  pesanGagal(e){ return e && e.name === 'NotAllowedError' ? 'Dibatalkan atau waktu habis.' : e && e.name === 'InvalidStateError' ? 'Perangkat ini sudah terdaftar.' : (e && e.message) || 'Gagal.'; },
+};
 // Kolom uang: titik ribuan otomatis.
 document.addEventListener('input', e => {
   if (!e.target.matches('input[data-uang]')) return;

@@ -471,6 +471,17 @@ hak sama dengan master; `views/hp.py` hanya memanggil layanan yang sudah ada. Di
 - **Setelan**: tema (otomatis/terang/gelap) dan warna aksen (per perangkat), notifikasi, buka master,
   keluar.
 
+Kunci aplikasi dan passkey (`layanan/passkey.py`, `akun/kunci_hp.py`, tanpa pustaka tambahan):
+
+- **Masuk dengan Face ID / sidik jari** di halaman masuk HP (`/hp/masuk/`). Kata sandi tetap ada sebagai cadangan.
+- **Terkunci otomatis** setelah 5 menit tidak dipakai (`MASTER_HP_KUNCI_MENIT` di `.env`). Dicek di server
+  (middleware), jadi tidak bisa diakali lewat alamat halaman. Sesi yang pernah membuka `/hp/` juga terkunci
+  di `/master/`; sesi master di PC yang tidak pernah membuka `/hp/` tidak terpengaruh. Buka kunci dengan
+  passkey atau kata sandi (5x salah = dikunci 15 menit, sama dengan halaman masuk).
+- Daftar sekali per perangkat di Setelan › Keamanan (bisa dihapus di sana). Yang disimpan hanya kunci
+  publik (`PasskeyHp`); passkey iPhone ikut iCloud Keychain, Android ikut Google Password Manager.
+- WebAuthn butuh nama domain (bukan alamat IP) dan HTTPS: pakai alamat `*.ts.net` dari `tailscale serve`.
+
 Notifikasi (Web Push, `layanan/push.py`, tanpa pustaka tambahan):
 
 - Dinyalakan per perangkat di Setelan. iPhone/iPad: iOS 16.4+, **harus dibuka dari ikon Layar

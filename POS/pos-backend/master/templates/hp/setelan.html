@@ -34,6 +34,16 @@
 </div>
 <p class="ket-grup">Tersimpan di perangkat ini saja.</p>
 
+<div class="kepala-grup"><h2>Keamanan</h2></div>
+<div class="grup">
+  {% for p in passkey %}<div class="sel"><div class="ikon-sel" style="background:#34C759">✓</div><div class="utama"><div class="nama">{{ p.nama }}</div>
+    <div class="sub">didaftarkan {{ p.dibuat|date:"j M Y" }}{% if p.terakhir %} · terakhir dipakai {{ p.terakhir|date:"j M H:i" }}{% endif %}</div></div>
+    <button type="button" class="tombol kecil merah" data-hapus-pk="{{ p.id }}" data-nama="{{ p.nama }}">Hapus</button></div>{% endfor %}
+  <button type="button" class="sel" id="daftar-pk" style="border:0;background:none;width:100%;text-align:left;color:var(--tint);font-size:17px">
+    <div class="ikon-sel" style="background:var(--tint)">🔒</div><div class="utama">Daftarkan <span data-label-pk>Face ID</span> di perangkat ini</div></button>
+</div>
+<p class="ket-grup">Untuk masuk tanpa kata sandi dan membuka kunci. Aplikasi terkunci otomatis setelah {{ kunci_menit }} menit tidak dipakai. Data wajah / sidik jari tetap di HP; server hanya menyimpan kunci publik perangkat.</p>
+
 <div class="kepala-grup"><h2>Notifikasi</h2></div>
 <div class="grup">
   <div class="sel"><div class="ikon-sel" style="background:var(--merah)">🔔</div><div class="utama"><div class="nama">Permintaan ACC</div><div class="sub status-push" id="status-push">Memeriksa…</div></div>
@@ -99,6 +109,20 @@ saklar.addEventListener('change', async () => {
   } catch (e) { kabar(e.message, true); }
   await periksa();
 });
+// ---- Passkey ----
+document.querySelectorAll('[data-label-pk]').forEach(el => el.textContent = PK.label());
+const tombolDaftar = document.getElementById('daftar-pk');
+if (!PK.dukung()) { tombolDaftar.disabled = true; tombolDaftar.querySelector('.utama').textContent = 'Browser ini tidak mendukung Face ID / sidik jari'; }
+tombolDaftar.addEventListener('click', async () => {
+  tombolDaftar.disabled = true;
+  try { kabar((await PK.daftar("{% url 'hp:passkey_opsi' %}", "{% url 'hp:passkey_daftar' %}")).pesan); setTimeout(() => location.reload(), 1200); }
+  catch (e) { kabar(PK.pesanGagal(e), true); tombolDaftar.disabled = false; }
+});
+document.querySelectorAll('[data-hapus-pk]').forEach(b => b.addEventListener('click', async () => {
+  if (!await tanya('Hapus ' + b.dataset.nama + ' dari daftar? Perangkat itu harus memakai kata sandi lagi.', {ya: 'Hapus', bahaya: true})) return;
+  try { kabar((await kirim("{% url 'hp:passkey_hapus' %}", {id: b.dataset.hapusPk})).pesan); setTimeout(() => location.reload(), 900); }
+  catch (e) { kabar(e.message, true); }
+}));
 tes.addEventListener('click', async () => { try { kabar((await kirim(URL_PUSH, {aksi: 'tes', endpoint: sub.endpoint})).pesan); } catch (e) { kabar(e.message, true); } });
 periksa().catch(e => status.textContent = 'Gagal memeriksa: ' + e.message);
 </script>

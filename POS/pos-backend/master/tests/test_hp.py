@@ -18,6 +18,15 @@ from master.models import BukaDus, Pembelian, Supplier, TarifPPN, Tiket, TiketUs
 from master.tests.dasar import Dasar, buat_item
 
 
+def masuk_hp(client, user):
+    """Masuk dan tandai aplikasi HP baru dibuka (tidak terkunci)."""
+    import time
+    client.force_login(user)
+    sesi = client.session
+    sesi["hp_aktif"] = int(time.time())
+    sesi.save()
+
+
 class HpTest(Dasar):
     @classmethod
     def setUpTestData(cls):
@@ -26,7 +35,7 @@ class HpTest(Dasar):
         layanan.sinkron_info()
 
     def setUp(self):
-        self.client.force_login(self.admin)
+        masuk_hp(self.client, self.admin)
 
     def post_json(self, nama, data, *args):
         return self.client.post(reverse(nama, args=args), json.dumps(data), content_type="application/json")
@@ -39,7 +48,9 @@ class HpTest(Dasar):
                     reverse("hp:tugas"), reverse("hp:tugas_baru"), reverse("hp:tugas_baru") + "?jenis=hitung",
                     reverse("hp:tugas_baru") + "?jenis=lokasi", reverse("hp:input"), reverse("hp:manifest"),
                     reverse("hp:transaksi"), reverse("hp:setelan")):
-            self.assertEqual(self.client.get(url).status_code, 200, url)
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, url)
+            self.assertNotIn(b"{#", r.content, url)          # komentar templat tidak boleh bocor ke halaman
         r = self.client.get(reverse("hp:ikon", args=[192]))
         self.assertEqual(r["Content-Type"], "image/png")
         isi = self.client.get(reverse("hp:barang") + "?q=cat").content.decode()
@@ -54,13 +65,13 @@ class HpTest(Dasar):
 
     def test_finance_tidak_melihat_modal_dan_tidak_bisa_tugas(self):
         from master.models import ItemInfo
-        self.client.force_login(self.finance)
+        masuk_hp(self.client, self.finance)
         r = self.client.get(reverse("hp:barang_detail", args=[ItemInfo.objects.get(item_name="Cat Avian").id]))
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, "31.000")
         self.assertEqual(self.client.get(reverse("hp:tugas")).status_code, 403)
         self.assertEqual(self.client.post(reverse("hp:input_beli"), {}).status_code, 403)
-        self.client.force_login(self.gudang)
+        masuk_hp(self.client, self.gudang)
         self.assertNotEqual(self.client.get(reverse("hp:beranda")).status_code, 200)
 
     def test_stok_dari_hp(self):
@@ -203,7 +214,7 @@ class HpTest(Dasar):
         self.assertContains(r, "Palu")
         self.assertContains(self.client.get(reverse("hp:transaksi") + "?tanggal=2001-01-01"), "Belum ada transaksi")
         self.assertEqual(self.client.get(reverse("hp:transaksi") + "?tanggal=salah").status_code, 200)
-        self.client.force_login(self.finance)
+        masuk_hp(self.client, self.finance)
         self.assertEqual(self.client.get(reverse("hp:transaksi")).status_code, 403)
 
     def test_setelan_dan_service_worker(self):
@@ -217,7 +228,7 @@ class HpTest(Dasar):
 
 class PushTest(Dasar):
     def setUp(self):
-        self.client.force_login(self.admin)
+        masuk_hp(self.client, self.admin)
 
     def _langganan(self):
         from cryptography.hazmat.primitives import serialization
@@ -280,7 +291,7 @@ class PushTest(Dasar):
     def test_finance_tidak_dapat_notifikasi_nota(self):
         from unittest import mock
         from master.layanan import push
-        self.client.force_login(self.finance)
+        masuk_hp(self.client, self.finance)
         self.client.post(reverse("hp:push"), json.dumps({"aksi": "langganan", "langganan": self._langganan()}), content_type="application/json")
         NotaTinjau.objects.create(sync_id=uuid.uuid4(), transaction_id="T01-3", device_code="T01", alasan="floor", payload={})
         with mock.patch.object(push, "kirim_satu", return_value=201) as k:

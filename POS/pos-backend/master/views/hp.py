@@ -455,8 +455,10 @@ def setelan(request):
     from master.layanan.toko import toko_aktif
     from master.models import PushLangganan
     hak = hak_pengguna(request.user)
+    from master.akun.kunci_hp import KUNCI_DETIK
+    from master.models import PasskeyHp
     return _tampil(request, "hp/setelan.html", {
-        "tab": "setelan", "toko": toko_aktif(request), "kunci_push": svc_push.kunci().kunci_publik,
+        "tab": "setelan", "passkey": PasskeyHp.objects.filter(user=request.user), "kunci_menit": KUNCI_DETIK // 60, "toko": toko_aktif(request), "kunci_push": svc_push.kunci().kunci_publik,
         "perangkat": PushLangganan.objects.filter(user=request.user),
         "dapat": [label for jenis, label in (("nota", "Nota kasir ditahan (mis. di bawah floor)"),
                                               ("tugas", "Tugas karyawan selesai dikerjakan"),
@@ -525,6 +527,133 @@ def service_worker(request):
     resp["Cache-Control"] = "no-cache"
     resp["Service-Worker-Allowed"] = "/hp/"
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Kunci aplikasi dan passkey (Face ID / sidik jari)
+# ---------------------------------------------------------------------------
+
+
+def _ke_aman(alamat, bawaan="/hp/"):
+    return alamat if alamat and alamat.startswith("/") and not alamat.startswith("//") else bawaan
+
+
+def _perangkat(request):
+    ua = request.META.get("HTTP_USER_AGENT", "")
+    for kata, nama in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Macintosh", "Mac"), ("Windows", "Windows")):
+        if kata in ua:
+            return nama
+    return "Perangkat"
+
+
+def kunci(request):
+    """Layar kunci: buka dengan passkey atau kata sandi. Tidak lewat perlu_hp (middleware membebaskannya)."""
+    from master.akun import masuk as svc_masuk
+    from master.akun.kunci_hp import tandai_terbuka, terkunci
+    from master.models import PasskeyHp
+    tujuan = _ke_aman(request.POST.get("next") or request.GET.get("next"))
+    if not request.user.is_authenticated:
+        from urllib.parse import quote
+        from django.urls import reverse
+        return redirect(f"{reverse('hp:masuk')}?next={quote(tujuan)}")
+    galat = ""
+    if request.method == "POST":
+        nama = request.user.username
+        if svc_masuk.gagal(nama) >= svc_masuk.BATAS:
+            galat = f"Terlalu banyak percobaan salah. Coba lagi {svc_masuk.KUNCI // 60} menit lagi."
+        elif request.user.check_password(request.POST.get("password") or ""):
+            from django.core.cache import cache
+            cache.delete(svc_masuk._kunci(nama))
+            tandai_terbuka(request)
+            return redirect(tujuan)
+        else:
+            from django.core.cache import cache
+            k = svc_masuk._kunci(nama)
+            cache.set(k, cache.get(k, 0) + 1, svc_masuk.KUNCI)
+            galat = "Kata sandi salah."
+    elif not terkunci(request):
+        return redirect(tujuan)
+    return render(request, "hp/kunci.html", {
+        "next": tujuan, "galat": galat, "punya_passkey": PasskeyHp.objects.filter(user=request.user).exists(),
+    })
+
+
+def kunci_opsi(request):
+    from master.layanan import passkey
+    if not request.user.is_authenticated:
+        return _jawab(False, "Belum masuk.", 401)
+    return JsonResponse(passkey.opsi_masuk(request, request.user))
+
+
+@require_POST
+def kunci_buka(request):
+    from master.akun.kunci_hp import tandai_terbuka
+    from master.layanan import passkey
+    if not request.user.is_authenticated:
+        return _jawab(False, "Belum masuk.", 401)
+    d = _json_badan(request)
+    try:
+        passkey.verifikasi(request, d.get("kredensial") or {}, user=request.user)
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    tandai_terbuka(request)
+    return _jawab(pesan="Terbuka.", next=_ke_aman(d.get("next")))
+
+
+def masuk_opsi(request):
+    from master.layanan import passkey
+    return JsonResponse(passkey.opsi_masuk(request))
+
+
+@require_POST
+def masuk_passkey(request):
+    from django.contrib.auth import login
+    from master.akun.kunci_hp import tandai_terbuka
+    from master.layanan import passkey
+    d = _json_badan(request)
+    try:
+        p = passkey.verifikasi(request, d.get("kredensial") or {})
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    login(request, p.user, backend="django.contrib.auth.backends.ModelBackend")
+    tandai_terbuka(request)
+    return _jawab(pesan="Masuk.", next=_ke_aman(d.get("next")))
+
+
+@perlu_hp()
+def passkey_opsi_daftar(request):
+    from master.layanan import passkey
+    return JsonResponse(passkey.opsi_daftar(request, request.user))
+
+
+@require_POST
+@perlu_hp()
+def passkey_daftar(request):
+    from master.layanan import passkey
+    d = _json_badan(request)
+    try:
+        p = passkey.daftar(request, request.user, d.get("kredensial") or {}, nama=_perangkat(request))
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    layanan.catat(request.user, objek="akun", kolom="passkey", baru=f"Passkey didaftarkan: {p.nama}")
+    return _jawab(pesan=f"Terdaftar. Berikutnya bisa masuk dan membuka kunci dengan {p.nama}.")
+
+
+@require_POST
+@perlu_hp()
+def passkey_hapus(request):
+    from master.models import PasskeyHp
+    d = _json_badan(request)
+    n, _ = PasskeyHp.objects.filter(user=request.user, pk=d.get("id") or 0).delete()
+    if n:
+        layanan.catat(request.user, objek="akun", kolom="passkey", baru="Passkey dihapus")
+    return _jawab(pesan="Perangkat dihapus." if n else "Tidak ditemukan.")
+
+
+@perlu_hp()
+def detak(request):
+    """Dipanggil saat aplikasi sedang dipakai (tanpa pindah halaman) supaya tidak terkunci di tengah jalan."""
+    return HttpResponse(status=204)
 
 
 # ---------------------------------------------------------------------------

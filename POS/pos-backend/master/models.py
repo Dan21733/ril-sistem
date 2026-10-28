@@ -1109,3 +1109,18 @@ class PushTerkirim(models.Model):
 
     class Meta:
         db_table = "master_push_terkirim"
+
+
+class PasskeyHp(models.Model):
+    """Passkey (Face ID / sidik jari) untuk masuk dan membuka kunci aplikasi HP. Hanya kunci publik."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="passkey_hp")
+    credential_id = models.CharField(max_length=400, unique=True)
+    kunci_publik = models.TextField()
+    hitungan = models.BigIntegerField(default=0)
+    nama = models.CharField(max_length=100, blank=True, default="")
+    dibuat = models.DateTimeField(auto_now_add=True)
+    terakhir = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "master_passkey_hp"
+        ordering = ["-dibuat"]

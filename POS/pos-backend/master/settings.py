@@ -58,6 +58,8 @@ CSRF_FAILURE_VIEW = "master.akun.masuk.csrf_gagal"
 # Aplikasi operasional (/gudang/) hanya terbuka di perangkat yang disetujui pemilik
 # (master: Kasir > Perangkat operasional). Jangan dimatikan di server sungguhan.
 MIDDLEWARE = [*MIDDLEWARE, "master.akun.gerbang.GerbangPerangkat"]  # noqa: F405
+# Aplikasi HP terkunci sendiri setelah beberapa menit tidak dipakai (Face ID / sidik jari / kata sandi).
+MIDDLEWARE = [*MIDDLEWARE, "master.akun.kunci_hp.KunciHp"]
 OPS_WAJIB_PERANGKAT = True
 
 TEMPLATES = copy.deepcopy(TEMPLATES)
