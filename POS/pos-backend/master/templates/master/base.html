@@ -7,7 +7,7 @@
 <title>{% block judul %}Master{% endblock %} · Master POS</title>
 <script>
 /* Dibaca sebelum halaman digambar supaya menu tidak berkedip. Hanya kenyamanan per browser. */
-(function(){var h=document.documentElement;try{var k=localStorage.getItem('menu_kunci');if(k!=='0')h.classList.add('menu-kunci');var l=parseInt(localStorage.getItem('menu_lebar'),10);if(l>=200&&l<=420)h.style.setProperty('--lebar-menu',l+'px');}catch(e){h.classList.add('menu-kunci');}})();
+(function(){var h=document.documentElement;try{var u=localStorage.getItem('ukuran_tampilan');if(u)h.dataset.ukuran=u;var k=localStorage.getItem('menu_kunci');if(k!=='0')h.classList.add('menu-kunci');var l=parseInt(localStorage.getItem('menu_lebar'),10);if(l>=200&&l<=420)h.style.setProperty('--lebar-menu',l+'px');}catch(e){h.classList.add('menu-kunci');}})();
 </script>
 <style>
 :root{
@@ -142,6 +142,15 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
 .atur-rencana .ket{font-size:13px;color:var(--redup)}
 .atur-rencana .ket.bahaya{color:var(--bahaya);font-weight:600}
 .grup-nonaktif>summary{font-weight:600}
+
+/* Ukuran tampilan. Otomatis: layar laptop (mis. FHD dengan skala Windows 125-150%) sedikit dirapatkan
+   supaya tabel lebar muat tanpa digeser. Bisa dipilih manual di Pengaturan > Tampilan (per browser). */
+@media (min-width:1101px) and (max-width:1700px){html:not([data-ukuran]) body{zoom:.9}}
+@media (min-width:1101px) and (max-width:1420px){html:not([data-ukuran]) body{zoom:.82}}
+html[data-ukuran="100"] body{zoom:1}
+html[data-ukuran="90"] body{zoom:.9}
+html[data-ukuran="80"] body{zoom:.8}
+html[data-ukuran="110"] body{zoom:1.1}
 </style>
 </head>
 <body>

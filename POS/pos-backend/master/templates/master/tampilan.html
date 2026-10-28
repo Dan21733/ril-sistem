@@ -11,6 +11,30 @@
   </button>
   {% endfor %}
 </form>
+<h3>Ukuran tampilan</h3>
+<div class="kartu" style="max-width:640px">
+  <p style="margin-top:0">Kalau tabel terasa sesak atau tulisan terlalu kecil di layar ini. Tersimpan di browser ini saja.</p>
+  <div class="baris" id="ukuran" style="gap:8px;flex-wrap:wrap">
+    <button type="button" class="tombol" data-ukuran="">Otomatis</button>
+    <button type="button" class="tombol" data-ukuran="80">Kecil (80%)</button>
+    <button type="button" class="tombol" data-ukuran="90">Sedang (90%)</button>
+    <button type="button" class="tombol" data-ukuran="100">Normal (100%)</button>
+    <button type="button" class="tombol" data-ukuran="110">Besar (110%)</button>
+  </div>
+  <p class="kecil redup" style="margin-bottom:0">Otomatis: dirapatkan sedikit di layar laptop (lebar 1100–1700 titik), normal di layar besar.</p>
+</div>
+<script>
+(function(){
+  var h = document.documentElement, wadah = document.getElementById('ukuran');
+  function tandai(){ wadah.querySelectorAll('button').forEach(function(b){ var pilih = (h.dataset.ukuran || '') === b.dataset.ukuran;
+    b.classList.toggle('utama', pilih); b.setAttribute('aria-pressed', pilih); }); }
+  wadah.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.ukuran) h.dataset.ukuran = b.dataset.ukuran; else delete h.dataset.ukuran;
+    try { b.dataset.ukuran ? localStorage.setItem('ukuran_tampilan', b.dataset.ukuran) : localStorage.removeItem('ukuran_tampilan'); } catch (x) {}
+    tandai(); });
+  tandai();
+})();
+</script>
 <h3>Menu samping</h3>
 <div class="kartu" style="max-width:640px">
   <p style="margin-top:0"><b>Kunci / Lepas</b> (tombol di pojok atas menu): kalau dilepas, menu sembunyi sendiri dan muncul saat kursor diarahkan ke pinggir kiri layar (atau klik pinggirnya).</p>

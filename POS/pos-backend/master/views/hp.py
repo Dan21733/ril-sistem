@@ -41,6 +41,42 @@ def perlu_hp(hak=None):
     return bungkus
 
 
+PERIODE = [("hari", "Hari ini"), ("kemarin", "Kemarin"), ("7hari", "7 hari"), ("bulan", "Bulan ini")]
+
+
+def _periode(request, *, boleh_tanggal=False):
+    """(kode, awal, akhir, judul) dari ?p= (dan ?tanggal= untuk satu hari pilihan). Bawaan: hari ini."""
+    from datetime import date
+    hari_ini = timezone.localdate()
+    kode = request.GET.get("p") or "hari"
+    if boleh_tanggal and request.GET.get("tanggal"):
+        try:
+            t = min(date.fromisoformat(request.GET["tanggal"]), hari_ini)
+            if t == hari_ini:
+                return "hari", t, t, "Hari ini"
+            if t == hari_ini - timedelta(days=1):
+                return "kemarin", t, t, "Kemarin"
+            return "tanggal", t, t, f"{t.day} {_BULAN[t.month - 1]} {t.year}"
+        except ValueError:
+            pass
+    if kode == "kemarin":
+        k = hari_ini - timedelta(days=1)
+        return kode, k, k, "Kemarin"
+    if kode == "7hari":
+        return kode, hari_ini - timedelta(days=6), hari_ini, "7 hari terakhir"
+    if kode == "bulan":
+        return kode, hari_ini.replace(day=1), hari_ini, "Bulan ini"
+    return "hari", hari_ini, hari_ini, "Hari ini"
+
+
+_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+
+
+def _pembanding(kode):
+    return {"hari": "kemarin", "kemarin": "hari sebelumnya", "7hari": "7 hari sebelumnya",
+            "bulan": "periode sama sebelumnya", "tanggal": "hari sebelumnya"}.get(kode, "sebelumnya")
+
+
 def _json_badan(request):
     try:
         data = json.loads(request.body.decode("utf-8"))
@@ -90,7 +126,8 @@ def beranda(request):
     from master.layanan.toko import toko_aktif
     hak = hak_pengguna(request.user)
     toko = toko_aktif(request)
-    jual = dasbor.penjualan(toko, hak) if "laporan" in hak else None
+    kode, awal, akhir, judul = _periode(request)
+    jual = dasbor.periode(toko, hak, awal, akhir) if "laporan" in hak else None
     lain = dasbor.lain(request, hak, toko)
     nota = []
     if "kelola_kasir" in hak:
@@ -102,7 +139,8 @@ def beranda(request):
     jam = timezone.localtime().hour
     sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
     return render(request, "hp/beranda.html", {
-        "tab": "beranda", "jual": jual, "lain": lain, "nota": nota, "tugas": tugas, "dus": dus,
+        "tab": "beranda", "jual": jual, "lain": lain, "periode": PERIODE, "p": kode, "judul_periode": judul,
+        "pembanding": _pembanding(kode), "nota": nota, "tugas": tugas, "dus": dus,
         "jumlah_acc": len(nota) + len(tugas) + len(dus), "sapa": sapa,
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
     })
@@ -147,18 +185,13 @@ def acc(request):
 
 @perlu_hp("laporan")
 def transaksi(request):
-    """Nota kasir dan nota tulis tangan satu hari (bawaan hari ini), terbaru di atas."""
+    """Nota kasir dan nota tulis tangan untuk satu periode (bawaan hari ini), dikelompokkan per hari."""
     from collections import defaultdict
-    from datetime import date
     from master.layanan import laporan
     from master.layanan.toko import toko_aktif
     hak = hak_pengguna(request.user)
-    hari_ini = timezone.localdate()
-    try:
-        tanggal = min(date.fromisoformat(request.GET.get("tanggal") or ""), hari_ini)
-    except ValueError:
-        tanggal = hari_ini
-    mulai, selesai = laporan.rentang(tanggal, tanggal)
+    kode, awal, akhir, judul = _periode(request, boleh_tanggal=True)
+    mulai, selesai = laporan.rentang(awal, akhir)
     toko = toko_aktif(request)
     nota, _ = laporan.ambil(mulai, selesai, toko=toko)
     kembali = laporan.ambil_kembali(mulai, selesai, toko=toko)
@@ -167,16 +200,27 @@ def transaksi(request):
         per_metode[n["metode"]][0] += 1
         per_metode[n["metode"]][1] += n["total_amount"]
     lihat_modal = "lihat_modal" in hak
+    laba = (sum(n["item_amount"] - n["modal"] for n in nota) - sum(k["uang"] - k["modal_kembali"] for k in kembali)) \
+        if lihat_modal else None
     if not lihat_modal:
         for n in nota:
             n["laba"] = None
     omzet = sum(n["item_amount"] for n in nota) - sum(k["uang"] for k in kembali)
+    BATAS = 300
+    zona = timezone.get_current_timezone()
+    hari = []
+    for n in nota[:BATAS]:
+        t = n["transaction_time"].astimezone(zona).date()
+        if not hari or hari[-1]["tanggal"] != t:
+            hari.append({"tanggal": t, "nota": [], "total": 0})
+        hari[-1]["nota"].append(n)
+        hari[-1]["total"] += n["total_amount"]
     return _tampil(request, "hp/transaksi.html", {
-        "tab": "beranda", "tanggal": tanggal, "hari_ini": hari_ini, "nota": nota, "kembali": kembali,
-        "kemarin": tanggal - timedelta(days=1), "besok": tanggal + timedelta(days=1) if tanggal < hari_ini else None,
-        "omzet": omzet, "ongkir": sum(n["shipping_amount"] for n in nota), "lihat_modal": lihat_modal,
-        "laba": (sum(n["item_amount"] - n["modal"] for n in nota) - sum(k["uang"] - k["modal_kembali"] for k in kembali))
-        if lihat_modal else None,
+        "tab": "transaksi", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "hari_ini": timezone.localdate(), "satu_hari": awal == akhir, "hari": hari, "jumlah_nota": len(nota),
+        "terpotong": len(nota) > BATAS, "batas": BATAS, "kembali": kembali,
+        "omzet": omzet, "ongkir": sum(n["shipping_amount"] for n in nota), "lihat_modal": lihat_modal, "laba": laba,
+        "margin": round(laba / omzet * 100) if lihat_modal and omzet else None,
         "per_metode": sorted(per_metode.items(), key=lambda x: -x[1][1]),
         "manual": sum(1 for n in nota if n.get("manual")),
     })
@@ -458,7 +502,7 @@ def setelan(request):
     from master.akun.kunci_hp import KUNCI_DETIK
     from master.models import PasskeyHp
     return _tampil(request, "hp/setelan.html", {
-        "tab": "setelan", "passkey": PasskeyHp.objects.filter(user=request.user), "kunci_menit": KUNCI_DETIK // 60, "toko": toko_aktif(request), "kunci_push": svc_push.kunci().kunci_publik,
+        "tab": "", "passkey": PasskeyHp.objects.filter(user=request.user), "kunci_menit": KUNCI_DETIK // 60, "toko": toko_aktif(request), "kunci_push": svc_push.kunci().kunci_publik,
         "perangkat": PushLangganan.objects.filter(user=request.user),
         "dapat": [label for jenis, label in (("nota", "Nota kasir ditahan (mis. di bawah floor)"),
                                               ("tugas", "Tugas karyawan selesai dikerjakan"),

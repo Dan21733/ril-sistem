@@ -1,9 +1,8 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Transaksi · DB Toko{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
-{% block judul_kecil %}{% if tanggal == hari_ini %}Transaksi hari ini{% else %}{{ tanggal|date:"j M Y" }}{% endif %}{% endblock %}
+{% block judul_kecil %}Transaksi · {{ judul_periode|lower }}{% endblock %}
 {% block gaya %}<style>
-.navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}
+.x-navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}
 .navhari a,.navhari span.mati{width:36px;height:36px;border-radius:50%;background:var(--isi);display:grid;place-items:center;font-size:20px;color:var(--tint)}
 .navhari span.mati{color:var(--teks3)}
 .navhari input{flex:1;border:0;background:var(--kartu);border-radius:10px;padding:8px 10px;font-size:16px;text-align:center}
@@ -19,22 +18,19 @@ details.nota[open]>summary{background:var(--isi)}
 .metode b{display:block;font-size:16px}.metode span{font-size:12px;color:var(--teks2)}
 </style>{% endblock %}
 {% block isi %}
-<h1 class="judul-besar">{% if tanggal == hari_ini %}Transaksi hari ini{% else %}Transaksi{% endif %}</h1>
-<div class="navhari">
-  <a href="?tanggal={{ kemarin|date:'Y-m-d' }}" aria-label="Hari sebelumnya">‹</a>
-  <input type="date" value="{{ tanggal|date:'Y-m-d' }}" max="{{ hari_ini|date:'Y-m-d' }}" onchange="location.search='?tanggal='+this.value">
-  {% if besok %}<a href="?tanggal={{ besok|date:'Y-m-d' }}" aria-label="Hari berikutnya">›</a>{% else %}<span class="mati">›</span>{% endif %}
-</div>
+<h1 class="judul-besar">Transaksi</h1>
+{% include "hp/_periode.html" with pilih_tanggal=1 %}
 <div class="ubin">
-  <div class="lebar"><div class="lbl">Penjualan bersih</div><div class="angka">{{ omzet|rupiah }}</div><div class="ket">{{ nota|length }} nota{% if manual %} · {{ manual }} tulis tangan{% endif %}</div></div>
-  {% if lihat_modal %}<div><div class="lbl">Laba kotor</div><div class="angka">{{ laba|rupiah }}</div><div class="ket">{% if omzet %}margin {% widthratio laba omzet 100 %}%{% else %}-{% endif %}</div></div>
-  {% else %}<div><div class="lbl">Ongkir</div><div class="angka">{{ ongkir|rupiah }}</div><div class="ket">di luar penjualan</div></div>{% endif %}
+  <div class="lebar"><div class="lbl">Penjualan bersih · {{ judul_periode|lower }}</div><div class="angka">{{ omzet|rupiah }}</div><div class="ket">{{ jumlah_nota }} nota{% if manual %} · {{ manual }} tulis tangan{% endif %}</div></div>
+  {% if lihat_modal %}<div><div class="lbl">Laba kotor</div><div class="angka">{{ laba|rupiah }}</div><div class="ket">{% if margin is not None %}margin {{ margin }}%{% else %}-{% endif %}</div></div>{% endif %}
+  <div><div class="lbl">Ongkir</div><div class="angka">{{ ongkir|rupiah }}</div><div class="ket">di luar penjualan</div></div>
 </div>
 {% if per_metode %}<div class="metode">{% for m, v in per_metode %}<div><span>{{ m }} · {{ v.0 }}</span><b>{{ v.1|rupiah }}</b></div>{% endfor %}</div>{% endif %}
 
-<div class="kepala-grup"><h2>Nota</h2><span class="redup kecil">terbaru di atas</span></div>
+{% for h in hari %}
+<div class="kepala-grup"><h2>{% if h.tanggal == hari_ini %}Hari ini{% else %}{{ h.tanggal|date:"l, j M" }}{% endif %}</h2><span class="redup kecil">{{ h.nota|length }} nota · {{ h.total|rupiah }}</span></div>
 <div class="grup">
-  {% for n in nota %}
+  {% for n in h.nota %}
   <details class="nota">
     <summary class="sel panah"><div class="utama"><div class="nama">{{ n.transaction_time|date:"H:i" }} · {{ n.transaction_id|default:"tanpa nomor" }}</div>
       <div class="sub">{{ n.kasir }} · {{ n.metode }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · {{ n.baris|length }} barang</div></div>
@@ -45,8 +41,12 @@ details.nota[open]>summary{background:var(--isi)}
       {% if n.change_amount %}<div class="b redup"><span>Dibayar {{ n.payment_amount|rupiah }}</span><span>kembali {{ n.change_amount|rupiah }}</span></div>{% endif %}
     </div>
   </details>
-  {% empty %}<div class="kosong">Belum ada transaksi{% if tanggal == hari_ini %} hari ini{% endif %}.</div>{% endfor %}
+  {% endfor %}
 </div>
+{% empty %}
+<div class="grup" style="margin-top:16px"><div class="kosong">Belum ada transaksi {{ judul_periode|lower }}.</div></div>
+{% endfor %}
+{% if terpotong %}<p class="ket-grup">Menampilkan {{ batas }} nota terbaru dari {{ jumlah_nota }}. Angka di atas tetap menghitung semuanya.</p>{% endif %}
 {% if kembali %}
 <div class="kepala-grup"><h2>Retur, refund, void</h2></div>
 <div class="grup">{% for k in kembali %}<div class="sel"><div class="utama"><div class="nama">{{ k.waktu|date:"H:i" }} · {{ k.label }} {{ k.transaction_id|default:"" }}</div>

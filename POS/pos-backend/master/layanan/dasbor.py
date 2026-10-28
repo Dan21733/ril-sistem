@@ -195,3 +195,51 @@ def lain(request, hak, toko):
         if "lihat_stok" in hak else 0,
         "hutang": svc_beli.ringkasan_hutang(toko=toko) if "pembelian" in hak else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Ringkasan satu periode (aplikasi HP: Hari ini / Kemarin / 7 hari / Bulan ini)
+# ---------------------------------------------------------------------------
+
+BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+
+
+def periode(toko, hak, awal, akhir):
+    """Angka penjualan untuk awal..akhir (tanggal lokal, inklusif), dibandingkan periode sebelumnya yang sama panjang."""
+    panjang = (akhir - awal).days + 1
+    sebelum_awal = awal - timedelta(days=panjang)
+    mulai, selesai = laporan.rentang(sebelum_awal, akhir)
+    nota, baris = laporan.ambil(mulai, selesai, toko=toko)
+    kembali = laporan.ambil_kembali(mulai, selesai, toko=toko)
+    omzet, laba, jumlah = _bersih_per_hari(nota, kembali)
+    hari = [awal + timedelta(days=i) for i in range(panjang)]
+    lalu = [sebelum_awal + timedelta(days=i) for i in range(panjang)]
+    o, l, n = sum(omzet[d] for d in hari), sum(laba[d] for d in hari), sum(jumlah[d] for d in hari)
+    o_lalu = sum(omzet[d] for d in lalu)
+    lihat_modal = "lihat_modal" in hak
+    hasil = {
+        "omzet": o, "laba": l if lihat_modal else None, "nota": n, "rata": round(o / n) if n else 0,
+        "margin": round(l / o * 100, 1) if lihat_modal and o else None, "lihat_modal": lihat_modal,
+        "omzet_lalu": o_lalu, "banding": round((o - o_lalu) / o_lalu * 100) if o_lalu > 0 else None,
+    }
+    zona = timezone.get_current_timezone()
+    mulai_ini = laporan.rentang(awal, akhir)[0]
+    nota_ini = [x for x in nota if x["transaction_time"] >= mulai_ini]
+    if panjang == 1:
+        per_jam = defaultdict(int)
+        for x in nota_ini:
+            per_jam[x["transaction_time"].astimezone(zona).hour] += x["item_amount"]
+        ada = [j for j in per_jam if per_jam[j]]
+        hasil["grafik_judul"] = "Per jam"
+        hasil["grafik"] = _batang([{"label": f"{j:02d}", "nilai": per_jam[j], "kini": False}
+                                   for j in range(min([7] + ada), max([17] + ada) + 1)])
+    else:
+        hari_ini = timezone.localdate()
+        hasil["grafik_judul"] = "Per hari"
+        # Lebih dari seminggu: label tanggal hanya tiap 5 hari (dan hari terakhir) supaya tidak berdempet.
+        hasil["grafik"] = _batang([{"label": HARI[d.weekday()] if panjang <= 7 else
+                                    (str(d.day) if d.day == 1 or d.day % 5 == 0 or d == akhir else ""),
+                                    "nilai": omzet[d], "kini": d == hari_ini} for d in hari])
+    baris_ini = [b for b in baris if b["nota"]["transaction_time"] >= mulai_ini]
+    hasil["terlaris"] = laporan.kelompok_baris(baris_ini, "barang", "omzet")[:5]
+    return hasil

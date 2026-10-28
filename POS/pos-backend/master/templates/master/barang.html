@@ -59,7 +59,12 @@
 
 <style>
 .belah{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
-.belah.buka{grid-template-columns:minmax(300px,1fr) minmax(0,2fr)}
+.belah.buka{grid-template-columns:clamp(250px,26%,440px) minmax(0,1fr)}
+.kanan [data-tabel-varian] th,.kanan [data-tabel-varian] td{padding-left:6px;padding-right:6px}
+.kanan [data-tabel-varian] td input.sel{width:100px;padding:7px 6px}
+.kanan [data-tabel-varian] .tombol.kecil{padding:5px 9px}
+.kanan [data-tabel-varian] td select.sel{width:84px}
+.kanan [data-tabel-varian] td:nth-child(2){min-width:150px}
 .belah.buka .sempit{display:none}
 .kiri{min-width:0}
 #tabel-barang{table-layout:fixed}
@@ -70,7 +75,7 @@
 #tabel-barang td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #tabel-barang td b{display:block;overflow:hidden;text-overflow:ellipsis}
 #tabel-barang .masalah-teks{overflow:hidden;text-overflow:ellipsis}
-.belah.buka #tabel-barang th:nth-child(4),.belah.buka #tabel-barang td:nth-child(4){width:200px}
+.belah.buka #tabel-barang th:nth-child(4),.belah.buka #tabel-barang td:nth-child(4){width:42%}
 .kanan{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:22px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;min-width:0}
 .kanan h2{font-size:22px}
 .baris-item{cursor:pointer}

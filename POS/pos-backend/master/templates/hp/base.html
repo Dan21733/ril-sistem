@@ -97,7 +97,7 @@ a.sel:active{background:var(--isi)}
 .ubin{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ubin>div{background:var(--kartu);border-radius:14px;padding:12px 14px;box-shadow:var(--bayang);min-width:0}
 .ubin .lbl{font-size:13px;color:var(--teks2);font-weight:500}
-.ubin .angka{font-size:24px;font-weight:700;margin:2px 0;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ubin .angka{font-size:clamp(17px,5.2vw,24px);font-weight:700;margin:2px 0;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ubin .ket{font-size:13px;color:var(--teks2)}
 .ubin .lebar{grid-column:1/-1}
 .naik{color:var(--hijau)}.turun{color:var(--merah)}
@@ -136,6 +136,14 @@ a.sel:active{background:var(--isi)}
 .seg button,.seg a,.seg label{flex:1;text-align:center;border:0;background:none;padding:7px 4px;font-size:14px;font-weight:600;border-radius:8px;color:var(--teks);cursor:pointer}
 .seg .aktif,.seg input:checked+span{background:var(--kartu);box-shadow:0 2px 6px rgba(0,0,0,.12)}
 .seg label input{display:none}.seg label span{display:block;padding:7px 4px;border-radius:8px;margin:-7px -4px}
+
+/* Pilihan periode: tombol besar, semua terlihat tanpa digeser */
+.periode{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 14px}
+.periode a,.periode label{text-align:center;padding:11px 2px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;
+  box-shadow:var(--bayang);border:1px solid var(--garis);position:relative;cursor:pointer;white-space:nowrap}
+.periode label{grid-column:1/-1}
+.periode .aktif{background:var(--tint);color:#fff;border-color:var(--tint)}
+.periode label input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 
 /* Pilihan chip */
 .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--kartu);margin:0 6px 8px 0;font-size:15px;cursor:pointer;border:1px solid var(--garis)}
@@ -226,9 +234,9 @@ details.lipat>summary::-webkit-details-marker{display:none}
   <a href="{% url 'hp:input' %}" class="{% if tab == 'input' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="14" cy="14" r="10.5" {% if tab == 'input' %}fill="currentColor"{% endif %}/><path d="M14 9v10M9 14h10" stroke="{% if tab == 'input' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
     Catat</a>
-  <a href="{% url 'hp:setelan' %}" class="{% if tab == 'setelan' %}aktif{% endif %}">
-    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="10" r="4.5" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/><path d="M5 24c.8-4.6 4.4-7 9-7s8.2 2.4 9 7" {% if tab == 'setelan' %}fill="currentColor"{% endif %}/></svg>
-    Setelan</a>
+  <a href="{% url 'hp:transaksi' %}" class="{% if tab == 'transaksi' %}aktif{% endif %}">
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h16v21l-2.7-1.8-2.6 1.8-2.7-1.8-2.7 1.8-2.6-1.8L6 24.5z" {% if tab == 'transaksi' %}fill="currentColor"{% endif %}/><path d="M10 10h8M10 14.5h8M10 19h5" stroke="{% if tab == 'transaksi' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
+    Transaksi</a>
 </nav>{% endblock %}
 <div id="kabar" role="status"></div>
 {% include "master/_tanya.html" %}

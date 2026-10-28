@@ -4,7 +4,11 @@
 {% block kanan %}<a href="{% url 'hp:setelan' %}" aria-label="Setelan" class="avatar-kecil">{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</a>{% endblock %}
 {% block gaya %}<style>
 .atas .kanan a.avatar-kecil{width:34px;height:34px;border-radius:50%;background:var(--tint);background-image:linear-gradient(145deg,rgba(255,255,255,.18),rgba(0,0,0,.25));color:#fff!important;font-weight:600;font-size:15px;justify-content:center}
-.ubin-link .ket::after{content:" ›";color:var(--teks3)}
+.kartu-utama{display:block;background:var(--kartu);border-radius:18px;padding:16px 18px;box-shadow:var(--bayang);color:var(--teks)!important}
+.kartu-utama .lbl{font-size:15px;color:var(--teks2);font-weight:500}
+.kartu-utama .besar{font-size:34px;font-weight:700;letter-spacing:-.5px;margin:2px 0;font-variant-numeric:tabular-nums}
+.kartu-utama .ket{font-size:15px;color:var(--teks2)}
+.kartu-utama .lihat{margin-top:10px;color:var(--tint);font-weight:600;font-size:15px}
 #ajak-push{display:flex;gap:12px;align-items:center;padding:12px 14px}
 </style>{% endblock %}
 {% block isi %}
@@ -12,21 +16,23 @@
 <p class="anak-judul">{% now "l, j F Y" %}{% if toko_aktif %} · {{ toko_aktif.nama }}{% endif %}</p>
 
 {% if jual %}
-<div class="ubin">
-  <a class="ubin-link" href="{% url 'hp:transaksi' %}" style="background:var(--kartu);border-radius:14px;padding:12px 14px;box-shadow:var(--bayang);min-width:0;color:inherit"><div class="lbl">Penjualan hari ini</div><div class="angka">{{ jual.hari.omzet|singkat }}</div>
-    <div class="ket">{{ jual.hari.nota }} nota{% if jual.banding is not None %} · <span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}▲{% else %}▼{% endif %} {{ jual.banding }}%</span>{% endif %}</div></a>
-  {% if jual.lihat_modal %}<div><div class="lbl">Laba kotor hari ini</div><div class="angka">{{ jual.hari.laba|singkat }}</div>
-    <div class="ket">margin {% if jual.hari.margin is not None %}{{ jual.hari.margin }}%{% else %}-{% endif %}</div></div>{% endif %}
-  <div><div class="lbl">Bulan ini</div><div class="angka">{{ jual.bulan.omzet|singkat }}</div>
-    <div class="ket">{{ jual.bulan.nota }} nota{% if jual.lihat_modal %} · laba {{ jual.bulan.laba|singkat }}{% endif %}</div></div>
-  <div><div class="lbl">Rata-rata per nota</div><div class="angka">{{ jual.hari.rata|singkat }}</div>
-    <div class="ket">kemarin {{ jual.kemarin.omzet|singkat }}</div></div>
+{% include "hp/_periode.html" %}
+<a class="kartu-utama" href="{% url 'hp:transaksi' %}?p={{ p }}">
+  <div class="lbl">Penjualan · {{ judul_periode|lower }}</div>
+  <div class="besar">{{ jual.omzet|rupiah }}</div>
+  <div class="ket">{{ jual.nota }} nota{% if jual.banding is not None %} · <span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}naik{% else %}turun{% endif %} {% if jual.banding >= 0 %}{{ jual.banding }}{% else %}{{ jual.banding|stringformat:"d"|slice:"1:" }}{% endif %}%</span> dibanding {{ pembanding }}{% endif %}</div>
+  <div class="lihat">Lihat transaksi ›</div>
+</a>
+<div class="ubin" style="margin-top:10px">
+  {% if jual.lihat_modal %}<div><div class="lbl">Laba kotor</div><div class="angka">{{ jual.laba|rupiah }}</div>
+    <div class="ket">margin {% if jual.margin is not None %}{{ jual.margin }}%{% else %}-{% endif %}</div></div>{% endif %}
+  <div><div class="lbl">Rata-rata per nota</div><div class="angka">{{ jual.rata|rupiah }}</div><div class="ket">{{ jual.nota }} nota</div></div>
 </div>
 
 <div class="grup" id="ajak-push" hidden style="margin-top:12px"><div style="font-size:26px">🔔</div><div style="flex:1"><b>Nyalakan notifikasi ACC</b><div class="redup kecil">Diberi tahu saat ada nota di bawah floor, tugas selesai, dan lainnya.</div></div><a class="tombol kecil" href="{% url 'hp:setelan' %}">Atur</a></div>
-<div class="kepala-grup"><h2>7 hari terakhir</h2><span class="redup kecil">{{ jual.minggu_total.omzet|singkat }}</span></div>
+<div class="kepala-grup"><h2>{{ jual.grafik_judul }}</h2><span class="redup kecil">{{ judul_periode }}</span></div>
 <div class="grup"><div class="batang">
-  {% for d in jual.minggu %}<div class="k{% if d.hari_ini %} kini{% endif %}"><div class="b" style="height:{{ d.tinggi }}%" title="{{ d.nilai|rupiah }}"></div><div class="l">{{ d.label }}</div></div>{% endfor %}
+  {% for d in jual.grafik %}<div class="k{% if d.kini %} kini{% endif %}"><div class="b" style="height:{{ d.tinggi }}%" title="{{ d.nilai|rupiah }}"></div><div class="l">{{ d.label }}</div></div>{% endfor %}
 </div></div>
 {% endif %}
 
@@ -76,10 +82,9 @@
 {% endif %}
 
 </div><div>
-{% if jual %}<div class="kepala-grup"><h2>Transaksi</h2></div>
-<div class="grup"><a class="sel" href="{% url 'hp:transaksi' %}"><div class="utama"><div class="nama">Transaksi hari ini</div><div class="sub">{{ jual.hari.nota }} nota · {{ jual.hari.omzet|rupiah }}</div></div></a></div>{% endif %}
+{% if jual %}{% if not jual.terlaris %}<div class="kepala-grup"><h2>Terlaris</h2><span class="redup kecil">{{ judul_periode }}</span></div><div class="grup"><div class="kosong">Belum ada penjualan.</div></div>{% endif %}{% endif %}
 {% if jual and jual.terlaris %}
-<div class="kepala-grup"><h2>Terlaris 7 hari</h2></div>
+<div class="kepala-grup"><h2>Terlaris</h2><span class="redup kecil">{{ judul_periode }}</span></div>
 <div class="grup">
   {% for h in jual.terlaris %}<div class="sel"><div class="utama"><div class="nama">{{ forloop.counter }}. {{ h.nama }}</div><div class="sub">{{ h.qty|ribuan }} terjual</div></div><span class="nilai">{{ h.omzet|singkat }}</span></div>{% endfor %}
 </div>

@@ -1,0 +1,6 @@
+{# Pilihan periode: tombol besar, satu ketukan. #}
+<nav class="periode" aria-label="Periode">
+  {% for k, l in periode %}<a href="?p={{ k }}" class="{% if p == k %}aktif{% endif %}">{{ l }}</a>{% endfor %}
+  {% if pilih_tanggal %}<label class="{% if p == 'tanggal' %}aktif{% endif %}">📅 {% if p == 'tanggal' %}{{ judul_periode }} · ganti tanggal{% else %}Pilih tanggal lain{% endif %}
+    <input type="date" max="{{ hari_ini|date:'Y-m-d' }}" value="{{ awal|date:'Y-m-d' }}" onchange="if(this.value)location.search='?tanggal='+this.value"></label>{% endif %}
+</nav>
