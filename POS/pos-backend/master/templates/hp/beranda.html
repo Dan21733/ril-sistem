@@ -18,7 +18,7 @@
 {% if jual %}
 {% include "hp/_periode.html" %}
 <a class="kartu-utama" href="{% url 'hp:transaksi' %}?p={{ p }}">
-  <div class="lbl">Penjualan · {{ judul_periode|lower }}</div>
+  <div class="lbl">Penjualan · {{ judul_periode }}</div>
   <div class="besar">{{ jual.omzet|rupiah }}</div>
   <div class="ket">{{ jual.nota }} nota{% if jual.banding is not None %} · <span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}naik{% else %}turun{% endif %} {% if jual.banding >= 0 %}{{ jual.banding }}{% else %}{{ jual.banding|stringformat:"d"|slice:"1:" }}{% endif %}%</span> dibanding {{ pembanding }}{% endif %}</div>
   <div class="lihat">Lihat transaksi ›</div>

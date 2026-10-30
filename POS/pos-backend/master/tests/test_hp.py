@@ -219,7 +219,7 @@ class HpTest(Dasar):
 
     def test_periode_beranda_dan_transaksi(self):
         from datetime import timedelta
-        for p, judul in (("hari", "hari ini"), ("kemarin", "kemarin"), ("7hari", "7 hari terakhir"), ("bulan", "bulan ini"), ("aneh", "hari ini")):
+        for p, judul in (("hari", "Hari ini"), ("kemarin", "Kemarin"), ("7hari", "7 hari terakhir"), ("bulan", "Bulan ini"), ("aneh", "Hari ini")):
             r = self.client.get(reverse("hp:beranda") + "?p=" + p)
             self.assertContains(r, "Penjualan · " + judul)
             r = self.client.get(reverse("hp:transaksi") + "?p=" + p)
@@ -233,6 +233,11 @@ class HpTest(Dasar):
         self.assertEqual(r.context["p"], "kemarin")
         self.assertNotContains(r, "T01-000001")
         self.assertContains(self.client.get(reverse("hp:transaksi") + "?tanggal=2099-01-01"), "T01-000001")   # masa depan -> hari ini
+        # rentang dari pemilih tanggal: urutan terbalik tetap dibaca dari tanggal yang lebih awal
+        r = self.client.get(reverse("hp:transaksi") + "?dari=2026-10-20&sampai=2026-10-05")
+        self.assertEqual((r.context["awal"].isoformat(), r.context["akhir"].isoformat()), ("2026-10-05", "2026-10-20"))
+        self.assertContains(r, "5 Okt – 20 Okt 2026")
+        self.assertContains(self.client.get(reverse("hp:beranda") + "?dari=2026-10-05&sampai=2026-10-20"), "Penjualan · 5 Okt – 20 Okt 2026")
 
     def test_setelan_dan_service_worker(self):
         r = self.client.get(reverse("hp:setelan"))

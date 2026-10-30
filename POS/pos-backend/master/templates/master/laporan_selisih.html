@@ -5,9 +5,8 @@
 <p class="sub">Dari opname yang di-ACC, hitung acak, dan barang diambil dari gudang yang jumlahnya beda dari permintaan.
   Cari pola: selisih kecil yang berulang di lokasi, orang, atau kategori yang sama.</p>
 <form method="get" class="kartu baris" style="margin-bottom:18px">
-  <div><label>Dari</label><input type="date" name="dari" value="{{ dari|date:'Y-m-d' }}"></div>
-  <div><label>Sampai</label><input type="date" name="sampai" value="{{ sampai|date:'Y-m-d' }}"></div>
-  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-awal="{{ dari|date:'Y-m-d' }}" data-akhir="{{ sampai|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ dari|date:'j M Y' }} – {{ sampai|date:'j M Y' }}</span> <span class="redup">▾</span></button>
+    <input type="hidden" name="dari" value="{{ dari|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ sampai|date:'Y-m-d' }}"></div>
 </form>
 {% if not r.jumlah %}<p class="redup">Tidak ada selisih pada rentang ini.</p>{% else %}
 <p>{{ r.jumlah }} kejadian selisih.</p>

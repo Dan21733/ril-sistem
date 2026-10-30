@@ -44,21 +44,33 @@ def perlu_hp(hak=None):
 PERIODE = [("hari", "Hari ini"), ("kemarin", "Kemarin"), ("7hari", "7 hari"), ("bulan", "Bulan ini")]
 
 
-def _periode(request, *, boleh_tanggal=False):
-    """(kode, awal, akhir, judul) dari ?p= (dan ?tanggal= untuk satu hari pilihan). Bawaan: hari ini."""
+def _periode(request, *, boleh_tanggal=True):
+    """(kode, awal, akhir, judul) dari ?p= atau ?dari=&sampai= (pemilih tanggal). Bawaan: hari ini."""
     from datetime import date
     hari_ini = timezone.localdate()
     kode = request.GET.get("p") or "hari"
-    if boleh_tanggal and request.GET.get("tanggal"):
+    dari, sampai = request.GET.get("dari") or request.GET.get("tanggal"), request.GET.get("sampai") or request.GET.get("tanggal")
+    if boleh_tanggal and dari:
         try:
-            t = min(date.fromisoformat(request.GET["tanggal"]), hari_ini)
-            if t == hari_ini:
-                return "hari", t, t, "Hari ini"
-            if t == hari_ini - timedelta(days=1):
-                return "kemarin", t, t, "Kemarin"
-            return "tanggal", t, t, f"{t.day} {_BULAN[t.month - 1]} {t.year}"
+            a, b = min(date.fromisoformat(dari), hari_ini), min(date.fromisoformat(sampai or dari), hari_ini)
         except ValueError:
-            pass
+            a = b = None
+        if a:
+            if b < a:
+                a, b = b, a
+            a = max(a, b - timedelta(days=366))
+            if a == b == hari_ini:
+                return "hari", a, b, "Hari ini"
+            if a == b == hari_ini - timedelta(days=1):
+                return "kemarin", a, b, "Kemarin"
+            if b == hari_ini and a == hari_ini - timedelta(days=6):
+                return "7hari", a, b, "7 hari terakhir"
+            if b == hari_ini and a == hari_ini.replace(day=1):
+                return "bulan", a, b, "Bulan ini"
+            if a == b:
+                return "tanggal", a, b, f"{a.day} {_BULAN[a.month - 1]} {a.year}"
+            awal_teks = f"{a.day} {_BULAN[a.month - 1]}" + ("" if a.year == b.year else f" {a.year}")
+            return "tanggal", a, b, f"{awal_teks} – {b.day} {_BULAN[b.month - 1]} {b.year}"
     if kode == "kemarin":
         k = hari_ini - timedelta(days=1)
         return kode, k, k, "Kemarin"
@@ -74,7 +86,7 @@ _BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", 
 
 def _pembanding(kode):
     return {"hari": "kemarin", "kemarin": "hari sebelumnya", "7hari": "7 hari sebelumnya",
-            "bulan": "periode sama sebelumnya", "tanggal": "hari sebelumnya"}.get(kode, "sebelumnya")
+            "bulan": "periode sama sebelumnya", "tanggal": "periode sebelumnya"}.get(kode, "sebelumnya")
 
 
 def _json_badan(request):
@@ -127,6 +139,7 @@ def beranda(request):
     hak = hak_pengguna(request.user)
     toko = toko_aktif(request)
     kode, awal, akhir, judul = _periode(request)
+    hari_ini = timezone.localdate()
     jual = dasbor.periode(toko, hak, awal, akhir) if "laporan" in hak else None
     lain = dasbor.lain(request, hak, toko)
     nota = []
@@ -140,6 +153,7 @@ def beranda(request):
     sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
     return render(request, "hp/beranda.html", {
         "tab": "beranda", "jual": jual, "lain": lain, "periode": PERIODE, "p": kode, "judul_periode": judul,
+        "awal": awal, "akhir": akhir, "hari_ini": hari_ini,
         "pembanding": _pembanding(kode), "nota": nota, "tugas": tugas, "dus": dus,
         "jumlah_acc": len(nota) + len(tugas) + len(dus), "sapa": sapa,
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
@@ -190,7 +204,7 @@ def transaksi(request):
     from master.layanan import laporan
     from master.layanan.toko import toko_aktif
     hak = hak_pengguna(request.user)
-    kode, awal, akhir, judul = _periode(request, boleh_tanggal=True)
+    kode, awal, akhir, judul = _periode(request)
     mulai, selesai = laporan.rentang(awal, akhir)
     toko = toko_aktif(request)
     nota, _ = laporan.ambil(mulai, selesai, toko=toko)

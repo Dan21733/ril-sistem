@@ -10,14 +10,8 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
 <p class="sub">{{ periode.awal|date:"d M Y" }}{% if periode.awal != periode.akhir %} sampai {{ periode.akhir|date:"d M Y" }}{% endif %}. Klik nota untuk melihat isinya.</p>
 <form method="get" class="kartu baris" style="margin-bottom:18px" id="form-periode">
   {% if jenis %}<input type="hidden" name="lap" value="{{ jenis }}">{% endif %}
-  <div style="min-width:170px"><label>Periode</label><select name="periode" onchange="document.getElementById('atur-tgl').style.display = this.value === 'atur' ? 'flex' : 'none'; if (this.value !== 'atur') this.form.submit()">
-    <option value="hari" {% if periode.pilih == "hari" %}selected{% endif %}>Hari ini</option><option value="kemarin" {% if periode.pilih == "kemarin" %}selected{% endif %}>Kemarin</option>
-    <option value="7" {% if periode.pilih == "7" %}selected{% endif %}>7 hari terakhir</option><option value="30" {% if periode.pilih == "30" %}selected{% endif %}>30 hari terakhir</option>
-    <option value="bulan" {% if periode.pilih == "bulan" %}selected{% endif %}>Bulan ini</option><option value="atur" {% if periode.pilih == "atur" %}selected{% endif %}>Atur tanggal</option></select></div>
-  <div id="atur-tgl" class="baris" style="display:{% if periode.pilih == "atur" %}flex{% else %}none{% endif %}">
-    <div style="width:180px"><label>Dari</label><input type="date" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"></div>
-    <div style="width:180px"><label>Sampai</label><input type="date" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
-  </div>
+  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
+    <input type="hidden" name="periode" value="{{ periode.pilih }}"><input type="hidden" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
   <div style="min-width:160px"><label>Karyawan</label><select name="kasir"><option value="">Semua</option>{% for k, n in daftar_kasir %}<option value="{{ k }}" {% if g.kasir == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
   <div style="min-width:150px"><label>Cara bayar</label><select name="metode"><option value="">Semua</option>{% for k, n in daftar_metode %}<option value="{{ k }}" {% if g.metode == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
   <div style="min-width:130px"><label>Perangkat</label><select name="perangkat"><option value="">Semua</option>{% for k in daftar_perangkat %}<option {% if g.perangkat == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>

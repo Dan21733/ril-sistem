@@ -1,6 +1,6 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Transaksi · DB Toko{% endblock %}
-{% block judul_kecil %}Transaksi · {{ judul_periode|lower }}{% endblock %}
+{% block judul_kecil %}Transaksi · {{ judul_periode }}{% endblock %}
 {% block gaya %}<style>
 .x-navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}
 .navhari a,.navhari span.mati{width:36px;height:36px;border-radius:50%;background:var(--isi);display:grid;place-items:center;font-size:20px;color:var(--tint)}
@@ -21,7 +21,7 @@ details.nota[open]>summary{background:var(--isi)}
 <h1 class="judul-besar">Transaksi</h1>
 {% include "hp/_periode.html" with pilih_tanggal=1 %}
 <div class="ubin">
-  <div class="lebar"><div class="lbl">Penjualan bersih · {{ judul_periode|lower }}</div><div class="angka">{{ omzet|rupiah }}</div><div class="ket">{{ jumlah_nota }} nota{% if manual %} · {{ manual }} tulis tangan{% endif %}</div></div>
+  <div class="lebar"><div class="lbl">Penjualan bersih · {{ judul_periode }}</div><div class="angka">{{ omzet|rupiah }}</div><div class="ket">{{ jumlah_nota }} nota{% if manual %} · {{ manual }} tulis tangan{% endif %}</div></div>
   {% if lihat_modal %}<div><div class="lbl">Laba kotor</div><div class="angka">{{ laba|rupiah }}</div><div class="ket">{% if margin is not None %}margin {{ margin }}%{% else %}-{% endif %}</div></div>{% endif %}
   <div><div class="lbl">Ongkir</div><div class="angka">{{ ongkir|rupiah }}</div><div class="ket">di luar penjualan</div></div>
 </div>
@@ -44,7 +44,7 @@ details.nota[open]>summary{background:var(--isi)}
   {% endfor %}
 </div>
 {% empty %}
-<div class="grup" style="margin-top:16px"><div class="kosong">Belum ada transaksi {{ judul_periode|lower }}.</div></div>
+<div class="grup" style="margin-top:16px"><div class="kosong">Belum ada transaksi {{ judul_periode }}.</div></div>
 {% endfor %}
 {% if terpotong %}<p class="ket-grup">Menampilkan {{ batas }} nota terbaru dari {{ jumlah_nota }}. Angka di atas tetap menghitung semuanya.</p>{% endif %}
 {% if kembali %}

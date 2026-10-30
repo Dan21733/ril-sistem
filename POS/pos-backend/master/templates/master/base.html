@@ -143,6 +143,7 @@ details.lipat>summary::before{content:"+ ";color:var(--aksen)} details.lipat[ope
 .atur-rencana .ket.bahaya{color:var(--bahaya);font-weight:600}
 .grup-nonaktif>summary{font-weight:600}
 
+.pilih-rentang{min-width:230px;justify-content:space-between;gap:8px;text-align:left}
 /* Ukuran tampilan. Otomatis: layar laptop (mis. FHD dengan skala Windows 125-150%) sedikit dirapatkan
    supaya tabel lebar muat tanpa digeser. Bisa dipilih manual di Pengaturan > Tampilan (per browser). */
 @media (min-width:1101px) and (max-width:1700px){html:not([data-ukuran]) body{zoom:.9}}
@@ -538,5 +539,6 @@ document.addEventListener("submit", function (e) {
 })();
 </script>
 {% include "master/_tanya.html" %}
+{% include "master/_rentang.html" %}
 </body>
 </html>

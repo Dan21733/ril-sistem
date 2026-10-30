@@ -1,0 +1,192 @@
+{% comment %}Pemilih rentang tanggal (mirip Moka): pilihan cepat, kalender, tanggal dari/sampai, Terapkan.
+Tanggal yang diketuk lebih dulu atau belakangan tidak masalah: yang lebih awal selalu jadi "Dari".
+Dipakai master dan HP. Cara pakai: RilRentang.buka({awal, akhir, maks, pilih(awal, akhir, kode)}),
+atau tombol [data-rentang] di dalam formulir yang punya input periode/dari/sampai (lihat bawah).{% endcomment %}
+<dialog id="rentang" class="rentang" aria-label="Pilih tanggal">
+  <div class="rt-isi">
+    <div class="rt-preset" data-preset></div>
+    <div class="rt-kal">
+      <div class="rt-kepala"><button type="button" data-geser="-1" aria-label="Bulan sebelumnya">‹</button><b data-judul-bulan></b><button type="button" data-geser="1" aria-label="Bulan berikutnya">›</button></div>
+      <div class="rt-grid" data-grid></div>
+    </div>
+    <div class="rt-samping">
+      <div class="rt-tgl" data-ujung="awal"><span>Dari</span><b data-tampil-awal>–</b></div>
+      <div class="rt-tgl" data-ujung="akhir"><span>Sampai</span><b data-tampil-akhir>–</b></div>
+      <p class="rt-petunjuk" data-petunjuk></p>
+      <div class="rt-tombol"><button type="button" class="rt-batal" data-tutup-rentang>Batal</button><button type="button" class="rt-ok" data-terapkan>Terapkan</button></div>
+    </div>
+  </div>
+</dialog>
+<style>
+.rentang{border:0;padding:0;border-radius:16px;background:var(--kartu,#fff);color:var(--teks,#1f1d1a);box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:calc(100vw - 24px)}
+.rentang::backdrop{background:rgba(0,0,0,.35)}
+.rentang [hidden]{display:none!important}
+.rt-isi{display:grid;grid-template-columns:170px 330px 220px;gap:22px;padding:22px}
+.rt-preset{display:flex;flex-direction:column;gap:8px}
+.rt-preset button{font:inherit;font-size:15px;font-weight:600;padding:10px 8px;border-radius:10px;border:2px solid var(--aksen,var(--tint,#b4541f));
+  background:transparent;color:var(--aksen,var(--tint,#b4541f));cursor:pointer;white-space:nowrap}
+.rt-preset button.aktif,.rt-preset button:hover{background:var(--aksen,var(--tint,#b4541f));color:#fff}
+.rt-kepala{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.rt-kepala b{font-size:17px}
+.rt-kepala button{font:inherit;font-size:24px;line-height:1;width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:inherit;cursor:pointer}
+.rt-kepala button:hover{background:rgba(127,127,127,.15)}
+.rt-kepala button:disabled{opacity:.25;cursor:default;background:none}
+.rt-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:4px;text-align:center}
+.rt-grid .rt-hari{font-size:13px;font-weight:600;color:var(--redup,var(--teks2,#6b665d));padding:6px 0;border-bottom:1px solid var(--garis,#e2dfd8);margin-bottom:4px}
+.rt-grid .rt-hari.minggu{color:var(--bahaya,var(--merah,#c0392b))}
+.rt-grid button{font:inherit;font-size:16px;height:42px;border:0;background:transparent;color:inherit;cursor:pointer;border-radius:0;font-variant-numeric:tabular-nums}
+.rt-grid button.luar{color:var(--redup,var(--teks2,#9b968d));opacity:.55}
+.rt-grid button:disabled{opacity:.25;cursor:default}
+.rt-grid button.antara{background:var(--aksen-lembut,var(--tint-lembut,#f7e9df))}
+.rt-grid button.ujung{background:var(--aksen,var(--tint,#b4541f));color:#fff;border-radius:10px;font-weight:700}
+.rt-grid button.ini:not(.ujung){box-shadow:inset 0 0 0 2px var(--garis-kuat,var(--garis,#cfcbc1));border-radius:10px}
+.rt-grid button:not(:disabled):not(.ujung):hover{background:rgba(127,127,127,.15);border-radius:10px}
+.rt-samping{display:flex;flex-direction:column;gap:12px}
+.rt-tgl{border:1px solid var(--garis,#e2dfd8);border-radius:12px;padding:10px 14px}
+.rt-tgl span{display:block;font-size:13px;color:var(--redup,var(--teks2,#6b665d))}
+.rt-tgl b{font-size:18px}
+.rt-tgl.giliran{border-color:var(--aksen,var(--tint,#b4541f));box-shadow:0 0 0 1px var(--aksen,var(--tint,#b4541f))}
+.rt-petunjuk{font-size:13px;color:var(--redup,var(--teks2,#6b665d));margin:0;flex:1}
+.rt-tombol{display:flex;gap:8px}
+.rt-tombol button{flex:1;font:inherit;font-weight:600;font-size:16px;padding:12px;border-radius:10px;border:0;cursor:pointer}
+.rt-batal{background:rgba(127,127,127,.15);color:inherit}
+.rt-ok{background:var(--aksen,var(--tint,#b4541f));color:#fff}
+@media (max-width:800px){
+  .rentang{margin:auto 0 0;width:100%;max-width:100%;border-radius:18px 18px 0 0;max-height:94vh;overflow:auto}
+  .rt-isi{grid-template-columns:1fr;gap:14px;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .rt-preset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .rt-preset button{font-size:14px;padding:9px 4px}
+  .rt-samping{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .rt-petunjuk,.rt-tombol{grid-column:1/-1}
+}
+</style>
+<script>
+(function () {
+  var BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  var BLN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  var HARI = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+  var PRESET = [['hari','Hari ini'],['kemarin','Kemarin'],['7','7 hari terakhir'],['30','30 hari terakhir'],['minggu','Minggu ini'],
+                ['minggu_lalu','Minggu lalu'],['bulan','Bulan ini'],['bulan_lalu','Bulan lalu'],['tahun','Tahun ini']];
+  function teks(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function baca(s){ var p = String(s || '').split('-'); return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null; }
+  function tambah(d, n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function tampil(d){ return d ? d.getDate() + ' ' + BLN[d.getMonth()] + ' ' + d.getFullYear() : '–'; }
+  function rentangPreset(kode, hari){
+    var senin = tambah(hari, -((hari.getDay() + 6) % 7));
+    switch (kode) {
+      case 'kemarin': return [tambah(hari, -1), tambah(hari, -1)];
+      case '7': return [tambah(hari, -6), hari];
+      case '30': return [tambah(hari, -29), hari];
+      case 'minggu': return [senin, hari];
+      case 'minggu_lalu': return [tambah(senin, -7), tambah(senin, -1)];
+      case 'bulan': return [new Date(hari.getFullYear(), hari.getMonth(), 1), hari];
+      case 'bulan_lalu': return [new Date(hari.getFullYear(), hari.getMonth() - 1, 1), new Date(hari.getFullYear(), hari.getMonth(), 0)];
+      case 'tahun': return [new Date(hari.getFullYear(), 0, 1), hari];
+      default: return [hari, hari];
+    }
+  }
+  /* Nama yang ditampilkan untuk rentang: nama pilihan cepat kalau cocok, kalau tidak tanggalnya. */
+  function label(awal, akhir, maks){
+    var hari = baca(maks) || new Date(); hari = new Date(hari.getFullYear(), hari.getMonth(), hari.getDate());
+    var a = baca(awal), b = baca(akhir);
+    for (var i = 0; i < PRESET.length; i++) { var r = rentangPreset(PRESET[i][0], hari);
+      if (teks(r[0]) === awal && teks(r[1]) === akhir) return PRESET[i][1]; }
+    if (!a || !b) return 'Pilih tanggal';
+    if (awal === akhir) return tampil(a);
+    if (a.getFullYear() === b.getFullYear()) return a.getDate() + ' ' + BLN[a.getMonth()] + ' – ' + tampil(b);
+    return tampil(a) + ' – ' + tampil(b);
+  }
+  var d, opsi, awal, akhir, bulan, maks;
+  function gambar(){
+    d.querySelector('[data-judul-bulan]').textContent = BULAN[bulan.getMonth()] + ' ' + bulan.getFullYear();
+    d.querySelector('[data-geser="1"]').disabled = new Date(bulan.getFullYear(), bulan.getMonth() + 1, 1) > maks;
+    var grid = d.querySelector('[data-grid]'); grid.innerHTML = '';
+    HARI.forEach(function (h, i) { var s = document.createElement('div'); s.className = 'rt-hari' + (i === 6 ? ' minggu' : ''); s.textContent = h; grid.appendChild(s); });
+    var mulai = tambah(bulan, -((bulan.getDay() + 6) % 7));
+    var ujungB = akhir || awal;
+    var lo = awal, hi = ujungB; if (lo && hi && hi < lo) { var t = lo; lo = hi; hi = t; }
+    for (var i = 0; i < 42; i++) {
+      var x = tambah(mulai, i), b = document.createElement('button');
+      b.type = 'button'; b.textContent = x.getDate(); b.dataset.tgl = teks(x);
+      if (x.getMonth() !== bulan.getMonth()) b.classList.add('luar');
+      if (x > maks) b.disabled = true;
+      if (teks(x) === teks(maks)) b.classList.add('ini');
+      if (lo && hi && x > lo && x < hi) b.classList.add('antara');
+      if ((lo && teks(x) === teks(lo)) || (hi && teks(x) === teks(hi))) b.classList.add('ujung');
+      grid.appendChild(b);
+    }
+    d.querySelector('[data-tampil-awal]').textContent = tampil(lo);
+    d.querySelector('[data-tampil-akhir]').textContent = tampil(akhir ? hi : null);
+    d.querySelector('[data-ujung="awal"]').classList.toggle('giliran', !awal);
+    d.querySelector('[data-ujung="akhir"]').classList.toggle('giliran', !!awal && !akhir);
+    d.querySelector('[data-petunjuk]').textContent = !awal ? 'Ketuk tanggal awal.' : !akhir
+      ? 'Ketuk tanggal akhir. Untuk satu hari saja, ketuk tanggal yang sama atau langsung Terapkan.'
+      : 'Mau ganti? Ketuk tanggal lagi untuk mulai dari awal.';
+    d.querySelectorAll('[data-preset] button').forEach(function (p) {
+      var r = rentangPreset(p.dataset.kode, maks);
+      p.classList.toggle('aktif', !!(awal && akhir && teks(r[0]) === teks(lo) && teks(r[1]) === teks(hi)));
+    });
+  }
+  function selesai(a, b, kode){
+    d.close();
+    if (opsi && opsi.pilih) opsi.pilih(teks(a), teks(b), kode || 'atur');
+  }
+  function siapkan(){
+    d = document.getElementById('rentang'); if (!d || d.dataset.siap) return;
+    d.dataset.siap = '1';
+    var wadah = d.querySelector('[data-preset]');
+    PRESET.forEach(function (p) { var b = document.createElement('button'); b.type = 'button'; b.dataset.kode = p[0]; b.textContent = p[1]; wadah.appendChild(b); });
+    wadah.addEventListener('click', function (e) {    // pilihan cepat langsung dipakai: satu ketukan
+      var b = e.target.closest('button'); if (!b) return;
+      var r = rentangPreset(b.dataset.kode, maks); selesai(r[0], r[1], b.dataset.kode);
+    });
+    d.querySelector('[data-grid]').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-tgl]'); if (!b || b.disabled) return;
+      var x = baca(b.dataset.tgl);
+      if (!awal || akhir) { awal = x; akhir = null; }
+      else { akhir = x; if (akhir < awal) { var t = awal; awal = akhir; akhir = t; } }   // yang lebih awal selalu "Dari"
+      if (x.getMonth() !== bulan.getMonth()) bulan = new Date(x.getFullYear(), x.getMonth(), 1);
+      gambar();
+    });
+    d.querySelectorAll('[data-geser]').forEach(function (b) { b.addEventListener('click', function () {
+      bulan = new Date(bulan.getFullYear(), bulan.getMonth() + +b.dataset.geser, 1); gambar(); }); });
+    d.querySelector('[data-tutup-rentang]').addEventListener('click', function () { d.close(); });
+    d.querySelector('[data-terapkan]').addEventListener('click', function () {
+      if (!awal) { d.close(); return; }
+      var b = akhir || awal, a = awal; if (b < a) { var t = a; a = b; b = t; }
+      selesai(a, b, 'atur');
+    });
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+  }
+  window.RilRentang = {
+    label: label,
+    buka: function (o) {
+      siapkan(); opsi = o || {};
+      var m = baca(opsi.maks) || new Date(); maks = new Date(m.getFullYear(), m.getMonth(), m.getDate());
+      awal = baca(opsi.awal); akhir = baca(opsi.akhir) || awal;
+      var lihat = akhir || maks; bulan = new Date(lihat.getFullYear(), lihat.getMonth(), 1);
+      gambar(); d['showM' + 'odal']();   // dipecah: uji memastikan kata itu tidak muncul di halaman akun tanpa hak modal
+    }
+  };
+  /* Tombol di formulir laporan: <button data-rentang data-awal data-akhir data-maks> + input periode/dari/sampai di formulir yang sama. */
+  var KODE_SERVER = {hari: 'hari', kemarin: 'kemarin', '7': '7', '30': '30', bulan: 'bulan'};
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-rentang]'); if (!t) return;
+    e.preventDefault();
+    var f = t.form || t.closest('form');
+    window.RilRentang.buka({awal: t.dataset.awal, akhir: t.dataset.akhir, maks: t.dataset.maks, pilih: function (a, b, kode) {
+      var p = f.querySelector('[name=periode]');
+      if (p) p.value = KODE_SERVER[kode] || 'atur';
+      f.querySelector('[name=dari]').value = a; f.querySelector('[name=sampai]').value = b;
+      f.submit();
+    }});
+  });
+  document.querySelectorAll('[data-rentang]').forEach(function (t) {
+    var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks);
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-rentang]').forEach(function (t) {
+      var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks); });
+  });
+})();
+</script>

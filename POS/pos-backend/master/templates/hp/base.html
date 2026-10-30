@@ -139,9 +139,9 @@ a.sel:active{background:var(--isi)}
 
 /* Pilihan periode: tombol besar, semua terlihat tanpa digeser */
 .periode{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 14px}
-.periode a,.periode label{text-align:center;padding:11px 2px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;
+.periode a,.periode label,.periode button{font:inherit;text-align:center;padding:11px 2px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;
   box-shadow:var(--bayang);border:1px solid var(--garis);position:relative;cursor:pointer;white-space:nowrap}
-.periode label{grid-column:1/-1}
+.periode label,.periode button{grid-column:1/-1}
 .periode .aktif{background:var(--tint);color:#fff;border-color:var(--tint)}
 .periode label input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 
@@ -240,6 +240,14 @@ details.lipat>summary::-webkit-details-marker{display:none}
 </nav>{% endblock %}
 <div id="kabar" role="status"></div>
 {% include "master/_tanya.html" %}
+{% include "master/_rentang.html" %}
+<script>
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-pilih-periode]'); if (!t) return;
+  RilRentang.buka({awal: t.dataset.awal, akhir: t.dataset.akhir, maks: t.dataset.maks, pilih: (a, b) => {
+    location.search = '?dari=' + a + '&sampai=' + b; }});
+});
+</script>
 <script>/* Service worker untuk notifikasi (didaftarkan di semua halaman supaya tetap aktif). */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register("{% url 'hp:sw' %}", {scope: "{% url 'hp:beranda' %}"}).catch(() => {});</script>
 <script>
