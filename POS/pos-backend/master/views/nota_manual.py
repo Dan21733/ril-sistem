@@ -79,9 +79,15 @@ def cari(request):
     from master.layanan import cari as svc_cari
     teks, harga = svc_cari.pisah_harga(request.GET.get("q"))
     teks = layanan.rapikan_teks(teks)
-    if len(teks) < 2 and harga is None:
+    item_id = request.GET.get("item", "")
+    if item_id.isdigit():
+        # Semua varian satu barang (dipakai sesudah membuat barang baru dari halaman nota).
+        ii = ItemInfo.objects.filter(pk=int(item_id)).first()
+        qs = Item.objects.filter(item_name=ii.item_name if ii else None)
+    elif len(teks) < 2 and harga is None:
         return JsonResponse({"hasil": []})
-    qs = Item.objects.all()
+    else:
+        qs = Item.objects.all()
     for kata in svc_cari.kata(teks):
         qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
                        | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name")))
@@ -91,13 +97,15 @@ def cari(request):
     barang = list(qs.order_by("j", "t", "item_name", "variant")
                   .values("item_name", "variant", "in_stock", "min_price", "max_price", "t", "j")[:60])
     barang.sort(key=lambda b: (b["j"], b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
-    info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in barang[:25]})}
+    nama_set = {b["item_name"] for b in barang[:25]}
+    info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in=nama_set)}
+    id_item = dict(ItemInfo.objects.filter(item_name__in=nama_set).values_list("item_name", "pk"))
     hasil = []
     for b in barang[:25]:
         v = info.get((b["item_name"], b["variant"]))
         if v is None or not v.aktif:
             continue
-        hasil.append({"id": v.id, "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
+        hasil.append({"id": v.id, "item": id_item.get(b["item_name"]), "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
                       "stok": b["in_stock"], "harga": b["max_price"], "floor": b["min_price"],
                       "ket_harga": svc_cari.keterangan_harga(harga, b["max_price"], b["min_price"]) if harga else ""})
     return JsonResponse({"hasil": hasil, "harga_cari": harga})

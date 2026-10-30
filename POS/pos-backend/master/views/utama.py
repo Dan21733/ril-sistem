@@ -323,8 +323,10 @@ def barang_baru(request):
         except layanan.Tolak as tolak:
             return JsonResponse({"ok": False, "pesan": str(tolak), "baris": getattr(tolak, "baris", None)}, status=400)
         n = Item.objects.filter(item_name=item_info.item_name).count()
-        messages.success(request, f"Barang '{item_info.item_name}' ditambahkan ({n} varian).")
-        return JsonResponse({"ok": True, "url": f"{reverse('master:barang')}?buka={item_info.id}"})
+        if data.get("dari") != "nota":   # dari halaman nota: tidak dimuat ulang, pesan ditampilkan di sana
+            messages.success(request, f"Barang '{item_info.item_name}' ditambahkan ({n} varian).")
+        return JsonResponse({"ok": True, "id": item_info.id, "nama": item_info.item_name, "jumlah_varian": n,
+                             "url": f"{reverse('master:barang')}?buka={item_info.id}"})
     cek = request.GET.get("cek")
     if cek is not None:
         nama = layanan.rapikan_teks(cek)

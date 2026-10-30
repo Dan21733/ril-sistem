@@ -7,6 +7,19 @@ td input.kotak{width:110px;text-align:right;padding:8px 10px;border:1px solid va
 #hasil-cari{border:1px solid var(--garis-kuat);border-radius:8px;margin-top:4px;max-height:340px;overflow:auto;background:#fff;position:absolute;left:0;right:0;top:100%;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.12)}#hasil-cari:empty{display:none}
 #hasil-cari .ket-harga{color:var(--aksen);font-size:13px}#hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}#hasil-cari div:hover,#hasil-cari div.pilih{background:var(--aksen-lembut)}
 .total-besar{font-size:26px;font-weight:600}
+#hasil-cari div{display:flex;align-items:center;gap:10px}#hasil-cari .nama-hasil{flex:1;min-width:0}
+#hasil-cari .ubah-hasil{padding:3px 10px;font-size:13px;flex:none}
+#hasil-cari div.baru-hasil{color:var(--aksen);font-weight:600}
+td a.buka-baris{color:inherit;text-decoration:none;border-bottom:1px dashed var(--garis-kuat)}td a.buka-baris:hover{color:var(--aksen)}
+.laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(900px,94vw);background:var(--kartu);z-index:60;overflow:auto;padding:22px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
+.laci-barang[hidden],.laci-latar[hidden]{display:none!important}
+.laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
+@keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.bb-atas{display:grid;gap:12px 14px;grid-template-columns:1fr 1fr;margin-bottom:14px}.bb-atas .bb-nama,.bb-atas .bb-alias{grid-column:1/-1}
+.bb-tabel th,.bb-tabel td{padding:4px 4px;vertical-align:middle}.bb-tabel input,.bb-tabel select{padding:8px 9px;min-width:0}
+.bb-tabel td:first-child{min-width:120px}.bb-tabel select{min-width:86px}.bb-tabel input.uang{text-align:right;width:100%;min-width:84px}
+#form-baru .label[hidden],#bb-ada[hidden]{display:none}.bb-tabel tr.salah td{background:var(--bahaya-lembut)}
+.bb-tabel input.salah,.bb-atas input.salah{border-color:var(--bahaya);color:var(--bahaya)}.laci-barang h2{font-size:22px}
 .pintas{font-size:12px;opacity:.7;margin-left:8px;font-weight:400}
 input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
 #bantuan-pintas{position:fixed;right:20px;bottom:20px;z-index:40;background:#fff;border:1px solid var(--garis-kuat);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:14px 16px;min-width:270px;font-size:14px}
@@ -35,7 +48,8 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
   <tr id="baris-kosong"><td colspan="5" class="redup" style="padding:20px;text-align:center">Belum ada barang. Cari di bawah.</td></tr>
 </table></div>
 <div class="cari-wadah"><input type="text" id="cari-barang" autocomplete="off" placeholder="Ketik nama barang (atau keran @2000 kalau tahu harganya), lalu panah bawah dan Enter" autofocus><div id="hasil-cari"></div></div>
-<p class="redup kecil">Enter di kolom jumlah pindah ke harga; Enter di harga kembali ke pencarian. Harga terisi harga jual sekarang; ganti kalau di nota beda.</p>
+<p class="redup kecil">Barang belum ada atau harganya perlu diganti? Di hasil cari ada tombol <b>Ubah</b> dan <b>+ Barang baru</b>.
+  Enter di kolom jumlah pindah ke harga; Enter di harga kembali ke pencarian. Harga terisi harga jual sekarang; ganti kalau di nota beda.</p>
 
 <div class="kisi" style="margin-top:12px">
   <div class="kartu"><label>Ongkir (kalau ada)</label><input type="text" name="ongkir" id="ongkir" value="{{ kirim.ongkir }}" inputmode="numeric"></div>
@@ -51,6 +65,7 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
   <button class="tombol kecil tombol-tanya" type="button" id="tanya-pintas" title="Daftar shortcut (?)" aria-label="Daftar shortcut">?</button>
 </div>
 </form>
+<aside class="laci-barang" id="laci" hidden></aside><div class="laci-latar" id="laci-latar" hidden></div>
 <div id="bantuan-pintas" hidden role="dialog" aria-label="Shortcut keyboard">
   <div class="baris" style="justify-content:space-between;margin-bottom:6px"><b>Shortcut</b><button type="button" class="tombol kecil" id="tutup-pintas">Tutup</button></div>
   <table>
@@ -67,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabel = document.getElementById('tabel'), kosong = document.getElementById('baris-kosong');
   const kotak = document.getElementById('cari-barang'), wadah = document.getElementById('hasil-cari');
   let t = null, hasil = [], hargaCari = null;
+  const BOLEH_BARU = {% if 'ubah_info' in hak %}true{% else %}false{% endif %};
   const rows = [];
   function hitung(){
     let total = 0;
@@ -84,7 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rows.some(r => r.data.id === d.id)){ kabar('Barang itu sudah ada di daftar. Ubah jumlahnya saja.', true); return; }
     const tr = document.createElement('tr');
     tr.innerHTML = '<td></td><td class="angka"><input class="kotak" inputmode="numeric" style="width:80px"></td><td class="angka"><input class="kotak" inputmode="numeric"><span class="masalah-teks"></span></td><td class="angka"><b></b></td><td><button type="button" class="tombol kecil bahaya">Hapus</button></td>';
-    tr.cells[0].textContent = d.nama + (d.varian ? ' / ' + d.varian : '');
+    const namaBaris = d.nama + (d.varian ? ' / ' + d.varian : '');
+    if (d.item){ const a = document.createElement('a'); a.href = '#'; a.className = 'buka-baris'; a.title = 'Buka barang ini (ubah harga, dll.)';
+      a.textContent = namaBaris; a.addEventListener('click', e => { e.preventDefault(); bukaBarang(d.item); }); tr.cells[0].append(a); }
+    else tr.cells[0].textContent = namaBaris;
     const r = {data: d, tr: tr, q: tr.querySelector('input'), h: tr.querySelectorAll('input')[1], sub: tr.querySelector('b'), peringatan: tr.querySelector('.masalah-teks')};
     r.q.value = qty || ''; r.h.value = harga != null ? ribuan(harga) : (d.harga != null ? ribuan(d.harga) : '');
     tabel.querySelector('tbody').appendChild(tr);
@@ -93,8 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     r.q.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); r.h.focus(); r.h.select(); } });
     r.h.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); kotak.focus(); } });
     r.h.addEventListener('blur', () => { const n = angka(r.h.value); if (n != null) r.h.value = ribuan(n); });
-    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); hitung(); simpanDraf(); kotak.focus(); });
-    hitung(); simpanDraf();
+    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); berubah = true; hitung(); simpanDraf(); kotak.focus(); });
+    berubah = berubah || !memulihkan; hitung(); simpanDraf();
     return r;
   }
   function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d, null, hargaCari); hargaCari = null; if (r){ r.q.focus(); } }
@@ -102,20 +121,42 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(t); t = setTimeout(async () => {
       if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
       const res = await fetch("{% url 'master:nota_manual_cari' %}?q=" + encodeURIComponent(kotak.value));
-      const jawab = await res.json(); hasil = jawab.hasil; hargaCari = jawab.harga_cari || null;
-      wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
-      hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
-        d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga));
-        if (h.ket_harga) { const k = document.createElement('span'); k.className = 'ket-harga'; k.textContent = '  ' + h.ket_harga; d.appendChild(k); }
-        wadah.appendChild(d); });
+      const jawab = await res.json(); hargaCari = jawab.harga_cari || null;
+      tampilHasil(jawab.hasil);
     }, 200);
   });
-  wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });
+  function tampilHasil(daftar, tanpaBaru){
+    hasil = daftar; wadah.innerHTML = '';
+    if (!hasil.length && !BOLEH_BARU) wadah.innerHTML = '<div class="redup">Tidak ditemukan.</div>';
+    hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
+      const n = document.createElement('span'); n.className = 'nama-hasil';
+      n.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga));
+      if (h.ket_harga) { const k = document.createElement('span'); k.className = 'ket-harga'; k.textContent = '  ' + h.ket_harga; n.appendChild(k); }
+      d.appendChild(n);
+      if (h.item){ const u = document.createElement('button'); u.type = 'button'; u.className = 'tombol kecil ubah-hasil'; u.dataset.ubah = h.item;
+        u.textContent = 'Ubah'; u.title = 'Buka barang ini: ubah harga, floor, tambah varian'; d.appendChild(u); }
+      wadah.appendChild(d); });
+    if (BOLEH_BARU && !tanpaBaru){
+      const nama = namaDariCari();
+      const b = document.createElement('div'); b.className = 'baru-hasil'; b.dataset.baru = '1';
+      b.textContent = '+ Barang baru' + (nama ? ': "' + nama + '"' : '') + (hargaCari ? ' · Rp' + ribuan(hargaCari) : '');
+      if (!hasil.length){ const k = document.createElement('span'); k.className = 'redup kecil'; k.style.fontWeight = '400'; k.textContent = 'Tidak ditemukan.'; b.prepend(k, ' '); b.classList.add('pilih'); }
+      wadah.appendChild(b);
+    }
+  }
+  // Nama dari kotak cari tanpa bagian harga (@2000).
+  const namaDariCari = () => kotak.value.replace(/[@~]\s*\d[\d.,]*\s*(rb|ribu|k|jt|juta)?(?![a-z])/i, '').replace(/\s+/g, ' ').trim();
+  wadah.addEventListener('click', e => {
+    const u = e.target.closest('[data-ubah]'); if (u){ bukaBarang(u.dataset.ubah); return; }
+    if (e.target.closest('[data-baru]')){ bukaBaru(); return; }
+    const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]);
+  });
   document.addEventListener('click', e => { if (!e.target.closest('.cari-wadah')) wadah.innerHTML = ''; });
   kotak.addEventListener('keydown', e => {
-    const semua = [...wadah.querySelectorAll('[data-i]')];
+    const semua = [...wadah.querySelectorAll('[data-i],[data-baru]')];
     if (e.key === 'Escape'){ wadah.innerHTML = ''; return; }
-    if (e.key === 'Enter'){ e.preventDefault(); if (semua.length){ const i = Math.max(semua.findIndex(d => d.classList.contains('pilih')), 0); pilih(hasil[semua[i].dataset.i]); } return; }
+    if (e.key === 'Enter'){ e.preventDefault(); if (semua.length){ const el = semua[Math.max(semua.findIndex(d => d.classList.contains('pilih')), 0)];
+      el.dataset.baru ? bukaBaru() : pilih(hasil[el.dataset.i]); } return; }
     if (!semua.length) return;
     let i = semua.findIndex(d => d.classList.contains('pilih'));
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); semua.forEach(d => d.classList.remove('pilih'));
@@ -123,20 +164,184 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('ongkir').addEventListener('input', hitung);
 
+  // ---- Panel kanan: buka barang (ubah harga dll.) atau buat barang baru tanpa meninggalkan nota ----
+  const laci = document.getElementById('laci'), latar = document.getElementById('laci-latar');
+  const DASAR = "{% url 'master:barang' %}item/", URL_BARU = "{% url 'master:barang_baru' %}", URL_CARI = "{% url 'master:nota_manual_cari' %}";
+  let idLaci = null, modeBaru = false, cekT = null;
+  const $l = sel => laci.querySelector(sel);
+  const digit = v => String(v || '').replace(/\D/g, '');
+  function bukaLaci(){ laci.hidden = false; latar.hidden = false; wadah.innerHTML = ''; laci.innerHTML = '<p class="redup">Memuat...</p>'; }
+  function tutupLaci(){
+    const tadi = idLaci; laci.hidden = true; latar.hidden = true; laci.innerHTML = ''; idLaci = null; modeBaru = false;
+    // Harga mungkin baru diganti: hasil cari dimuat ulang, dan floor baris nota ikut diperbarui.
+    if (tadi){ segarkanBaris(tadi); if (kotak.value.trim()) kotak.dispatchEvent(new Event('input')); }
+    kotak.focus();
+  }
+  async function segarkanBaris(item){
+    if (!rows.some(r => String(r.data.item) === String(item))) return;
+    try { const d = await (await fetch(URL_CARI + '?item=' + item)).json();
+      d.hasil.forEach(h => rows.forEach(r => { if (r.data.id === h.id){ r.data.floor = h.floor; r.data.harga = h.harga; } })); hitung(); } catch (e) {}
+  }
+  async function bukaBarang(id, opsi){
+    opsi = opsi || {}; modeBaru = false; idLaci = id;
+    if (!opsi.diam) bukaLaci();
+    const gulir = laci.scrollTop;
+    try { const r = await fetch(DASAR + id + '/panel/?kembali=' + encodeURIComponent(location.pathname));
+      if (!r.ok) throw 0; laci.innerHTML = await r.text(); laci.scrollTop = opsi.diam ? gulir : 0;
+      (opsi.pesan || []).forEach(p => { const k = document.createElement('div'); k.className = 'pesan ' + p.jenis; k.textContent = p.teks; laci.prepend(k); });
+      if (opsi.fokus) laci.querySelector(opsi.fokus)?.focus();
+    } catch (x) { laci.innerHTML = '<p class="pesan error">Barang tidak bisa dimuat.</p>'; }
+  }
+  // Formulir di panel barang (tambah varian, samakan harga, kategori, ...) dikirim lewat fetch: nota tidak ditinggal.
+  window.addEventListener('submit', async e => {
+    const f = e.target;
+    if (e.defaultPrevented || modeBaru || !idLaci || !(laci.contains(f) || (f.id && laci.querySelector('[form="' + f.id + '"]')))) return;
+    if ((f.getAttribute('method') || '').toLowerCase() !== 'post') return;
+    e.preventDefault();
+    const data = new FormData(f);
+    if (e.submitter && e.submitter.name) data.append(e.submitter.name, e.submitter.value);
+    laci.querySelectorAll('.uang-varian').forEach(i => { if (i.form === f) data.set(i.name, digit(i.value)); });
+    if (e.submitter) e.submitter.disabled = true;
+    try { const d = await (await fetch(f.action, {method: 'POST', body: data, headers: {'X-Panel': '1'}})).json();
+      if (d.hilang){ tutupLaci(); kabar((d.pesan[0] || {}).teks || 'Barang dihapus.', false); return; }
+      await bukaBarang(idLaci, {diam: true, pesan: d.pesan, fokus: d.aksi === 'tambah_varian' && d.ok ? '.varian-baru input' : null});
+    } catch (err) { kabar('Gagal menyimpan. Periksa koneksi lalu coba lagi.', true); if (e.submitter) e.submitter.disabled = false; }
+  });
+
+  // -- Barang baru --
+  async function bukaBaru(){
+    const nama = namaDariCari(), harga = hargaCari;
+    bukaLaci(); modeBaru = true; idLaci = null;
+    try { const r = await fetch(URL_BARU + '?panel=1'); if (!r.ok) throw 0;
+      laci.innerHTML = await r.text();
+      laci.querySelector('#form-baru > .sub')?.remove();        // petunjuk "daftar kiri" hanya untuk Daftar barang
+      tambahBarisBaru();
+      $l('#bb-nama').value = nama ? nama.charAt(0).toUpperCase() + nama.slice(1) : '';
+      if (harga) $l('#bb-tabel [data-k=max_price]').value = ribuan(harga);
+      if (nama) cekNama();
+      $l(nama ? '#bb-kategori' : '#bb-nama').focus();
+    } catch (x) { laci.innerHTML = '<p class="pesan error">Formulir tidak bisa dimuat.</p>'; modeBaru = false; }
+  }
+  const barisBaru = () => [...$l('#bb-tabel tbody').rows];
+  function tambahBarisBaru(){
+    const tb = $l('#bb-tabel tbody'), tr = $l('#bb-baris').content.firstElementChild.cloneNode(true);
+    const atas = tb.rows[tb.rows.length - 1];
+    if (atas) tr.querySelector('[data-k=kode_rak]').value = atas.querySelector('[data-k=kode_rak]').value;
+    tb.appendChild(tr); return tr;
+  }
+  function kosongBaru(tr){
+    const v = k => (tr.querySelector('[data-k=' + k + ']') || {value: ''}).value.trim();
+    return !v('variant') && !v('min_price') && !v('max_price') && !v('cost_amount') && ['', '0'].includes(digit(v('in_stock')));
+  }
+  function cekNama(){
+    clearTimeout(cekT);
+    const nama = $l('#bb-nama').value.trim(), info = $l('#bb-ada');
+    if (!nama){ info.hidden = true; return; }
+    cekT = setTimeout(async () => {
+      try { const d = await (await fetch(URL_BARU + '?cek=' + encodeURIComponent(nama))).json();
+        if (!modeBaru) return;
+        info.hidden = !d.ada; info.innerHTML = '';
+        if (d.ada){ const t = document.createElement('span'); t.className = 'label bahaya'; t.textContent = '"' + d.nama + '" sudah ada.';
+          const a = document.createElement('a'); a.href = '#'; a.dataset.bukaAda = d.id; a.textContent = ' Buka barangnya untuk menambah varian'; info.append(t, a); }
+      } catch (e) {}
+    }, 300);
+  }
+  function cekDaftar(input, jenis){
+    const opsi = [...document.getElementById('bb-dl-' + jenis).options].map(o => o.value);
+    const v = input.value.trim(), sama = opsi.find(o => o.toLowerCase() === v.toLowerCase());
+    if (sama && sama !== v) input.value = sama;
+    $l('[data-baru-label=' + jenis + ']').hidden = !v || !!sama;
+  }
+  async function simpanBaru(){
+    const tombol = $l('[data-simpan-baru]'), galat = $l('#bb-galat');
+    barisBaru().forEach(tr => tr.classList.remove('salah')); galat.hidden = true;
+    const terpakai = barisBaru().filter(tr => !kosongBaru(tr));
+    const data = {dari: 'nota', varian: terpakai.map(tr => Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])))};
+    laci.querySelectorAll('[data-isi]').forEach(i => { data[i.dataset.isi] = i.value.trim(); });
+    tombol.disabled = true;
+    try {
+      const d = await (await fetch(URL_BARU, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)})).json();
+      if (d.ok){
+        laci.hidden = true; latar.hidden = true; laci.innerHTML = ''; modeBaru = false;
+        kabar('Barang "' + d.nama + '" ditambahkan.', false);
+        const v = (await (await fetch(URL_CARI + '?item=' + d.id)).json()).hasil;
+        const harga = hargaCari;
+        if (v.length === 1){ kotak.value = ''; const r = tambah(v[0], null, harga); hargaCari = null; if (r) r.q.focus(); }
+        else { kotak.focus(); tampilHasil(v, true); kabar('Barang "' + d.nama + '" ditambahkan. Pilih variannya.', false); }
+        return;
+      }
+      galat.textContent = d.pesan || 'Belum tersimpan.'; galat.hidden = false;
+      if (d.baris !== null && d.baris !== undefined && terpakai[d.baris]){
+        terpakai[d.baris].classList.add('salah'); galat.textContent = 'Baris ' + (d.baris + 1) + ': ' + galat.textContent;
+        terpakai[d.baris].querySelector('input').focus();
+      }
+    } catch (e) { galat.textContent = 'Gagal menyimpan. Periksa koneksi lalu coba lagi.'; galat.hidden = false; }
+    tombol.disabled = false;
+  }
+  laci.addEventListener('input', e => {
+    if (!modeBaru) return;
+    const tr = e.target.closest('#bb-tabel tr');
+    if (tr && ['min_price', 'max_price'].includes(e.target.dataset.k)){
+      const f = tr.querySelector('[data-k=min_price]'), j = tr.querySelector('[data-k=max_price]');
+      const salah = digit(f.value) && digit(j.value) && Number(digit(f.value)) > Number(digit(j.value));
+      f.classList.toggle('salah', !!salah); j.classList.toggle('salah', !!salah); f.title = salah ? 'Floor di atas harga jual' : '';
+    }
+    if (e.target.id === 'bb-nama') cekNama();
+  });
+  laci.addEventListener('focusout', e => {
+    if (!modeBaru) return;
+    if (e.target.classList.contains('uang')){ const n = digit(e.target.value); e.target.value = n ? ribuan(Number(n)) : ''; }
+    if (e.target.id === 'bb-kategori') cekDaftar(e.target, 'kategori');
+    if (e.target.id === 'bb-brand') cekDaftar(e.target, 'brand');
+  });
+  laci.addEventListener('click', e => {
+    if (e.target.closest('[data-tutup-panel]')){ tutupLaci(); return; }
+    if (!modeBaru) return;
+    if (e.target.closest('[data-tambah-baris]')) tambahBarisBaru().querySelector('input').focus();
+    const h = e.target.closest('[data-hapus-baris]');
+    if (h){ const tr = h.closest('tr'); if (barisBaru().length > 1) tr.remove(); else tr.querySelectorAll('input').forEach(i => i.value = i.dataset.k === 'in_stock' ? '0' : ''); }
+    if (e.target.closest('[data-simpan-baru]')) simpanBaru();
+    const ada = e.target.closest('[data-buka-ada]');
+    if (ada){ e.preventDefault(); bukaBarang(ada.dataset.bukaAda, {diam: true}); }
+  });
+  laci.addEventListener('keydown', e => {
+    if (!modeBaru) return;
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); simpanBaru(); return; }
+    if (e.key !== 'Enter' || !e.target.matches('input,select')) return;
+    e.preventDefault();
+    const urut = [...laci.querySelectorAll('[data-isi], #bb-tabel [data-k]')], i = urut.indexOf(e.target);
+    if (i === urut.length - 1){ tambahBarisBaru().querySelector('input').focus(); return; }
+    if (i >= 0) urut[i + 1].focus();
+  });
+  latar.addEventListener('click', tutupLaci);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !laci.hidden && !e.target.matches('input,textarea,select')) tutupLaci(); });
+
   // ---- Draf: semua isian (kecuali foto) disimpan di browser ini dan dipulihkan saat kembali ke halaman ini ----
   const formNota = document.getElementById('form-nota');
   const KUNCI = 'ril-draf-nota-manual:{{ request.user.username|escapejs }}:{{ toko_aktif.id }}';
   const KOLOM = ['tanggal', 'nomor_tulisan', 'pembeli', 'lokasi', 'cara_bayar', 'ongkir', 'catatan'];
-  let memulihkan = true;
+  let memulihkan = true, berubah = false, basi = false;
+  // Tiap tab punya id. Draf hanya ditulis tab yang benar-benar diubah, dan berhenti ditulis kalau tab lain
+  // sudah mengubah/menyimpan nota ini (supaya menutup tab lama tidak memunculkan lagi draf yang sudah tersimpan).
+  const TAB = Math.random().toString(36).slice(2);
   function simpanDraf(){
-    if (memulihkan) return;
-    const d = {waktu: Date.now(), isi: {}, baris: rows.map(r => ({...r.data, jumlah: angka(r.q.value), harga: angka(r.h.value)}))};
+    if (memulihkan || basi || !berubah) return;
+    const d = {tab: TAB, waktu: Date.now(), isi: {}, baris: rows.map(r => ({...r.data, jumlah: angka(r.q.value), harga: angka(r.h.value)}))};
     KOLOM.forEach(k => { const el = formNota.elements[k]; if (el) d.isi[k] = el.value; });
     const ada = d.baris.length || ['nomor_tulisan', 'pembeli', 'ongkir', 'catatan'].some(k => (d.isi[k] || '').trim());
     try { ada ? localStorage.setItem(KUNCI, JSON.stringify(d)) : localStorage.removeItem(KUNCI); } catch (e) {}
   }
-  formNota.addEventListener('input', () => { clearTimeout(simpanDraf.t); simpanDraf.t = setTimeout(simpanDraf, 300); });
-  formNota.addEventListener('change', simpanDraf);
+  formNota.addEventListener('input', () => { berubah = true; clearTimeout(simpanDraf.t); simpanDraf.t = setTimeout(simpanDraf, 300); });
+  formNota.addEventListener('change', () => { berubah = true; simpanDraf(); });
+  window.addEventListener('storage', e => {
+    if (e.key !== KUNCI || basi) return;
+    let lain = null; try { lain = JSON.parse(e.newValue || 'null'); } catch (er) {}
+    if (lain && lain.tab === TAB) return;
+    basi = true;
+    const ket = document.getElementById('ket-draf'); ket.hidden = false; ket.className = 'pesan warning'; ket.textContent = '';
+    ket.append(lain ? 'Nota ini sedang diubah di tab lain. Tab ini tidak menyimpan draf lagi. ' : 'Nota ini sudah disimpan atau dikosongkan di tab lain. ');
+    const muat = document.createElement('a'); muat.href = location.pathname; muat.textContent = 'Muat ulang'; ket.append(muat);
+  });
   window.addEventListener('pagehide', simpanDraf);
 
   // Kalau simpan ditolak, baris yang sudah diisi dibangun ulang dari kiriman server (lebih baru dari draf).
@@ -158,11 +363,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ket.append(buang);
     }
   }
-  memulihkan = false; simpanDraf();
+  memulihkan = false;
+  if (dariServer.length){ berubah = true; simpanDraf(); }  // simpan ditolak server: isian tetap jadi draf
   document.getElementById('form-nota').addEventListener('submit', e => {
     if (!rows.length){ e.preventDefault(); kabar('Tambahkan minimal satu barang.', true); kotak.focus(); return; }
     if (rows.some(r => !(angka(r.q.value) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong.', true); return; }
-    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
+    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, item: r.data.item, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
     // Draf dihapus saat dikirim. Kalau server menolak, halaman kembali dengan isian yang sama dan draf tersimpan lagi.
     if (!e.defaultPrevented){ memulihkan = true; try { localStorage.removeItem(KUNCI); } catch (er) {} }
   });
@@ -180,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('tutup-pintas').addEventListener('click', () => togel(false));
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
+    if (!document.getElementById('laci').hidden) return;   // panel barang terbuka: shortcut nota tidak dipakai
     if (mod && e.key === 'Enter') { e.preventDefault(); kirimDengan(document.getElementById('tombol-lagi')); return; }
     if (mod && !e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); kirimDengan(document.getElementById('tombol-simpan')); return; }
     if (e.key === 'Escape' && !bantuan.hidden) { togel(false); return; }

@@ -142,3 +142,33 @@ class CariHargaTest(Dasar):
         d = self.client.get(reverse("master:pembelian_cari") + "?q=keran @1500").json()
         self.assertEqual(d["harga_cari"], 1500)
         self.assertTrue(d["hasil"])
+
+
+class NotaManualBarangTest(Dasar):
+    """Barang baru dan ubah barang langsung dari halaman input nota manual."""
+
+    def setUp(self):
+        from master.layanan import inti as layanan
+        from master.tests.dasar import buat_item
+        buat_item("Keran Plastik", "Biru", floor=1800, jual=2000, modal=1200, stok=5)
+        layanan.sinkron_info()
+        self.client.force_login(self.admin)
+
+    def test_hasil_cari_membawa_id_barang(self):
+        from master.models import ItemInfo
+        d = self.client.get(reverse("master:nota_manual_cari") + "?q=keran").json()
+        self.assertEqual(d["hasil"][0]["item"], ItemInfo.objects.get(item_name="Keran Plastik").pk)
+
+    def test_barang_baru_dari_nota(self):
+        import json
+        r = self.client.post(reverse("master:barang_baru"), json.dumps({
+            "dari": "nota", "item_name": "Paku Beton", "category": "Paku", "brand": "",
+            "varian": [{"variant": "", "min_price": "3.000", "max_price": "3.500", "in_stock": "0"}]}),
+            content_type="application/json").json()
+        self.assertTrue(r["ok"]); self.assertEqual(r["nama"], "Paku Beton")
+        d = self.client.get(reverse("master:nota_manual_cari") + f"?item={r['id']}").json()
+        self.assertEqual([(h["nama"], h["harga"], h["floor"]) for h in d["hasil"]], [("Paku Beton", 3500, 3000)])
+        # Dari nota tidak meninggalkan pesan yang muncul belakangan di halaman lain.
+        halaman = self.client.get(reverse("master:nota_manual_baru"))
+        self.assertNotContains(halaman, "ditambahkan (")
+        self.assertContains(halaman, 'id="laci"')
