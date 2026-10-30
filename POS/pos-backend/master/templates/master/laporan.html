@@ -96,11 +96,6 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
 <p class="redup kecil">Urutan bawaan berdasarkan nilai penjualan, bukan jumlah biji. Klik judul kolom untuk mengganti urutan. Laba dihitung dari modal rata saat nota dibuat; tanda * berarti ada barang yang modalnya kosong.</p>
 <style>tr.bisa-buka{cursor:pointer}tr.bisa-buka.terbuka .panah-rinci{display:inline-block;transform:rotate(90deg)}.panah-rinci{color:var(--redup);transition:transform .15s}</style>
 <aside class="laci-barang" id="laci-barang" hidden></aside><div class="laci-latar" id="laci-latar" hidden></div>
-<style>
-.laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(900px,94vw);background:var(--kartu);z-index:60;overflow:auto;padding:22px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
-.laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
-@keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
-</style>
 <script>
 /* Barang di rincian kategori/brand: buka panel barang dari kanan (sama dengan Daftar barang).
    Simpan di panel kembali ke laporan ini, jadi angkanya langsung ikut berubah. */

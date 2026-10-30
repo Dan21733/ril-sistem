@@ -152,6 +152,17 @@ html[data-ukuran="100"] body{zoom:1}
 html[data-ukuran="90"] body{zoom:.9}
 html[data-ukuran="80"] body{zoom:.8}
 html[data-ukuran="110"] body{zoom:1.1}
+/* Panel barang: di Daftar barang (.kanan) dan laci dari kanan di laporan & nota manual (.laci-barang) */
+:is(.kanan,.laci-barang) [data-tabel-varian] th,:is(.kanan,.laci-barang) [data-tabel-varian] td{padding-left:6px;padding-right:6px}
+:is(.kanan,.laci-barang) [data-tabel-varian] td input.sel{width:100px;padding:7px 6px}
+:is(.kanan,.laci-barang) [data-tabel-varian] .tombol.kecil{padding:5px 9px}
+:is(.kanan,.laci-barang) [data-tabel-varian] td select.sel{width:84px}
+:is(.kanan,.laci-barang) [data-tabel-varian] td:nth-child(2){min-width:150px}
+.laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(1100px,96vw);background:var(--kartu);z-index:60;overflow:auto;padding:24px 28px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
+.laci-barang h2{font-size:22px}
+.laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
+.laci-barang[hidden],.laci-latar[hidden]{display:none!important}
+@keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
