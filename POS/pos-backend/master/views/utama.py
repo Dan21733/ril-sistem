@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, F, Max, Min, OuterRef, Q, Sum
+from django.db.models import Value, Count, Exists, F, Max, Min, OuterRef, Q, Sum
 from django.db.models.functions import Lower
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -34,7 +34,14 @@ PER_HALAMAN = 50
 
 
 def _cari(request):
-    return layanan.rapikan_teks(request.GET.get("q"))
+    """Kata pencarian tanpa bagian harga (@2000)."""
+    from master.layanan import cari as svc_cari
+    return layanan.rapikan_teks(svc_cari.pisah_harga(request.GET.get("q"))[0])
+
+
+def _harga_cari(request):
+    from master.layanan import cari as svc_cari
+    return svc_cari.pisah_harga(request.GET.get("q"))[1]
 
 
 def _saring_barang(request, hak):
@@ -42,7 +49,7 @@ def _saring_barang(request, hak):
     g = request.GET
     qs = Item.objects.all()
 
-    cari = layanan.rapikan_teks(g.get("q"))
+    cari = _cari(request)
     if cari:
         for kata in cari.split(" "):
             qs = qs.filter(
@@ -206,9 +213,11 @@ def barang_daftar(request):
     jumlah_varian = qs.count()
     from master.layanan import cari as svc_cari
     cari = _cari(request)
+    harga_cari = _harga_cari(request)
     kelompok_qs = qs.values("item_name").annotate(
         cocok=Count("variant"), harga_min=Min("max_price"), harga_max=Max("max_price"),
         stok=Sum("in_stock"), nama_urut=Lower("item_name"), tingkat_cari=Min(svc_cari.tingkat(cari)),
+        jarak_harga=Min(svc_cari.jarak_harga(harga_cari)) if harga_cari else Min(Value(0)),
     )
     urut = {
         "harga": ("-harga_max", "nama_urut"),
@@ -218,7 +227,8 @@ def barang_daftar(request):
     if urut == ("nama_urut",):
         # Urutan alami di seluruh daftar (bukan huruf demi huruf dari database).
         # Saat mencari: yang cocok lewat nama dulu, yang hanya cocok lewat alias paling akhir.
-        halaman = Paginator(sorted(kelompok_qs, key=lambda d: (d["tingkat_cari"], kunci_alami(d["item_name"]))),
+        # Dengan harga (@2000): barang yang punya varian berharga pas/terdekat di atas.
+        halaman = Paginator(sorted(kelompok_qs, key=lambda d: (d["jarak_harga"], d["tingkat_cari"], kunci_alami(d["item_name"]))),
                             PER_HALAMAN).get_page(request.GET.get("hal"))
     else:
         halaman = Paginator(kelompok_qs.order_by("tingkat_cari", *urut), PER_HALAMAN).get_page(request.GET.get("hal"))
@@ -236,6 +246,11 @@ def barang_daftar(request):
         d["category"] = " / ".join(sorted({v["category"] or "" for v in semua}, key=kunci_alami))
         d["brand"] = " / ".join(sorted({v["brand"] or "" for v in semua}, key=kunci_alami))
         d["nonaktif"] = sum(1 for v in semua if not v["aktif"])
+        if harga_cari:
+            dekat = min(semua, key=lambda v: svc_cari.jarak_py(harga_cari, v["max_price"], v["min_price"]), default=None)
+            if dekat:
+                ket = svc_cari.keterangan_harga(harga_cari, dekat["max_price"], dekat["min_price"])
+                d["ket_harga"] = f"{dekat['variant']}: {ket}" if dekat["variant"] != "N/A" else ket
         label = {}
         for v in semua:
             for m in v["masalah"]:
@@ -247,6 +262,7 @@ def barang_daftar(request):
         "daftar": daftar,
         "halaman": halaman,
         "jumlah_varian": jumlah_varian,
+        "harga_cari": harga_cari,
         "ada_filter": any(request.GET.get(k) for k in ("q", "kategori", "brand", "rak", "masalah", "aktif")),
         "g": request.GET,
         "qs_halaman": _qs_tanpa(request, "hal", "buka"),

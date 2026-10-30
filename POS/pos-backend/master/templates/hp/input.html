@@ -35,7 +35,7 @@
   </div>
 
   <div class="kepala-grup"><h2>Barang</h2></div>
-  <div class="cari"><input type="search" data-cari-barang placeholder="Cari nama barang" autocomplete="off" enterkeyhint="search"></div>
+  <div class="cari"><input type="search" data-cari-barang placeholder="Cari nama, atau keran @2000" autocomplete="off" enterkeyhint="search"></div>
   <div class="grup hasil-cari" data-hasil hidden></div>
   <div class="grup baris-barang" data-baris></div>
   <p class="ket-grup">Harga terisi harga beli terakhir. Ubah kalau di nota berbeda.</p>
@@ -107,6 +107,7 @@ cari.addEventListener('input', () => {
   tunda = setTimeout(async () => {
     const ini = ++nomorCari;
     const d = await (await fetch(f.dataset.cari + '?q=' + encodeURIComponent(q))).json();
+    const hargaCari = d.harga_cari || null;
     if (ini !== nomorCari) return;
     hasil.innerHTML = ''; hasil.hidden = false;
     if (!d.hasil.length) { hasil.innerHTML = '<div class="kosong">Tidak ketemu.</div>'; return; }
@@ -114,12 +115,12 @@ cari.addEventListener('input', () => {
       const el = document.createElement('div'); el.className = 'sel';
       el.innerHTML = '<div class="utama"><div class="nama" style="white-space:normal"></div><div class="sub"></div></div><span class="nilai"></span>';
       el.querySelector('.nama').textContent = h.nama + (h.varian ? ' / ' + h.varian : '');
-      el.querySelector('.sub').textContent = 'stok ' + ribuan(h.stok ?? 0);
+      el.querySelector('.sub').textContent = 'stok ' + ribuan(h.stok ?? 0) + (h.ket_harga ? ' · ' + h.ket_harga : '');
       el.querySelector('.nilai').textContent = h.harga != null ? rp(h.harga) : '–';
       el.onclick = () => {
         const ada = baris.find(b => b.id === h.id);
         if (ada) ada.jumlah = (ada.jumlah || 0) + 1;
-        else baris.push({id: h.id, nama: h.nama, varian: h.varian, stok: h.stok, harga: h.harga ?? null, harga_lama: h.harga ?? null, jumlah: 1});
+        else baris.push({id: h.id, nama: h.nama, varian: h.varian, stok: h.stok, harga: hargaCari ?? h.harga ?? null, harga_lama: h.harga ?? null, jumlah: 1});
         cari.value = ''; hasil.hidden = true; gambar(); kabar((ada ? 'Jumlah ditambah: ' : 'Ditambahkan: ') + h.nama);
       };
       hasil.appendChild(el);

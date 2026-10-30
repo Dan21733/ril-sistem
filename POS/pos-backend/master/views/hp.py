@@ -248,22 +248,35 @@ def transaksi(request):
 @perlu_hp()
 def barang(request):
     from master.layanan import cari as svc_cari
-    from django.db.models import Count, Max, Min, Sum
+    from django.db.models import Count, Max, Min, Sum, Value
     q = layanan.rapikan_teks(request.GET.get("q"))
+    teks, harga = svc_cari.pisah_harga(q)
+    teks = layanan.rapikan_teks(teks)
     daftar = []
-    if q:
+    if teks or harga:
         qs = Item.objects.all()
-        for kata in q.split(" "):
+        for kata in svc_cari.kata(teks):
             qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
                            | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name")))
         kelompok = (qs.values("item_name").annotate(n=Count("variant"), hmin=Min("max_price"), hmax=Max("max_price"),
-                                                    stok=Sum("in_stock"), t=Min(svc_cari.tingkat(q)))
-                    .order_by("t", "item_name")[:60])
-        daftar = sorted(kelompok, key=lambda d: (d["t"], kunci_alami(d["item_name"])))
+                                                    stok=Sum("in_stock"), t=Min(svc_cari.tingkat(teks)),
+                                                    j=Min(svc_cari.jarak_harga(harga)) if harga else Min(Value(0)))
+                    .order_by("j", "t", "item_name")[:60])
+        daftar = sorted(kelompok, key=lambda d: (d["j"], d["t"], kunci_alami(d["item_name"])))
         ids = dict(ItemInfo.objects.filter(item_name__in=[d["item_name"] for d in daftar]).values_list("item_name", "pk"))
+        dekat = {}
+        if harga:
+            for r in Item.objects.filter(item_name__in=[d["item_name"] for d in daftar]).values("item_name", "variant", "max_price", "min_price"):
+                lama = dekat.get(r["item_name"])
+                if lama is None or svc_cari.jarak_py(harga, r["max_price"], r["min_price"]) < svc_cari.jarak_py(harga, lama["max_price"], lama["min_price"]):
+                    dekat[r["item_name"]] = r
         for d in daftar:
             d["id"] = ids.get(d["item_name"])
-    return _tampil(request, "hp/barang.html", {"tab": "barang", "q": q, "daftar": daftar})
+            r = dekat.get(d["item_name"])
+            if r:
+                ket = svc_cari.keterangan_harga(harga, r["max_price"], r["min_price"])
+                d["ket_harga"] = f"{r['variant']}: {ket}" if r["variant"] != "N/A" else ket
+    return _tampil(request, "hp/barang.html", {"tab": "barang", "q": q, "daftar": daftar, "harga_cari": harga})
 
 
 @perlu_hp()

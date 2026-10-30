@@ -166,8 +166,12 @@ def halaman(request):
         per = {}
         for b in baris:
             per.setdefault(b[kunci] or "(kosong)", []).append(b)
+        from master.models import ItemInfo
+        id_barang = dict(ItemInfo.objects.filter(item_name__in={b["item_name"] for b in baris}).values_list("item_name", "pk"))
         for h in tabel:
-            h["teratas"] = laporan.kelompok_baris(per.get(h["nama"], []), "barang", "omzet")[:5]
+            h["teratas"] = laporan.kelompok_baris(per.get(h["nama"], []), "barang", "omzet")
+            for t in h["teratas"]:
+                t["item_id"] = id_barang.get(t["nama"])
     else:
         tabel = laporan.kelompok_nota(daftar, jenis, urut)
     for h in tabel:   # label untuk tabel dan export (jam/hari dalam seminggu)

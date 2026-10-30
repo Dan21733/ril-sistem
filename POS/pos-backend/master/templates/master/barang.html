@@ -10,7 +10,7 @@
 </div>
 
 <form method="get" class="kartu baris" style="margin-bottom:14px">
-  <div style="flex:2;min-width:200px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}" autofocus></div>
+  <div style="flex:2;min-width:200px"><label>Cari nama, varian, brand, atau alias <span class="redup" style="font-weight:400" title="Tambahkan @harga untuk mencari barang dengan harga itu atau yang paling dekat">· bisa pakai harga: keran @2000</span></label><input type="search" name="q" value="{{ g.q }}" autofocus></div>
   <div style="flex:1;min-width:150px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
   <div style="flex:1;min-width:150px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
   {% if daftar_supplier %}<div style="flex:1;min-width:150px"><label>Diambil dari</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>{% endif %}
@@ -38,7 +38,7 @@
       <span class="masalah-teks">{% for m in d.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
     <td class="sempit">{{ d.category }}</td>
     <td class="sempit">{{ d.brand }}</td>
-    <td class="angka" style="white-space:nowrap">{% if d.harga_min == d.harga_max %}{{ d.harga_min|ribuan }}{% else %}{{ d.harga_min|ribuan }} – {{ d.harga_max|ribuan }}{% endif %}</td>
+    <td class="angka" style="white-space:nowrap">{% if d.harga_min == d.harga_max %}{{ d.harga_min|ribuan }}{% else %}{{ d.harga_min|ribuan }} – {{ d.harga_max|ribuan }}{% endif %}{% if d.ket_harga %}<div class="kecil" style="color:var(--aksen);white-space:normal">{{ d.ket_harga }}</div>{% endif %}</td>
     <td class="angka sempit">{{ d.stok|ribuan }}</td>
   </tr>
   {% empty %}

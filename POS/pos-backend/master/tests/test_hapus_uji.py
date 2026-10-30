@@ -99,6 +99,46 @@ class LaporanBaruTest(Dasar):
         teramai = [h for h in r.context["per_minggu"] if h["teramai"]]
         self.assertEqual(len(teramai), 1)
         self.assertEqual(teramai[0]["nama"], kemarin.astimezone(timezone.get_current_timezone()).weekday())
+        self.assertContains(r, "<title>Laporan penjualan · Master POS</title>")     # judul tab tidak tercampur gaya/skrip
         r = self.client.get(reverse("master:laporan") + "?periode=7&lap=kategori")
         self.assertContains(r, "Barang terlaris di Paku")
         self.assertEqual(r.context["tabel"][0]["teratas"][0]["nama"], "Palu")
+        self.assertContains(r, 'data-buka-barang="%d"' % r.context["tabel"][0]["teratas"][0]["item_id"])
+
+
+class CariHargaTest(Dasar):
+    def setUp(self):
+        from master.layanan import inti as layanan
+        from master.tests.dasar import buat_item
+        buat_item("Keran Plastik", "Biru", floor=1800, jual=2000, modal=1200, stok=5)
+        buat_item("Keran Plastik", "Putih", floor=2300, jual=2500, modal=1500, stok=5)
+        buat_item("Keran Besi", floor=14000, jual=15000, modal=9000, stok=5)
+        layanan.sinkron_info()
+        self.client.force_login(self.admin)
+
+    def test_pisah_harga(self):
+        from master.layanan.cari import pisah_harga
+        self.assertEqual(pisah_harga("keran plastik @2000"), ("keran plastik", 2000))
+        self.assertEqual(pisah_harga("keran ~2,5rb"), ("keran", 2500))
+        self.assertEqual(pisah_harga("semen @1.200.000"), ("semen", 1200000))
+        self.assertEqual(pisah_harga("@15rb"), ("", 15000))
+        self.assertEqual(pisah_harga("keran plastik"), ("keran plastik", None))
+
+    def test_nota_manual_harga_pas_dan_terdekat(self):
+        d = self.client.get(reverse("master:nota_manual_cari") + "?q=keran @2000").json()
+        self.assertEqual(d["harga_cari"], 2000)
+        self.assertEqual((d["hasil"][0]["varian"], d["hasil"][0]["ket_harga"]), ("Biru", "harga pas"))
+        d = self.client.get(reverse("master:nota_manual_cari") + "?q=keran @2400").json()
+        self.assertEqual((d["hasil"][0]["varian"], d["hasil"][0]["ket_harga"]), ("Putih", "di atas floor"))
+        d = self.client.get(reverse("master:nota_manual_cari") + "?q=keran @2700").json()
+        self.assertEqual((d["hasil"][0]["varian"], d["hasil"][0]["ket_harga"]), ("Putih", "lebih murah Rp200"))
+        d = self.client.get(reverse("master:nota_manual_cari") + "?q=@15rb").json()
+        self.assertEqual(d["hasil"][0]["nama"], "Keran Besi")
+
+    def test_daftar_barang_dan_pembelian(self):
+        r = self.client.get(reverse("master:barang") + "?q=keran @15000")
+        self.assertEqual(r.context["daftar"][0]["item_name"], "Keran Besi")
+        self.assertContains(r, "harga pas")
+        d = self.client.get(reverse("master:pembelian_cari") + "?q=keran @1500").json()
+        self.assertEqual(d["harga_cari"], 1500)
+        self.assertTrue(d["hasil"])

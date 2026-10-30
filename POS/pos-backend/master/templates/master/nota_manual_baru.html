@@ -5,7 +5,7 @@
 td input.kotak{width:110px;text-align:right;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:7px;font:inherit;font-variant-numeric:tabular-nums}
 .cari-wadah{position:relative;margin-top:10px}
 #hasil-cari{border:1px solid var(--garis-kuat);border-radius:8px;margin-top:4px;max-height:340px;overflow:auto;background:#fff;position:absolute;left:0;right:0;top:100%;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.12)}#hasil-cari:empty{display:none}
-#hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}#hasil-cari div:hover,#hasil-cari div.pilih{background:var(--aksen-lembut)}
+#hasil-cari .ket-harga{color:var(--aksen);font-size:13px}#hasil-cari div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--garis)}#hasil-cari div:hover,#hasil-cari div.pilih{background:var(--aksen-lembut)}
 .total-besar{font-size:26px;font-weight:600}
 .pintas{font-size:12px;opacity:.7;margin-left:8px;font-weight:400}
 input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
@@ -34,7 +34,7 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
   <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga satuan</th><th class="angka">Subtotal</th><th></th></tr>
   <tr id="baris-kosong"><td colspan="5" class="redup" style="padding:20px;text-align:center">Belum ada barang. Cari di bawah.</td></tr>
 </table></div>
-<div class="cari-wadah"><input type="text" id="cari-barang" autocomplete="off" placeholder="Ketik nama barang, lalu panah bawah dan Enter" autofocus><div id="hasil-cari"></div></div>
+<div class="cari-wadah"><input type="text" id="cari-barang" autocomplete="off" placeholder="Ketik nama barang (atau keran @2000 kalau tahu harganya), lalu panah bawah dan Enter" autofocus><div id="hasil-cari"></div></div>
 <p class="redup kecil">Enter di kolom jumlah pindah ke harga; Enter di harga kembali ke pencarian. Harga terisi harga jual sekarang; ganti kalau di nota beda.</p>
 
 <div class="kisi" style="margin-top:12px">
@@ -66,7 +66,7 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
 document.addEventListener('DOMContentLoaded', () => {
   const tabel = document.getElementById('tabel'), kosong = document.getElementById('baris-kosong');
   const kotak = document.getElementById('cari-barang'), wadah = document.getElementById('hasil-cari');
-  let t = null, hasil = [];
+  let t = null, hasil = [], hargaCari = null;
   const rows = [];
   function hitung(){
     let total = 0;
@@ -97,15 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
     hitung(); simpanDraf();
     return r;
   }
-  function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d); if (r){ r.q.focus(); } }
+  function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d, null, hargaCari); hargaCari = null; if (r){ r.q.focus(); } }
   kotak.addEventListener('input', () => {
     clearTimeout(t); t = setTimeout(async () => {
       if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
       const res = await fetch("{% url 'master:nota_manual_cari' %}?q=" + encodeURIComponent(kotak.value));
-      hasil = (await res.json()).hasil;
+      const jawab = await res.json(); hasil = jawab.hasil; hargaCari = jawab.harga_cari || null;
       wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
       hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
-        d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga)); wadah.appendChild(d); });
+        d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga));
+        if (h.ket_harga) { const k = document.createElement('span'); k.className = 'ket-harga'; k.textContent = '  ' + h.ket_harga; d.appendChild(k); }
+        wadah.appendChild(d); });
     }, 200);
   });
   wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });

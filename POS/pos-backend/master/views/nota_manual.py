@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Value, Q
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -76,18 +76,21 @@ def baru(request):
 @perlu("laporan")
 def cari(request):
     """Cari barang untuk nota manual: harga jual, floor, dan stok kasir."""
-    teks = layanan.rapikan_teks(request.GET.get("q"))
-    if len(teks) < 2:
+    from master.layanan import cari as svc_cari
+    teks, harga = svc_cari.pisah_harga(request.GET.get("q"))
+    teks = layanan.rapikan_teks(teks)
+    if len(teks) < 2 and harga is None:
         return JsonResponse({"hasil": []})
     qs = Item.objects.all()
-    for kata in teks.split(" "):
+    for kata in svc_cari.kata(teks):
         qs = qs.filter(Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
                        | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name")))
-    from master.layanan import cari as svc_cari
     # Yang cocok lewat nama didahulukan SEBELUM dipotong, supaya tidak tergeser hasil alias.
-    barang = list(qs.annotate(t=svc_cari.tingkat(teks, lain=("brand",))).order_by("t", "item_name", "variant")
-                  .values("item_name", "variant", "in_stock", "min_price", "max_price", "t")[:60])
-    barang.sort(key=lambda b: (b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
+    # Dengan harga (@2000): harga yang pas/terdekat dulu, baru kecocokan nama.
+    qs = qs.annotate(t=svc_cari.tingkat(teks, lain=("brand",)), j=svc_cari.jarak_harga(harga) if harga else Value(0))
+    barang = list(qs.order_by("j", "t", "item_name", "variant")
+                  .values("item_name", "variant", "in_stock", "min_price", "max_price", "t", "j")[:60])
+    barang.sort(key=lambda b: (b["j"], b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in barang[:25]})}
     hasil = []
     for b in barang[:25]:
@@ -95,8 +98,9 @@ def cari(request):
         if v is None or not v.aktif:
             continue
         hasil.append({"id": v.id, "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
-                      "stok": b["in_stock"], "harga": b["max_price"], "floor": b["min_price"]})
-    return JsonResponse({"hasil": hasil})
+                      "stok": b["in_stock"], "harga": b["max_price"], "floor": b["min_price"],
+                      "ket_harga": svc_cari.keterangan_harga(harga, b["max_price"], b["min_price"]) if harga else ""})
+    return JsonResponse({"hasil": hasil, "harga_cari": harga})
 
 
 @perlu("laporan")

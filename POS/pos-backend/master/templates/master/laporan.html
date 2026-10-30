@@ -1,13 +1,5 @@
 {% extends "master/base.html" %}{% load master_tags %}
-{% block judul %}Laporan penjualan<style>tr.bisa-buka{cursor:pointer}tr.bisa-buka.terbuka .panah-rinci{display:inline-block;transform:rotate(90deg)}.panah-rinci{color:var(--redup);transition:transform .15s}</style>
-<script>
-document.addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-buka-rinci]'); if (!tr) return;
-  const r = tr.nextElementSibling; if (!r || !r.classList.contains('rinci')) return;
-  r.hidden = !r.hidden; tr.classList.toggle('terbuka', !r.hidden);
-});
-</script>
-{% endblock %}
+{% block judul %}Laporan penjualan{% endblock %}
 {% block isi %}
 <style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
 .besar{font-size:24px;font-weight:600}.batang{height:8px;border-radius:4px;background:var(--aksen);min-width:2px}
@@ -92,17 +84,51 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
   <tr{% if h.teratas %} class="bisa-buka" data-buka-rinci title="Klik untuk melihat barang terlaris di {{ h.nama }}"{% endif %}><td>{% if h.teratas %}<span class="panah-rinci">▸</span> {% endif %}{{ h.nama }}</td><td class="angka">{{ h.qty|ribuan }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td>
     <td class="angka" style="color:{% if h.laba < 0 %}var(--bahaya){% endif %}">{{ h.laba|ribuan }}{% if h.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>
   {% if h.teratas %}<tr class="rinci" hidden><td colspan="6" style="padding:0 14px 12px 34px;background:var(--latar)">
-    <table class="kecil" style="margin-top:6px"><tr><th>Barang terlaris di {{ h.nama }}</th><th class="angka">Terjual</th><th class="angka">Penjualan</th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
-    {% for t in h.teratas %}<tr><td>{{ forloop.counter }}. {{ t.nama }}</td><td class="angka">{{ t.qty|ribuan }}</td><td class="angka"><b>{{ t.omzet|ribuan }}</b></td><td class="angka">{{ t.laba|ribuan }}{% if t.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if t.margin != None %}{{ t.margin }}%{% endif %}</td></tr>{% endfor %}
-    </table></td></tr>{% endif %}
+    <table class="kecil" style="margin-top:6px"><tr><th>Barang terlaris di {{ h.nama }} <span class="redup" style="font-weight:400">· klik nama untuk membuka barangnya</span></th><th class="angka">Terjual</th><th class="angka">Penjualan</th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
+    {% for t in h.teratas %}<tr{% if forloop.counter > 5 %} class="lebih" hidden{% endif %}><td>{{ forloop.counter }}. {% if t.item_id %}<a href="{% url 'master:barang' %}?q={{ t.nama|urlencode }}&buka={{ t.item_id }}" data-buka-barang="{{ t.item_id }}" title="Buka barang ini (lengkapi brand/kategori)">{{ t.nama }}</a>{% else %}{{ t.nama }}{% endif %}</td><td class="angka">{{ t.qty|ribuan }}</td><td class="angka"><b>{{ t.omzet|ribuan }}</b></td><td class="angka">{{ t.laba|ribuan }}{% if t.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if t.margin != None %}{{ t.margin }}%{% endif %}</td></tr>{% endfor %}
+    </table>
+    {% if h.teratas|length > 5 %}<button type="button" class="tombol kecil" data-lihat-semua style="margin-top:8px">Lihat semua ({{ h.teratas|length }})</button>{% endif %}
+    </td></tr>{% endif %}
   {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada penjualan di periode ini.</td></tr>
   {% endfor %}
 </table></div>
-{% if jenis == "kategori" or jenis == "brand" %}<p class="redup kecil">Klik baris {{ jenis }} untuk melihat 5 barang terlarisnya.</p>{% endif %}
+{% if jenis == "kategori" or jenis == "brand" %}<p class="redup kecil">Klik baris {{ jenis }} untuk melihat barang terlarisnya; klik nama barang untuk membuka dan melengkapi datanya (mis. brand yang masih kosong).</p>{% endif %}
 <p class="redup kecil">Urutan bawaan berdasarkan nilai penjualan, bukan jumlah biji. Klik judul kolom untuk mengganti urutan. Laba dihitung dari modal rata saat nota dibuat; tanda * berarti ada barang yang modalnya kosong.</p>
 <style>tr.bisa-buka{cursor:pointer}tr.bisa-buka.terbuka .panah-rinci{display:inline-block;transform:rotate(90deg)}.panah-rinci{color:var(--redup);transition:transform .15s}</style>
+<aside class="laci-barang" id="laci-barang" hidden></aside><div class="laci-latar" id="laci-latar" hidden></div>
+<style>
+.laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(900px,94vw);background:var(--kartu);z-index:60;overflow:auto;padding:22px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
+.laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
+@keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+</style>
+<script>
+/* Barang di rincian kategori/brand: buka panel barang dari kanan (sama dengan Daftar barang).
+   Simpan di panel kembali ke laporan ini, jadi angkanya langsung ikut berubah. */
+(function(){
+  const laci = document.getElementById('laci-barang'), latar = document.getElementById('laci-latar');
+  const dasar = "{% url 'master:barang' %}item/";
+  function tutup(){ laci.hidden = true; latar.hidden = true; laci.innerHTML = ''; }
+  document.addEventListener('click', async e => {
+    const a = e.target.closest('[data-buka-barang]');
+    if (a) {
+      if (e.ctrlKey || e.metaKey) return;          // Ctrl+klik: buka di Daftar barang (tab baru)
+      e.preventDefault(); e.stopPropagation();
+      laci.hidden = false; latar.hidden = false; laci.innerHTML = '<p class="redup">Memuat...</p>';
+      try { const r = await fetch(dasar + a.dataset.bukaBarang + '/panel/?kembali=' + encodeURIComponent(location.pathname + location.search));
+        if (!r.ok) throw 0; laci.innerHTML = await r.text(); }
+      catch (x) { laci.innerHTML = '<p class="pesan error">Barang tidak bisa dimuat.</p>'; }
+      return;
+    }
+    if (e.target.closest('[data-tutup-panel]') || e.target === latar) { tutup(); return; }
+    const b = e.target.closest('[data-lihat-semua]');
+    if (b) { b.closest('td').querySelectorAll('tr.lebih').forEach(r => r.hidden = false); b.remove(); }
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !laci.hidden && !e.target.matches('input,select')) tutup(); });
+})();
+</script>
 <script>
 document.addEventListener('click', e => {
+  if (e.target.closest('[data-buka-barang],[data-lihat-semua],.rinci')) return;
   const tr = e.target.closest('tr[data-buka-rinci]'); if (!tr) return;
   const r = tr.nextElementSibling; if (!r || !r.classList.contains('rinci')) return;
   r.hidden = !r.hidden; tr.classList.toggle('terbuka', !r.hidden);

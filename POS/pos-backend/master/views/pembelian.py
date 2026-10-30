@@ -2,7 +2,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import F, Q
+from django.db.models import Value, F, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -141,32 +141,44 @@ def buka_dus(request):
 @perlu("ubah_stok")
 def cari_barang(request):
     """Pencarian barang untuk menambah baris PO. Balasan JSON."""
-    cari = layanan.rapikan_teks(request.GET.get("q"))
-    if len(cari) < 2:
+    from master.layanan import cari as svc_cari
+    cari, harga = svc_cari.pisah_harga(request.GET.get("q"))
+    cari = layanan.rapikan_teks(cari)
+    if len(cari) < 2 and harga is None:
         return JsonResponse({"hasil": []})
     qs = Item.objects.all()
-    for kata in cari.split(" "):
+    for kata in svc_cari.kata(cari):
         qs = qs.filter(
             Q(item_name__icontains=kata) | Q(variant__icontains=kata) | Q(brand__icontains=kata)
             | Q(item_name__in=ItemInfo.objects.filter(alias__icontains=kata).values("item_name"))
         )
-    from master.layanan import cari as svc_cari
     # Yang cocok lewat nama didahulukan SEBELUM dipotong, supaya tidak tergeser hasil alias.
-    barang = list(qs.annotate(t=svc_cari.tingkat(cari, lain=("brand",))).order_by("t", "item_name", "variant")
-                  .values("item_name", "variant", "in_stock", "t")[:60])
+    # Dengan harga (@2000): dibandingkan dengan harga beli terakhir (perkiraan awal di database: modal).
+    qs = qs.annotate(t=svc_cari.tingkat(cari, lain=("brand",)),
+                     j=svc_cari.jarak_harga(harga, jual="cost_amount", floor=None) if harga else Value(0))
+    barang = list(qs.order_by("j" if harga and not cari else "t", "t", "item_name", "variant")
+                  .values("item_name", "variant", "in_stock", "t")[:60 if not harga else 120])
     barang.sort(key=lambda b: (b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
-    barang = barang[:25]
+    if not harga:
+        barang = barang[:25]
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in barang})}
     hasil = []
     for b in barang:
         v = info.get((b["item_name"], b["variant"]))
         if v is None:
             continue
+        hb = svc.harga_beli_terakhir(v)
         hasil.append({
             "id": v.id, "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
-            "stok": b["in_stock"], "harga": svc.harga_beli_terakhir(v),
+            "stok": b["in_stock"], "harga": hb, "t": b["t"],
+            "ket_harga": svc_cari.keterangan_harga(harga, hb) if harga else "",
         })
-    return JsonResponse({"hasil": hasil})
+    if harga:
+        hasil.sort(key=lambda h: (svc_cari.jarak_py(harga, h["harga"]), h["t"]))
+        hasil = hasil[:25]
+    for h in hasil:
+        h.pop("t", None)
+    return JsonResponse({"hasil": hasil, "harga_cari": harga})
 
 
 @perlu("pembelian")
