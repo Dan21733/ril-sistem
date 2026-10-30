@@ -158,6 +158,10 @@ class NotaManualBarangTest(Dasar):
         from master.models import ItemInfo
         d = self.client.get(reverse("master:nota_manual_cari") + "?q=keran").json()
         self.assertEqual(d["hasil"][0]["item"], ItemInfo.objects.get(item_name="Keran Plastik").pk)
+        # Baris draf lama hanya membawa id varian: id barangnya bisa dicari lewat ?varian=.
+        d2 = self.client.get(reverse("master:nota_manual_cari") + f"?varian={d['hasil'][0]['id']}").json()
+        self.assertEqual(d2["hasil"][0]["item"], d["hasil"][0]["item"])
+        self.assertContains(self.client.get(reverse("master:nota_manual_baru")), "data-ubah-baris")
 
     def test_barang_baru_dari_nota(self):
         import json

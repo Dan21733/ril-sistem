@@ -79,8 +79,12 @@ def cari(request):
     from master.layanan import cari as svc_cari
     teks, harga = svc_cari.pisah_harga(request.GET.get("q"))
     teks = layanan.rapikan_teks(teks)
-    item_id = request.GET.get("item", "")
-    if item_id.isdigit():
+    item_id, varian_id = request.GET.get("item", ""), request.GET.get("varian", "")
+    if varian_id.isdigit():
+        # Satu varian (baris nota dari draf lama yang belum membawa id barang).
+        vi = VarianInfo.objects.filter(pk=int(varian_id)).first()
+        qs = Item.objects.filter(item_name=vi.item_name, variant=vi.variant) if vi else Item.objects.none()
+    elif item_id.isdigit():
         # Semua varian satu barang (dipakai sesudah membuat barang baru dari halaman nota).
         ii = ItemInfo.objects.filter(pk=int(item_id)).first()
         qs = Item.objects.filter(item_name=ii.item_name if ii else None)

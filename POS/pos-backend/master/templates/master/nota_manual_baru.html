@@ -10,7 +10,7 @@ td input.kotak{width:110px;text-align:right;padding:8px 10px;border:1px solid va
 #hasil-cari div{display:flex;align-items:center;gap:10px}#hasil-cari .nama-hasil{flex:1;min-width:0}
 #hasil-cari .ubah-hasil{padding:3px 10px;font-size:13px;flex:none}
 #hasil-cari div.baru-hasil{color:var(--aksen);font-weight:600}
-td a.buka-baris{color:inherit;text-decoration:none;border-bottom:1px dashed var(--garis-kuat)}td a.buka-baris:hover{color:var(--aksen)}
+td.aksi-baris{white-space:nowrap}td a.buka-baris{color:inherit;text-decoration:none;border-bottom:1px dashed var(--garis-kuat)}td a.buka-baris:hover{color:var(--aksen)}
 .laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(900px,94vw);background:var(--kartu);z-index:60;overflow:auto;padding:22px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
 .laci-barang[hidden],.laci-latar[hidden]{display:none!important}
 .laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function tambah(d, qty, harga){
     if (rows.some(r => r.data.id === d.id)){ kabar('Barang itu sudah ada di daftar. Ubah jumlahnya saja.', true); return; }
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td class="angka"><input class="kotak" inputmode="numeric" style="width:80px"></td><td class="angka"><input class="kotak" inputmode="numeric"><span class="masalah-teks"></span></td><td class="angka"><b></b></td><td><button type="button" class="tombol kecil bahaya">Hapus</button></td>';
+    tr.innerHTML = '<td></td><td class="angka"><input class="kotak" inputmode="numeric" style="width:80px"></td><td class="angka"><input class="kotak" inputmode="numeric"><span class="masalah-teks"></span></td><td class="angka"><b></b></td><td class="aksi-baris"><button type="button" class="tombol kecil" data-ubah-baris title="Ubah barang ini (harga, floor, varian) tanpa meninggalkan nota">Ubah</button> <button type="button" class="tombol kecil bahaya" data-hapus>Hapus</button></td>';
     const namaBaris = d.nama + (d.varian ? ' / ' + d.varian : '');
     if (d.item){ const a = document.createElement('a'); a.href = '#'; a.className = 'buka-baris'; a.title = 'Buka barang ini (ubah harga, dll.)';
       a.textContent = namaBaris; a.addEventListener('click', e => { e.preventDefault(); bukaBarang(d.item); }); tr.cells[0].append(a); }
@@ -112,7 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     r.q.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); r.h.focus(); r.h.select(); } });
     r.h.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); kotak.focus(); } });
     r.h.addEventListener('blur', () => { const n = angka(r.h.value); if (n != null) r.h.value = ribuan(n); });
-    tr.querySelector('button').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); berubah = true; hitung(); simpanDraf(); kotak.focus(); });
+    tr.querySelector('[data-ubah-baris]').addEventListener('click', () => ubahBaris(r));
+    tr.querySelector('[data-hapus]').addEventListener('click', () => { tr.remove(); rows.splice(rows.indexOf(r), 1); berubah = true; hitung(); simpanDraf(); kotak.focus(); });
     berubah = berubah || !memulihkan; hitung(); simpanDraf();
     return r;
   }
@@ -181,6 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!rows.some(r => String(r.data.item) === String(item))) return;
     try { const d = await (await fetch(URL_CARI + '?item=' + item)).json();
       d.hasil.forEach(h => rows.forEach(r => { if (r.data.id === h.id){ r.data.floor = h.floor; r.data.harga = h.harga; } })); hitung(); } catch (e) {}
+  }
+  async function ubahBaris(r){
+    if (!r.data.item){   // baris dari draf lama: cari dulu id barangnya
+      try { const h = (await (await fetch(URL_CARI + '?varian=' + r.data.id)).json()).hasil[0]; if (h) r.data.item = h.item; } catch (e) {}
+    }
+    if (r.data.item) bukaBarang(r.data.item); else kabar('Barang ini tidak ditemukan lagi di daftar barang.', true);
   }
   async function bukaBarang(id, opsi){
     opsi = opsi || {}; modeBaru = false; idLaci = id;
