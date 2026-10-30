@@ -1,0 +1,61 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Hapus data uji{% endblock %}
+{% block isi %}
+<h2>Hapus data uji coba</h2>
+<p class="sub">Untuk nota dan karyawan yang dibuat waktu mencoba aplikasi. Hanya superuser yang bisa membuka halaman ini.
+  Setiap penghapusan tetap tercatat di <a href="{% url 'master:log' %}">Riwayat perubahan</a> lengkap dengan isi notanya dan alasannya.</p>
+<div class="pesan warning">Nota yang dihapus hilang dari laporan dan tidak bisa dikembalikan. Pakai hanya untuk data uji, bukan untuk nota penjualan sungguhan (nota sungguhan yang salah dibatalkan lewat retur/void di kasir).</div>
+
+<h3>Nota kasir</h3>
+<form method="get" class="kartu baris" style="margin-bottom:12px">
+  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-pilih="{{ periode.pilih }}" data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
+    <input type="hidden" name="periode" value="{{ periode.pilih }}"><input type="hidden" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
+  <div style="min-width:160px"><label>Karyawan</label><select name="kasir"><option value="">Semua</option>{% for k, n in daftar_kasir %}<option value="{{ k }}" {% if g.kasir == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div style="min-width:130px"><label>Perangkat</label><select name="perangkat"><option value="">Semua</option>{% for k in daftar_perangkat %}<option {% if g.perangkat == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="min-width:170px"><label>Nomor nota</label><input type="search" name="q" value="{{ g.q }}" placeholder="mis. T01-0000"></div>
+  <div><button class="tombol utama" type="submit">Terapkan</button></div>
+</form>
+
+<form method="post" id="form-nota" data-tanya-hapus>{% csrf_token %}<input type="hidden" name="aksi" value="nota">
+<div class="gulir"><table>
+  <tr><th><input type="checkbox" id="semua-nota" title="Pilih semua"></th><th>Waktu</th><th>Nomor</th><th>Kasir</th><th>Barang</th><th class="angka">Total</th><th>Retur</th></tr>
+  {% for n in nota %}<tr><td><input type="checkbox" name="pilih" value="{{ n.sync_id }}" data-total="{{ n.total_amount }}"></td>
+    <td>{{ n.transaction_time|date:"d M Y H:i" }}</td><td>{{ n.transaction_id|default:"tanpa nomor" }}</td><td>{{ n.kasir }}</td>
+    <td class="kecil">{% for b in n.barang %}{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %} ×{{ b.quantity }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+    <td class="angka">{{ n.total_amount|ribuan }}</td><td>{% if n.retur %}<span class="label">{{ n.retur }} retur</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:28px;text-align:center">Tidak ada nota di periode ini.</td></tr>{% endfor %}
+</table></div>
+{% if nota|length >= batas %}<p class="redup kecil">Hanya {{ batas }} nota terbaru yang ditampilkan. Persempit periodenya kalau perlu.</p>{% endif %}
+{% if nota %}
+<div class="kartu baris" style="margin-top:12px">
+  <div style="flex:1;min-width:260px"><label>Alasan (wajib)</label><input type="text" name="alasan" required placeholder="mis. nota uji coba sebelum toko memakai aplikasi"></div>
+  <div><label style="display:flex;gap:8px;align-items:center;margin:0 0 10px"><input type="checkbox" name="stok" value="1" checked style="width:auto"> Kembalikan stok barangnya</label></div>
+  <div><button class="tombol bahaya" type="submit" id="tombol-hapus-nota" disabled>Hapus nota terpilih</button></div>
+</div>
+{% endif %}
+</form>
+
+<h3>Karyawan</h3>
+<p class="redup kecil">Karyawan yang masih punya nota tidak bisa dihapus. Hapus nota ujinya dulu, atau cukup nonaktifkan di Karyawan & hak akses.</p>
+<div class="gulir"><table>
+  <tr><th>ID</th><th>Nama</th><th class="angka">Nota</th><th></th></tr>
+  {% for k in karyawan %}<tr><td>{{ k.id }}</td><td>{{ k.nama }}</td><td class="angka">{{ k.nota|ribuan }}</td>
+    <td>{% if not k.nota %}<form method="post" class="baris" style="gap:8px;align-items:center" data-tanya="Hapus karyawan {{ k.nama }}? PIN dan akunnya ikut dihapus.">{% csrf_token %}
+      <input type="hidden" name="aksi" value="karyawan"><input type="hidden" name="id" value="{{ k.id }}">
+      <input type="text" name="alasan" required placeholder="Alasan" style="width:200px"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}</td></tr>
+  {% endfor %}
+</table></div>
+<script>
+(function(){
+  const f = document.getElementById('form-nota'); if (!f) return;
+  const kotak = () => [...f.querySelectorAll('[name=pilih]')], tombol = document.getElementById('tombol-hapus-nota');
+  function segar(){ const p = kotak().filter(c => c.checked); if (tombol) { tombol.disabled = !p.length;
+    tombol.textContent = p.length ? 'Hapus ' + p.length + ' nota (Rp' + p.reduce((s, c) => s + (+c.dataset.total || 0), 0).toLocaleString('id-ID') + ')' : 'Hapus nota terpilih'; } }
+  document.getElementById('semua-nota')?.addEventListener('change', e => { kotak().forEach(c => c.checked = e.target.checked); segar(); });
+  f.addEventListener('change', segar);
+  f.addEventListener('submit', e => { const n = kotak().filter(c => c.checked).length;
+    tanyaKirim(e, 'Hapus ' + n + ' nota ini secara permanen?\nTercatat di Riwayat perubahan.', {ya: 'Hapus ' + n + ' nota', bahaya: true}); });
+  segar();
+})();
+</script>
+{% endblock %}

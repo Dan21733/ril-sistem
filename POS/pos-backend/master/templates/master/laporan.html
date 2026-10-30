@@ -1,5 +1,13 @@
 {% extends "master/base.html" %}{% load master_tags %}
-{% block judul %}Laporan penjualan{% endblock %}
+{% block judul %}Laporan penjualan<style>tr.bisa-buka{cursor:pointer}tr.bisa-buka.terbuka .panah-rinci{display:inline-block;transform:rotate(90deg)}.panah-rinci{color:var(--redup);transition:transform .15s}</style>
+<script>
+document.addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-buka-rinci]'); if (!tr) return;
+  const r = tr.nextElementSibling; if (!r || !r.classList.contains('rinci')) return;
+  r.hidden = !r.hidden; tr.classList.toggle('terbuka', !r.hidden);
+});
+</script>
+{% endblock %}
 {% block isi %}
 <style>input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
 .besar{font-size:24px;font-weight:600}.batang{height:8px;border-radius:4px;background:var(--aksen);min-width:2px}
@@ -12,7 +20,7 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
 <div class="tab">{% for k, l in daftar_jenis %}<a href="?{{ qs_tanpa_lap }}{% if qs_tanpa_lap %}&{% endif %}lap={{ k }}" class="{% if jenis == k %}kini{% endif %}">{{ l }}</a>{% endfor %}</div>
 <form method="get" class="kartu baris" style="margin-bottom:18px" id="form-periode">
   {% if jenis %}<input type="hidden" name="lap" value="{{ jenis }}">{% endif %}
-  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
+  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-pilih="{{ periode.pilih }}" data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
     <input type="hidden" name="periode" value="{{ periode.pilih }}"><input type="hidden" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
   <div style="min-width:160px"><label>Karyawan</label><select name="kasir"><option value="">Semua</option>{% for k, n in daftar_kasir %}<option value="{{ k }}" {% if g.kasir == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
   <div style="min-width:150px"><label>Cara bayar</label><select name="metode"><option value="">Semua</option>{% for k, n in daftar_metode %}<option value="{{ k }}" {% if g.metode == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
@@ -39,8 +47,22 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
     {% for k in kembali %}<tr><td>{{ k.waktu|date:"d M H:i" }}</td><td>{{ k.label }}{% if k.menunggu %} <span class="label">menunggu diterima</span>{% endif %}</td><td>{{ k.transaction_id|default:"-" }}</td><td>{{ k.kasir }}</td><td>{{ k.alasan }}</td><td class="angka">{{ k.uang|ribuan }}</td><td class="angka">{{ k.modal_kembali|ribuan }}</td></tr>{% endfor %}
   </table></div>
   {% endif %}
+  {% if per_minggu %}
+  <h3>Hari paling ramai</h3>
+  <p class="redup kecil" style="margin-top:-4px">Penjualan digabung per hari dalam seminggu. Tinggi batang = rata-rata per hari itu (mis. total semua hari Senin dibagi banyaknya Senin di periode ini).</p>
+  <div class="kartu"><div class="grafik" style="height:220px">
+    {% for h in per_minggu %}<div class="kolom{% if h.teramai %} ramai{% endif %}" title="{{ h.label_hari }}: total {{ h.omzet|rupiah }} dari {{ h.kali }} hari, rata-rata {{ h.rata|rupiah }}">
+      <span class="nilai">{% if h.rata %}{{ h.rata|singkat }}{% endif %}</span><div class="batang" style="height:{{ h.tinggi }}%"></div>
+      <span class="sumbu">{{ h.label_hari }}{% if h.teramai %}<br><b class="ramai-label">teramai</b>{% endif %}</span></div>{% endfor %}
+  </div></div>
+  <div class="gulir"><table>
+    <tr><th>Hari</th><th class="angka">Banyak hari</th><th class="angka">Nota</th><th class="angka">Penjualan total</th><th class="angka">Rata-rata per hari</th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
+    {% for h in per_minggu %}<tr{% if h.teramai %} class="baris-ramai"{% endif %}><td>{{ h.label_hari }}{% if h.teramai %} <span class="label baik">teramai</span>{% endif %}</td><td class="angka">{{ h.kali }}</td><td class="angka">{{ h.nota }}</td><td class="angka">{{ h.omzet|ribuan }}</td><td class="angka"><b>{{ h.rata|ribuan }}</b></td><td class="angka">{{ h.laba|ribuan }}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>{% endfor %}
+  </table></div>
+  <style>.grafik .kolom.ramai .batang{background:var(--aksen)}.ramai-label{color:var(--aksen);font-size:12px}</style>
+  {% endif %}
   {% if per_hari|length > 1 %}
-  <h3>Per hari</h3>
+  <h3>Per tanggal</h3>
   <div class="kartu"><div class="grafik" style="height:220px">
     {% for h in per_hari %}<div class="kolom" title="{{ h.nama|date:'l, d M' }}: {{ h.omzet|rupiah }} ({{ h.nota }} nota)">
       <span class="nilai">{{ h.omzet|singkat }}</span><div class="batang" style="height:{{ h.bagian }}%"></div>
@@ -67,10 +89,23 @@ th a{color:inherit}th a.kini{color:var(--aksen)}</style>
     <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=laba" class="{% if urut == 'laba' %}kini{% endif %}">Laba kotor</a></th>
     <th class="angka"><a href="?{{ qs_tanpa_urut }}{% if qs_tanpa_urut %}&{% endif %}urut=margin" class="{% if urut == 'margin' %}kini{% endif %}">Margin</a></th></tr>
   {% for h in tabel %}
-  <tr><td>{{ h.nama }}</td><td class="angka">{{ h.qty|ribuan }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td>
+  <tr{% if h.teratas %} class="bisa-buka" data-buka-rinci title="Klik untuk melihat barang terlaris di {{ h.nama }}"{% endif %}><td>{% if h.teratas %}<span class="panah-rinci">▸</span> {% endif %}{{ h.nama }}</td><td class="angka">{{ h.qty|ribuan }}</td><td class="angka"><b>{{ h.omzet|ribuan }}</b></td><td><div class="batang" style="width:{{ h.bagian }}%"></div></td>
     <td class="angka" style="color:{% if h.laba < 0 %}var(--bahaya){% endif %}">{{ h.laba|ribuan }}{% if h.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if h.margin != None %}{{ h.margin }}%{% endif %}</td></tr>
+  {% if h.teratas %}<tr class="rinci" hidden><td colspan="6" style="padding:0 14px 12px 34px;background:var(--latar)">
+    <table class="kecil" style="margin-top:6px"><tr><th>Barang terlaris di {{ h.nama }}</th><th class="angka">Terjual</th><th class="angka">Penjualan</th><th class="angka">Laba kotor</th><th class="angka">Margin</th></tr>
+    {% for t in h.teratas %}<tr><td>{{ forloop.counter }}. {{ t.nama }}</td><td class="angka">{{ t.qty|ribuan }}</td><td class="angka"><b>{{ t.omzet|ribuan }}</b></td><td class="angka">{{ t.laba|ribuan }}{% if t.tanpa_modal %}*{% endif %}</td><td class="angka redup">{% if t.margin != None %}{{ t.margin }}%{% endif %}</td></tr>{% endfor %}
+    </table></td></tr>{% endif %}
   {% empty %}<tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada penjualan di periode ini.</td></tr>
   {% endfor %}
 </table></div>
+{% if jenis == "kategori" or jenis == "brand" %}<p class="redup kecil">Klik baris {{ jenis }} untuk melihat 5 barang terlarisnya.</p>{% endif %}
 <p class="redup kecil">Urutan bawaan berdasarkan nilai penjualan, bukan jumlah biji. Klik judul kolom untuk mengganti urutan. Laba dihitung dari modal rata saat nota dibuat; tanda * berarti ada barang yang modalnya kosong.</p>
+<style>tr.bisa-buka{cursor:pointer}tr.bisa-buka.terbuka .panah-rinci{display:inline-block;transform:rotate(90deg)}.panah-rinci{color:var(--redup);transition:transform .15s}</style>
+<script>
+document.addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-buka-rinci]'); if (!tr) return;
+  const r = tr.nextElementSibling; if (!r || !r.classList.contains('rinci')) return;
+  r.hidden = !r.hidden; tr.classList.toggle('terbuka', !r.hidden);
+});
+</script>
 {% endblock %}

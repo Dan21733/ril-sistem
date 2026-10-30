@@ -235,13 +235,14 @@ html[data-ukuran="110"] body{zoom:1.1}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:tablet' %}" class="{% if menu == 'perangkat' %}aktif{% endif %}">Perangkat</a>{% endif %}
     </div></details>
     {% endif %}
-    <details{% if menu|dalam:"pengguna toko pengaturan log tampilan aturan_kasir" %} open{% endif %}><summary>Pengaturan</summary><div class="isi-grup">
+    <details{% if menu|dalam:"pengguna toko pengaturan log tampilan aturan_kasir hapus_uji" %} open{% endif %}><summary>Pengaturan</summary><div class="isi-grup">
       {% if 'kelola_toko' in hak %}<a href="{% url 'master:toko' %}" class="{% if menu == 'toko' %}aktif{% endif %}">Toko</a>{% endif %}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:aturan_kasir' %}" class="{% if menu == 'aturan_kasir' %}aktif{% endif %}">Aturan kasir</a>{% endif %}
       {% if 'pengaturan' in hak %}<a href="{% url 'master:pengaturan' %}" class="{% if menu == 'pengaturan' %}aktif{% endif %}">Pajak (PPN)</a>{% endif %}
       {% if 'kelola_pengguna' in hak %}<a href="{% url 'master:pengguna' %}" class="{% if menu == 'pengguna' %}aktif{% endif %}">Akun master</a>{% endif %}
       <a href="{% url 'master:tema' %}" class="{% if menu == 'tampilan' %}aktif{% endif %}">Tampilan</a>
       {% if 'lihat_log' in hak %}<a href="{% url 'master:log' %}" class="{% if menu == 'log' %}aktif{% endif %}">Riwayat perubahan</a>{% endif %}
+      {% if request.user.is_superuser %}<a href="{% url 'master:hapus_uji' %}" class="{% if menu == 'hapus_uji' %}aktif{% endif %}">Hapus data uji</a>{% endif %}
     </div></details>
     <div class="akun">
       <b>{{ request.user.username }}</b>

@@ -6,6 +6,7 @@ from master.akun.masuk import MasukMaster
 from master.views import utama as views
 from master.views import faktur as views_faktur
 from master.views import kasir as views_kasir
+from master.views import hapus_uji as views_hapus_uji
 from master.views import laporan as views_laporan
 from master.views import nota_manual as views_nota_manual
 from master.views import opname as views_opname
@@ -88,6 +89,7 @@ urlpatterns = [
     path("kategori/", views.kelompok, {"kolom": "category"}, name="kategori"),
     path("brand/", views.kelompok, {"kolom": "brand"}, name="brand"),
     path("rak/", views.rak, name="rak"),
+    path("hapus-uji/", views_hapus_uji.halaman, name="hapus_uji"),
     path("sampah/", views_sampah.daftar, name="sampah"),
     path("impor/", views.impor, name="impor"),
     path("impor/<uuid:impor_id>/", views.impor_pratinjau, name="impor_pratinjau"),

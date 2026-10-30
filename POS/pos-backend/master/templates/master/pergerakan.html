@@ -5,7 +5,7 @@
 <p class="sub">{{ periode.awal|date:"d M Y" }}{% if periode.awal != periode.akhir %} sampai {{ periode.akhir|date:"d M Y" }}{% endif %}. Angka dalam jumlah barang (biji/satuan), bukan rupiah.</p>
 
 <form method="get" class="kartu baris" style="margin-bottom:18px">
-  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
+  <div><label>Periode</label><button type="button" class="tombol pilih-rentang" data-rentang data-pilih="{{ periode.pilih }}" data-awal="{{ periode.awal|date:'Y-m-d' }}" data-akhir="{{ periode.akhir|date:'Y-m-d' }}" data-maks="{% now 'Y-m-d' %}">📅 <span data-label>{{ periode.awal|date:'j M Y' }} – {{ periode.akhir|date:'j M Y' }}</span> <span class="redup">▾</span></button>
     <input type="hidden" name="periode" value="{{ periode.pilih }}"><input type="hidden" name="dari" value="{{ periode.awal|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ periode.akhir|date:'Y-m-d' }}"></div>
   <input type="hidden" name="hari" value="{{ hari }}">
   <div><button class="tombol utama" type="submit">Terapkan</button></div>

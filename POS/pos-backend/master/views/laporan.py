@@ -151,14 +151,23 @@ def halaman(request):
     if request.GET.get("brand"):
         baris = [b for b in baris if b["brand"] == request.GET["brand"]]
 
-    tabel, per_hari = [], []
+    tabel, per_hari, per_minggu = [], [], []
     if jenis == "ringkasan":
         per_hari = laporan.kelompok_nota(daftar, "hari")
         tabel = laporan.kelompok_baris(baris, "barang", "omzet")[:10]
+        if len(per_hari) > 1:
+            per_minggu = _gabung_hari(daftar, periode)
     elif jenis == "barang":
         tabel = laporan.kelompok_baris(baris, "varian" if request.GET.get("rinci") == "1" else "barang", urut)
     elif jenis in ("kategori", "brand"):
         tabel = laporan.kelompok_baris(baris, jenis, urut)
+        # Barang terlaris di dalam tiap kategori/brand (dibuka dengan klik baris).
+        kunci = "kategori" if jenis == "kategori" else "brand"
+        per = {}
+        for b in baris:
+            per.setdefault(b[kunci] or "(kosong)", []).append(b)
+        for h in tabel:
+            h["teratas"] = laporan.kelompok_baris(per.get(h["nama"], []), "barang", "omzet")[:5]
     else:
         tabel = laporan.kelompok_nota(daftar, jenis, urut)
     for h in tabel:   # label untuk tabel dan export (jam/hari dalam seminggu)
@@ -170,7 +179,7 @@ def halaman(request):
 
     return render(request, "master/laporan.html", {
         "menu": "laporan", "periode": periode, "jenis": jenis, "daftar_jenis": JENIS, "urut": urut,
-        "ringkas": laporan.ringkas(daftar, request._kembali), "kembali": request._kembali, "tabel": tabel, "per_hari": per_hari, "g": request.GET,
+        "ringkas": laporan.ringkas(daftar, request._kembali), "kembali": request._kembali, "tabel": tabel, "per_hari": per_hari, "per_minggu": per_minggu, "g": request.GET,
         "qs_tanpa_lap": _qs_tanpa(request, "lap", "urut", "export", "rinci"),
         "qs_tanpa_urut": _qs_tanpa(request, "urut", "export"),
         "qs_export": _qs_tanpa(request, "export"),
@@ -181,6 +190,30 @@ def halaman(request):
         "grafik": jenis in ("jam", "harian"),
         **_konteks_filter(),
     })
+
+
+def _gabung_hari(daftar, periode):
+    """Penjualan digabung per hari dalam seminggu (Senin..Minggu) untuk melihat hari paling ramai.
+
+    Rata-rata dibagi banyaknya hari itu di periode (mis. 4 kali Senin dalam sebulan), supaya adil.
+    """
+    from datetime import timedelta
+    hari = laporan.kelompok_nota(daftar, "harian")
+    kali = [0] * 7
+    d = periode["awal"]
+    while d <= periode["akhir"]:
+        kali[d.weekday()] += 1
+        d += timedelta(days=1)
+    NAMA = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+    for h in hari:
+        h["label_hari"] = NAMA[h["nama"]]
+        h["kali"] = kali[h["nama"]]
+        h["rata"] = round(h["omzet"] / h["kali"]) if h["kali"] else 0
+    puncak = max((h["rata"] for h in hari), default=0)
+    for h in hari:
+        h["tinggi"] = round(h["rata"] / puncak * 100) if puncak > 0 else 0
+        h["teramai"] = puncak > 0 and h["rata"] == puncak
+    return hari
 
 
 def _export(jenis, periode, tabel):

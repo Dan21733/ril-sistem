@@ -86,7 +86,9 @@ atau tombol [data-rentang] di dalam formulir yang punya input periode/dari/sampa
     }
   }
   /* Nama yang ditampilkan untuk rentang: nama pilihan cepat kalau cocok, kalau tidak tanggalnya. */
-  function label(awal, akhir, maks){
+  var NAMA_SERVER = {hari: 'Hari ini', kemarin: 'Kemarin', '7': '7 hari terakhir', '30': '30 hari terakhir', bulan: 'Bulan ini'};
+  function label(awal, akhir, maks, pilih){
+    if (pilih && NAMA_SERVER[pilih]) return NAMA_SERVER[pilih];
     var hari = baca(maks) || new Date(); hari = new Date(hari.getFullYear(), hari.getMonth(), hari.getDate());
     var a = baca(awal), b = baca(akhir);
     for (var i = 0; i < PRESET.length; i++) { var r = rentangPreset(PRESET[i][0], hari);
@@ -182,11 +184,11 @@ atau tombol [data-rentang] di dalam formulir yang punya input periode/dari/sampa
     }});
   });
   document.querySelectorAll('[data-rentang]').forEach(function (t) {
-    var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks);
+    var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks, t.dataset.pilih);
   });
   document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('[data-rentang]').forEach(function (t) {
-      var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks); });
+      var l = t.querySelector('[data-label]'); if (l) l.textContent = label(t.dataset.awal, t.dataset.akhir, t.dataset.maks, t.dataset.pilih); });
   });
 })();
 </script>
