@@ -90,6 +90,8 @@ class Rak(models.Model):
 class ItemInfo(models.Model):
     item_name = models.CharField(max_length=255, unique=True)
     alias = models.TextField(blank=True, default="")
+    # Minimal DP (persen) untuk barang ini; kosong = bawaan di Pengaturan (50%).
+    min_dp_persen = models.PositiveSmallIntegerField(null=True, blank=True)
     # Pemilik barang. Kosong = toko yang memegang stok kasir; terisi = barang toko titipan.
     toko = models.ForeignKey(Toko, null=True, blank=True, on_delete=models.PROTECT, related_name="barang_milik")
 
@@ -249,6 +251,9 @@ class Pengaturan(models.Model):
     pkp_mulai = models.DateField(null=True, blank=True)
     # Diskon persen di kasir dan floor barang titipan dibulatkan KE ATAS ke kelipatan ini.
     pembulatan_diskon = models.PositiveIntegerField(default=100)
+    # DP: minimal bawaan (persen dari harga barang) dan jatuh tempo bawaan (hari) untuk nota belum lunas.
+    dp_minimal_persen = models.PositiveSmallIntegerField(default=50)
+    jatuh_tempo_hari = models.PositiveSmallIntegerField(default=14)
 
     class Meta:
         db_table = "master_pengaturan"
@@ -1173,3 +1178,93 @@ class SetoranTitipan(models.Model):
     class Meta:
         db_table = "master_setoran_titipan"
         ordering = ["-sampai", "-id"]
+
+
+class Pelanggan(models.Model):
+    """Pelanggan yang dikenal toko. `boleh_tempo` = boleh invoice (ngutang tanpa DP penuh), tetap ACC per nota."""
+    nama = models.CharField(max_length=150)
+    telepon = models.CharField(max_length=30, blank=True, default="", db_index=True)
+    boleh_tempo = models.BooleanField(default=False)
+    # Batas total piutang berjalan; kosong = tanpa batas (tetap ACC per nota).
+    batas_piutang = models.BigIntegerField(null=True, blank=True)
+    catatan = models.CharField(max_length=300, blank=True, default="")
+    aktif = models.BooleanField(default=True)
+    dibuat = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_pelanggan"
+        ordering = ["nama", "id"]
+
+    def __str__(self):
+        return self.nama
+
+
+class Piutang(models.Model):
+    """Nota yang belum selesai: belum lunas (DP/invoice), barang diambil nanti, atau barang dipesan.
+
+    Satu baris per nota. Nota lunas yang barangnya langsung dibawa/diantar tidak punya baris ini.
+    Sumbernya nota tulis tangan sekarang; nota kasir (sync_id) menyusul.
+    """
+    BARANG = [("bawa", "Dibawa sekarang"), ("antar", "Diantar"), ("ambil", "Ambil nanti di toko"), ("pesan", "Pesan dulu")]
+    ACC = [("", "Tidak perlu"), ("menunggu", "Menunggu ACC"), ("disetujui", "Disetujui"), ("ditolak", "Ditolak")]
+    JENIS_ACC = [("", "-"), ("invoice", "Invoice / ngutang"), ("titip", "Titip barang")]
+
+    nota_manual = models.OneToOneField("NotaManual", null=True, blank=True, on_delete=models.CASCADE, related_name="piutang")
+    kasir_sync_id = models.UUIDField(null=True, blank=True, unique=True)
+    toko = models.ForeignKey(Toko, on_delete=models.PROTECT, related_name="piutang")
+    nomor = models.CharField(max_length=40)
+    tanggal = models.DateField(db_index=True)
+    pelanggan = models.ForeignKey(Pelanggan, null=True, blank=True, on_delete=models.SET_NULL, related_name="piutang")
+    nama = models.CharField(max_length=150)
+    telepon = models.CharField(max_length=30, blank=True, default="")
+    total = models.BigIntegerField()
+    dibayar = models.BigIntegerField(default=0)
+    jatuh_tempo = models.DateField(null=True, blank=True)
+    status_barang = models.CharField(max_length=10, choices=BARANG, default="bawa")
+    # Stok barang "pesan dulu" baru berkurang saat diserahkan.
+    stok_dikurangi = models.BooleanField(default=True)
+    barang_selesai = models.DateTimeField(null=True, blank=True)
+    barang_selesai_oleh = models.CharField(max_length=150, blank=True, default="")
+    jenis_acc = models.CharField(max_length=10, choices=JENIS_ACC, blank=True, default="")
+    acc_status = models.CharField(max_length=10, choices=ACC, blank=True, default="", db_index=True)
+    acc_oleh = models.CharField(max_length=150, blank=True, default="")
+    acc_waktu = models.DateTimeField(null=True, blank=True)
+    acc_catatan = models.CharField(max_length=300, blank=True, default="")
+    batal = models.BooleanField(default=False)
+    dibuat = models.DateTimeField(auto_now_add=True)
+    dibuat_oleh = models.CharField(max_length=150, blank=True, default="")
+
+    class Meta:
+        db_table = "master_piutang"
+        ordering = ["-tanggal", "-id"]
+
+    @property
+    def sisa(self):
+        return max(0, self.total - self.dibayar)
+
+    @property
+    def lunas(self):
+        return self.dibayar >= self.total
+
+    @property
+    def barang_tertunda(self):
+        return self.status_barang in ("ambil", "pesan") and self.barang_selesai is None
+
+
+class PembayaranPiutang(models.Model):
+    """Satu kali pembayaran (DP, cicilan, pelunasan) untuk satu piutang."""
+    CARA = [("cash", "Tunai"), ("bank_transfer", "Transfer"), ("edc", "EDC"), ("lainnya", "Lainnya")]
+    SUMBER = [("master", "Master"), ("hp", "HP"), ("kasir", "Kasir")]
+
+    piutang = models.ForeignKey(Piutang, on_delete=models.CASCADE, related_name="pembayaran")
+    waktu = models.DateTimeField(db_index=True)
+    jumlah = models.BigIntegerField()
+    cara = models.CharField(max_length=20, choices=CARA, default="cash")
+    catatan = models.CharField(max_length=300, blank=True, default="")
+    oleh = models.CharField(max_length=150, blank=True, default="")
+    sumber = models.CharField(max_length=10, choices=SUMBER, default="master")
+    dibuat = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_pembayaran_piutang"
+        ordering = ["waktu", "id"]

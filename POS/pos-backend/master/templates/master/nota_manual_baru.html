@@ -35,7 +35,7 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
   <div><label>Nomor di nota (kalau ada)</label><input type="text" name="nomor_tulisan" value="{{ kirim.nomor_tulisan }}" autocomplete="off"></div>
   <div><label>Pembeli (boleh kosong)</label><input type="text" name="pembeli" value="{{ kirim.pembeli }}" autocomplete="off"></div>
   {% if pilihan_lokasi|length > 1 %}<div><label>Barang diambil dari</label><select name="lokasi">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if kirim.lokasi == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>{% endif %}
-  <div><label>Cara bayar</label><select name="cara_bayar">{% for k, l in cara %}<option value="{{ k }}" {% if kirim.cara_bayar == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label>Cara bayar (DP / lunas)</label><select name="cara_bayar">{% for k, l in cara %}<option value="{{ k }}" {% if kirim.cara_bayar == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
 </div></div>
 
 <h3>Barang</h3>
@@ -50,6 +50,19 @@ input.terbawa{background:var(--awas-lembut,#fbf0d3);border-color:#e0c36a}
 <div class="kisi" style="margin-top:12px">
   <div class="kartu"><label>Ongkir (kalau ada)</label><input type="text" name="ongkir" id="ongkir" value="{{ kirim.ongkir }}" inputmode="numeric"></div>
   <div class="kartu"><div class="redup kecil">Total nota</div><div class="total-besar" id="total">Rp0</div><div class="redup kecil" id="total-rinci"></div></div>
+</div>
+<div class="kartu kartu-bayar" style="margin-top:12px">
+  <div class="kisi">
+    <div><label>Barang</label><select name="status_barang" id="status-barang">{% for k, l in status_barang %}<option value="{{ k }}" {% if kirim.status_barang == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label>Dibayar sekarang (kosong = lunas)</label><input type="text" name="dibayar" id="dibayar" value="{{ kirim.dibayar }}" inputmode="numeric" placeholder="lunas">
+      <div class="kecil redup" id="ket-dp"></div></div>
+  </div>
+  <div class="kisi" id="isian-piutang" hidden style="margin-top:10px">
+    <div><label>No. HP pembeli</label><input type="text" name="telepon" id="telepon" value="{{ kirim.telepon }}" inputmode="tel" autocomplete="off"></div>
+    <div><label>Pelanggan tempo (untuk invoice)</label><select name="pelanggan" id="pelanggan"><option value="">-</option>{% for c in pelanggan_tempo %}{% if c.boleh_tempo %}<option value="{{ c.id }}" data-nama="{{ c.nama }}" data-telepon="{{ c.telepon }}" {% if kirim.pelanggan == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nama }}{% if c.telepon %} · {{ c.telepon }}{% endif %}</option>{% endif %}{% endfor %}</select></div>
+    <div id="isian-tempo"><label>Jatuh tempo</label><input type="date" name="jatuh_tempo" id="jatuh-tempo" value="{{ kirim.jatuh_tempo }}"></div>
+  </div>
+  <div class="kecil" id="ket-piutang" style="margin-top:8px"></div>
 </div>
 <div class="kartu" style="margin-top:12px">
   <label>Catatan (boleh kosong)</label><input type="text" name="catatan" value="{{ kirim.catatan }}" placeholder="mis. dicatat ibu, barang diambil besok">
@@ -91,7 +104,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const ongkir = angka(document.getElementById('ongkir').value) || 0;
     document.getElementById('total').textContent = 'Rp' + ribuan(total + ongkir);
     document.getElementById('total-rinci').textContent = rows.length + ' barang' + (ongkir ? ' · ongkir ' + ribuan(ongkir) : '');
+    hitungDp(total + ongkir);
   }
+  // ---- DP: setiap nota yang belum lunas wajib DP minimal (bawaan {{ dp_bawaan }}%, per barang bisa lebih tinggi) ----
+  const DP_BAWAAN = {{ dp_bawaan }}, HARI_TEMPO = {{ jatuh_tempo_hari }};
+  const elStatus = document.getElementById('status-barang'), elBayar = document.getElementById('dibayar');
+  function hitungDp(totalNota){
+    const minimal = Math.ceil(rows.reduce((j, r) => j + (angka(r.q.value) || 0) * (angka(r.h.value) || 0) * (r.data.min_dp ?? DP_BAWAAN) / 100, 0));
+    const isi = elBayar.value.trim(), bayar = isi === '' ? totalNota : (angka(isi) || 0);
+    const belumLunas = bayar < totalNota, status = elStatus.value;
+    const piutang = belumLunas || status === 'ambil' || status === 'pesan';
+    document.getElementById('isian-piutang').hidden = !piutang;
+    document.getElementById('isian-tempo').hidden = !belumLunas;
+    const tempo = document.getElementById('jatuh-tempo');
+    if (belumLunas && !tempo.value){ const t = new Date(document.getElementById('tanggal').value || Date.now()); t.setDate(t.getDate() + HARI_TEMPO); tempo.value = t.toISOString().slice(0, 10); }
+    document.getElementById('ket-dp').textContent = totalNota ? 'DP minimal ' + ribuan(minimal) + (belumLunas ? ' · sisa ' + ribuan(totalNota - bayar) : '') : '';
+    const ket = document.getElementById('ket-piutang'); ket.style.color = '';
+    if (!piutang){ ket.textContent = ''; return; }
+    const tempoDipilih = !!document.getElementById('pelanggan').value;
+    if (belumLunas && bayar < minimal){
+      ket.textContent = tempoDipilih ? 'Di bawah DP minimal: jadi invoice pelanggan tempo, menunggu ACC pemilik.' : 'Di bawah DP minimal ' + ribuan(minimal) + '. Hanya pelanggan tempo yang boleh (pilih di atas).';
+      ket.style.color = tempoDipilih ? 'var(--awas)' : 'var(--bahaya)';
+    } else if (!belumLunas && status === 'ambil'){
+      ket.textContent = 'Lunas, barang dititip di toko: menunggu ACC pemilik.'; ket.style.color = 'var(--awas)';
+    } else {
+      ket.textContent = 'Masuk ke Piutang & pesanan. Nama pembeli wajib diisi.' + (status === 'pesan' ? ' Stok berkurang saat barang diserahkan.' : '');
+    }
+  }
+  [elStatus, elBayar, document.getElementById('pelanggan')].forEach(el => el.addEventListener('input', hitung));
+  elStatus.addEventListener('change', hitung);
+  elBayar.addEventListener('blur', () => { const n = angka(elBayar.value); if (n != null) elBayar.value = ribuan(n); });
+  document.getElementById('pelanggan').addEventListener('change', e => {
+    const o = e.target.selectedOptions[0]; if (!o || !o.value) return;
+    const pembeli = document.querySelector('[name=pembeli]'), telp = document.getElementById('telepon');
+    if (!pembeli.value.trim()) pembeli.value = o.dataset.nama;
+    if (!telp.value.trim()) telp.value = o.dataset.telepon;
+  });
   function tambah(d, qty, harga){
     if (rows.some(r => r.data.id === d.id)){ kabar('Barang itu sudah ada di daftar. Ubah jumlahnya saja.', true); return; }
     const tr = document.createElement('tr');
@@ -329,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- Draf: semua isian (kecuali foto) disimpan di browser ini dan dipulihkan saat kembali ke halaman ini ----
   const formNota = document.getElementById('form-nota');
   const KUNCI = 'ril-draf-nota-manual:{{ request.user.username|escapejs }}:{{ toko_aktif.id }}';
-  const KOLOM = ['tanggal', 'nomor_tulisan', 'pembeli', 'lokasi', 'cara_bayar', 'ongkir', 'catatan'];
+  const KOLOM = ['tanggal', 'nomor_tulisan', 'pembeli', 'lokasi', 'cara_bayar', 'ongkir', 'catatan', 'status_barang', 'dibayar', 'telepon', 'pelanggan', 'jatuh_tempo'];
   let memulihkan = true, berubah = false, basi = false;
   // Tiap tab punya id. Draf hanya ditulis tab yang benar-benar diubah, dan berhenti ditulis kalau tab lain
   // sudah mengubah/menyimpan nota ini (supaya menutup tab lama tidak memunculkan lagi draf yang sudah tersimpan).
@@ -378,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('form-nota').addEventListener('submit', e => {
     if (!rows.length){ e.preventDefault(); kabar('Tambahkan minimal satu barang.', true); kotak.focus(); return; }
     if (rows.some(r => !(angka(r.q.value) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong.', true); return; }
-    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, item: r.data.item, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
+    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, item: r.data.item, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, min_dp: r.data.min_dp, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
     // Draf dihapus saat dikirim. Kalau server menolak, halaman kembali dengan isian yang sama dan draf tersimpan lagi.
     if (!e.defaultPrevented){ memulihkan = true; try { localStorage.removeItem(KUNCI); } catch (er) {} }
   });

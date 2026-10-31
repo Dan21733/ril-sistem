@@ -189,14 +189,16 @@ html[data-ukuran="110"] body{zoom:1.1}
       {% if 'opname' in hak %}<a href="{% url 'master:laporan_selisih' %}" class="{% if menu == 'laporan_selisih' %}aktif{% endif %}">Selisih stok</a>{% endif %}
     </div></details>
     {% endif %}
-    {% if 'laporan' in hak or 'kelola_kasir' in hak %}
-    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau titipan" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
+    {% if 'laporan' in hak or 'kelola_kasir' in hak or 'piutang' in hak %}
+    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau titipan piutang pelanggan" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
       {% if 'laporan' in hak %}
       <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
       <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
       {% endif %}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>{% endif %}
       {% if 'laporan' in hak %}<a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>{% endif %}
+      {% if 'piutang' in hak %}<a href="{% url 'master:piutang' %}" class="{% if menu == 'piutang' %}aktif{% endif %}">Piutang &amp; pesanan{% if jumlah_piutang_acc %}<span class="angka-menu">{{ jumlah_piutang_acc }}</span>{% endif %}</a>
+      <a href="{% url 'master:pelanggan' %}" class="{% if menu == 'pelanggan' %}aktif{% endif %}">Pelanggan tempo</a>{% endif %}
       {% if 'lihat_modal' in hak and ada_titipan %}<a href="{% url 'master:titipan' %}" class="{% if menu == 'titipan' %}aktif{% endif %}">Setoran titipan</a>{% endif %}
     </div></details>
     {% endif %}

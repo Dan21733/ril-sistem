@@ -491,6 +491,14 @@ def item_detail(request, item_id, panel=False):
                                                        diskon_maks=request.POST.get(f"maks_{info.id}"), berlaku_mulai=mulai)
                     n += int(berubah)
                 messages.success(request, f"Syarat titipan tersimpan ({n} varian berubah)." if n else "Tidak ada yang berubah.")
+            elif aksi == "min_dp":
+                from master.layanan import piutang as svc_piutang
+                if "ubah_harga" not in hak:
+                    raise Tolak("Akun ini tidak boleh mengubah minimal DP.")
+                if svc_piutang.simpan_min_dp(request.user, item_info, request.POST.get("min_dp_persen")):
+                    messages.success(request, "Minimal DP tersimpan.")
+                else:
+                    messages.info(request, "Tidak ada yang berubah.")
             elif aksi == "samakan":
                 acuan = get_object_or_404(VarianInfo, pk=request.POST.get("acuan"), item_name=item_info.item_name)
                 n = layanan.samakan_varian(request.user, item_info, acuan, request.POST.getlist("kolom"), hak=hak)
@@ -559,7 +567,7 @@ def item_detail(request, item_id, panel=False):
     milik_item = svc_titipan.saring_barang(Item.objects.all(), item_info.toko)
     return render(request, "master/_item_isi.html" if panel else "master/item.html", {
         "titipan": pemilik, "riwayat_syarat": riwayat_syarat, "hari_ini": timezone.localdate().isoformat(),
-        "pembulatan": Pengaturan.ambil().pembulatan_diskon,
+        "pembulatan": Pengaturan.ambil().pembulatan_diskon, "dp_bawaan": Pengaturan.ambil().dp_minimal_persen,
         "menu": "barang",
         "panel": panel,
         "kembali": request.GET.get("kembali", ""),

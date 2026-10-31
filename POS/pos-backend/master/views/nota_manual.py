@@ -14,7 +14,7 @@ from master.layanan import lokasi as svc_lokasi
 from master.layanan import nota_manual as svc
 from master.akun.akses import perlu
 from master.layanan.inti import Tolak
-from master.models import FotoNota, ItemInfo, NotaManual, VarianInfo
+from master.models import FotoNota, ItemInfo, NotaManual, Pengaturan, Piutang, VarianInfo
 from master.views.utama import _qs_tanpa, kunci_alami
 
 
@@ -22,6 +22,11 @@ from master.views.utama import _qs_tanpa, kunci_alami
 def daftar(request):
     if request.method == "POST":
         try:
+            if request.POST.get("aksi") == "pindah":
+                n, lewat = svc.pindah_toko_massal(request.user, request.POST.getlist("pilih"), request.POST.get("toko_tujuan"),
+                                                  request.POST.get("alasan"))
+                messages.success(request, f"{n} nota dipindah toko." + (f" Dilewati: {', '.join(lewat)}." if lewat else ""))
+                return redirect(request.get_full_path())
             n, lewat = svc.ubah_tanggal_massal(request.user, request.POST.getlist("pilih"), request.POST.get("tanggal"),
                                                request.POST.get("alasan"))
             messages.success(request, f"Tanggal {n} nota diganti." + (f" Dilewati karena batal: {', '.join(lewat)}." if lewat else ""))
@@ -49,7 +54,13 @@ def daftar(request):
     return render(request, "master/nota_manual.html", {
         "menu": "nota_manual", "halaman": halaman, "g": g, "qs_halaman": _qs_tanpa(request, "hal"),
         "hari_ini": timezone.localdate().isoformat(),
+        "pilihan_toko": svc_toko_boleh(request.user),
     })
+
+
+def svc_toko_boleh(user):
+    from master.layanan.toko import boleh_untuk
+    return boleh_untuk(user)
 
 
 @perlu("laporan")
@@ -70,7 +81,16 @@ def baru(request):
         "tanggal_terbawa": not request.POST.get("tanggal") and bool(request.GET.get("tanggal")),
         "toko_pilih": request.POST.get("toko") or request.GET.get("toko") or "",
         "pilihan_lokasi": svc_lokasi.pilihan(),
+        **_konteks_dp(),
     })
+
+
+def _konteks_dp():
+    from master.layanan import piutang as svc_piutang
+    from master.models import Pelanggan
+    return {"dp_bawaan": svc_piutang.dp_bawaan(), "status_barang": Piutang.BARANG,
+            "pelanggan_tempo": list(Pelanggan.objects.filter(aktif=True).values("id", "nama", "telepon", "boleh_tempo")),
+            "jatuh_tempo_hari": Pengaturan.ambil().jatuh_tempo_hari}
 
 
 @perlu("laporan")
@@ -103,7 +123,9 @@ def cari(request):
     barang.sort(key=lambda b: (b["j"], b["t"], kunci_alami(b["item_name"]), kunci_alami(b["variant"])))
     nama_set = {b["item_name"] for b in barang[:25]}
     info = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(item_name__in=nama_set)}
-    id_item = dict(ItemInfo.objects.filter(item_name__in=nama_set).values_list("item_name", "pk"))
+    id_item, min_dp = {}, {}
+    for nama, pk, dp in ItemInfo.objects.filter(item_name__in=nama_set).values_list("item_name", "pk", "min_dp_persen"):
+        id_item[nama], min_dp[nama] = pk, dp
     hasil = []
     for b in barang[:25]:
         v = info.get((b["item_name"], b["variant"]))
@@ -111,6 +133,7 @@ def cari(request):
             continue
         hasil.append({"id": v.id, "item": id_item.get(b["item_name"]), "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
                       "stok": b["in_stock"], "harga": b["max_price"], "floor": b["min_price"],
+                      "min_dp": min_dp.get(b["item_name"]),
                       "ket_harga": svc_cari.keterangan_harga(harga, b["max_price"], b["min_price"]) if harga else ""})
     return JsonResponse({"hasil": hasil, "harga_cari": harga})
 
@@ -142,7 +165,7 @@ def detail(request, nota_id):
         b.di_bawah_floor = floor.get((b.item_name, b.variant)) is not None and b.harga < floor[(b.item_name, b.variant)]
     modal = sum(b.modal or 0 for b in baris)
     return render(request, "master/nota_manual_detail.html", {
-        "menu": "nota_manual", "n": n, "baris": baris, "modal": modal, "laba": n.total_barang - modal,
+        "menu": "nota_manual", "n": n, "piutang": Piutang.objects.filter(nota_manual=n).first(), "baris": baris, "modal": modal, "laba": n.total_barang - modal,
         "modal_lengkap": all(b.modal is not None for b in baris), "foto": n.foto.all(),
         "cara": NotaManual.CARA, "hari_ini": timezone.localdate().isoformat(),
     })

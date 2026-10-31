@@ -41,5 +41,12 @@
   <button class="tombol" type="submit">Simpan</button>
   <p class="redup kecil" style="flex-basis:100%;margin:0">Contoh: diskon 10% dari 67.500 = 60.750 → Rp100: 60.800. Juga dipakai untuk floor barang titipan (harga jual dikurangi diskon maks).</p>
 </form>
+<h3 style="margin-top:22px">DP &amp; piutang pelanggan</h3>
+<form method="post" class="kartu baris" style="align-items:end">{% csrf_token %}<input type="hidden" name="aksi" value="dp">
+  <div style="width:200px"><label>DP minimal (%)</label><input type="text" name="dp_minimal_persen" value="{{ atur.dp_minimal_persen }}" inputmode="numeric"></div>
+  <div style="width:200px"><label>Jatuh tempo (hari)</label><input type="text" name="jatuh_tempo_hari" value="{{ atur.jatuh_tempo_hari }}" inputmode="numeric"></div>
+  <button class="tombol" type="submit">Simpan</button>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Nota yang belum lunas wajib DP minimal ini dari harga barang. Barang tertentu bisa dibuat lebih tinggi di panel barangnya. Di bawah minimal hanya untuk pelanggan tempo, dengan ACC pemilik.</p>
+</form>
 <p class="redup kecil" style="margin-top:18px">"Stok di kasir": POS sekarang hanya mengenal satu toko, jadi hanya satu toko yang stoknya dihitung sistem. Toko lain tetap bisa punya PO, faktur, hutang, opname, dan transfer; stoknya mulai dihitung saat toko itu punya kasir sendiri.</p>
 {% endblock %}

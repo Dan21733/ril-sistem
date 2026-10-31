@@ -1,0 +1,37 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Piutang & pesanan{% endblock %}
+{% block isi %}
+<style>
+.tab-piutang{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}
+.tab-piutang a{padding:8px 14px;border:1px solid var(--garis-kuat);border-radius:999px;color:var(--teks);text-decoration:none;font-size:15px;background:var(--kartu)}
+.tab-piutang a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.tab-piutang .n{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:999px;background:rgba(127,127,127,.18);font-size:12px;text-align:center}
+.tab-piutang a.aktif .n{background:rgba(255,255,255,.25)}
+tr.lewat td{background:var(--bahaya-lembut)}
+</style>
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>Piutang & pesanan</h2>
+    <p class="sub">Nota yang belum lunas (DP / invoice), barang yang diambil nanti, dan pesanan. Total sisa tagihan <b>{{ ringkas.sisa|ribuan }}</b> dari {{ ringkas.jumlah }} nota{% if ringkas.lewat %}, <span style="color:var(--bahaya)">{{ ringkas.lewat }} lewat jatuh tempo</span>{% endif %}.</p></div>
+  <a class="tombol" href="{% url 'master:pelanggan' %}">Pelanggan tempo</a>
+</div>
+<div class="tab-piutang">
+  {% for k, label in tabs %}<a href="?tab={{ k }}" class="{% if tab == k %}aktif{% endif %}">{{ label }}{% if k != 'selesai' %}<span class="n">{{ hitung|get:k }}</span>{% endif %}</a>{% endfor %}
+</div>
+<form method="get" class="baris" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ tab }}">
+  <div style="flex:1;min-width:220px"><input type="search" name="q" value="{{ cari }}" placeholder="Cari nama, No. HP, atau nomor nota"></div>
+  <button class="tombol" type="submit">Cari</button></form>
+<div class="gulir"><table>
+  <tr><th>Tanggal</th><th>Nota</th><th>Pelanggan</th><th>Barang</th><th class="angka">Total</th><th class="angka">Dibayar</th><th class="angka">Sisa</th><th>Jatuh tempo</th></tr>
+  {% for p in baris %}
+  <tr class="{% if p.lewat %}lewat{% endif %}" style="cursor:pointer" onclick="location.href='{% url 'master:piutang_detail' p.id %}'">
+    <td style="white-space:nowrap">{{ p.tanggal|date:"d M Y" }}<div class="kecil redup">{{ p.umur }} hari</div></td>
+    <td><a href="{% url 'master:piutang_detail' p.id %}"><b>{{ p.nomor }}</b></a>
+      {% if p.acc_status == 'menunggu' %} <span class="label">ACC {{ p.get_jenis_acc_display|lower }}</span>{% elif p.acc_status == 'ditolak' %} <span class="label bahaya">ditolak</span>{% elif p.jenis_acc %} <span class="label netral">{{ p.get_jenis_acc_display|lower }}</span>{% endif %}</td>
+    <td>{{ p.nama }}<div class="kecil redup">{{ p.telepon }}</div></td>
+    <td>{{ p.get_status_barang_display }}{% if p.barang_selesai %} <span class="kecil redup">· selesai</span>{% endif %}</td>
+    <td class="angka">{{ p.total|ribuan }}</td><td class="angka">{{ p.dibayar|ribuan }}</td>
+    <td class="angka"><b>{{ p.sisa|ribuan }}</b></td>
+    <td>{% if p.jatuh_tempo %}{{ p.jatuh_tempo|date:"d M Y" }}{% if p.lewat %} <span class="label bahaya">lewat</span>{% endif %}{% else %}-{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="8" class="redup" style="padding:28px;text-align:center">Tidak ada.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

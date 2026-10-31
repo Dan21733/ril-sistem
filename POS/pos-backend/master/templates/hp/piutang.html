@@ -1,0 +1,24 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Piutang · DB Toko{% endblock %}
+{% block judul_kecil %}Piutang & pesanan{% endblock %}
+{% block gaya %}<style>
+.tab-p{display:flex;gap:6px;overflow-x:auto;margin:4px 0 12px;padding-bottom:2px}
+.tab-p a{flex:none;padding:8px 14px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;box-shadow:var(--bayang);border:1px solid var(--garis)}
+.tab-p a.aktif{background:var(--tint);color:#fff;border-color:var(--tint)}
+.tab-p .n{margin-left:6px;font-size:12px;opacity:.75}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Piutang & pesanan</h1>
+<div class="ubin"><div class="lebar"><div class="lbl">Sisa tagihan pelanggan</div><div class="angka">{{ ringkas.sisa|rupiah }}</div>
+  <div class="ket">{{ ringkas.jumlah }} nota{% if ringkas.lewat %} · <span class="turun">{{ ringkas.lewat }} lewat jatuh tempo</span>{% endif %}</div></div></div>
+<div class="tab-p" style="margin-top:12px">{% for k, label in tabs %}<a href="?tab={{ k }}" class="{% if pilih == k %}aktif{% endif %}">{{ label }}{% if k != 'selesai' %}<span class="n">{{ hitung|get:k }}</span>{% endif %}</a>{% endfor %}</div>
+<form method="get" class="cari" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ pilih }}"><input type="search" name="q" value="{{ cari }}" placeholder="Nama, No. HP, nomor nota"></form>
+<div class="grup">
+  {% for p in baris %}<a class="sel panah" href="{% url 'hp:piutang_detail' p.id %}"><div class="utama">
+    <div class="nama">{{ p.nama }}{% if p.acc_status == 'menunggu' %} <span class="lencana kuning">ACC</span>{% elif p.acc_status == 'ditolak' %} <span class="lencana merah">ditolak</span>{% endif %}{% if p.lewat %} <span class="lencana merah">lewat</span>{% endif %}</div>
+    <div class="sub">{{ p.nomor }} · {{ p.tanggal|date:"d M" }} · {{ p.get_status_barang_display|lower }}{% if p.jatuh_tempo and not p.lunas %} · tempo {{ p.jatuh_tempo|date:"d M" }}{% endif %}</div></div>
+    <div class="nilai">{% if p.lunas %}<b style="color:var(--teks)">lunas</b>{% else %}<b style="color:var(--teks)">{{ p.sisa|rupiah }}</b><div class="kecil redup">dari {{ p.total|rupiah }}</div>{% endif %}</div></a>
+  {% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
+</div>
+<div style="height:16px"></div>
+{% endblock %}

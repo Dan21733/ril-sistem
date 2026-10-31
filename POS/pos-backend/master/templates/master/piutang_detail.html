@@ -1,0 +1,57 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}{{ p.nomor }} · piutang{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:piutang' %}">Piutang & pesanan</a> /</p>
+<div class="baris" style="justify-content:space-between;align-items:start">
+  <div><h2>{{ p.nomor }} · {{ p.nama }}</h2>
+    <p class="sub">{{ p.tanggal|date:"d M Y" }} · {{ p.toko.nama }}{% if p.telepon %} · {{ p.telepon }}{% endif %}{% if p.pelanggan %} · pelanggan {% if p.pelanggan.boleh_tempo %}tempo{% else %}terdaftar{% endif %}{% endif %}
+      {% if p.nota_manual %} · <a href="{% url 'master:nota_manual_detail' p.nota_manual.id %}">lihat nota</a>{% endif %}</p></div>
+  <div class="baris">{% if wa %}<a class="tombol" href="{{ wa }}" target="_blank" rel="noopener">Kirim tagihan WA</a>{% endif %}
+    <a class="tombol" href="{% url 'master:piutang_cetak' p.id %}" target="_blank">Cetak (struk)</a></div>
+</div>
+{% if p.batal %}<div class="pesan error">Nota ini sudah dibatalkan.</div>{% endif %}
+{% if p.acc_status == 'menunggu' %}
+<div class="pesan warning">{{ p.get_jenis_acc_display }} menunggu ACC pemilik.
+  {% if boleh_acc %}<form method="post" class="baris" style="margin-top:10px;align-items:end">{% csrf_token %}
+    <div style="flex:1;min-width:200px"><label>Catatan (wajib kalau menolak)</label><input type="text" name="catatan"></div>
+    <button class="tombol utama" name="aksi" value="setuju">Setujui</button>
+    <button class="tombol bahaya" name="aksi" value="tolak">Tolak</button></form>{% endif %}</div>
+{% elif p.acc_status %}<div class="pesan {% if p.acc_status == 'ditolak' %}error{% else %}info{% endif %}">{{ p.get_jenis_acc_display }}: {{ p.get_acc_status_display|lower }} oleh {{ p.acc_oleh }}{% if p.acc_waktu %} · {{ p.acc_waktu|date:"d M Y H:i" }}{% endif %}{% if p.acc_catatan %} · {{ p.acc_catatan }}{% endif %}</div>{% endif %}
+
+<div class="kisi">
+  <div class="kartu"><div class="redup kecil">Total</div><div style="font-size:24px;font-weight:600">{{ p.total|ribuan }}</div></div>
+  <div class="kartu"><div class="redup kecil">Sudah dibayar</div><div style="font-size:24px;font-weight:600">{{ p.dibayar|ribuan }}</div></div>
+  <div class="kartu" {% if not p.lunas %}style="border-color:var(--aksen)"{% endif %}><div class="redup kecil">Sisa</div><div style="font-size:24px;font-weight:600">{% if p.lunas %}Lunas{% else %}{{ p.sisa|ribuan }}{% endif %}</div>
+    {% if p.jatuh_tempo and not p.lunas %}<div class="kecil {% if lewat %}" style="color:var(--bahaya){% else %} redup{% endif %}">jatuh tempo {{ p.jatuh_tempo|date:"d M Y" }}{% if lewat %} (lewat){% endif %}</div>{% endif %}</div>
+  <div class="kartu"><div class="redup kecil">Barang</div><div style="font-size:19px;font-weight:600">{{ p.get_status_barang_display }}</div>
+    {% if p.barang_selesai %}<div class="kecil redup">sudah diambil {{ p.barang_selesai|date:"d M Y H:i" }} · {{ p.barang_selesai_oleh }}</div>{% endif %}</div>
+</div>
+
+{% if not p.batal and p.acc_status != 'ditolak' %}
+<div class="kisi" style="margin-top:14px">
+  {% if not p.lunas %}
+  <form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="bayar">
+    <h3 style="margin-top:0">Catat pembayaran</h3>
+    <div class="kisi"><div><label>Jumlah</label><input type="text" name="jumlah" inputmode="numeric" value="{{ p.sisa|ribuan }}"></div>
+      <div><label>Cara bayar</label><select name="cara">{% for k, l in cara %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div></div>
+    <div style="margin-top:10px"><label>Catatan (boleh kosong)</label><input type="text" name="catatan" placeholder="mis. transfer BCA"></div>
+    <button class="tombol utama" type="submit" style="margin-top:12px">Simpan pembayaran</button>
+  </form>{% endif %}
+  {% if p.barang_tertunda %}
+  <form method="post" class="kartu" data-tanya="Tandai barang nota {{ p.nomor }} sudah diambil {{ p.nama }}?" data-tanya-ya="Sudah diambil">{% csrf_token %}<input type="hidden" name="aksi" value="serahkan">
+    <h3 style="margin-top:0">{% if p.status_barang == 'pesan' %}Barang pesanan{% else %}Barang di toko{% endif %}</h3>
+    <p class="redup kecil">{% if p.status_barang == 'pesan' %}Stok baru berkurang saat barang diserahkan.{% else %}Barang sudah milik pelanggan; jangan dijual lagi.{% endif %}{% if not p.lunas %} Lunasi dulu sebelum barang diserahkan.{% endif %}</p>
+    <button class="tombol" type="submit">Barang sudah diambil</button>
+  </form>{% endif %}
+</div>{% endif %}
+
+{% if barang %}<h3>Barang</h3>
+<div class="gulir"><table><tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga</th><th class="angka">Subtotal</th></tr>
+{% for b in barang %}<tr><td>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</td><td class="angka">{{ b.jumlah }}</td><td class="angka">{{ b.harga|ribuan }}</td><td class="angka">{{ b.subtotal|ribuan }}</td></tr>{% endfor %}
+{% if p.nota_manual.ongkir %}<tr><td colspan="3">Ongkir</td><td class="angka">{{ p.nota_manual.ongkir|ribuan }}</td></tr>{% endif %}</table></div>{% endif %}
+
+<h3>Riwayat pembayaran</h3>
+<div class="gulir"><table><tr><th>Waktu</th><th>Cara</th><th class="angka">Jumlah</th><th>Catatan</th><th>Oleh</th></tr>
+{% for b in pembayaran %}<tr><td>{{ b.waktu|date:"d M Y H:i" }}</td><td>{{ b.get_cara_display }}</td><td class="angka">{{ b.jumlah|ribuan }}</td><td>{{ b.catatan }}</td><td class="kecil redup">{{ b.oleh }} · {{ b.get_sumber_display }}</td></tr>
+{% empty %}<tr><td colspan="5" class="redup">Belum ada pembayaran.</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -4,6 +4,11 @@
 <p class="kecil"><a href="{% url 'master:nota_manual' %}">Nota tulis tangan</a> /</p>
 <h2>{% if n.nomor_tulisan %}Nota {{ n.nomor_tulisan }}{% else %}{{ n.nomor }}{% endif %}{% if banyak_toko %} · {{ n.toko.nama }}{% endif %}</h2>
 <p class="sub">{{ n.tanggal|date:"l, d M Y" }} · {{ n.get_cara_bayar_display }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · {{ n.nomor }} dimasukkan {{ n.dibuat_oleh }}, {{ n.dibuat_waktu|date:"d M Y H:i" }}</p>
+{% if piutang and not n.batal %}<div class="pesan {% if piutang.acc_status == 'menunggu' or not piutang.lunas %}warning{% else %}info{% endif %}">
+  {% if piutang.lunas %}Lunas{% else %}Dibayar {{ piutang.dibayar|ribuan }}, sisa <b>{{ piutang.sisa|ribuan }}</b>{% if piutang.jatuh_tempo %} (jatuh tempo {{ piutang.jatuh_tempo|date:"d M Y" }}){% endif %}{% endif %}
+  · barang {{ piutang.get_status_barang_display|lower }}{% if piutang.barang_selesai %} (sudah diambil){% endif %}
+  {% if piutang.acc_status %} · {{ piutang.get_jenis_acc_display }} {{ piutang.get_acc_status_display|lower }}{% endif %}
+  · <a href="{% url 'master:piutang_detail' piutang.id %}">Buka piutang</a></div>{% endif %}
 {% if n.batal %}<div class="pesan warning">Dibatalkan {{ n.batal_oleh }}, {{ n.batal_waktu|date:"d M Y H:i" }}: {{ n.batal_alasan }}</div>{% endif %}
 <div class="gulir"><table>
   <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga</th><th class="angka">Subtotal</th><th class="angka">Modal</th><th class="angka">Laba</th></tr>
@@ -15,7 +20,7 @@
   <tr><td colspan="3"><b>Total</b></td><td class="angka"><b>{{ n.total|ribuan }}</b></td><td colspan="2"></td></tr>
 </table></div>
 <p class="redup kecil">Modal memakai modal rata saat nota dimasukkan.{% if not modal_lengkap %} Ada barang yang modalnya kosong, jadi labanya belum lengkap.{% endif %}
-{% if n.toko.stok_di_kasir %}Stok {{ n.toko.nama }} {% if n.batal %}sudah dikembalikan{% else %}sudah dikurangi{% endif %}.{% else %}{{ n.toko.nama }} belum punya kasir, jadi stok tidak diubah sistem.{% endif %}</p>
+{% if n.toko.stok_di_kasir %}Stok {{ n.toko.nama }} {% if n.batal %}sudah dikembalikan{% elif piutang and not piutang.stok_dikurangi %}baru berkurang saat pesanan diserahkan{% else %}sudah dikurangi{% endif %}.{% else %}{{ n.toko.nama }} belum punya kasir, jadi stok tidak diubah sistem.{% endif %}</p>
 {% if n.catatan %}<div class="kartu" style="margin-top:12px"><div class="redup kecil">Catatan</div>{{ n.catatan|linebreaksbr }}</div>{% endif %}
 {% if foto %}<h3>Foto nota</h3><div class="baris">{% for x in foto %}<a href="{% url 'master:nota_manual_foto' x.id %}" target="_blank">{% if x.content_type == "application/pdf" %}<span class="tombol">PDF</span>{% else %}<img src="{% url 'master:nota_manual_foto' x.id %}" alt="Foto nota" style="max-width:240px;max-height:240px;border:1px solid var(--garis);border-radius:8px" onerror="this.outerHTML='<span class=&quot;redup&quot;>berkas tidak ada di server ini</span>'">{% endif %}</a>{% endfor %}</div>{% endif %}
 {% if not n.batal %}

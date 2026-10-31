@@ -178,3 +178,22 @@ def simpan_pembulatan(pengguna, nilai):
     # Kasir membaca nilai yang sama lewat pengaturan POS (dikirim di /api/health/).
     from pos import pengaturan
     pengaturan.simpan(pembulatan_diskon=baru)
+
+
+def simpan_dp(pengguna, persen, hari):
+    """DP minimal bawaan (persen dari harga barang) dan lama jatuh tempo nota belum lunas."""
+    from master.models import Pengaturan
+    try:
+        persen, hari = int(str(persen).replace("%", "").strip()), int(str(hari).strip())
+    except (TypeError, ValueError):
+        raise Tolak("DP minimal dan jatuh tempo harus angka.")
+    if not 1 <= persen <= 100:
+        raise Tolak("DP minimal antara 1 dan 100%.")
+    if not 1 <= hari <= 365:
+        raise Tolak("Jatuh tempo antara 1 dan 365 hari.")
+    atur = Pengaturan.ambil()
+    for kolom, baru in (("dp_minimal_persen", persen), ("jatuh_tempo_hari", hari)):
+        if getattr(atur, kolom) != baru:
+            layanan.catat(pengguna, objek="pengaturan", kolom=kolom, lama=getattr(atur, kolom), baru=baru)
+            setattr(atur, kolom, baru)
+    atur.save(update_fields=["dp_minimal_persen", "jatuh_tempo_hari"])

@@ -97,6 +97,14 @@ def buat(pengguna, data, berkas=()):
         from master.layanan.lokasi import baca
         lokasi = baca(data.get("lokasi"))
         lokasi = lokasi if lokasi.jenis == "gudang" else None
+    # DP / ambil nanti / pesan dulu: diperiksa sebelum apa pun tersimpan.
+    from master.akun.akses import hak_pengguna
+    from master.layanan import piutang as svc_piutang
+    total_barang = sum(qty * harga for _, qty, harga in baris)
+    rencana_piutang = svc_piutang.rencana(
+        pengguna, hak=hak_pengguna(pengguna), tanggal=tanggal, total=total_barang + ongkir,
+        baris=[(info.item_name, qty * harga) for info, qty, harga in baris], data=data)
+    kurangi_stok = toko.stok_di_kasir and (rencana_piutang is None or rencana_piutang["stok_dikurangi"])
     if len(berkas) > MAKS_FOTO:
         raise Tolak(f"Paling banyak {MAKS_FOTO} foto per nota.")
     for f in berkas:
@@ -117,7 +125,7 @@ def buat(pengguna, data, berkas=()):
                                            jumlah=qty, harga=harga, subtotal=qty * harga, modal_satuan=modal,
                                            lokasi=lokasi)
             total += qty * harga
-            if toko.stok_di_kasir:
+            if kurangi_stok:
                 # Dari gudang: stok gudang baru berkurang saat kepala gudang mengonfirmasi barang diambil.
                 _ubah_stok(pengguna, info, -qty, f"{n.nomor}" + (f" (nota {nomor_tulisan})" if nomor_tulisan else ""),
                            lokasi, ubah_lokasi=False)
@@ -125,12 +133,21 @@ def buat(pengguna, data, berkas=()):
                     ambil.buat(info, lokasi, qty, sumber="nota_manual", referensi=n.nomor, nota_manual=n)
         n.total_barang, n.total = total, total + ongkir
         n.save(update_fields=["total_barang", "total"])
+        if rencana_piutang is not None:
+            svc_piutang.buat(pengguna, rencana_piutang, toko=toko, nomor=n.nomor, tanggal=tanggal, total=n.total,
+                             cara=cara, sumber=data.get("_sumber") or "master", nota_manual=n)
         for f in berkas:
             kunci = default_storage.save(f"master/nota/{n.pk}/{uuid.uuid4().hex}{JENIS_BERKAS[f.content_type]}", f)
             FotoNota.objects.create(nota=n, object_key=kunci, content_type=f.content_type, ukuran=f.size)
         layanan.catat(pengguna, aksi="tambah", objek="nota_manual", kolom="nota_manual",
                       baru=f"{n.nomor} {toko.kode}: {n.total}", catatan=nomor_tulisan)
     return n
+
+
+def _stok_sudah_keluar(n):
+    """Barang 'pesan dulu' yang belum diserahkan belum mengurangi stok."""
+    from master.models import Piutang
+    return not Piutang.objects.filter(nota_manual=n, stok_dikurangi=False).exists()
 
 
 def batalkan(pengguna, n, alasan):
@@ -141,10 +158,12 @@ def batalkan(pengguna, n, alasan):
         n = NotaManual.objects.select_for_update().select_related("toko").get(pk=n.pk)
         if n.batal:
             raise Tolak("Nota ini sudah dibatalkan.")
-        if n.toko.stok_di_kasir:
+        if n.toko.stok_di_kasir and _stok_sudah_keluar(n):
             for b in n.baris.select_related("varian"):
                 _ubah_stok(pengguna, b.varian, b.jumlah, f"{n.nomor} dibatalkan: {alasan}", b.lokasi, ubah_lokasi=False)
             ambil.batalkan_untuk(n.permintaan.all(), pengguna, alasan)
+        from master.layanan.piutang import batalkan_untuk_nota
+        batalkan_untuk_nota(n)
         n.batal, n.batal_alasan, n.batal_oleh, n.batal_waktu = True, alasan, pengguna.username, timezone.now()
         n.save()
         layanan.catat(pengguna, objek="nota_manual", kolom="batal", lama=n.total, baru=0, catatan=f"{n.nomor}: {alasan}")
@@ -218,3 +237,55 @@ def ubah_tanggal_massal(pengguna, ids, tanggal, alasan):
                 continue
             berubah += bool(ubah(pengguna, n, {"tanggal": tanggal}, alasan))
     return berubah, lewat
+
+
+def pindah_toko_massal(pengguna, ids, toko_id, alasan):
+    """Pindahkan nota yang salah toko ke toko lain. Hasil: (jumlah dipindah, nomor yang dilewati + sebabnya).
+
+    Barang dan harga tidak berubah. Stok ikut dibetulkan: kalau toko lama memegang stok kasir,
+    stoknya dikembalikan (dan permintaan ambil gudang dibatalkan); kalau toko baru yang memegang
+    stok kasir, stoknya dikurangi dari toko (display).
+    """
+    from master.layanan import toko as svc_toko
+    ids = [int(x) for x in ids if str(x).isdigit()]
+    if not ids:
+        raise Tolak("Centang nota yang mau dipindah.")
+    alasan = rapikan_teks(alasan)[:300]
+    if not alasan:
+        raise Tolak("Isi alasan perubahan, mis. 'salah pilih toko waktu input'.")
+    tujuan = svc_toko.ambil(toko_id, wajib=False) if str(toko_id or "").isdigit() else None
+    if tujuan is None:
+        raise Tolak("Pilih toko tujuan.")
+    pindah, lewat = 0, []
+    with transaction.atomic():
+        for n in NotaManual.objects.select_for_update().filter(pk__in=ids).select_related("toko").order_by("id"):
+            if n.batal:
+                lewat.append(f"{n.nomor} (batal)")
+                continue
+            if n.toko_id == tujuan.pk:
+                lewat.append(f"{n.nomor} (sudah di {tujuan.nama})")
+                continue
+            if n.nomor_tulisan and NotaManual.objects.filter(toko=tujuan, nomor_tulisan__iexact=n.nomor_tulisan,
+                                                             batal=False).exclude(pk=n.pk).exists():
+                lewat.append(f"{n.nomor} (nomor {n.nomor_tulisan} sudah ada di {tujuan.nama})")
+                continue
+            lama = n.toko
+            catatan_stok = f"{n.nomor} pindah {lama.kode} ke {tujuan.kode}: {alasan}"
+            baris = list(n.baris.select_related("varian"))
+            keluar = _stok_sudah_keluar(n)
+            if lama.stok_di_kasir and keluar:
+                for b in baris:
+                    _ubah_stok(pengguna, b.varian, b.jumlah, catatan_stok, b.lokasi, ubah_lokasi=False)
+                ambil.batalkan_untuk(n.permintaan.all(), pengguna, alasan)
+                NotaManualBaris.objects.filter(nota=n).update(lokasi=None)
+            if tujuan.stok_di_kasir and keluar:
+                for b in baris:
+                    _ubah_stok(pengguna, b.varian, -b.jumlah, catatan_stok, None, ubah_lokasi=False)
+            n.toko = tujuan
+            n.save(update_fields=["toko"])
+            from master.models import Piutang
+            Piutang.objects.filter(nota_manual=n).update(toko=tujuan)
+            layanan.catat(pengguna, objek="nota_manual", kolom="toko nota", lama=f"{n.nomor}: {lama.nama}",
+                          baru=f"{n.nomor}: {tujuan.nama}", catatan=alasan)
+            pindah += 1
+    return pindah, lewat

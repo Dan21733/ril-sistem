@@ -1,0 +1,63 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}{{ p.nomor }} · DB Toko{% endblock %}
+{% block judul_kecil %}{{ p.nama }}{% endblock %}
+{% block kiri %}<a href="{% url 'hp:piutang' %}">‹ Piutang</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{{ p.nama }}</h1>
+<p class="anak-judul">{{ p.nomor }} · {{ p.tanggal|date:"j M Y" }} · {{ p.toko.nama }}{% if p.telepon %} · {{ p.telepon }}{% endif %}</p>
+{% if p.batal %}<div class="grup"><div class="kosong turun">Nota ini dibatalkan.</div></div>{% endif %}
+<div class="ubin">
+  <div><div class="lbl">Total</div><div class="angka">{{ p.total|rupiah }}</div><div class="ket">dibayar {{ p.dibayar|rupiah }}</div></div>
+  <div><div class="lbl">Sisa</div><div class="angka{% if lewat %} turun{% endif %}">{% if p.lunas %}Lunas{% else %}{{ p.sisa|rupiah }}{% endif %}</div>
+    <div class="ket">{% if p.jatuh_tempo and not p.lunas %}tempo {{ p.jatuh_tempo|date:"d M" }}{% if lewat %} (lewat){% endif %}{% else %}&nbsp;{% endif %}</div></div>
+</div>
+<div class="grup" style="margin-top:12px">
+  <div class="sel"><div class="utama"><div class="nama">Barang: {{ p.get_status_barang_display }}</div>
+    <div class="sub">{% if p.barang_selesai %}sudah diambil {{ p.barang_selesai|date:"d M H:i" }} · {{ p.barang_selesai_oleh }}{% elif p.status_barang == 'pesan' %}stok berkurang saat diserahkan{% elif p.status_barang == 'ambil' %}masih di toko, milik pelanggan{% else %}&nbsp;{% endif %}</div></div></div>
+  {% if p.acc_status %}<div class="sel"><div class="utama"><div class="nama">{{ p.get_jenis_acc_display }}: {{ p.get_acc_status_display|lower }}</div>
+    <div class="sub">{% if p.acc_oleh %}{{ p.acc_oleh }} · {{ p.acc_waktu|date:"d M H:i" }}{% endif %}{% if p.acc_catatan %} · {{ p.acc_catatan }}{% endif %}{% if p.acc_status == 'menunggu' %}menunggu pemilik{% endif %}</div></div></div>{% endif %}
+</div>
+
+{% if not p.batal and p.acc_status != 'ditolak' %}
+{% if p.acc_status == 'menunggu' and boleh_acc %}
+<div class="kepala-grup"><h2>ACC</h2></div>
+<div class="grup"><textarea class="kolom" id="acc-catatan" rows="2" placeholder="Catatan (wajib kalau menolak)"></textarea>
+  <div class="sel"><button class="tombol kecil hijau" data-acc="setuju">Setujui</button><button class="tombol kecil merah" data-acc="tolak">Tolak</button></div></div>
+{% endif %}
+{% if not p.lunas %}
+<div class="kepala-grup"><h2>Catat pembayaran</h2></div>
+<div class="grup">
+  <label class="isian"><span>Jumlah</span><input id="bayar-jumlah" inputmode="numeric" value="{{ p.sisa|ribuan }}"></label>
+  <label class="isian"><span>Cara</span><select id="bayar-cara">{% for k, l in cara %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+  <label class="isian"><span>Catatan</span><input id="bayar-catatan" placeholder="opsional"></label>
+</div>
+<button class="tombol penuh" id="tombol-bayar" style="margin-top:10px">Simpan pembayaran</button>
+{% endif %}
+{% if p.barang_tertunda %}<button class="tombol abu penuh" id="tombol-serahkan" style="margin-top:10px">Barang sudah diambil</button>{% endif %}
+{% endif %}
+{% if wa %}<a class="tombol abu penuh" href="{{ wa }}" target="_blank" rel="noopener" style="margin-top:10px">Kirim tagihan WA</a>{% endif %}
+
+{% if barang %}<div class="kepala-grup"><h2>Barang</h2></div>
+<div class="grup">{% for b in barang %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">/ {{ b.variant }}</span>{% endif %}</div>
+  <div class="sub">{{ b.jumlah }} × {{ b.harga|rupiah }}</div></div><span class="nilai">{{ b.subtotal|rupiah }}</span></div>{% endfor %}</div>{% endif %}
+
+<div class="kepala-grup"><h2>Pembayaran</h2></div>
+<div class="grup">{% for b in pembayaran %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.get_cara_display }}{% if b.catatan %} · {{ b.catatan }}{% endif %}</div>
+  <div class="sub">{{ b.waktu|date:"d M H:i" }} · {{ b.oleh }} · {{ b.get_sumber_display }}</div></div><span class="nilai">{{ b.jumlah|rupiah }}</span></div>
+  {% empty %}<div class="kosong">Belum ada.</div>{% endfor %}</div>
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+const URL_INI = "{% url 'hp:piutang_detail' p.id %}";
+async function aksi(data, tombol){
+  if (tombol) tombol.disabled = true;
+  try { const d = await kirim(URL_INI, data); kabar(d.pesan); setTimeout(() => location.reload(), 700); }
+  catch (e) { kabar(e.message, true); if (tombol) tombol.disabled = false; }
+}
+document.getElementById('tombol-bayar')?.addEventListener('click', e => aksi({aksi: 'bayar', jumlah: angka(document.getElementById('bayar-jumlah').value),
+  cara: document.getElementById('bayar-cara').value, catatan: document.getElementById('bayar-catatan').value}, e.currentTarget));
+document.getElementById('tombol-serahkan')?.addEventListener('click', e => { if (confirm('Barang sudah diambil pelanggan?')) aksi({aksi: 'serahkan'}, e.currentTarget); });
+document.querySelectorAll('[data-acc]').forEach(b => b.addEventListener('click', () => aksi({aksi: b.dataset.acc, catatan: document.getElementById('acc-catatan').value}, b)));
+</script>
+{% endblock %}

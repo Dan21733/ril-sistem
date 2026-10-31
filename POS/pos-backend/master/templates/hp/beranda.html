@@ -65,6 +65,21 @@
 </div>
 {% endif %}
 
+{% for p in piutang_acc %}
+<div class="grup kartu-acc" data-acc="piutang" data-id="{{ p.id }}" style="margin-bottom:10px">
+  <a class="sel panah" href="{% url 'hp:piutang_detail' p.id %}"><div class="utama"><div class="nama"><b>{% if p.jenis_acc == 'invoice' %}Invoice (ngutang){% else %}Titip barang{% endif %}</b> <span class="redup">· {{ p.nama }}</span></div>
+    <div class="sub">{{ p.nomor }} · {{ p.tanggal|date:"d M" }} · dibayar {{ p.dibayar|rupiah }}{% if p.jatuh_tempo %} · tempo {{ p.jatuh_tempo|date:"d M" }}{% endif %}</div></div>
+    <div class="nilai"><b style="color:var(--teks)">{{ p.total|rupiah }}</b>{% if p.sisa %}<div class="kecil turun">sisa {{ p.sisa|rupiah }}</div>{% endif %}</div></a>
+  <div class="sel"><button class="tombol kecil hijau" data-aksi="terima">Setujui</button><button class="tombol kecil merah" data-aksi="tolak">Tolak</button></div>
+</div>
+{% endfor %}
+
+{% if piutang_ringkas and piutang_ringkas.jumlah %}
+<div class="grup" style="margin-bottom:10px"><a class="sel panah" href="{% url 'hp:piutang' %}"><div class="utama"><div class="nama">Piutang pelanggan</div>
+  <div class="sub">{{ piutang_ringkas.jumlah }} nota belum lunas{% if piutang_ringkas.lewat %} · <span class="turun">{{ piutang_ringkas.lewat }} lewat jatuh tempo</span>{% endif %}</div></div>
+  <span class="nilai">{{ piutang_ringkas.sisa|singkat }}</span></a></div>
+{% endif %}
+
 {% for b in dus %}
 <div class="grup kartu-acc" data-acc="dus" data-id="{{ b.id }}" style="margin-bottom:10px">
   <div class="sel"><div class="utama"><div class="nama"><b>Buka dus</b> <span class="redup">· {{ b.oleh }}</span></div>
@@ -103,7 +118,7 @@
 <dialog class="lembar" id="lembar-tolak">
   <div class="pegangan"></div>
   <div class="kepala"><button data-tutup>Batal</button><b>Tolak</b><button class="kanan" id="kirim-tolak">Tolak</button></div>
-  <div class="badan"><div class="grup"><textarea class="kolom" id="alasan-tolak" rows="3" placeholder="Alasan (wajib untuk nota)"></textarea></div>
+  <div class="badan"><div class="grup"><textarea class="kolom" id="alasan-tolak" rows="3" placeholder="Alasan (wajib untuk nota dan piutang)"></textarea></div>
     <p class="ket-grup">Nota yang ditolak tidak masuk penjualan. Kasir perlu membuat nota baru dengan harga yang benar.</p></div>
 </dialog>
 {% endblock %}
@@ -128,7 +143,7 @@ document.addEventListener('click', e => {
 });
 document.getElementById('kirim-tolak').addEventListener('click', () => {
   const alasan = document.getElementById('alasan-tolak').value.trim();
-  if (tolakKartu.dataset.acc === 'nota' && !alasan){ kabar('Tulis alasannya dulu.', true); return; }
+  if (tolakKartu.dataset.acc !== 'dus' && !alasan){ kabar('Tulis alasannya dulu.', true); return; }
   document.getElementById('lembar-tolak').close(); putuskan(tolakKartu, 'tolak', alasan);
 });
 </script>

@@ -48,3 +48,12 @@ def singkat(nilai):
     if n >= 1_000:
         return f"{tanda}{round(n / 1_000)} rb"
     return f"{tanda}{n}"
+
+
+@register.filter
+def get(kamus, kunci):
+    """{{ hitung|get:k }}: ambil isi dict per kunci di template."""
+    try:
+        return kamus.get(kunci, "")
+    except AttributeError:
+        return ""

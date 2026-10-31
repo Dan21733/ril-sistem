@@ -1,0 +1,25 @@
+{% load master_tags %}<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Tagihan {{ p.nomor }}</title>
+<style>
+@page{size:76mm auto;margin:3mm}
+body{font:12px/1.35 ui-monospace,Consolas,monospace;width:70mm;margin:0 auto;color:#000}
+h1{font-size:14px;text-align:center;margin:0 0 2px}.tengah{text-align:center}.garis{border-top:1px dashed #000;margin:6px 0}
+table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:1px 0}td.r{text-align:right;white-space:nowrap}
+.besar{font-size:14px;font-weight:700}@media screen{body{margin-top:12px}}
+</style></head><body onload="window.print()">
+<h1>{{ p.toko.nama }}</h1>{% if p.toko.alamat %}<div class="tengah">{{ p.toko.alamat }}</div>{% endif %}{% if p.toko.telepon %}<div class="tengah">{{ p.toko.telepon }}</div>{% endif %}
+<div class="garis"></div>
+<div class="tengah besar">{% if p.lunas %}BUKTI PELUNASAN{% else %}TAGIHAN{% endif %}</div>
+<table><tr><td>Nota</td><td class="r">{{ p.nomor }}</td></tr><tr><td>Tanggal</td><td class="r">{{ p.tanggal|date:"d-m-Y" }}</td></tr>
+<tr><td>Kepada</td><td class="r">{{ p.nama }}</td></tr>{% if p.telepon %}<tr><td>No. HP</td><td class="r">{{ p.telepon }}</td></tr>{% endif %}
+<tr><td>Barang</td><td class="r">{{ p.get_status_barang_display }}</td></tr></table>
+<div class="garis"></div>
+<table>{% for b in barang %}<tr><td colspan="2">{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</td></tr>
+<tr><td>{{ b.jumlah }} x {{ b.harga|ribuan }}</td><td class="r">{{ b.subtotal|ribuan }}</td></tr>{% endfor %}
+{% if p.nota_manual.ongkir %}<tr><td>Ongkir</td><td class="r">{{ p.nota_manual.ongkir|ribuan }}</td></tr>{% endif %}</table>
+<div class="garis"></div>
+<table><tr><td>Total</td><td class="r">{{ p.total|ribuan }}</td></tr>
+{% for b in pembayaran %}<tr><td>Bayar {{ b.waktu|date:"d-m" }} {{ b.get_cara_display }}</td><td class="r">-{{ b.jumlah|ribuan }}</td></tr>{% endfor %}
+<tr class="besar"><td>SISA</td><td class="r">{% if p.lunas %}LUNAS{% else %}{{ p.sisa|ribuan }}{% endif %}</td></tr>
+{% if p.jatuh_tempo and not p.lunas %}<tr><td>Jatuh tempo</td><td class="r">{{ p.jatuh_tempo|date:"d-m-Y" }}</td></tr>{% endif %}</table>
+<div class="garis"></div><div class="tengah">Dicetak {{ sekarang|date:"d-m-Y H:i" }}</div>
+</body></html>

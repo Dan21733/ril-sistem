@@ -9,7 +9,7 @@
   </form>
 </dialog>
 <style>
-.dialog-tanya{border:0;border-radius:14px;padding:0;width:min(400px,92vw);background:var(--kartu,#fff);color:var(--teks,#1f1d1a);box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.dialog-tanya{border:0;border-radius:14px;padding:0;width:400px;max-width:calc(100% - 32px);box-sizing:border-box;margin:auto;overflow:visible;background:var(--kartu,#fff);color:var(--teks,#1f1d1a);box-shadow:0 18px 50px rgba(0,0,0,.3)}
 .dialog-tanya::backdrop{background:rgba(0,0,0,.4)}
 .dialog-tanya [hidden]{display:none!important}
 .dialog-tanya form{padding:18px 18px 14px;margin:0}
@@ -17,8 +17,10 @@
 .dialog-tanya label{display:block;margin:0 0 14px;font-size:13px;color:var(--redup,var(--teks2,#6b665d))}
 .dialog-tanya label span{display:block;margin-bottom:4px}
 .dialog-tanya input{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:9px 11px;border:1px solid var(--garis-kuat,var(--garis,#cfcbc1));border-radius:8px;background:transparent;color:inherit}
-.dialog-tanya .tombol-tanya{display:flex;gap:8px;justify-content:flex-end}
-.dialog-tanya button{font:inherit;font-weight:600;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;background:rgba(127,127,127,.15);color:inherit;min-height:40px}
+/* Tombol boleh turun baris, tidak pernah meluber ke kiri (Firefox + zoom laptop, 31 Okt 2026). */
+.dialog-tanya .tombol-tanya{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;min-width:0}
+.dialog-tanya p{overflow-wrap:anywhere}
+.dialog-tanya button{flex:0 1 auto;max-width:100%;width:auto;white-space:normal;font:inherit;font-weight:600;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;background:rgba(127,127,127,.15);color:inherit;min-height:40px}
 .dialog-tanya button.ya{background:var(--aksen,var(--tint,#b4541f));color:#fff}
 .dialog-tanya button.ya.bahaya{background:var(--bahaya,var(--merah,#a12b2b))}
 </style>

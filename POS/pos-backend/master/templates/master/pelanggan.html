@@ -1,0 +1,21 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Pelanggan tempo{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:piutang' %}">Piutang & pesanan</a> /</p>
+<h2>Pelanggan tempo</h2>
+<p class="sub">Hanya pelanggan bertanda <b>boleh tempo</b> yang bisa invoice (DP di bawah minimal), dalam batas piutangnya, dan tiap nota tetap menunggu ACC pemilik.</p>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>No. HP</th><th>Tempo</th><th class="angka">Batas</th><th class="angka">Piutang berjalan</th><th>Catatan</th><th></th></tr>
+  {% for c in semua %}<tr{% if not c.aktif %} style="opacity:.55"{% endif %}><td><b>{{ c.nama }}</b></td><td>{{ c.telepon|default:"-" }}</td>
+    <td>{% if c.boleh_tempo %}<span class="label baik">boleh tempo</span>{% else %}-{% endif %}</td>
+    <td class="angka">{% if c.batas_piutang != None %}{{ c.batas_piutang|ribuan }}{% else %}-{% endif %}</td>
+    <td class="angka">{{ c.berjalan|ribuan }}</td><td class="kecil">{{ c.catatan }}</td>
+    <td>{% if boleh_atur %}<details><summary class="kecil" style="cursor:pointer;color:var(--aksen)">Ubah</summary>
+      <form method="post" style="margin-top:8px;min-width:280px">{% csrf_token %}<input type="hidden" name="id" value="{{ c.id }}">
+        {% include "master/_pelanggan_isian.html" with c=c %}<button class="tombol utama" type="submit" style="margin-top:8px">Simpan</button></form></details>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="redup" style="padding:22px;text-align:center">Belum ada pelanggan.</td></tr>{% endfor %}
+</table></div>
+{% if boleh_atur %}<h3>Tambah pelanggan</h3>
+<form method="post" class="kartu">{% csrf_token %}{% include "master/_pelanggan_isian.html" with c=None %}
+  <button class="tombol utama" type="submit" style="margin-top:12px">Tambah</button></form>{% endif %}
+{% endblock %}

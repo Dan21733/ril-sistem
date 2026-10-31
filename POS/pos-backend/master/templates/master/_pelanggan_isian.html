@@ -1,0 +1,10 @@
+<div class="kisi">
+  <div><label>Nama</label><input type="text" name="nama" value="{{ c.nama }}" required></div>
+  <div><label>No. HP</label><input type="text" name="telepon" value="{{ c.telepon }}" inputmode="tel"></div>
+  <div><label>Batas piutang (kosong = tanpa batas)</label><input type="text" name="batas_piutang" inputmode="numeric" value="{% if c.batas_piutang != None %}{{ c.batas_piutang }}{% endif %}"></div>
+  <div><label>Catatan</label><input type="text" name="catatan" value="{{ c.catatan }}"></div>
+</div>
+<div class="baris" style="margin-top:8px;gap:18px">
+  <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="boleh_tempo" value="1" style="width:auto" {% if c.boleh_tempo %}checked{% endif %}> Boleh tempo (invoice)</label>
+  <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="hidden" name="aktif" value="0"><input type="checkbox" name="aktif" value="1" style="width:auto" {% if not c or c.aktif %}checked{% endif %}> Aktif</label>
+</div>

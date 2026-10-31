@@ -115,6 +115,9 @@ def _jumlah_acc(request):
         n += Tiket.objects.filter(status="dikirim").count()
     if "ubah_stok" in hak:
         n += BukaDus.objects.filter(status="menunggu").count()
+    if "acc_piutang" in hak:
+        from master.models import Piutang
+        n += Piutang.objects.filter(batal=False, acc_status="menunggu").count()
     return n
 
 
@@ -149,13 +152,21 @@ def beranda(request):
     tugas = list(Tiket.objects.filter(status="dikirim").select_related("untuk")[:30]) if "kelola_lokasi" in hak else []
     dus = list(BukaDus.objects.filter(status="menunggu").select_related("konversi__dari", "konversi__ke")[:30]) \
         if "ubah_stok" in hak else []
+    piutang_acc, piutang_ringkas = [], None
+    if "acc_piutang" in hak:
+        from master.models import Piutang
+        piutang_acc = list(Piutang.objects.filter(batal=False, acc_status="menunggu").select_related("pelanggan")[:30])
+    if "piutang" in hak:
+        from master.layanan import piutang as svc_piutang
+        piutang_ringkas = svc_piutang.ringkas()
     jam = timezone.localtime().hour
     sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
     return render(request, "hp/beranda.html", {
         "tab": "beranda", "jual": jual, "lain": lain, "periode": PERIODE, "p": kode, "judul_periode": judul,
         "awal": awal, "akhir": akhir, "hari_ini": hari_ini,
         "pembanding": _pembanding(kode), "nota": nota, "tugas": tugas, "dus": dus,
-        "jumlah_acc": len(nota) + len(tugas) + len(dus), "sapa": sapa,
+        "piutang_acc": piutang_acc, "piutang_ringkas": piutang_ringkas,
+        "jumlah_acc": len(nota) + len(tugas) + len(dus) + len(piutang_acc), "sapa": sapa,
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
     })
 
@@ -177,6 +188,14 @@ def acc(request):
                 return _jawab(pesan=f"Nota {n.transaction_id or ''} diterima.")
             n = nota_tinjau.tolak(request.user, d.get("id"), d.get("alasan"))
             return _jawab(pesan=f"Nota {n.transaction_id or ''} ditolak.")
+        if jenis == "piutang":
+            if "acc_piutang" not in hak:
+                raise Tolak("Akun ini tidak boleh memberi ACC.")
+            from master.layanan import piutang as svc_piutang
+            from master.models import Piutang
+            p = get_object_or_404(Piutang, pk=d.get("id"))
+            svc_piutang.acc(request.user, p, setuju=aksi == "terima", catatan=d.get("alasan") or "")
+            return _jawab(pesan=f"{p.nomor} {'disetujui' if aksi == 'terima' else 'ditolak'}.")
         if jenis == "dus":
             if "ubah_stok" not in hak:
                 raise Tolak("Akun ini tidak boleh mengubah stok.")
@@ -533,7 +552,9 @@ def setelan(request):
         "perangkat": PushLangganan.objects.filter(user=request.user),
         "dapat": [label for jenis, label in (("nota", "Nota kasir ditahan (mis. di bawah floor)"),
                                               ("tugas", "Tugas karyawan selesai dikerjakan"),
-                                              ("dus", "Buka dus dari gudang"), ("po", "Barang datang, PO menunggu ACC"))
+                                              ("dus", "Buka dus dari gudang"), ("po", "Barang datang, PO menunggu ACC"),
+                                              ("piutang", "Invoice / titip barang menunggu ACC"),
+                                              ("tempo", "Piutang pelanggan lewat jatuh tempo"))
                   if svc_push.HAK_JENIS[jenis] in hak],
     })
 
@@ -751,3 +772,61 @@ def ikon(request, ukuran):
     resp = HttpResponse(berkas.read_bytes(), content_type="image/png")
     resp["Cache-Control"] = "public, max-age=604800"
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Piutang & pesanan pelanggan
+# ---------------------------------------------------------------------------
+
+
+@perlu_hp("piutang")
+def piutang(request):
+    from master.layanan import piutang as svc
+    tab = request.GET.get("tab") or "belum_lunas"
+    if tab not in dict(svc.TAB):
+        tab = "belum_lunas"
+    qs = svc.daftar(tab)
+    cari = (request.GET.get("q") or "").strip()
+    if cari:
+        from django.db.models import Q
+        qs = qs.filter(Q(nama__icontains=cari) | Q(telepon__icontains=cari) | Q(nomor__icontains=cari))
+    baris = list(qs[:150])
+    hari_ini = timezone.localdate()
+    for p in baris:
+        p.lewat = bool(p.jatuh_tempo and p.jatuh_tempo < hari_ini and not p.lunas)
+    return _tampil(request, "hp/piutang.html", {
+        "tab": "", "pilih": tab, "tabs": svc.TAB, "hitung": svc.hitungan(), "baris": baris, "cari": cari,
+        "ringkas": svc.ringkas()})
+
+
+@perlu_hp("piutang")
+def piutang_detail(request, piutang_id):
+    from master.layanan import piutang as svc
+    from master.models import Piutang
+    p = get_object_or_404(Piutang.objects.select_related("toko", "nota_manual"), pk=piutang_id)
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        d = _json_badan(request)
+        aksi = d.get("aksi")
+        try:
+            if aksi == "bayar":
+                svc.bayar(request.user, p, jumlah=d.get("jumlah"), cara=d.get("cara") or "cash",
+                          catatan=d.get("catatan") or "", sumber="hp")
+                p.refresh_from_db()
+                return _jawab(pesan="Pembayaran tercatat." + (" Lunas." if p.lunas else f" Sisa {svc.rp(p.sisa)}."))
+            if aksi == "serahkan":
+                svc.serahkan(request.user, p)
+                return _jawab(pesan="Barang ditandai sudah diambil.")
+            if aksi in ("setuju", "tolak"):
+                if "acc_piutang" not in hak:
+                    raise Tolak("Akun ini tidak boleh memberi ACC.")
+                svc.acc(request.user, p, setuju=aksi == "setuju", catatan=d.get("catatan") or "")
+                return _jawab(pesan="Disetujui." if aksi == "setuju" else "Ditolak.")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(False, "Permintaan tidak dikenali.", 400)
+    return _tampil(request, "hp/piutang_detail.html", {
+        "tab": "", "p": p, "pembayaran": p.pembayaran.all(), "cara": svc.CARA_BAYAR.items(),
+        "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
+        "barang": p.nota_manual.baris.all() if p.nota_manual_id else [],
+        "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas)})

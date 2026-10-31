@@ -47,6 +47,14 @@
 <style>.varian-baru td{background:var(--latar,#faf9f6);padding-top:8px;padding-bottom:8px}.varian-baru input,.varian-baru select{padding:7px 8px;min-width:0;width:100%}.varian-baru .uang-varian{text-align:right;min-width:80px}.varian-baru td:first-child input{min-width:120px}</style>
 {% endif %}
 
+{% if 'ubah_harga' in hak %}
+<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu baris" style="margin-top:16px;align-items:end">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="min_dp">
+  <div style="width:220px"><label>Minimal DP barang ini (%)</label><input type="text" name="min_dp_persen" inputmode="numeric" value="{{ item_info.min_dp_persen|default_if_none:'' }}" placeholder="bawaan {{ dp_bawaan }}%"></div>
+  <button class="tombol" type="submit">Simpan</button>
+  <span class="redup kecil">Kosong = ikut bawaan toko. Isi lebih tinggi untuk barang pesanan khusus.</span>
+</form>
+{% endif %}
+
 {% if titipan %}
 <h3 style="margin-top:22px">Syarat titipan · {{ titipan.nama }}</h3>
 <form method="post" action="{% url 'master:item' item_info.id %}" class="kartu" data-syarat-titipan data-bulat="{{ pembulatan|default:1 }}">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="syarat_titipan">

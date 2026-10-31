@@ -24,6 +24,9 @@ def toko(request):
             elif aksi == "pembulatan":
                 svc_toko.simpan_pembulatan(request.user, request.POST.get("pembulatan"))
                 messages.success(request, "Pembulatan diskon tersimpan.")
+            elif aksi == "dp":
+                svc_toko.simpan_dp(request.user, request.POST.get("dp_minimal_persen"), request.POST.get("jatuh_tempo_hari"))
+                messages.success(request, "Aturan DP tersimpan.")
             else:
                 t = get_object_or_404(Toko, pk=request.POST.get("id"))
                 if aksi == "simpan":
@@ -39,7 +42,7 @@ def toko(request):
             messages.error(request, str(tolak))
         return redirect("master:toko")
     from master.models import Pengaturan
-    return render(request, "master/toko.html", {"menu": "toko", "pembulatan": Pengaturan.ambil().pembulatan_diskon, "semua": Toko.objects.select_related("titip_di"),
+    return render(request, "master/toko.html", {"menu": "toko", "pembulatan": Pengaturan.ambil().pembulatan_diskon, "atur": Pengaturan.ambil(), "semua": Toko.objects.select_related("titip_di"),
                                                 "pilihan_titip": Toko.objects.filter(aktif=True, titip_di__isnull=True)})
 
 

@@ -146,7 +146,8 @@ def kirim_ke(langganan_qs, data):
 
 
 # Hak yang dibutuhkan untuk tiap jenis permintaan ACC.
-HAK_JENIS = {"nota": "kelola_kasir", "tugas": "kelola_lokasi", "dus": "ubah_stok", "po": "pembelian"}
+HAK_JENIS = {"nota": "kelola_kasir", "tugas": "kelola_lokasi", "dus": "ubah_stok", "po": "pembelian",
+             "piutang": "acc_piutang", "tempo": "piutang"}
 
 
 def menunggu():
@@ -170,6 +171,14 @@ def menunggu():
     for po in Pembelian.objects.filter(status="menunggu").select_related("supplier")[:50]:
         hasil.append((f"po:{po.id}:menunggu", "po", "Barang datang, menunggu ACC",
                       f"{po.nomor} · {po.supplier.nama}", reverse("master:pembelian_detail", args=[po.id])))
+    from master.layanan import piutang as svc_piutang
+    from master.models import Piutang
+    for p in Piutang.objects.filter(batal=False, acc_status="menunggu")[:50]:
+        hasil.append((f"piutang:{p.id}", "piutang", "Invoice menunggu ACC" if p.jenis_acc == "invoice" else "Titip barang menunggu ACC",
+                      f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))
+    for p in svc_piutang.lewat_tempo()[:50]:
+        hasil.append((f"tempo:{p.id}:{p.jatuh_tempo:%Y%m%d}", "tempo", "Piutang lewat jatuh tempo",
+                      f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))
     return hasil
 
 
