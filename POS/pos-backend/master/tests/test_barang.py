@@ -290,7 +290,11 @@ class HalamanTest(Dasar):
         self.client.force_login(self.admin)
         isi = excel.buat_workbook(Item.objects.all(), SEMUA_HAK)
         berkas = SimpleUploadedFile("barang.xlsx", isi)
-        respons = self.client.post(reverse("master:impor"), {"berkas": berkas})
+        # Tujuan toko wajib dipilih: tanpa itu berkas tidak dibaca.
+        self.client.post(reverse("master:impor"), {"berkas": SimpleUploadedFile("barang.xlsx", isi)})
+        self.assertFalse(Impor.objects.exists())
+        from master.models import Toko
+        respons = self.client.post(reverse("master:impor"), {"berkas": berkas, "toko": Toko.objects.get(stok_di_kasir=True).pk})
         self.assertEqual(respons.status_code, 302)
         impor = Impor.objects.get()
         self.assertEqual(self.client.get(reverse("master:impor_pratinjau", args=[impor.id])).status_code, 200)

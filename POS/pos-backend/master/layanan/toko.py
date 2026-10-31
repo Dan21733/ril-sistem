@@ -108,7 +108,17 @@ def simpan(pengguna, data, toko=None):
     pkp_mulai = baca_tanggal(data.get("pkp_mulai"), label="Tanggal mulai PKP") if pkp else None
     if pkp and pkp_mulai is None:
         raise Tolak("Isi tanggal mulai PKP.")
-    isi = {"kode": kode, "nama": nama, "atas_nama": rapikan_teks(data.get("atas_nama"))[:150],
+    titip_di = None
+    if data.get("titip_di"):
+        titip_di = Toko.objects.filter(pk=data["titip_di"] if str(data["titip_di"]).isdigit() else 0,
+                                       aktif=True, titip_di__isnull=True).first()
+        if titip_di is None or (toko is not None and titip_di.pk == toko.pk):
+            raise Tolak("Pilih toko tempat barang titipan dijual.")
+        if toko is not None and (toko.stok_di_kasir or toko.titipan.exists()):
+            raise Tolak(f"{toko.nama} memegang kasir atau punya toko titipan, jadi tidak bisa dijadikan titipan.")
+    elif toko is not None and toko.titip_di_id and toko.barang_milik.exists():
+        raise Tolak(f"{toko.nama} masih punya {toko.barang_milik.count()} barang titipan. Pindahkan dulu barangnya.")
+    isi = {"kode": kode, "nama": nama, "titip_di": titip_di, "atas_nama": rapikan_teks(data.get("atas_nama"))[:150],
            "alamat": (data.get("alamat") or "").strip()[:500], "telepon": rapikan_teks(data.get("telepon"))[:50],
            "pkp": pkp, "pkp_mulai": pkp_mulai}
     with transaction.atomic():
@@ -116,11 +126,13 @@ def simpan(pengguna, data, toko=None):
             toko = Toko.objects.create(urutan=Toko.objects.count() + 1, **isi)
             layanan.catat(pengguna, aksi="tambah", objek="toko", kolom="toko", baru=f"{kode} {nama}")
         else:
-            lama = f"{toko.kode} {toko.nama}, {'PKP sejak ' + str(toko.pkp_mulai) if toko.pkp else 'belum PKP'}"
+            lama = f"{toko.kode} {toko.nama}, {'PKP sejak ' + str(toko.pkp_mulai) if toko.pkp else 'belum PKP'}" \
+                   + (f", titipan di {toko.titip_di.nama}" if toko.titip_di_id else "")
             for k, v in isi.items():
                 setattr(toko, k, v)
             toko.save()
-            baru = f"{toko.kode} {toko.nama}, {'PKP sejak ' + str(toko.pkp_mulai) if toko.pkp else 'belum PKP'}"
+            baru = f"{toko.kode} {toko.nama}, {'PKP sejak ' + str(toko.pkp_mulai) if toko.pkp else 'belum PKP'}" \
+                   + (f", titipan di {toko.titip_di.nama}" if toko.titip_di_id else "")
             if lama != baru:
                 layanan.catat(pengguna, objek="toko", kolom="toko", lama=lama, baru=baru)
     return toko
@@ -144,3 +156,22 @@ def ubah_aktif(pengguna, toko):
     toko.aktif = not toko.aktif
     toko.save(update_fields=["aktif"])
     layanan.catat(pengguna, objek="toko", kolom="aktif", baru=f"{toko.nama}: {'aktif' if toko.aktif else 'nonaktif'}")
+
+
+PILIHAN_PEMBULATAN = (1, 100, 500, 1000)
+
+
+def simpan_pembulatan(pengguna, nilai):
+    """Kelipatan pembulatan ke atas untuk diskon persen di kasir dan floor barang titipan."""
+    from master.models import Pengaturan
+    try:
+        baru = int(str(nilai))
+    except (TypeError, ValueError):
+        baru = None
+    if baru not in PILIHAN_PEMBULATAN:
+        raise Tolak("Pilih pembulatan yang tersedia.")
+    atur = Pengaturan.ambil()
+    if atur.pembulatan_diskon != baru:
+        layanan.catat(pengguna, objek="pengaturan", kolom="pembulatan_diskon", lama=atur.pembulatan_diskon, baru=baru)
+        atur.pembulatan_diskon = baru
+        atur.save(update_fields=["pembulatan_diskon"])

@@ -3,19 +3,25 @@
 {% block isi %}
 <h2>Import Excel</h2>
 <p class="sub">Unggah berkas hasil Export yang sudah diedit. Perubahan ditampilkan dulu; tidak ada yang berubah sebelum kamu menekan Terapkan.</p>
-<form method="post" enctype="multipart/form-data" class="kartu baris">{% csrf_token %}
+<form method="post" enctype="multipart/form-data" class="kartu baris" style="align-items:end">{% csrf_token %}
+  <div style="min-width:240px"><label>Barang ini untuk toko</label><select name="toko" required>
+    <option value="">Pilih tujuan...</option>
+    {% for t in pilihan_toko %}<option value="{{ t.id }}">{{ t.nama }}{% if t.titip_di %} (titipan){% endif %}</option>{% endfor %}
+  </select></div>
   <div style="flex:1;min-width:260px"><label>Berkas .xlsx</label><input type="file" name="berkas" accept=".xlsx" required></div>
   <div><button class="tombol utama" type="submit">Baca berkas</button></div>
-  <div><a class="tombol" href="{% url 'master:barang' %}?export=1">Export semua barang</a></div>
+  <div><a class="tombol" href="{% url 'master:barang' %}?export=1">Export barang {{ toko_aktif.nama }}</a></div>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Barang milik toko lain di berkas ditolak, jadi data toko sendiri dan barang titipan tidak tercampur.
+    Untuk toko titipan, kolom <code>potongan_toko_persen</code> dan <code>diskon_maks_persen</code> ikut dibaca; floor dihitung dari diskon maks.</p>
 </form>
 <h3>Riwayat</h3>
 <div class="gulir"><table>
-  <tr><th>Waktu</th><th>Oleh</th><th>Berkas</th><th>Status</th><th></th></tr>
+  <tr><th>Waktu</th><th>Oleh</th><th>Untuk</th><th>Berkas</th><th>Status</th><th></th></tr>
   {% for r in riwayat %}
-  <tr><td class="kecil">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.pengguna.username }}</td><td>{{ r.nama_berkas }}</td>
+  <tr><td class="kecil">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.pengguna.username }}</td><td>{{ r.isi.toko_nama|default:"-" }}</td><td>{{ r.nama_berkas }}</td>
     <td><span class="label {% if r.status == 'diterapkan' %}baik{% elif r.status == 'batal' %}netral{% endif %}">{{ r.get_status_display }}</span></td>
     <td><a href="{% url 'master:impor_pratinjau' r.id %}">Lihat</a></td></tr>
-  {% empty %}<tr><td colspan="5" class="redup" style="padding:22px;text-align:center">Belum ada impor.</td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:22px;text-align:center">Belum ada impor.</td></tr>
   {% endfor %}
 </table></div>
 {% endblock %}

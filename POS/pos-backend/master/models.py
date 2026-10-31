@@ -32,6 +32,9 @@ class Toko(models.Model):
     stok_di_kasir = models.BooleanField(default=False)
     aktif = models.BooleanField(default=True)
     urutan = models.IntegerField(default=0)
+    # Toko titipan (konsinyasi): barangnya dijual kasir toko lain (`titip_di`), tapi nota,
+    # laporan, dan setorannya terpisah. Kosong = toko biasa.
+    titip_di = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="titipan")
 
     class Meta:
         db_table = "master_toko"
@@ -87,6 +90,8 @@ class Rak(models.Model):
 class ItemInfo(models.Model):
     item_name = models.CharField(max_length=255, unique=True)
     alias = models.TextField(blank=True, default="")
+    # Pemilik barang. Kosong = toko yang memegang stok kasir; terisi = barang toko titipan.
+    toko = models.ForeignKey(Toko, null=True, blank=True, on_delete=models.PROTECT, related_name="barang_milik")
 
     class Meta:
         db_table = "master_item_info"
@@ -242,6 +247,8 @@ class Pengaturan(models.Model):
     """
     pkp = models.BooleanField(default=False)
     pkp_mulai = models.DateField(null=True, blank=True)
+    # Diskon persen di kasir dan floor barang titipan dibulatkan KE ATAS ke kelipatan ini.
+    pembulatan_diskon = models.PositiveIntegerField(default=100)
 
     class Meta:
         db_table = "master_pengaturan"
@@ -1124,3 +1131,45 @@ class PasskeyHp(models.Model):
     class Meta:
         db_table = "master_passkey_hp"
         ordering = ["-dibuat"]
+
+
+class SyaratTitipan(models.Model):
+    """Syarat satu varian barang titipan, berlaku mulai tanggal tertentu (riwayat tidak ditimpa).
+
+    potongan_toko: bagian toko dari harga terjual (persen). Rahasia, hanya pemilik.
+    diskon_maks: diskon terbesar yang diizinkan pemilik barang; floor dihitung dari sini.
+    """
+    varian = models.ForeignKey(VarianInfo, on_delete=models.CASCADE, related_name="syarat_titipan")
+    potongan_toko = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    diskon_maks = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    berlaku_mulai = models.DateField()
+    dibuat = models.DateTimeField(auto_now_add=True)
+    dibuat_oleh = models.CharField(max_length=150, blank=True, default="")
+
+    class Meta:
+        db_table = "master_syarat_titipan"
+        ordering = ["varian_id", "-berlaku_mulai", "-id"]
+        constraints = [models.UniqueConstraint(fields=["varian", "berlaku_mulai"], name="master_syarat_titipan_unik")]
+
+
+class SetoranTitipan(models.Model):
+    """Setoran hasil penjualan barang titipan ke pemiliknya untuk satu periode.
+
+    Isinya salinan perhitungan saat ditandai disetor, supaya tidak berubah walau
+    data barang atau syarat diubah belakangan.
+    """
+    toko = models.ForeignKey(Toko, on_delete=models.PROTECT, related_name="setoran")
+    dari = models.DateField()
+    sampai = models.DateField()
+    total_jual = models.BigIntegerField(default=0)
+    total_retur = models.BigIntegerField(default=0)
+    potongan = models.BigIntegerField(default=0)
+    disetor = models.BigIntegerField(default=0)
+    rincian = models.JSONField(default=list)
+    catatan = models.CharField(max_length=300, blank=True, default="")
+    dibuat = models.DateTimeField(auto_now_add=True)
+    dibuat_oleh = models.CharField(max_length=150, blank=True, default="")
+
+    class Meta:
+        db_table = "master_setoran_titipan"
+        ordering = ["-sampai", "-id"]

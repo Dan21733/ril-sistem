@@ -36,7 +36,7 @@ KOLOM_INFO = {
 }
 KOLOM_VARIAN = {**KOLOM_ITEM, **KOLOM_INFO}
 KOLOM_VARIAN["cost_amount"] = ("Modal terakhir", "angka_opsional", "ubah_modal")
-KOLOM_RAHASIA = {"cost_amount", "modal_rata", "pemasok"}
+KOLOM_RAHASIA = {"cost_amount", "modal_rata", "pemasok", "syarat_titipan", "setoran_titipan"}
 
 
 def rapikan_teks(nilai):
@@ -204,6 +204,10 @@ def ubah_varian(pengguna, info, kolom, nilai, *, hak, sumber="layar", batch=None
     if hak_perlu not in hak:
         raise Tolak(f"Akun ini tidak boleh mengubah {label.lower()}.")
     baru = _siapkan_nilai(kolom, nilai)
+    if kolom == "min_price":
+        from master.layanan import titipan
+        if titipan.floor_dikunci(info):
+            raise Tolak("Floor barang titipan dihitung dari diskon maks pemilik barang. Ubah diskon maksnya di Syarat titipan.")
 
     with transaction.atomic():
         if kolom in KOLOM_ITEM:
@@ -238,6 +242,9 @@ def ubah_varian(pengguna, info, kolom, nilai, *, hak, sumber="layar", batch=None
             info.save(update_fields=[kolom])
         catat(pengguna, sumber=sumber, item_name=info.item_name, variant=info.variant,
               kolom=kolom, lama=lama, baru=baru, batch=batch, catatan=rapikan_teks(catatan)[:300])
+        if kolom == "max_price":
+            from master.layanan import titipan
+            titipan.segarkan_floor(pengguna, info, sumber=sumber, batch=batch)
         if kolom == "alias_tambahan":
             from master.layanan import alias_kasir
             alias_kasir.tulis([info.item_name])
@@ -575,7 +582,7 @@ class TolakBaris(Tolak):
         self.baris = baris
 
 
-def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, hak):
+def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, hak, toko=None):
     """Barang baru dengan satu atau beberapa varian sekaligus. Semua tersimpan, atau tidak sama sekali.
 
     `varian`: daftar dict berisi variant, min_price, max_price, cost_amount, in_stock, kode_rak.
@@ -615,6 +622,11 @@ def tambah_barang(pengguna, *, item_name, category, brand="", alias="", varian, 
             except Tolak as tolak:
                 raise TolakBaris(str(tolak), i) from None
         item_info = ItemInfo.objects.get(item_name=item_name)
+        if toko is not None and toko.titip_di_id and item_info.toko_id != toko.pk:
+            # Barang toko titipan: pemiliknya dicatat supaya laporan dan setorannya terpisah.
+            item_info.toko = toko
+            item_info.save(update_fields=["toko"])
+            catat(pengguna, item_name=item_name, kolom="pemilik", baru=toko.nama)
         if rapikan_teks(alias):
             ubah_alias_item(pengguna, item_info, alias, hak=hak)
     return item_info

@@ -15,7 +15,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak
-from master.models import ItemInfo, Rak, Sampah, VarianInfo
+from master.models import ItemInfo, Rak, Sampah, Toko, VarianInfo
 
 # Urutan kolom di berkas export. `id` adalah ID tetap (VarianInfo.id).
 KOLOM_EXPORT = [
@@ -54,13 +54,34 @@ def baris_export(queryset, hak):
     return barang
 
 
-def buat_workbook(queryset, hak):
+KOLOM_TITIPAN = ("potongan_toko_persen", "diskon_maks_persen")
+NAMA_LAIN = {"potongan_toko": "potongan_toko_persen", "diskon_maks": "diskon_maks_persen"}
+
+
+def _tambah_syarat(barang, hak):
+    """Kolom syarat titipan (persen yang berlaku hari ini). Potongan toko hanya untuk akun yang boleh lihat modal."""
+    from master.layanan import titipan
+    kini = titipan.syarat_kini([b["id"] for b in barang if b.get("id")])
+    for b in barang:
+        s = kini.get(b.get("id"))
+        b["diskon_maks_persen"] = float(s.diskon_maks) if s and s.diskon_maks is not None else None
+        if "lihat_modal" in hak:
+            b["potongan_toko_persen"] = float(s.potongan_toko) if s and s.potongan_toko is not None else None
+
+
+def buat_workbook(queryset, hak, toko=None):
+    from master.layanan import titipan
     kolom = [k for k in KOLOM_EXPORT if k not in KOLOM_MODAL or "lihat_modal" in hak]
+    if titipan.adalah_titipan(toko):
+        kolom += [k for k in KOLOM_TITIPAN if k != "potongan_toko_persen" or "lihat_modal" in hak]
     wb = Workbook()
     ws = wb.active
     ws.title = "item"
     ws.append(kolom)
-    for b in layanan.urut_alami(baris_export(queryset, hak)):
+    semua = baris_export(queryset, hak)
+    if titipan.adalah_titipan(toko):
+        _tambah_syarat(semua, hak)
+    for b in layanan.urut_alami(semua):
         ws.append([("ya" if b[k] else "tidak") if k == "aktif" else b.get(k) for k in kolom])
     tebal = Font(bold=True)
     abu = PatternFill("solid", fgColor="E7E5E0")
@@ -129,8 +150,25 @@ def _sama(lama, baru):
     return lama == baru or (lama in (None, "") and baru in (None, ""))
 
 
-def baca_berkas(berkas, hak):
-    """Baca berkas Excel dan kembalikan pratinjau (dict yang bisa disimpan JSON)."""
+def baca_berkas(berkas, hak, toko=None):
+    """Baca berkas Excel dan kembalikan pratinjau (dict yang bisa disimpan JSON).
+
+    toko: tujuan impor (wajib dipilih di layar). Baris barang milik toko lain ditolak,
+    barang baru menjadi milik toko ini, dan untuk toko titipan kolom
+    potongan_toko_persen / diskon_maks_persen ikut dibaca.
+    """
+    from master.layanan import titipan
+    titip = titipan.adalah_titipan(toko)
+    pemilik = dict(ItemInfo.objects.values_list("item_name", "toko_id"))
+    tujuan_id = toko.pk if titip else None
+    nama_toko = {t.pk: t.nama for t in Toko.objects.all()}
+
+    def bukan_milik(nama_item):
+        """Pesan kalau barang ini milik toko lain dari tujuan impor."""
+        if nama_item not in pemilik or pemilik[nama_item] == tujuan_id:
+            return None
+        milik = nama_toko.get(pemilik[nama_item]) if pemilik[nama_item] else "toko sendiri (bukan titipan)"
+        return f"barang ini milik {milik}. Pilih tujuan itu untuk mengubahnya."
     try:
         wb = load_workbook(berkas, read_only=True, data_only=True)
     except Exception as galat:  # noqa: BLE001 - berkas dari pengguna, pesannya apa saja
@@ -138,6 +176,8 @@ def baca_berkas(berkas, hak):
 
     nama_sheet = "item" if "item" in wb.sheetnames else wb.sheetnames[0]
     kepala, baris = _baca_sheet(wb[nama_sheet])
+    kepala = [NAMA_LAIN.get(k, k) for k in kepala]
+    baris = [(n, {NAMA_LAIN.get(k, k): v for k, v in r.items()}) for n, r in baris]
     if "item_name" not in kepala and "id" not in kepala:
         raise Tolak(f"Sheet '{nama_sheet}' tidak punya kolom 'item_name' atau 'id'.")
 
@@ -173,10 +213,37 @@ def baca_berkas(berkas, hak):
     alias_lama = dict(ItemInfo.objects.values_list("item_name", "alias"))
 
     dipakai = [k for k in KOLOM_IMPOR if k in kepala]
+    kolom_syarat = [k for k in KOLOM_TITIPAN if titip and k in kepala
+                    and (k != "potongan_toko_persen" or "lihat_modal" in hak)]
     diabaikan = sorted(
         k for k in kepala
-        if k and k not in dipakai and k not in ("id", "item_name", "variant", "alias")
+        if k and k not in dipakai and k not in kolom_syarat and k not in ("id", "item_name", "variant", "alias")
     )
+    syarat_kini = titipan.syarat_kini([v.id for v in info_per_id.values()]) if kolom_syarat else {}
+    syarat = []
+
+    def baca_syarat(nomor, r, info, nama_item, varian):
+        """Syarat titipan dari baris ini; dicatat kalau beda dari yang berlaku sekarang."""
+        if not kolom_syarat:
+            return
+        kini = syarat_kini.get(info.id) if info else None
+        try:
+            pot = titipan.baca_persen(r.get("potongan_toko_persen"), "Potongan toko") \
+                if "potongan_toko_persen" in kolom_syarat else getattr(kini, "potongan_toko", None)
+            maks = titipan.baca_persen(r.get("diskon_maks_persen"), "Diskon maks") \
+                if "diskon_maks_persen" in kolom_syarat else getattr(kini, "diskon_maks", None)
+        except Tolak as tolak:
+            galat.append({"baris": nomor, "pesan": f"{nama_item} / {varian}: {tolak}"})
+            return
+        if kini is not None and kini.potongan_toko == pot and kini.diskon_maks == maks:
+            return
+        if kini is None and pot is None and maks is None:
+            return
+        syarat.append({"baris": nomor, "id": info.id if info else None, "item_name": nama_item, "variant": varian,
+                       "potongan_lama": titipan.persen_teks(getattr(kini, "potongan_toko", None)),
+                       "maks_lama": titipan.persen_teks(getattr(kini, "diskon_maks", None)),
+                       "potongan": str(pot) if pot is not None else None,
+                       "diskon_maks": str(maks) if maks is not None else None})
     dilewati_hak = []
     kolom_boleh = []
     for k in dipakai:
@@ -212,6 +279,12 @@ def baca_berkas(berkas, hak):
                          f"('{info.item_name}' / '{info.variant}'). Nama tidak diubah; kolom lain tetap diproses.",
             })
 
+        nama_cek = info.item_name if info is not None else nama
+        salah_toko = bukan_milik(nama_cek)
+        if salah_toko:
+            galat.append({"baris": nomor, "pesan": f"{nama_cek} / {info.variant if info else varian}: {salah_toko}"})
+            continue
+
         if info is None:
             # Barang baru
             try:
@@ -223,7 +296,9 @@ def baca_berkas(berkas, hak):
                     "category": layanan.rapikan_teks(r.get("category")),
                     "brand": layanan.rapikan_teks(r.get("brand")),
                     "sku": layanan.rapikan_teks(r.get("sku")) or None,
-                    "min_price": layanan.baca_angka(r.get("min_price"), False),
+                    "min_price": layanan.baca_angka(r.get("min_price"), False)
+                    if not (titip and "diskon_maks_persen" in kolom_syarat and r.get("diskon_maks_persen") not in (None, ""))
+                    else layanan.baca_angka(r.get("max_price"), False),  # floor titipan dihitung dari diskon maks
                     "max_price": layanan.baca_angka(r.get("max_price"), False),
                     "cost_amount": layanan.baca_angka(r.get("cost_amount"), True),
                     "in_stock": layanan.baca_angka(r.get("in_stock"), True) or 0,
@@ -238,6 +313,7 @@ def baca_berkas(berkas, hak):
                     raise Tolak("Baris kembar di berkas.")
                 sudah.add((nama, varian))
                 baru.append({"baris": nomor, **data})
+                baca_syarat(nomor, r, None, nama, varian)
             except Tolak as tolak:
                 galat.append({"baris": nomor, "pesan": f"{nama} / {varian}: {tolak}"})
         else:
@@ -253,7 +329,10 @@ def baca_berkas(berkas, hak):
                 continue
             sekarang = {**sekarang, "kode_rak": info.rak_id, "modal_rata": info.modal_rata,
                         "alias_tambahan": info.alias_tambahan, "aktif": info.aktif}
+            baca_syarat(nomor, r, info, kunci[0], kunci[1])
             for k in kolom_boleh:
+                if k == "min_price" and titip and "diskon_maks_persen" in kolom_syarat:
+                    continue  # floor barang titipan dihitung dari diskon maks
                 try:
                     nilai = layanan._siapkan_nilai(k, r.get(k)) if k != "kode_rak" else (
                         layanan.rapikan_teks(r.get(k)) or None
@@ -294,9 +373,13 @@ def baca_berkas(berkas, hak):
             p["lama"] = p["baru"] = None
 
     return {
+        "toko_id": toko.pk if toko else None,
+        "toko_nama": toko.nama if toko else "",
+        "titipan": titip,
+        "syarat": syarat,
         "sheet": nama_sheet,
         "jumlah_baris": len(baris),
-        "kolom_dipakai": kolom_boleh + (["alias"] if "alias" in kepala and "ubah_info" in hak else []),
+        "kolom_dipakai": kolom_boleh + (["alias"] if "alias" in kepala and "ubah_info" in hak else []) + kolom_syarat,
         "kolom_diabaikan": diabaikan,
         "kolom_tanpa_hak": dilewati_hak,
         "perubahan": perubahan,
@@ -313,9 +396,12 @@ def baca_berkas(berkas, hak):
 
 
 def terapkan(impor, pengguna, hak, *, izinkan_baru=False):
+    from master.layanan import titipan
     isi = impor.isi
     batch = uuid.uuid4()
-    hasil = {"diubah": 0, "alias": 0, "baru": 0, "rak": 0, "dilewati": []}
+    hasil = {"diubah": 0, "alias": 0, "baru": 0, "rak": 0, "syarat": 0, "dilewati": []}
+    toko = Toko.objects.filter(pk=isi.get("toko_id")).first() if isi.get("toko_id") else None
+    titip = titipan.adalah_titipan(toko)
 
     with transaction.atomic():
         if isi.get("rak"):
@@ -339,7 +425,14 @@ def terapkan(impor, pengguna, hak, *, izinkan_baru=False):
                     data = {k: v for k, v in b.items() if k != "baris"}
                     try:
                         with transaction.atomic():
+                            pemilik = ItemInfo.objects.filter(item_name=data["item_name"]).values_list("toko_id", flat=True).first()
+                            if pemilik is not None and pemilik != (toko.pk if titip else None):
+                                raise Tolak("nama barang ini sudah dipakai toko lain.")
+                            if titip and pemilik is None and Item.objects.filter(item_name=data["item_name"]).exists():
+                                raise Tolak("nama barang ini sudah dipakai toko sendiri.")
                             layanan.tambah_varian(pengguna, hak=hak, sumber="impor", batch=batch, **data)
+                            if titip:
+                                ItemInfo.objects.filter(item_name=data["item_name"]).update(toko=toko)
                         hasil["baru"] += 1
                     except Tolak as tolak:
                         hasil["dilewati"].append(f"Baris {b['baris']}: {tolak}")
@@ -429,6 +522,25 @@ def terapkan(impor, pengguna, hak, *, izinkan_baru=False):
         if nama_alias:
             from master.layanan import alias_kasir
             alias_kasir.tulis(nama_alias)
+
+        if titip and isi.get("syarat"):
+            if "lihat_modal" not in hak:
+                hasil["dilewati"].append("Syarat titipan dilewati: akun ini tidak boleh mengubahnya.")
+            else:
+                per_kunci = {(v.item_name, v.variant): v for v in VarianInfo.objects.filter(
+                    item_name__in={x["item_name"] for x in isi["syarat"]})}
+                for x in isi["syarat"]:
+                    info = per_kunci.get((x["item_name"], x["variant"]))
+                    if info is None:
+                        hasil["dilewati"].append(f"Baris {x['baris']}: syarat dilewati, barang belum ada.")
+                        continue
+                    try:
+                        with transaction.atomic():
+                            _, berubah = titipan.simpan_syarat(pengguna, info, potongan=x["potongan"],
+                                                               diskon_maks=x["diskon_maks"], sumber="impor", batch=batch)
+                        hasil["syarat"] += int(berubah)
+                    except Tolak as tolak:
+                        hasil["dilewati"].append(f"Baris {x['baris']} ({x['item_name']} / {x['variant']}): {tolak}")
 
         impor.status = "diterapkan"
         impor.hasil = {**hasil, "batch": str(batch)}

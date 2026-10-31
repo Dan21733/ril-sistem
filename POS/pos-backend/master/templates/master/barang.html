@@ -2,7 +2,7 @@
 {% block judul %}Daftar barang{% endblock %}
 {% block isi %}
 <div class="baris" style="justify-content:space-between;align-items:start">
-  <div><h2>Daftar barang</h2><p class="sub">{{ halaman.paginator.count|ribuan }} barang. Klik barang untuk membukanya.</p></div>
+  <div><h2>Daftar barang{% if toko_titipan %} · {{ toko_titipan.nama }}{% endif %}</h2><p class="sub">{{ halaman.paginator.count|ribuan }} barang{% if toko_titipan %} titipan di {{ toko_titipan.titip_di.nama }}. Barang toko sendiri tampil kalau toko lain dipilih di menu samping{% endif %}. Klik barang untuk membukanya.</p></div>
   <div class="baris">
     <a class="tombol" href="?{{ qs_export }}{% if qs_export %}&{% endif %}export=1">Export Excel</a>
     {% if 'ubah_info' in hak and 'ubah_harga' in hak %}<a class="tombol utama" href="{% url 'master:barang_baru' %}" id="tombol-baru">Barang baru</a>{% endif %}

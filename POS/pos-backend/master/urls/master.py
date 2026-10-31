@@ -14,6 +14,7 @@ from master.views import lokasi as views_lokasi
 from master.views import pembelian as views_pembelian
 from master.views import sampah as views_sampah
 from master.views import toko as views_toko
+from master.views import titipan as views_titipan
 
 app_name = "master"
 
@@ -78,6 +79,9 @@ urlpatterns = [
     path("nota/bukti/<uuid:proof_id>/", views_laporan.nota_bukti, name="nota_bukti"),
     path("laporan/", views_laporan.halaman, name="laporan"),
     path("laporan/pergerakan-stok/", views.pergerakan, name="pergerakan"),
+    path("titipan/", views_titipan.daftar, name="titipan"),
+    path("titipan/<int:toko_id>/", views_titipan.toko, name="titipan_toko"),
+    path("titipan/setoran/<int:setoran_id>/", views_titipan.setoran, name="titipan_setoran"),
     path("nota-manual/", views_nota_manual.daftar, name="nota_manual"),
     path("nota-manual/baru/", views_nota_manual.baru, name="nota_manual_baru"),
     path("nota-manual/cari/", views_nota_manual.cari, name="nota_manual_cari"),

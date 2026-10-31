@@ -1,0 +1,13 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Setoran titipan{% endblock %}
+{% block isi %}
+<h2>Setoran titipan</h2>
+<p class="sub">Barang titipan yang dijual kasir kita. Angka di bawah = yang belum disetor sejak setoran terakhir.</p>
+<div class="gulir"><table>
+  <tr><th>Toko titipan</th><th>Sejak</th><th class="angka">Penjualan</th><th class="angka">Belum disetor</th><th></th></tr>
+  {% for b in baris %}<tr><td><b>{{ b.toko.nama }}</b> <span class="redup kecil">di {{ b.toko.titip_di.nama }}</span></td><td>{{ b.dari|date:"d M Y" }}</td>
+    <td class="angka">{{ b.h.total.jual|ribuan }}</td><td class="angka"><b>{{ b.h.total.disetor|ribuan }}</b></td>
+    <td><a href="{% url 'master:titipan_toko' b.toko.id %}">Buka</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:22px;text-align:center">Belum ada toko titipan. Buat di menu Toko, pilih jenis "Titipan".</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

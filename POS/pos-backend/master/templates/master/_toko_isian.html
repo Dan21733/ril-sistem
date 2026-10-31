@@ -6,4 +6,11 @@
   <div><label>Status pajak</label><select name="pkp"><option value="0">Belum PKP</option><option value="1" {% if t.pkp %}selected{% endif %}>PKP</option></select></div>
   <div><label>PKP sejak (kalau PKP)</label><input type="date" name="pkp_mulai" value="{{ t.pkp_mulai|date:'Y-m-d' }}"></div>
 </div>
+<div class="kisi" style="margin-top:12px">
+  <div><label>Jenis</label><select name="titip_di">
+    <option value="">Toko sendiri</option>
+    {% for p in pilihan_titip %}{% if not t or p.id != t.id %}<option value="{{ p.id }}" {% if t.titip_di_id == p.id %}selected{% endif %}>Titipan, dijual di kasir {{ p.nama }}</option>{% endif %}{% endfor %}
+  </select>
+  <div class="redup kecil" style="margin-top:4px">Titipan: barang milik pihak lain yang dijual kasir toko ini. Nota, laporan, dan setorannya terpisah.</div></div>
+</div>
 <div style="margin-top:12px"><label>Alamat</label><input type="text" name="alamat" value="{{ t.alamat }}"></div>

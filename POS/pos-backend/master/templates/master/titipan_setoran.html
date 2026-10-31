@@ -1,0 +1,21 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Setoran {{ s.toko.nama }}{% endblock %}
+{% block isi %}
+<style>@media print{.sisi,.aksi-setoran,#kabar{display:none!important}main{margin:0!important;padding:0!important}}</style>
+<p class="kecil aksi-setoran"><a href="{% url 'master:titipan_toko' s.toko.id %}">Setoran {{ s.toko.nama }}</a> /</p>
+<h2>Setoran {{ s.dari|date:"d M Y" }} – {{ s.sampai|date:"d M Y" }}</h2>
+<p class="sub">Dicatat {{ s.dibuat|date:"d M Y H:i" }} oleh {{ s.dibuat_oleh }}{% if s.catatan %} · {{ s.catatan }}{% endif %}. Angka di sini salinan saat ditandai disetor dan tidak berubah lagi.</p>
+<div class="kisi">
+  <div class="kartu"><div class="redup kecil">Penjualan</div><div style="font-size:22px;font-weight:600">{{ s.total_jual|ribuan }}</div></div>
+  <div class="kartu"><div class="redup kecil">Retur</div><div style="font-size:22px;font-weight:600">{{ s.total_retur|ribuan }}</div></div>
+  <div class="kartu"><div class="redup kecil">Potongan toko</div><div style="font-size:22px;font-weight:600">{{ s.potongan|ribuan }}</div></div>
+  <div class="kartu"><div class="redup kecil">Disetor</div><div style="font-size:22px;font-weight:600">{{ s.disetor|ribuan }}</div></div>
+</div>
+<div class="aksi-setoran baris" style="margin-top:12px"><a class="tombol" href="?excel=1">Unduh Excel</a><button class="tombol" type="button" onclick="window.print()">Cetak / PDF</button></div>
+<div class="gulir" style="margin-top:12px"><table>
+  <tr><th>Barang</th><th class="angka">Terjual</th><th class="angka">Penjualan</th><th class="angka">Retur</th><th class="angka">Potongan</th><th class="angka">Disetor</th></tr>
+  {% for r in s.rincian %}<tr><td>{{ r.item_name }}{% if r.variant != "N/A" and r.variant %} / {{ r.variant }}{% endif %}</td><td class="angka">{{ r.qty|ribuan }}</td>
+    <td class="angka">{{ r.jual|ribuan }}</td><td class="angka">{% if r.retur %}−{{ r.retur|ribuan }}{% endif %}</td>
+    <td class="angka">{{ r.potongan|ribuan }} <span class="redup kecil">{{ r.persen }}</span></td><td class="angka"><b>{{ r.disetor|ribuan }}</b></td></tr>{% endfor %}
+</table></div>
+{% endblock %}

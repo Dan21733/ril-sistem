@@ -1,0 +1,70 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Setoran {{ t.nama }}{% endblock %}
+{% block isi %}
+<style>
+input[type=date]{font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
+.ringkas-setoran{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.ringkas-setoran .kartu{padding:16px 18px}.ringkas-setoran .angka-besar{font-size:24px;font-weight:600;margin-top:4px}
+.ringkas-setoran .utama-setor{border-color:var(--aksen);background:var(--aksen-lembut)}
+.aksi-setoran{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+@media print{.sisi,.aksi-setoran,.form-periode,.form-setor,.riwayat-setoran,#kabar{display:none!important}main{margin:0!important;padding:0!important}}
+</style>
+<h2>Setoran {{ t.nama }}</h2>
+<p class="sub">Barang titipan yang dijual kasir {{ t.titip_di.nama }}. Penjualan dikurangi retur dan potongan toko = jumlah yang disetor.
+  {% if terakhir %}Setoran terakhir sampai {{ terakhir.sampai|date:"d M Y" }}.{% else %}Belum pernah ada setoran.{% endif %}</p>
+
+<form method="get" class="kartu baris form-periode" style="align-items:end">
+  <div style="width:190px"><label>Dari</label><input type="date" name="dari" value="{{ dari|date:'Y-m-d' }}"></div>
+  <div style="width:190px"><label>Sampai</label><input type="date" name="sampai" value="{{ sampai|date:'Y-m-d' }}"></div>
+  <button class="tombol" type="submit">Tampilkan</button>
+</form>
+
+<div class="ringkas-setoran">
+  <div class="kartu"><div class="redup kecil">Penjualan</div><div class="angka-besar">{{ h.total.jual|ribuan }}</div><div class="redup kecil">{{ h.total.qty|ribuan }} barang</div></div>
+  <div class="kartu"><div class="redup kecil">Retur</div><div class="angka-besar">{% if h.total.retur %}−{{ h.total.retur|ribuan }}{% else %}0{% endif %}</div><div class="redup kecil">{{ h.total.qty_retur|ribuan }} barang</div></div>
+  <div class="kartu"><div class="redup kecil">Potongan toko</div><div class="angka-besar">−{{ h.total.potongan|ribuan }}</div><div class="redup kecil">bagian {{ t.titip_di.nama }}</div></div>
+  <div class="kartu utama-setor"><div class="redup kecil">Disetor ke {{ t.nama }}</div><div class="angka-besar">{{ h.total.disetor|ribuan }}</div><div class="redup kecil">{{ dari|date:"d M" }} – {{ sampai|date:"d M Y" }}</div></div>
+</div>
+
+{% if h.tanpa_syarat %}<div class="pesan warning">{{ h.tanpa_syarat }} barang terjual belum punya potongan toko, jadi potongannya dihitung 0. Isi di panel barangnya (Syarat titipan) atau lewat Import Excel.</div>{% endif %}
+
+<div class="aksi-setoran">
+  <a class="tombol" href="?dari={{ dari|date:'Y-m-d' }}&sampai={{ sampai|date:'Y-m-d' }}&excel=1">Unduh Excel</a>
+  <button class="tombol" type="button" onclick="window.print()">Cetak / PDF</button>
+  {% if wa %}<a class="tombol" href="{{ wa }}" target="_blank" rel="noopener">Kirim lewat WA</a>{% endif %}
+  {% if not t.telepon %}<span class="redup kecil">Isi telepon {{ t.nama }} di menu Toko supaya WA langsung ke nomornya.</span>{% endif %}
+</div>
+
+<div class="gulir" style="margin-top:14px"><table>
+  <tr><th>Barang</th><th class="angka">Terjual</th><th class="angka">Penjualan</th><th class="angka">Retur</th><th class="angka">Potongan</th><th class="angka">Disetor</th></tr>
+  {% for r in h.rincian %}<tr>
+    <td>{{ r.item_name }}{% if r.variant != "N/A" and r.variant %} / {{ r.variant }}{% endif %}{% if r.tanpa_syarat %} <span class="label bahaya">potongan belum diisi</span>{% endif %}</td>
+    <td class="angka">{{ r.qty|ribuan }}</td><td class="angka">{{ r.jual|ribuan }}</td>
+    <td class="angka">{% if r.retur %}−{{ r.retur|ribuan }} <span class="redup kecil">({{ r.qty_retur }})</span>{% endif %}</td>
+    <td class="angka">{{ r.potongan|ribuan }} <span class="redup kecil">{{ r.persen }}</span></td>
+    <td class="angka"><b>{{ r.disetor|ribuan }}</b></td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:22px;text-align:center">Belum ada penjualan barang {{ t.nama }} di periode ini.</td></tr>{% endfor %}
+</table></div>
+
+{% if h.rincian %}
+{% if boleh_setor %}
+<form method="post" class="kartu baris form-setor" style="margin-top:16px;align-items:end"
+      data-tanya="Tandai {{ h.total.disetor|ribuan }} sudah disetor ke {{ t.nama }} untuk {{ dari|date:'d M' }} – {{ sampai|date:'d M Y' }}? Periode berikutnya mulai setelah tanggal ini." data-tanya-ya="Sudah disetor">{% csrf_token %}
+  <input type="hidden" name="dari" value="{{ dari|date:'Y-m-d' }}"><input type="hidden" name="sampai" value="{{ sampai|date:'Y-m-d' }}">
+  <div style="flex:1;min-width:240px"><label>Catatan (boleh kosong)</label><input type="text" name="catatan" maxlength="300" placeholder="mis. transfer BCA 31 Okt"></div>
+  <button class="tombol utama" type="submit">Tandai sudah disetor</button>
+</form>
+{% else %}<div class="pesan info" style="margin-top:16px">Periode ini tumpang tindih dengan setoran sebelumnya, jadi hanya untuk dilihat.</div>{% endif %}
+{% endif %}
+
+<div class="riwayat-setoran">
+<h3>Riwayat setoran</h3>
+<div class="gulir"><table>
+  <tr><th>Periode</th><th class="angka">Penjualan</th><th class="angka">Potongan</th><th class="angka">Disetor</th><th>Catatan</th><th></th></tr>
+  {% for s in riwayat %}<tr><td>{{ s.dari|date:"d M Y" }} – {{ s.sampai|date:"d M Y" }}</td><td class="angka">{{ s.total_jual|ribuan }}</td>
+    <td class="angka">{{ s.potongan|ribuan }}</td><td class="angka"><b>{{ s.disetor|ribuan }}</b></td><td class="kecil">{{ s.catatan }} <span class="redup">· {{ s.dibuat_oleh }}</span></td>
+    <td><a href="{% url 'master:titipan_setoran' s.id %}">Lihat</a></td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:18px;text-align:center">Belum ada.</td></tr>{% endfor %}
+</table></div>
+</div>
+{% endblock %}

@@ -2,10 +2,11 @@
     {% if boleh_pilih %}<td class="pilih-sel"><input type="checkbox" data-pilih-varian value="{{ b.id }}" aria-label="Pilih {{ b.variant|varian }}"></td>{% endif %}
     <td>{% if 'ganti_nama' in hak %}<span data-ganti="varian" data-id="{{ b.id }}" data-nilai="{{ b.variant }}" data-tanya="Baris nota lama ikut diperbarui." title="Klik dua kali untuk ganti nama">{{ b.variant|varian }}</span>{% else %}{{ b.variant|varian }}{% endif %}
       <span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
+    {% if b.maks_titipan %}<td class="angka" title="Floor barang titipan dihitung dari diskon maks pemilik barang">{{ b.min_price|ribuan }}<div class="kecil redup">diskon maks {{ b.maks_titipan }}%</div></td>
+    {% elif 'ubah_harga' in hak %}<td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>{% endif %}
     {% if 'ubah_harga' in hak %}
-    <td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>
     <td class="angka">{% include "master/_sel.html" with kolom="max_price" nilai=b.max_price label="Harga jual" %}</td>
-    {% else %}<td class="angka">{{ b.min_price|ribuan }}</td><td class="angka">{{ b.max_price|ribuan }}</td>{% endif %}
+    {% else %}{% if not b.maks_titipan %}<td class="angka">{{ b.min_price|ribuan }}</td>{% endif %}<td class="angka">{{ b.max_price|ribuan }}</td>{% endif %}
     {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}</td>{% endif %}
     <td class="angka">{% if 'lihat_stok' in hak and b.id %}<a href="{% url 'master:stok_lokasi_pindah' b.id %}?kembali={{ request.get_full_path|urlencode }}" title="Stok per gudang dan pindah">{{ b.in_stock|ribuan }}</a>{% else %}{{ b.in_stock|ribuan }}{% endif %}</td>
     <td>{% if 'ubah_info' in hak %}<select class="sel" data-id="{{ b.id }}" data-kolom="kode_rak" data-awal="{{ b.kode_rak|default:'' }}"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if b.kode_rak == r.kode %}selected{% endif %}>{{ r.kode }}</option>{% endfor %}</select>{% else %}{{ b.kode_rak|default:"-" }}{% endif %}</td>

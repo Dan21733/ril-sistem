@@ -21,6 +21,9 @@ def toko(request):
             if aksi == "tambah":
                 t = svc_toko.simpan(request.user, request.POST)
                 messages.success(request, f"{t.nama} ditambahkan.")
+            elif aksi == "pembulatan":
+                svc_toko.simpan_pembulatan(request.user, request.POST.get("pembulatan"))
+                messages.success(request, "Pembulatan diskon tersimpan.")
             else:
                 t = get_object_or_404(Toko, pk=request.POST.get("id"))
                 if aksi == "simpan":
@@ -35,7 +38,9 @@ def toko(request):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:toko")
-    return render(request, "master/toko.html", {"menu": "toko", "semua": Toko.objects.all()})
+    from master.models import Pengaturan
+    return render(request, "master/toko.html", {"menu": "toko", "pembulatan": Pengaturan.ambil().pembulatan_diskon, "semua": Toko.objects.select_related("titip_di"),
+                                                "pilihan_titip": Toko.objects.filter(aktif=True, titip_di__isnull=True)})
 
 
 @perlu("transfer")

@@ -47,7 +47,10 @@ def _harga_cari(request):
 def _saring_barang(request, hak):
     """Queryset Item sesuai filter di alamat."""
     g = request.GET
-    qs = Item.objects.all()
+    from master.layanan import titipan
+    from master.layanan.toko import toko_aktif
+    # Barang toko titipan hanya tampil saat toko titipan itu yang dipilih di menu samping.
+    qs = titipan.saring_barang(Item.objects.all(), toko_aktif(request))
 
     cari = _cari(request)
     if cari:
@@ -202,7 +205,8 @@ def barang_daftar(request):
     qs = _saring_barang(request, hak)
 
     if request.GET.get("export") == "1":
-        isi = excel.buat_workbook(qs, hak)
+        from master.layanan.toko import toko_aktif
+        isi = excel.buat_workbook(qs, hak, toko=toko_aktif(request))
         nama = f"barang_{timezone.localtime():%Y%m%d_%H%M}.xlsx"
         respons = HttpResponse(
             isi, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -257,6 +261,10 @@ def barang_daftar(request):
                 label[m["label"]] = label.get(m["label"], 0) + 1
         d["masalah"] = [{"label": k, "jumlah": n} for k, n in label.items()]
 
+    from master.layanan import titipan
+    from master.layanan.toko import toko_aktif
+    toko_kini = toko_aktif(request)
+    milik = titipan.saring_barang(Item.objects.all(), toko_kini)
     return render(request, "master/barang.html", {
         "menu": "barang",
         "daftar": daftar,
@@ -267,11 +275,12 @@ def barang_daftar(request):
         "g": request.GET,
         "qs_halaman": _qs_tanpa(request, "hal", "buka"),
         "qs_export": _qs_tanpa(request, "hal", "export", "buka"),
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(Item.objects.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(milik.values_list("category", flat=True)), key=kunci_alami),
+        "daftar_brand": sorted(set(milik.values_list("brand", flat=True)), key=kunci_alami),
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
         "daftar_rak": Rak.objects.all(),
         "daftar_masalah": masalah.aturan_untuk(hak),
+        "toko_titipan": toko_kini if titipan.adalah_titipan(toko_kini) else None,
     })
 
 
@@ -316,10 +325,11 @@ def barang_baru(request):
         except (ValueError, UnicodeDecodeError):
             return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
         try:
+            from master.layanan.toko import toko_aktif
             item_info = layanan.tambah_barang(
                 request.user, hak=hak, item_name=data.get("item_name"), category=data.get("category"),
                 brand=data.get("brand"), alias=data.get("alias"),
-                varian=[v for v in data["varian"] if isinstance(v, dict)])
+                varian=[v for v in data["varian"] if isinstance(v, dict)], toko=toko_aktif(request))
         except layanan.Tolak as tolak:
             return JsonResponse({"ok": False, "pesan": str(tolak), "baris": getattr(tolak, "baris", None)}, status=400)
         n = Item.objects.filter(item_name=item_info.item_name).count()
@@ -456,6 +466,23 @@ def item_detail(request, item_id, panel=False):
                     kode_rak=request.POST.get("kode_rak") or None,
                 )
                 messages.success(request, "Varian ditambahkan.")
+            elif aksi == "syarat_titipan":
+                from master.layanan import titipan
+                if "ubah_harga" not in hak:
+                    raise Tolak("Akun ini tidak boleh mengubah syarat titipan.")
+                from master.layanan.pembelian import baca_tanggal
+                mulai = baca_tanggal(request.POST.get("berlaku_mulai"), label="Tanggal berlaku") or timezone.localdate()
+                kini = titipan.syarat_kini(list(VarianInfo.objects.filter(item_name=item_info.item_name).values_list("id", flat=True)), mulai)
+                n = 0
+                for info in VarianInfo.objects.filter(item_name=item_info.item_name):
+                    if f"maks_{info.id}" not in request.POST:
+                        continue
+                    lama = kini.get(info.id)
+                    pot = request.POST.get(f"pot_{info.id}") if "lihat_modal" in hak else getattr(lama, "potongan_toko", None)
+                    _, berubah = titipan.simpan_syarat(request.user, info, potongan=pot,
+                                                       diskon_maks=request.POST.get(f"maks_{info.id}"), berlaku_mulai=mulai)
+                    n += int(berubah)
+                messages.success(request, f"Syarat titipan tersimpan ({n} varian berubah)." if n else "Tidak ada yang berubah.")
             elif aksi == "samakan":
                 acuan = get_object_or_404(VarianInfo, pk=request.POST.get("acuan"), item_name=item_info.item_name)
                 n = layanan.samakan_varian(request.user, item_info, acuan, request.POST.getlist("kolom"), hak=hak)
@@ -508,7 +535,22 @@ def item_detail(request, item_id, panel=False):
     if not barang:
         messages.error(request, "Barang ini sudah tidak punya varian di tabel item.")
     kepala = barang[0] if barang else {}
+    from master.layanan import titipan as svc_titipan
+    from master.models import Pengaturan, SyaratTitipan
+    pemilik = item_info.toko if svc_titipan.adalah_titipan(item_info.toko) else None
+    riwayat_syarat = []
+    if pemilik:
+        kini = svc_titipan.syarat_kini([b["id"] for b in barang if b.get("id")])
+        for b in barang:
+            sy = kini.get(b.get("id"))
+            b["pot_titipan"] = svc_titipan.persen_teks(sy.potongan_toko) if sy else ""
+            b["maks_titipan"] = svc_titipan.persen_teks(sy.diskon_maks) if sy else ""
+        for r in SyaratTitipan.objects.filter(varian__item_name=item_info.item_name).select_related("varian")[:40]:
+            r.pot, r.maks = svc_titipan.persen_teks(r.potongan_toko), svc_titipan.persen_teks(r.diskon_maks)
+            riwayat_syarat.append(r)
     return render(request, "master/_item_isi.html" if panel else "master/item.html", {
+        "titipan": pemilik, "riwayat_syarat": riwayat_syarat, "hari_ini": timezone.localdate().isoformat(),
+        "pembulatan": Pengaturan.ambil().pembulatan_diskon,
         "menu": "barang",
         "panel": panel,
         "kembali": request.GET.get("kembali", ""),
@@ -899,16 +941,23 @@ def impor(request):
         if not berkas:
             messages.error(request, "Pilih berkas Excel dulu.")
             return redirect("master:impor")
+        from master.models import Toko
+        tujuan = Toko.objects.filter(pk=request.POST.get("toko") if str(request.POST.get("toko")).isdigit() else 0,
+                                     aktif=True).first()
+        if tujuan is None:
+            messages.error(request, "Pilih dulu barang ini untuk toko mana.")
+            return redirect("master:impor")
         try:
             layanan.pastikan_info()
-            isi = excel.baca_berkas(berkas, hak)
+            isi = excel.baca_berkas(berkas, hak, toko=tujuan)
         except Tolak as tolak:
             messages.error(request, str(tolak))
             return redirect("master:impor")
         objek = Impor.objects.create(pengguna=request.user, nama_berkas=berkas.name[:255], isi=isi)
         return redirect("master:impor_pratinjau", impor_id=objek.id)
+    from master.layanan import toko as svc_toko
     return render(request, "master/impor.html", {
-        "menu": "impor",
+        "menu": "impor", "pilihan_toko": svc_toko.boleh_untuk(request.user),
         "riwayat": [i for i in Impor.objects.select_related("pengguna")[:60] if i.isi.get("jenis") != "stok"][:15],
     })
 
@@ -925,7 +974,8 @@ def impor_pratinjau(request, impor_id):
             messages.success(
                 request,
                 f"Diterapkan: {hasil['diubah']} sel, {hasil['alias']} alias, "
-                f"{hasil['baru']} barang baru, {hasil['rak']} rak.",
+                f"{hasil['baru']} barang baru, {hasil['rak']} rak"
+                + (f", {hasil['syarat']} syarat titipan" if hasil.get("syarat") else "") + ".",
             )
         else:
             objek.status = "batal"

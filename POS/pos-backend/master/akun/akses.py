@@ -250,6 +250,10 @@ def konteks(request):
         p = PreferensiAkun.objects.filter(user=user).values_list("tema", flat=True).first()
         return p or "oranye"
 
+    def _ada_titipan():
+        from master.models import Toko
+        return Toko.objects.filter(aktif=True, titip_di__isnull=False).exists()
+
     hak = hak_pengguna(user)
     return {"hak": hak, "hak_tugas": bool(hak & HAK_TUGAS), "daftar_toko": daftar, "tema": SimpleLazyObject(_tema),
             "toko_aktif": SimpleLazyObject(_toko_aktif), "toko_stok": SimpleLazyObject(_toko_stok),
@@ -257,4 +261,5 @@ def konteks(request):
             "banyak_toko": SimpleLazyObject(lambda: len(daftar) > 1),
             "jumlah_ambil": SimpleLazyObject(_ambil), "jumlah_retur": SimpleLazyObject(_retur),
             "jumlah_tinjau": SimpleLazyObject(_tinjau), "jumlah_tugas_acc": SimpleLazyObject(_tugas_acc),
-            "jumlah_penjualan": SimpleLazyObject(lambda: str(int(str(_retur())) + int(str(_tinjau()))))}
+            "jumlah_penjualan": SimpleLazyObject(lambda: str(int(str(_retur())) + int(str(_tinjau())))),
+            "ada_titipan": SimpleLazyObject(_ada_titipan)}

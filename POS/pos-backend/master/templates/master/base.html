@@ -160,6 +160,7 @@ html[data-ukuran="110"] body{zoom:1.1}
 :is(.kanan,.laci-barang) [data-tabel-varian] td:nth-child(2){min-width:150px}
 .laci-barang{position:fixed;top:0;right:0;bottom:0;width:min(1100px,96vw);background:var(--kartu);z-index:60;overflow:auto;padding:24px 28px;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:laci-masuk .2s ease-out}
 .laci-barang h2{font-size:22px}
+[data-syarat-titipan] input[type=date]{font:inherit;padding:9px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%;background:#fff}
 .laci-latar{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:59}
 .laci-barang[hidden],.laci-latar[hidden]{display:none!important}
 @keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
@@ -189,13 +190,14 @@ html[data-ukuran="110"] body{zoom:1.1}
     </div></details>
     {% endif %}
     {% if 'laporan' in hak or 'kelola_kasir' in hak %}
-    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
+    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau titipan" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
       {% if 'laporan' in hak %}
       <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
       <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
       {% endif %}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>{% endif %}
       {% if 'laporan' in hak %}<a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>{% endif %}
+      {% if 'lihat_modal' in hak and ada_titipan %}<a href="{% url 'master:titipan' %}" class="{% if menu == 'titipan' %}aktif{% endif %}">Setoran titipan</a>{% endif %}
     </div></details>
     {% endif %}
     <details{% if menu|dalam:"barang kategori brand harga impor sampah" %} open{% endif %}><summary>Barang</summary><div class="isi-grup">
@@ -275,6 +277,19 @@ function kabar(teks, bahaya){
   el.textContent = teks; el.className = bahaya ? 'bahaya' : ''; el.style.display = 'block';
   clearTimeout(kabar.t); kabar.t = setTimeout(() => el.style.display = 'none', bahaya ? 6000 : 1800);
 }
+/* Syarat titipan di panel barang: "isi semua" dan floor jadi (panel dimuat lewat fetch, jadi didengar di sini). */
+document.addEventListener('input', e => {
+  const f = e.target.closest('[data-syarat-titipan]'); if (!f) return;
+  const bulat = Number(f.dataset.bulat || 1);
+  const pers = v => { const n = parseFloat(String(v || '').replace('%', '').replace(',', '.')); return isNaN(n) ? null : n; };
+  const hitung = tr => {
+    const jual = Number(tr.dataset.jual || 0), maks = pers(tr.querySelector('[data-kolom-syarat=maks]')?.value), sel = tr.querySelector('[data-floor-jadi]');
+    if (sel && jual && maks !== null) sel.textContent = ribuan(Math.min(jual, Math.ceil(jual * (100 - maks) / 100 / bulat) * bulat));
+  };
+  const s = e.target.dataset.semua;
+  if (s) f.querySelectorAll('[data-kolom-syarat=' + s + ']').forEach(i => { i.value = e.target.value; hitung(i.closest('tr')); });
+  else if (e.target.dataset.kolomSyarat) hitung(e.target.closest('tr'));
+});
 function ribuan(n){ return (n === null || n === undefined || n === '') ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 function angka(teks){ const t = String(teks || '').replace(/[^0-9]/g, ''); return t === '' ? null : parseInt(t, 10); }
 
@@ -366,7 +381,7 @@ document.addEventListener('dblclick', e => {
   input.addEventListener('blur', batal);
 });
 document.addEventListener('submit', e => {
-  const t = e.target.dataset.tanya; if (t) tanyaKirim(e, t);
+  const t = e.target.dataset.tanya; if (t) tanyaKirim(e, t, e.target.dataset.tanyaYa ? {ya: e.target.dataset.tanyaYa} : undefined);
 });
 </script>
 <script>

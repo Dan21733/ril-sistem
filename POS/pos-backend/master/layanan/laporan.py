@@ -97,18 +97,54 @@ def _angka(teks):
         return None
 
 
-def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None):
+def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None, potong_titipan=True):
     """Nota dan barisnya dalam satu periode, lengkap dengan modal dan laba per baris.
 
     toko: hanya nota toko itu (nota kasir milik toko yang memegang stok kasir).
     sumber: "kasir" | "manual" | None (dua-duanya).
+    potong_titipan: baris barang titipan memakai potongan toko sebagai laba
+    (modal = bagian yang disetor ke pemilik barang).
     """
     nota_k, baris_k = ([], []) if (sumber == "manual" or (toko and not toko.stok_di_kasir)) else \
         _ambil_kasir(mulai, selesai, kasir=kasir, metode=metode, perangkat=perangkat)
     nota_m, baris_m = ([], []) if (sumber == "kasir" or kasir or perangkat) else \
         _ambil_manual(mulai, selesai, metode=metode, toko=toko)
     nota = sorted(nota_k + nota_m, key=lambda n: n["transaction_time"], reverse=True)
-    return nota, baris_k + baris_m
+    baris = baris_k + baris_m
+    if potong_titipan:
+        _modal_titipan(nota, baris)
+    return nota, baris
+
+
+def _modal_titipan(nota, baris):
+    """Barang titipan: modal = harga terjual - potongan toko yang berlaku pada tanggal nota."""
+    from decimal import Decimal, ROUND_HALF_UP
+    from master.layanan import titipan
+    milik = titipan.pemilik_per_nama({b["item_name"] for b in baris})
+    if not milik:
+        return
+    zona = timezone.get_current_timezone()
+    syarat = titipan.SyaratWaktu({(b["item_name"], b["variant"]) for b in baris if b["item_name"] in milik})
+    ubah = set()
+    for b in baris:
+        if b["item_name"] not in milik:
+            continue
+        s = syarat.pada((b["item_name"], b["variant"]), timezone.localtime(b["nota"]["transaction_time"], zona).date())
+        b["titipan"] = milik[b["item_name"]].nama
+        if s is None or s.potongan_toko is None:
+            b["modal_satuan"], b["modal"], b["laba"] = None, None, None
+        else:
+            laba = int((Decimal(b["subtotal"]) * s.potongan_toko / 100).to_integral_value(rounding=ROUND_HALF_UP))
+            b["modal"] = b["subtotal"] - laba
+            b["modal_satuan"] = b["modal"] // b["quantity"] if b["quantity"] else None
+            b["laba"] = laba
+        ubah.add(id(b["nota"]))
+    for n in nota:
+        if id(n) not in ubah:
+            continue
+        n["modal"] = sum(b["modal"] for b in n["baris"] if b["modal"] is not None)
+        n["modal_lengkap"] = all(b["modal"] is not None for b in n["baris"])
+        n["laba"] = n["item_amount"] - n["modal"]
 
 
 def _ambil_manual(mulai, selesai, *, metode=None, toko=None):

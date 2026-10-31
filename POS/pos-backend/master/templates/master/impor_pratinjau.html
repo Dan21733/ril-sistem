@@ -4,12 +4,14 @@
 <p class="kecil"><a href="{% url 'master:impor' %}">Import Excel</a> /</p>
 <h2>{{ impor.nama_berkas }}</h2>
 <p class="sub">{{ isi.jumlah_baris|ribuan }} baris dibaca dari sheet "{{ isi.sheet }}". Status: <b>{{ impor.get_status_display }}</b>.</p>
+{% if isi.toko_nama %}<div class="pesan info" style="font-size:16px">Untuk toko: <b>{{ isi.toko_nama }}</b>{% if isi.titipan %} (titipan). Barang baru menjadi milik toko ini{% endif %}.</div>{% endif %}
 
 <div class="kisi">
   <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.perubahan|length|ribuan }}</div><div>Sel berubah</div></div>
   <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.alias|length|ribuan }}</div><div>Alias berubah</div></div>
   <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.baru|length|ribuan }}</div><div>Barang baru</div></div>
   <div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.rak|length|ribuan }}</div><div>Rak baru atau berubah</div></div>
+  {% if isi.titipan %}<div class="kartu"><div style="font-size:24px;font-weight:600">{{ isi.syarat|length|ribuan }}</div><div>Syarat titipan berubah</div></div>{% endif %}
   <div class="kartu"><div style="font-size:24px;font-weight:600;color:{% if isi.galat %}var(--bahaya){% else %}var(--baik){% endif %}">{{ isi.galat|length|ribuan }}</div><div>Baris bermasalah (dilewati)</div></div>
 </div>
 
@@ -26,12 +28,21 @@
   <button class="tombol" type="submit" name="aksi" value="batal">Batal</button>
 </form>
 {% elif impor.status == 'diterapkan' %}
-<div class="pesan success" style="margin-top:14px">Diterapkan: {{ impor.hasil.diubah }} sel, {{ impor.hasil.alias }} alias, {{ impor.hasil.baru }} barang baru, {{ impor.hasil.rak }} rak.
+<div class="pesan success" style="margin-top:14px">Diterapkan: {{ impor.hasil.diubah }} sel, {{ impor.hasil.alias }} alias, {{ impor.hasil.baru }} barang baru, {{ impor.hasil.rak }} rak{% if impor.hasil.syarat %}, {{ impor.hasil.syarat }} syarat titipan{% endif %}.
   {% if 'lihat_log' in hak %}<a href="{% url 'master:log' %}?batch={{ impor.hasil.batch }}">Lihat di log</a>{% endif %}</div>
   {% if impor.hasil.dilewati %}<div class="pesan warning">{% for d in impor.hasil.dilewati %}{{ d }}<br>{% endfor %}</div>{% endif %}
 {% endif %}
 
 {% if ringkas_kolom %}<p>{% for r in ringkas_kolom %}<span class="label netral">{{ r.label }}: {{ r.jumlah|ribuan }}</span>{% endfor %}</p>{% endif %}
+
+{% if isi.syarat %}
+<h3>Syarat titipan</h3>
+<p class="redup kecil">Berlaku mulai hari diterapkan. Floor dihitung ulang dari diskon maks.</p>
+<div class="gulir"><table><tr><th>Baris</th><th>Barang</th><th class="angka">Potongan toko</th><th class="angka">Diskon maks</th></tr>
+{% for x in isi.syarat|slice:":300" %}<tr><td>{{ x.baris }}</td><td>{{ x.item_name }} / {{ x.variant|varian }}</td>
+  <td class="angka">{% if x.potongan_lama %}<span class="redup">{{ x.potongan_lama }}% →</span> {% endif %}{{ x.potongan|default:"-" }}{% if x.potongan %}%{% endif %}</td>
+  <td class="angka">{% if x.maks_lama %}<span class="redup">{{ x.maks_lama }}% →</span> {% endif %}{{ x.diskon_maks|default:"-" }}{% if x.diskon_maks %}%{% endif %}</td></tr>{% endfor %}</table></div>
+{% endif %}
 
 {% if contoh_galat %}
 <h3>Baris bermasalah</h3>

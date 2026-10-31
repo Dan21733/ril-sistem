@@ -9,12 +9,12 @@
 <div class="kartu" style="margin-bottom:14px;{% if not t.aktif %}opacity:.6{% endif %}">
   <div class="baris" style="justify-content:space-between;align-items:center">
     <div><b style="font-size:19px">{{ t.nama }}</b> <span class="label netral">{{ t.kode }}</span>
-      {% if t.stok_di_kasir %}<span class="label baik">stok di kasir</span>{% else %}<span class="label netral">belum punya kasir</span>{% endif %}
+      {% if t.titip_di %}<span class="label">titipan di {{ t.titip_di.nama }}</span>{% elif t.stok_di_kasir %}<span class="label baik">stok di kasir</span>{% else %}<span class="label netral">belum punya kasir</span>{% endif %}
       {% if t.pkp %}<span class="label">PKP sejak {{ t.pkp_mulai|date:"d M Y" }}</span>{% else %}<span class="label netral">belum PKP</span>{% endif %}
       {% if not t.aktif %}<span class="label bahaya">nonaktif</span>{% endif %}
       <div class="redup kecil" style="margin-top:4px">{% if t.atas_nama %}Atas nama {{ t.atas_nama }}{% endif %}{% if t.alamat %} · {{ t.alamat }}{% endif %}{% if t.telepon %} · {{ t.telepon }}{% endif %}</div></div>
     <div class="baris">
-      {% if not t.stok_di_kasir and t.aktif %}<form method="post" data-tanya="Jadikan stok di kasir sebagai stok {{ t.nama }}? Toko lain tidak lagi memakai stok kasir.">{% csrf_token %}<input type="hidden" name="aksi" value="stok_kasir"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">Pakai stok kasir</button></form>{% endif %}
+      {% if not t.stok_di_kasir and t.aktif and not t.titip_di %}<form method="post" data-tanya="Jadikan stok di kasir sebagai stok {{ t.nama }}? Toko lain tidak lagi memakai stok kasir.">{% csrf_token %}<input type="hidden" name="aksi" value="stok_kasir"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">Pakai stok kasir</button></form>{% endif %}
       <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="aktif"><input type="hidden" name="id" value="{{ t.id }}"><button class="tombol kecil" type="submit">{% if t.aktif %}Nonaktifkan{% else %}Aktifkan{% endif %}</button></form>
     </div>
   </div>
@@ -31,5 +31,15 @@
   {% include "master/_toko_isian.html" with t=None %}
   <div style="margin-top:14px"><button class="tombol utama" type="submit">Tambah toko</button></div>
 </form></details>
+<h3 style="margin-top:22px">Diskon persen di kasir</h3>
+<form method="post" class="kartu baris" style="align-items:end">{% csrf_token %}<input type="hidden" name="aksi" value="pembulatan">
+  <div style="min-width:240px"><label>Hasil diskon dibulatkan ke atas ke kelipatan</label><select name="pembulatan">
+    <option value="1" {% if pembulatan == 1 %}selected{% endif %}>Tidak dibulatkan</option>
+    <option value="100" {% if pembulatan == 100 %}selected{% endif %}>Rp100</option>
+    <option value="500" {% if pembulatan == 500 %}selected{% endif %}>Rp500</option>
+    <option value="1000" {% if pembulatan == 1000 %}selected{% endif %}>Rp1.000</option></select></div>
+  <button class="tombol" type="submit">Simpan</button>
+  <p class="redup kecil" style="flex-basis:100%;margin:0">Contoh: diskon 10% dari 67.500 = 60.750 → Rp100: 60.800. Juga dipakai untuk floor barang titipan (harga jual dikurangi diskon maks).</p>
+</form>
 <p class="redup kecil" style="margin-top:18px">"Stok di kasir": POS sekarang hanya mengenal satu toko, jadi hanya satu toko yang stoknya dihitung sistem. Toko lain tetap bisa punya PO, faktur, hutang, opname, dan transfer; stoknya mulai dihitung saat toko itu punya kasir sendiri.</p>
 {% endblock %}
