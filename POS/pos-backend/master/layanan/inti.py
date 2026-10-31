@@ -392,8 +392,8 @@ def ubah_kolom_item(pengguna, item_name, kolom, nilai, *, hak):
     return baru, True
 
 
-def ganti_nama_kelompok(pengguna, kolom, lama, baru, *, hak):
-    """Ganti nama satu kategori atau brand di semua barang."""
+def ganti_nama_kelompok(pengguna, kolom, lama, baru, *, hak, qs=None):
+    """Ganti nama satu kategori atau brand di semua barang (atau hanya barang dalam `qs`, mis. milik satu toko)."""
     if kolom not in ("category", "brand"):
         raise Tolak("Hanya kategori atau brand.")
     if "ubah_info" not in hak:
@@ -404,7 +404,7 @@ def ganti_nama_kelompok(pengguna, kolom, lama, baru, *, hak):
     if baru == lama:
         return 0
     with transaction.atomic():
-        jumlah = Item.objects.filter(**{kolom: lama}).update(**{kolom: baru})
+        jumlah = (qs if qs is not None else Item.objects.all()).filter(**{kolom: lama}).update(**{kolom: baru})
         if jumlah:
             catat(pengguna, aksi="ganti_nama", objek="kategori" if kolom == "category" else "brand",
                   kolom=kolom, lama=lama, baru=baru, catatan=f"{jumlah} varian")

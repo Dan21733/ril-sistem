@@ -235,3 +235,15 @@ class TitipanTest(Dasar):
             svc_toko.simpan(self.admin, {"kode": "DBX", "nama": "DB X Brand", "titip_di": ""}, self.brand)
         svc_toko.simpan_pembulatan(self.admin, "500")
         self.assertEqual(Pengaturan.ambil().pembulatan_diskon, 500)
+
+
+    def test_kategori_dan_ganti_nama_hanya_toko_aktif(self):
+        Item.objects.filter(item_name="Palu").update(category="Sanitary")       # nama kategori sama di dua toko
+        isi = self.client.get(reverse("master:kategori")).content.decode()
+        self.assertIn("Paku", isi)
+        self.client.post(reverse("master:pilih_toko"), {"toko": self.brand.pk, "next": "/"})
+        isi = self.client.get(reverse("master:kategori")).content.decode()
+        self.assertNotIn("Paku", isi)
+        self.client.post(reverse("master:kategori"), {"lama": "Sanitary", "baru": "Kloset"})
+        self.assertEqual(set(Item.objects.filter(item_name="Kloset Brand").values_list("category", flat=True)), {"Kloset"})
+        self.assertEqual(set(Item.objects.filter(item_name="Palu").values_list("category", flat=True)), {"Sanitary"})

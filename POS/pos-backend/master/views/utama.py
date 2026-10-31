@@ -44,6 +44,13 @@ def _harga_cari(request):
     return svc_cari.pisah_harga(request.GET.get("q"))[1]
 
 
+def _milik(request):
+    """Item milik toko yang dipilih di menu samping (barang titipan terpisah dari barang toko sendiri)."""
+    from master.layanan import titipan
+    from master.layanan.toko import toko_aktif
+    return titipan.saring_barang(Item.objects.all(), toko_aktif(request))
+
+
 def _saring_barang(request, hak):
     """Queryset Item sesuai filter di alamat."""
     g = request.GET
@@ -346,8 +353,8 @@ def barang_baru(request):
     if request.GET.get("panel") != "1":
         return redirect(f"{reverse('master:barang')}?baru=1")
     return render(request, "master/_barang_baru.html", {
-        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
-        "daftar_brand": sorted({k for k in Item.objects.values_list("brand", flat=True) if k}, key=kunci_alami),
+        "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True) if k}, key=kunci_alami),
+        "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True) if k}, key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
     })
 
@@ -548,6 +555,7 @@ def item_detail(request, item_id, panel=False):
         for r in SyaratTitipan.objects.filter(varian__item_name=item_info.item_name).select_related("varian")[:40]:
             r.pot, r.maks = svc_titipan.persen_teks(r.potongan_toko), svc_titipan.persen_teks(r.diskon_maks)
             riwayat_syarat.append(r)
+    milik_item = svc_titipan.saring_barang(Item.objects.all(), item_info.toko)
     return render(request, "master/_item_isi.html" if panel else "master/item.html", {
         "titipan": pemilik, "riwayat_syarat": riwayat_syarat, "hari_ini": timezone.localdate().isoformat(),
         "pembulatan": Pengaturan.ambil().pembulatan_diskon,
@@ -566,8 +574,8 @@ def item_detail(request, item_id, panel=False):
         "baris_nota": layanan.jumlah_baris_nota(item_info.item_name),
         "stok_total": sum(b["in_stock"] or 0 for b in barang),
         "ada_terjual": any(b["terjual"] for b in barang),
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(Item.objects.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(milik_item.values_list("category", flat=True)), key=kunci_alami),
+        "daftar_brand": sorted(set(milik_item.values_list("brand", flat=True)), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "log_item": Log.objects.filter(item_name=item_info.item_name)[:15] if "lihat_log" in hak else [],
         "pemasok": pemasok.untuk_barang(item_info, hak) if pemasok.boleh_lihat(hak) else None,
@@ -622,8 +630,8 @@ def harga(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "pratinjau": pratinjau,
         "param": param or request.POST,
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(Item.objects.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True)), key=kunci_alami),
+        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True)), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "kolom_massal": [(k, layanan.KOLOM_VARIAN[k][0]) for k in layanan.KOLOM_HARGA
@@ -645,7 +653,7 @@ def stok(request):
     qs = _saring_barang(request, hak)
     halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"), _cari(request))
     barang = _lengkapi(list(halaman.object_list), hak)   # urutan dari halaman_alami (nama cocok dulu)
-    semua = Item.objects.all()
+    semua = _milik(request)
     return render(request, "master/stok.html", {
         "menu": "stok",
         "barang": barang,
@@ -654,8 +662,8 @@ def stok(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "jumlah_habis": semua.filter(in_stock__lte=0).count(),
         "jumlah_menipis": semua.filter(stock_alert__isnull=False, in_stock__lte=F("stock_alert"), in_stock__gt=0).count(),
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(Item.objects.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True)), key=kunci_alami),
+        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True)), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "daftar_jenis": layanan.JENIS_MUTASI.items(),
         "pilihan_lokasi": svc_lokasi.pilihan() if Lokasi.objects.filter(jenis="gudang", aktif=True).exists() else [],
@@ -854,7 +862,8 @@ def kelompok(request, kolom):
     if request.method == "POST":
         try:
             jumlah = layanan.ganti_nama_kelompok(
-                request.user, kolom, request.POST.get("lama", ""), request.POST.get("baru", ""), hak=hak
+                request.user, kolom, request.POST.get("lama", ""), request.POST.get("baru", ""), hak=hak,
+                qs=_milik(request),
             )
             messages.success(request, f"{judul} diganti di {jumlah} varian.")
         except Tolak as tolak:
@@ -862,7 +871,7 @@ def kelompok(request, kolom):
         return redirect(request.path)
 
     baris = list(
-        Item.objects.values(kolom)
+        _milik(request).values(kolom)
         .annotate(varian=Count("item_name"), item=Count("item_name", distinct=True))
         .order_by(kolom)
     )
