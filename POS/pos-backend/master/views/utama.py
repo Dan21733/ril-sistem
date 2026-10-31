@@ -118,6 +118,7 @@ def _lengkapi(barang, hak):
         b["modal_rata"] = v.modal_rata if v else None
         b["alias"] = i.alias if i else ""
         b["item_id"] = i.id if i else None
+        b["titipan"] = bool(i and i.toko_id)
         b["masalah"] = masalah.label_masalah(b, hak)
         b["tanda"] = masalah.tanda_sel(b, b["masalah"])
         if "lihat_modal" not in hak:

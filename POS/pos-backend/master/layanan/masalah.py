@@ -80,6 +80,17 @@ ATURAN = [
     },
 ]
 
+# Barang titipan (konsinyasi) tidak punya modal sendiri: yang disetor dihitung dari
+# potongan toko saat terjual. Aturan yang menyangkut modal tidak berlaku untuknya.
+def _bukan_titipan(saring):
+    return lambda qs: saring(qs).exclude(
+        item_name__in=ItemInfo.objects.filter(toko__isnull=False).values("item_name"))
+
+
+for _a in ATURAN:
+    if _a["modal"]:
+        _a["saring"] = _bukan_titipan(_a["saring"])
+
 PER_KUNCI = {aturan["kunci"]: aturan for aturan in ATURAN}
 
 
@@ -92,7 +103,7 @@ def label_masalah(baris, hak):
     return [
         {"kunci": a["kunci"], "label": a["label"]}
         for a in aturan_untuk(hak)
-        if a["periksa"](baris)
+        if not (a["modal"] and baris.get("titipan")) and a["periksa"](baris)
     ]
 
 

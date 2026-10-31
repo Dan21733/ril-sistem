@@ -26,7 +26,7 @@
     <td><input type="text" name="variant" form="form-varian-baru" placeholder="+ Varian baru" required autocomplete="off" aria-label="Varian baru"></td>
     <td class="angka"><input type="text" name="min_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Floor" aria-label="Floor"></td>
     <td class="angka"><input type="text" name="max_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Harga jual" aria-label="Harga jual"></td>
-    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}<input type="text" name="cost_amount" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Modal" aria-label="Modal">{% endif %}</td>{% endif %}
+    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak and not titipan %}<input type="text" name="cost_amount" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Modal" aria-label="Modal">{% endif %}</td>{% endif %}
     <td class="angka redup">0</td>
     <td><select name="kode_rak" form="form-varian-baru" aria-label="Rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></td>
     <td colspan="{% if 'hapus_barang' in hak %}2{% else %}1{% endif %}"><button class="tombol kecil utama" type="submit" form="form-varian-baru">Tambah</button></td>

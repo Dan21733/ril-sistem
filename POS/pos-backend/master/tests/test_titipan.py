@@ -250,3 +250,14 @@ class TitipanTest(Dasar):
         self.client.post(reverse("master:kategori"), {"lama": "Sanitary", "baru": "Kloset"})
         self.assertEqual(set(Item.objects.filter(item_name="Kloset Brand").values_list("category", flat=True)), {"Kloset"})
         self.assertEqual(set(Item.objects.filter(item_name="Palu").values_list("category", flat=True)), {"Sanitary"})
+
+    def test_barang_titipan_tanpa_peringatan_modal(self):
+        from master.layanan import masalah
+        aturan = masalah.PER_KUNCI["modal_kosong"]
+        self.assertFalse(aturan["saring"](Item.objects.filter(item_name="Kloset Brand")).exists())
+        panel = self.client.get(reverse("master:item_panel", args=[ItemInfo.objects.get(item_name="Kloset Brand").id]))
+        self.assertNotContains(panel, "Modal kosong atau nol")
+        self.assertContains(panel, ">titipan</span>")
+        # Barang toko sendiri tetap diperiksa.
+        Item.objects.filter(item_name="Palu", variant="Kecil").update(cost_amount=0)
+        self.assertTrue(aturan["saring"](Item.objects.filter(item_name="Palu")).exists())
