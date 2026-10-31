@@ -201,7 +201,7 @@ function loadMore() {
       v-else
       class="product-scroller"
       :items="products"
-      :item-size="76"
+      :item-size="64"
       key-field="_virtualId"
       :buffer="400"
     >
@@ -312,6 +312,13 @@ function loadMore() {
   min-height: 0;
 
   overflow: hidden;
+
+  /* Satu daftar bergaris (31 Okt 2026), bukan kotak-kotak terpisah: lebih rapat dan rapi. */
+  border: 1px solid var(--pos-border);
+
+  border-radius: 10px;
+
+  background: var(--pos-surface);
 }
 
 /* ========================================
@@ -335,12 +342,8 @@ function loadMore() {
 
 .product-item-wrapper {
   box-sizing: border-box;
-
   width: 100%;
-
-  height: 76px;
-
-  padding-bottom: 6px;
+  height: 64px;
 }
 
 /* ========================================
@@ -353,38 +356,25 @@ function loadMore() {
 
 .product-item {
   display: flex;
-
   justify-content: space-between;
-
   align-items: center;
-
   width: 100%;
-
-  height: 70px;
-
-  padding: 6px 14px;
-
+  height: 64px;
+  padding: 6px 16px;
   box-sizing: border-box;
-
-  background: var(--pos-surface);
-
-  border: 1px solid var(--pos-border);
-
-  border-radius: 8px;
-
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--pos-divider);
+  border-radius: 0;
+  color: inherit;
   text-align: left;
-
   cursor: pointer;
-
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+  transition: background-color 0.12s ease;
 }
 
-.product-item:hover:not(:disabled) {
+.product-item:hover:not(:disabled),
+.product-item:active:not(:disabled) {
   background: var(--pos-hover);
-
-  border-color: var(--pos-text-muted);
 }
 
 .product-item[aria-disabled='true'] {
@@ -442,7 +432,7 @@ function loadMore() {
 
   align-items: flex-end;
 
-  gap: 4px;
+  gap: 2px;
 
   margin-left: 14px;
 
@@ -458,15 +448,11 @@ function loadMore() {
 }
 
 .product-details > .stock {
-  padding: 1px 8px;
-
+  padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 999px;
-
   color: var(--pos-text-muted);
-
-  font-size: 14px;
-
+  font-size: 13px;
   font-weight: 600;
 }
 

@@ -223,7 +223,9 @@ class HealthAPIView(APIView):
     def get(self, request):
         # server_time: tablet membandingkannya dengan jamnya sendiri dan
         # memperingatkan kasir kalau jam tablet salah (nota bertanggal salah).
-        return Response({"status": "ok", "server_time": timezone.now().isoformat()})
+        # pembulatan_diskon: kelipatan pembulatan diskon persen di keranjang (bukan rahasia).
+        return Response({"status": "ok", "server_time": timezone.now().isoformat(),
+                         "pembulatan_diskon": pengaturan.angka("pembulatan_diskon", 100)})
 
 
 class ItemListAPIView(ListAPIView):

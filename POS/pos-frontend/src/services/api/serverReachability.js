@@ -15,6 +15,7 @@
  * Modul ini sengaja tidak mengimpor apa pun: ia harus bisa dipakai dan diuji
  * tanpa Dexie, tanpa store, dan tanpa konfigurasi API.
  */
+import { noteDiscountRounding } from '../../utils/discount.js'
 
 /* Selama ini, jawaban server terakhir masih dianggap bukti yang sah. */
 const FRESH_MS = 20000
@@ -105,7 +106,10 @@ async function attemptProbe(timeoutMs) {
      */
     if (response?.ok) {
       try {
-        noteServerTime((await response.json())?.server_time)
+        const isi = await response.json()
+        noteServerTime(isi?.server_time)
+        // Kelipatan pembulatan diskon % dari master, disimpan untuk dipakai offline.
+        noteDiscountRounding(isi?.pembulatan_diskon)
       } catch {
         /* Jawaban tanpa jam server tetap bukti server hidup. */
       }

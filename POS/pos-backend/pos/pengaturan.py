@@ -29,6 +29,8 @@ BAWAAN = {
     # worker_id (dipisah koma) yang PIN-nya TIDAK boleh dipakai jualan/void/retur di kasir
     # (mis. staf gudang). Daftar larangan: karyawan yang tidak disebut tetap boleh.
     "bukan_kasir": "",
+    # Diskon persen di kasir dibulatkan KE ATAS ke kelipatan ini (diatur di master, menu Toko).
+    "pembulatan_diskon": "100",
 }
 
 

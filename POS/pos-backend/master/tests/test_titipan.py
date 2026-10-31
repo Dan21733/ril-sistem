@@ -235,6 +235,9 @@ class TitipanTest(Dasar):
             svc_toko.simpan(self.admin, {"kode": "DBX", "nama": "DB X Brand", "titip_di": ""}, self.brand)
         svc_toko.simpan_pembulatan(self.admin, "500")
         self.assertEqual(Pengaturan.ambil().pembulatan_diskon, 500)
+        from pos import pengaturan   # kasir membaca nilai yang sama (lewat /api/health/)
+        pengaturan.lupakan_cache()
+        self.assertEqual(pengaturan.angka("pembulatan_diskon"), 500)
 
 
     def test_kategori_dan_ganti_nama_hanya_toko_aktif(self):

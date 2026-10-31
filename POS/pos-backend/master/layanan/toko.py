@@ -175,3 +175,6 @@ def simpan_pembulatan(pengguna, nilai):
         layanan.catat(pengguna, objek="pengaturan", kolom="pembulatan_diskon", lama=atur.pembulatan_diskon, baru=baru)
         atur.pembulatan_diskon = baru
         atur.save(update_fields=["pembulatan_diskon"])
+    # Kasir membaca nilai yang sama lewat pengaturan POS (dikirim di /api/health/).
+    from pos import pengaturan
+    pengaturan.simpan(pembulatan_diskon=baru)

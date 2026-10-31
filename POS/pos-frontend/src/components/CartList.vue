@@ -12,6 +12,7 @@ import { findWorkerNameByPin } from '../services/workers/workerDirectory'
 import { DEFAULT_SUGGESTION_COUNT, suggestCashAmounts } from '../utils/cashSuggestion'
 import { shouldCloseCheckoutModal } from '../utils/checkoutModal'
 import { PRICE_RANGE_PROBLEM, priceRangeProblem, resolveItemPrices } from '../utils/priceRange'
+import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../utils/discount'
 import vModalFocus from '../directives/modalFocus'
 import {
   digitsOnly,
@@ -460,6 +461,44 @@ function updatePrice(item, event) {
   emit('update-price', { item, price })
 }
 
+/* ========================================
+   DISKON PERSEN
+======================================== */
+
+const discountOpenId = ref(null)
+
+function toggleDiscount(item) {
+  discountOpenId.value = discountOpenId.value === item.cartId ? null : item.cartId
+}
+
+function formatPercent(persen) {
+  return String(persen).replace('.', ',')
+}
+
+function applyDiscount(item, persen) {
+  const harga = discountedPrice(item.price, persen)
+  if (harga == null || isEditingLocked.value) {
+    return
+  }
+  emit('update-price', { item, price: harga })
+  discountOpenId.value = null
+}
+
+function applyCustomDiscount(item, event) {
+  const input = event.target
+  const persen = parsePercent(input.value)
+  if (input.value.trim() === '') {
+    return
+  }
+  if (persen == null) {
+    input.setCustomValidity('Isi angka persen 0 sampai 100, misalnya 7 atau 2,5.')
+    input.reportValidity()
+    return
+  }
+  input.setCustomValidity('')
+  applyDiscount(item, persen)
+}
+
 function openRetryCheckout() {
   retryTransaction()
 }
@@ -877,25 +916,33 @@ async function completeTransaction() {
     <div class="cart-header">
       <h2>Keranjang</h2>
 
-      <p v-if="hasRoundedFloorCode" class="floor-legend is-note">
-        Tanda ~ pada kode berarti harga floor dibulatkan.
-      </p>
+      <span v-if="cartItems.length" class="cart-count">{{ totalQuantity }} barang</span>
     </div>
+
+    <p v-if="hasRoundedFloorCode" class="floor-legend">
+      Tanda ~ pada kode berarti harga floor dibulatkan.
+    </p>
 
     <!-- ==================================
          CART ITEMS
+
+         Tata letak 31 Okt 2026 (permintaan pemilik): keranjang jadi panel
+         samping penuh seperti sidebar master; barang dipisah garis tipis, bukan
+         kartu, supaya lebih banyak baris terlihat. Satu baris kontrol:
+         jumlah, harga, diskon %, hapus. Kode floor kecil di bawahnya.
     =================================== -->
 
     <div class="cart-items">
-      <div v-for="item in cartItems" :key="item.cartId" class="cart-item">
+      <div
+        v-for="item in cartItems"
+        :key="item.cartId"
+        class="cart-item"
+        :class="{ 'is-discount-open': discountOpenId === item.cartId }"
+      >
         <div class="cart-item-top">
           <h3>
             {{ item.item_name }}
-
-            <span v-if="item.variant && item.variant !== 'N/A'">
-              -
-              {{ item.variant }}
-            </span>
+            <span v-if="item.variant && item.variant !== 'N/A'" class="cart-item-variant">{{ item.variant }}</span>
           </h3>
 
           <strong class="cart-item-total">
@@ -903,20 +950,46 @@ async function completeTransaction() {
           </strong>
         </div>
 
-        <div class="cart-item-price-row">
+        <div class="cart-item-row">
+          <div class="qty-stepper">
+            <button
+              type="button"
+              :disabled="Number(item.quantity) <= 1 || isEditingLocked"
+              aria-label="Kurangi jumlah"
+              @click="decreaseQuantity(item)"
+            >
+              −
+            </button>
+
+            <input
+              class="quantity-input"
+              type="number"
+              :value="item.quantity"
+              :disabled="isEditingLocked"
+              min="1"
+              inputmode="numeric"
+              aria-label="Jumlah"
+              @keydown="preventInvalidQuantity"
+              @change="updateQuantity(item, $event)"
+            />
+
+            <button
+              type="button"
+              :disabled="isEditingLocked"
+              aria-label="Tambah jumlah"
+              @click="increaseQuantity(item)"
+            >
+              +
+            </button>
+          </div>
+
+          <!--
+            Teks, bukan `type="number"`: batas harga sudah dicek di JavaScript
+            (pesannya sengaja tidak menyebut angka floor), dan angka bertitik
+            ribuan tidak sah di kolom number.
+          -->
           <label class="cart-price-input">
-            <!--
-              "Harga" saja, bukan "Harga satuan": label yang lebih panjang
-              mendorong kode floor turun ke baris kedua pada kode 7 huruf
-              (audit tampilan, 2026-10-09). Arti lengkapnya tetap ada di
-              `aria-label` kolom ini.
-            -->
-            Harga
-            <!--
-              Teks, bukan `type="number"`: batas harga sudah dicek di JavaScript
-              (pesannya sengaja tidak menyebut angka floor), dan angka bertitik
-              ribuan tidak sah di kolom number.
-            -->
+            <span class="at" aria-hidden="true">@</span>
             <input
               type="text"
               inputmode="numeric"
@@ -924,59 +997,26 @@ async function completeTransaction() {
               :value="formatRupiahInput(item.unit_price ?? item.price ?? '')"
               :disabled="isEditingLocked"
               :class="{ 'price-input-invalid': item.floor_price != null && item.price != null && (Number(item.unit_price ?? item.price) < Number(item.floor_price) || Number(item.unit_price ?? item.price) > Number(item.price)) }"
-              :aria-label="`Harga ${item.item_name}`"
+              :aria-label="`Harga satuan ${item.item_name}`"
               @keydown="preventNonNumericInput"
               @input="formatCartPriceInput"
               @change="updatePrice(item, $event)"
             />
           </label>
 
-          <!--
-            Harga floor hanya tampil sebagai kode supaya tidak terbaca langsung
-            oleh pelanggan di depan kasir.
-          -->
-
-          <span
-            v-if="floorCode(item)"
-            class="floor-code"
-            :title="`Kode harga floor. Kata kunci ${FLOOR_CODE_MNEMONIC}: ${FLOOR_CODE_LEGEND}. Tanda ~ berarti harga dibulatkan.`"
-          >
-            Floor
-            <strong>{{ floorCode(item) }}</strong>
-          </span>
-        </div>
-
-        <!-- Quantity -->
-
-        <div class="cart-item-controls">
           <button
             type="button"
-            :disabled="Number(item.quantity) <= 1 || isEditingLocked"
-            aria-label="Kurangi jumlah"
-            @click="decreaseQuantity(item)"
+            class="discount-button"
+            :class="{ 'is-active': percentOff(item.price, item.unit_price ?? item.price) > 0 }"
+            :disabled="isEditingLocked || item.price == null || item.floor_price == null"
+            :title="item.floor_price == null ? 'Rentang harga belum ada; diskon belum bisa dipakai' : 'Diskon persen'"
+            :aria-expanded="discountOpenId === item.cartId"
+            :aria-label="`Diskon persen ${item.item_name}`"
+            @click="toggleDiscount(item)"
           >
-            −
-          </button>
-
-          <input
-            class="quantity-input"
-            type="number"
-            :value="item.quantity"
-            :disabled="isEditingLocked"
-            min="1"
-            inputmode="numeric"
-            aria-label="Jumlah"
-            @keydown="preventInvalidQuantity"
-            @change="updateQuantity(item, $event)"
-          />
-
-          <button
-            type="button"
-            :disabled="isEditingLocked"
-            aria-label="Tambah jumlah"
-            @click="increaseQuantity(item)"
-          >
-            +
+            {{ percentOff(item.price, item.unit_price ?? item.price) > 0
+              ? `−${formatPercent(percentOff(item.price, item.unit_price ?? item.price))}%`
+              : '%' }}
           </button>
 
           <button
@@ -989,9 +1029,65 @@ async function completeTransaction() {
             ×
           </button>
         </div>
+
+        <!--
+          Harga floor hanya tampil sebagai kode supaya tidak terbaca langsung
+          oleh pelanggan di depan kasir. Dibuat kecil: kasir yang butuh, bukan
+          pelanggan.
+        -->
+        <div
+          v-if="floorCode(item) || percentOff(item.price, item.unit_price ?? item.price) > 0"
+          class="cart-item-meta"
+        >
+          <span v-if="percentOff(item.price, item.unit_price ?? item.price) > 0" class="discount-note">
+            dari {{ formatPrice(item.price) }}
+          </span>
+
+          <span
+            v-if="floorCode(item)"
+            class="floor-code"
+            :title="`Kode harga floor. Kata kunci ${FLOOR_CODE_MNEMONIC}: ${FLOOR_CODE_LEGEND}. Tanda ~ berarti harga dibulatkan.`"
+          >
+            F <strong>{{ floorCode(item) }}</strong>
+          </span>
+        </div>
+
+        <!--
+          Diskon persen: pilihan cepat + isian bebas. Hasilnya harga pricelist
+          dikurangi persen, dibulatkan ke atas (kelipatan dari master). Batas
+          floor tetap berlaku: di bawah floor tetap butuh persetujuan.
+        -->
+        <div v-if="discountOpenId === item.cartId" class="discount-panel" role="group" aria-label="Pilih diskon">
+          <button
+            v-for="persen in QUICK_DISCOUNTS"
+            :key="persen"
+            type="button"
+            class="discount-chip"
+            @click="applyDiscount(item, persen)"
+          >
+            {{ persen }}%
+          </button>
+
+          <input
+            class="discount-custom"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="lain"
+            aria-label="Diskon persen lain"
+            @keydown.enter.prevent="applyCustomDiscount(item, $event)"
+            @change="applyCustomDiscount(item, $event)"
+          />
+
+          <button type="button" class="discount-chip is-reset" @click="applyDiscount(item, 0)">
+            Tanpa diskon
+          </button>
+        </div>
       </div>
 
-      <p v-if="cartItems.length === 0" class="empty-cart">Keranjang kosong</p>
+      <p v-if="cartItems.length === 0" class="empty-cart">
+        Keranjang kosong.<br />Cari barang di kiri lalu ketuk untuk menambah.
+      </p>
     </div>
 
     <!-- ==================================
@@ -1675,23 +1771,19 @@ async function completeTransaction() {
    di sisi kirinya supaya tidak memakan layar kanan (permintaan pemilik).
 ======================================== */
 
+/*
+ * Keranjang = panel samping penuh tinggi (31 Okt 2026), seperti sidebar di
+ * master: latarnya sendiri, menempel ke tepi kanan layar. Jarak dalam diatur
+ * di sini; App.vue hanya memberi kolomnya.
+ */
 .cart {
   position: sticky;
-
   top: 0;
-
   display: flex;
-
   flex-direction: column;
-
   width: 100%;
-
   height: 100%;
-
-  padding-left: 16px;
-
-  border-left: 1px solid var(--pos-border);
-
+  padding: 14px 16px 14px;
   box-sizing: border-box;
 }
 
@@ -1700,182 +1792,214 @@ async function completeTransaction() {
 ======================================== */
 
 .cart-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   flex-shrink: 0;
-
-  padding: 0 0 14px;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid var(--pos-divider);
 }
 
 .cart-header h2 {
-  margin: 0 0 12px;
-
+  margin: 0;
   color: var(--pos-text);
-
-  font-size: 26px;
-
+  font-size: 22px;
   font-weight: 700;
 }
 
-.floor-legend {
-  margin: 10px 0 0;
-
+.cart-count {
+  margin-left: auto;
   color: var(--pos-text-muted);
-
-  font-size: 12px;
-
-  line-height: 1.4;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
-.floor-legend.is-note {
-  margin-top: 4px;
+.floor-legend {
+  flex-shrink: 0;
+  margin: 6px 0 0;
+  color: var(--pos-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* ========================================
    CART ITEMS
+   Baris dipisah garis tipis, bukan kartu: tiap barang sekitar 96px, kira-kira
+   empat barang terlihat di tablet 601px.
 ======================================== */
 
 .cart-items {
   flex: 1;
-
   min-height: 0;
-
-  margin-right: -6px;
-
-  padding-right: 6px;
-
+  margin: 0 -16px;
+  padding: 0 16px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-/*
- * Baris keranjang dirapatkan supaya lebih banyak barang terlihat tanpa
- * menggulung (audit tampilan, 2026-10-09). Tinggi sebelumnya 165px per barang:
- * di layar kasir 601px hanya dua setengah baris yang kelihatan. Yang dirapatkan
- * hanya jarak dan tata letak label harga — ukuran tombol jari tetap 44px.
- */
-
 .cart-item {
-  padding: 8px 10px;
+  padding: 10px 0 10px;
+  border-bottom: 1px solid var(--pos-divider);
+}
 
-  margin-bottom: 6px;
-
+.cart-item.is-discount-open {
+  margin: 0 -16px;
+  padding: 10px 16px;
   background: var(--pos-surface-alt);
-
-  border: 1px solid var(--pos-border);
-
-  border-radius: 10px;
 }
 
 .cart-item-top {
   display: flex;
-
   align-items: baseline;
-
   gap: 10px;
 }
 
 .cart-item-top h3 {
   flex: 1;
-
   min-width: 0;
-
   margin: 0;
-
   color: var(--pos-text);
-
   font-size: 15px;
-
   font-weight: 600;
-
-  line-height: 1.35;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
-/* ========================================
-   KODE HARGA FLOOR
-======================================== */
-
-.cart-item-price-row {
-  display: flex;
-
-  /*
-   * Kalau kolom keranjang mengecil ke batas bawahnya (300px), kode floor turun
-   * ke baris kedua dengan sengaja: label harga di kiri, kode di kanan.
-   */
-  flex-wrap: wrap;
-
-  align-items: center;
-
-  gap: 6px 10px;
-
-  margin-top: 6px;
+.cart-item-variant {
+  display: block;
+  color: var(--pos-text-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.floor-code {
+.cart-item-total {
   flex-shrink: 0;
-
-  margin-left: auto;
-
-  padding: 4px 10px;
-
-  border: 1px dashed var(--pos-border);
-
-  border-radius: 8px;
-
-  background: var(--pos-surface);
-
-  color: var(--pos-text-muted);
-
-  font-size: 11px;
-
-  letter-spacing: 0.02em;
-
-  white-space: nowrap;
-}
-
-.floor-code strong {
-  margin-left: 5px;
-
   color: var(--pos-text);
-
-  font-family: 'SFMono-Regular', ui-monospace, 'Roboto Mono', Menlo, monospace;
-
-  font-size: 14px;
-
+  font-size: 16px;
   font-weight: 700;
-
-  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ========================================
-   CART PRICE INPUT
-======================================== */
-
-/*
- * Label dan kolomnya sebaris: label di atas kolom menambah satu baris teks per
- * barang di layar yang tingginya paling berharga.
- */
-
-.cart-price-input {
+/* Satu baris kontrol: jumlah | harga | % | hapus. Semua tinggi 44px. */
+.cart-item-row {
   display: flex;
-
   align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
 
-  gap: 8px;
+.cart-item-row button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--pos-border);
+  border-radius: 8px;
+  background: var(--pos-surface);
+  color: var(--pos-text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
 
+.cart-item-row button:hover:not(:disabled) {
+  background: var(--pos-hover);
+  border-color: var(--pos-accent);
+}
+
+.cart-item-row button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Stepper jumlah: tiga bagian menyatu jadi satu kontrol. */
+.qty-stepper {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.qty-stepper button {
+  width: 38px;
+}
+
+.qty-stepper button:first-child {
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+
+.qty-stepper button:last-child {
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+.quantity-input {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--pos-border);
+  border-radius: 0;
+  background: var(--pos-field-bg);
+  color: var(--pos-text);
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  cursor: text;
+}
+
+.quantity-input::-webkit-inner-spin-button,
+.quantity-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.quantity-input[type='number'] {
+  appearance: textfield;
+}
+
+.quantity-input:focus {
+  border-color: var(--pos-accent);
+}
+
+/* Harga satuan: mengisi sisa ruang baris. */
+.cart-price-input {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.cart-price-input .at {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--pos-text-muted);
-
-  font-size: 12px;
-
-  white-space: nowrap;
+  font-size: 13px;
+  pointer-events: none;
 }
 
 .cart-price-input input {
-  width: 96px;
+  width: 100%;
+  min-width: 0;
   height: 44px;
-  padding: 0 10px;
+  padding: 0 9px 0 24px;
+  box-sizing: border-box;
   border: 1px solid var(--pos-border);
   border-radius: 8px;
   background: var(--pos-field-bg);
   color: var(--pos-text);
   font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .cart-price-input input:focus {
@@ -1889,148 +2013,110 @@ async function completeTransaction() {
   color: var(--pos-outstock-text);
 }
 
-/* ========================================
-   QUANTITY CONTROLS
-======================================== */
-
-.cart-item-controls {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-
-  margin-top: 8px;
-}
-
-/*
- * Tombol jari: minimal 44px supaya nyaman ditekan di tablet.
- */
-
-.cart-item-controls button {
-  display: flex;
-
-  justify-content: center;
-
-  align-items: center;
-
-  width: 44px;
-
-  height: 44px;
-
-  padding: 0;
-
-  border: 1px solid var(--pos-border);
-
-  border-radius: 8px;
-
-  background: var(--pos-surface);
-
-  color: var(--pos-text);
-
-  font-size: 22px;
-
-  line-height: 1;
-
-  cursor: pointer;
-
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.cart-item-controls button:hover:not(:disabled) {
-  background: var(--pos-hover);
-
-  border-color: var(--pos-accent);
-}
-
-.cart-item-controls button:disabled {
-  opacity: 0.35;
-
-  cursor: not-allowed;
-}
-
-/* ========================================
-   QUANTITY INPUT
-======================================== */
-
-.quantity-input {
-  width: 56px;
-
-  height: 44px;
-
-  padding: 0;
-
-  box-sizing: border-box;
-
-  border: 1px solid var(--pos-border);
-
-  border-radius: 8px;
-
-  background: var(--pos-field-bg);
-
-  color: var(--pos-text);
-
-  font-size: 18px;
-
+/* Tombol diskon: "%" saat belum ada diskon, "−10%" saat sudah. */
+.cart-item-row .discount-button {
+  min-width: 48px;
+  padding: 0 8px;
+  color: var(--pos-accent);
+  font-size: 15px;
   font-weight: 700;
-
-  text-align: center;
-
-  outline: none;
-
-  cursor: text;
+  font-variant-numeric: tabular-nums;
 }
 
-.quantity-input::-webkit-inner-spin-button,
-.quantity-input::-webkit-outer-spin-button {
-  margin: 0;
-
-  -webkit-appearance: none;
-}
-
-.quantity-input[type='number'] {
-  appearance: textfield;
-}
-
-.quantity-input:hover {
-  border-color: var(--pos-border);
-}
-
-.quantity-input:focus {
+.cart-item-row .discount-button.is-active {
   border-color: var(--pos-accent);
+  background: var(--pos-accent-soft);
 }
 
-/* ========================================
-   REMOVE
-======================================== */
-
-.cart-item-controls .remove-button {
-  margin-left: auto;
-
+.cart-item-row .remove-button {
+  width: 40px;
   color: var(--pos-danger);
 }
 
-.cart-item-controls .remove-button:hover {
+.cart-item-row .remove-button:hover:not(:disabled) {
   background: var(--pos-outstock-bg);
-
   border-color: var(--pos-danger);
 }
 
-/* ========================================
-   ITEM TOTAL
-======================================== */
+/* Baris kecil di bawah: harga asal kalau didiskon, lalu kode floor. */
+.cart-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 5px;
+  color: var(--pos-text-muted);
+  font-size: 12px;
+}
 
-.cart-item-total {
-  flex-shrink: 0;
+.discount-note {
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
 
+.floor-code {
+  margin-left: auto;
+  color: var(--pos-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.floor-code strong {
+  margin-left: 3px;
   color: var(--pos-text);
-
-  font-size: 16px;
-
+  font-family: 'SFMono-Regular', ui-monospace, 'Roboto Mono', Menlo, monospace;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* Panel pilihan diskon di bawah barang yang sedang diubah. */
+.discount-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.discount-chip {
+  min-width: 52px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--pos-border);
+  border-radius: 999px;
+  background: var(--pos-surface);
+  color: var(--pos-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.discount-chip:hover {
+  border-color: var(--pos-accent);
+  background: var(--pos-hover);
+}
+
+.discount-chip.is-reset {
+  color: var(--pos-text-muted);
+  font-weight: 500;
+}
+
+.discount-custom {
+  width: 64px;
+  height: 40px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--pos-border);
+  border-radius: 999px;
+  background: var(--pos-field-bg);
+  color: var(--pos-text);
+  font-size: 15px;
+  text-align: center;
+}
+
+.discount-custom:focus {
+  border-color: var(--pos-accent);
+  outline: none;
 }
 
 /* ========================================
@@ -2038,12 +2124,10 @@ async function completeTransaction() {
 ======================================== */
 
 .empty-cart {
-  margin-top: 40px;
-
+  margin-top: 48px;
   color: var(--pos-text-muted);
-
   font-size: 15px;
-
+  line-height: 1.5;
   text-align: center;
 }
 
@@ -2135,10 +2219,8 @@ async function completeTransaction() {
 
 .cart-footer {
   flex-shrink: 0;
-
-  padding: 14px 0 0;
-
-  border-top: 1px solid var(--pos-border);
+  padding: 12px 0 0;
+  border-top: 1px solid var(--pos-divider);
 }
 
 .total-row {
@@ -2233,7 +2315,7 @@ async function completeTransaction() {
 .pay-button {
   width: 100%;
 
-  height: 64px;
+  height: 56px;
 
   border: none;
 
@@ -3304,12 +3386,6 @@ async function completeTransaction() {
 @media (max-width: 900px) {
   .cart {
     position: static;
-
-    padding-left: 0;
-    padding-top: 16px;
-
-    border-left: none;
-    border-top: 1px solid var(--pos-border);
   }
 }
 

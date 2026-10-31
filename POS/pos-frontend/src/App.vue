@@ -2507,7 +2507,8 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100vh;
 
-  padding: 18px 22px;
+  /* Tanpa jarak luar: keranjang menempel ke tepi kanan seperti sidebar master (31 Okt 2026). */
+  padding: 0;
 
   box-sizing: border-box;
 
@@ -2532,16 +2533,14 @@ onBeforeUnmount(() => {
 
   grid-template-columns:
     minmax(0, 1fr)
-    minmax(300px, 360px);
+    minmax(340px, 400px);
 
-  gap: 20px;
+  gap: 0;
 
   width: 100%;
   height: 100%;
 
-  max-width: 1800px;
-
-  margin: 0 auto;
+  max-width: none;
 
   min-height: 0;
 }
@@ -2553,6 +2552,10 @@ onBeforeUnmount(() => {
 .product-section {
   display: flex;
   flex-direction: column;
+
+  padding: 14px 18px 0;
+
+  box-sizing: border-box;
 
   width: 100%;
   height: 100%;
@@ -2573,6 +2576,11 @@ onBeforeUnmount(() => {
 
   min-width: 0;
   min-height: 0;
+
+  /* Panel samping: latar sendiri + garis kiri, penuh dari atas ke bawah. */
+  background: var(--pos-surface);
+
+  border-left: 1px solid var(--pos-border);
 }
 
 /* ========================================
@@ -2812,7 +2820,7 @@ onBeforeUnmount(() => {
 
   color: var(--pos-text);
 
-  font-size: 34px;
+  font-size: 26px;
 
   font-weight: 700;
 }
@@ -2893,6 +2901,10 @@ onBeforeUnmount(() => {
 
   .cart-section {
     height: auto;
+
+    border-left: none;
+
+    border-top: 1px solid var(--pos-border);
   }
 }
 
@@ -2922,7 +2934,11 @@ onBeforeUnmount(() => {
 
 @media (max-height: 720px) {
   .pos-page {
-    padding: 10px 14px;
+    padding: 0;
+  }
+
+  .product-section {
+    padding: 10px 14px 0;
   }
 
   .page-header {
@@ -2930,7 +2946,7 @@ onBeforeUnmount(() => {
   }
 
   .page-header h1 {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .theme-toggle,

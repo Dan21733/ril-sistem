@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --experimental-vm-modules --test tests/catalogCache.test.js tests/checkout.test.js tests/checkoutModal.test.js tests/cashSuggestion.test.js tests/customerReceipt.test.js tests/historyButtonNotice.test.js tests/printDelay.test.js tests/itemPricing.test.js tests/itemRepository.test.js tests/localCatalogSearch.test.js tests/pinCooldown.test.js tests/pinSeal.test.js tests/rupiahInput.test.js tests/serverReachability.test.js tests/serverStatus.test.js",
+    "test": "node --experimental-vm-modules --test tests/catalogCache.test.js tests/checkout.test.js tests/checkoutModal.test.js tests/cashSuggestion.test.js tests/customerReceipt.test.js tests/discount.test.js tests/historyButtonNotice.test.js tests/printDelay.test.js tests/itemPricing.test.js tests/itemRepository.test.js tests/localCatalogSearch.test.js tests/pinCooldown.test.js tests/pinSeal.test.js tests/rupiahInput.test.js tests/serverReachability.test.js tests/serverStatus.test.js",
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",

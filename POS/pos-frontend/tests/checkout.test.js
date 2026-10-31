@@ -210,6 +210,8 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   const rupiahInput = await loadRealModule('../src/utils/rupiahInput.js', context)
   modules.set('./utils/rupiahInput', rupiahInput)
   modules.set('../utils/rupiahInput', rupiahInput)
+  /* Diskon persen di keranjang (31 Okt 2026): util sungguhan, bukan tiruan. */
+  modules.set('../utils/discount', await loadRealModule('../src/utils/discount.js', context))
   /* Aturan tutup-modal dipakai sungguhan (bukan di-stub): inilah yang
    * menentukan jalur offline tidak meninggalkan modal di langkah PIN. */
   const checkoutModal = await loadRealModule('../src/utils/checkoutModal.js', context)
