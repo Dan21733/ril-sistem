@@ -37,7 +37,10 @@ import {
   preventNonNumericInput,
 } from '../utils/rupiahInput'
 
+import { findWorkerNameByPin } from '../services/workers/workerDirectory'
+
 import LoadingSpinner from './LoadingSpinner.vue'
+import PiutangPanel from './PiutangPanel.vue'
 import vModalFocus from '../directives/modalFocus'
 
 /*
@@ -420,11 +423,85 @@ const selectedDate = ref(todayIsoDate())
  * Cakupan riwayat: 'self' = device ini saja (bawaan); 'all' = semua device
  * untuk kemudahan refund, wajib PIN kasir (header X-Approver-PIN).
  */
-const historyScope = ref('self')
+const historyScope = ref('akun')
 
-/* PIN kasir untuk scope=all; hidup selama modal terbuka, dibersihkan saat
-   modal ditutup — tidak pernah disimpan persisten. */
+/*
+ * Menu Transaksi (permintaan pemilik 2026-10-31, dibuat 2026-11-02): sebelum
+ * apa pun tampil, kasir memasukkan PIN. Riwayat berisi nota milik akun itu di
+ * semua perangkat (scope=akun); tab Belum lunas dan Ambil nanti / Pesanan
+ * terlihat untuk semua kasir. PIN hanya hidup di memori selama modal terbuka
+ * dan dikunci lagi setelah 2 menit tanpa sentuhan.
+ */
 const personPin = ref('')
+const sessionName = ref('')
+const pinInput = ref('')
+const pinError = ref('')
+const pinBusy = ref(false)
+const activeTab = ref('nota')
+const piutangCounts = ref({})
+const IDLE_LOCK_MS = 2 * 60 * 1000
+let idleTimer = null
+
+function lockSession(message = '') {
+  personPin.value = ''
+  sessionName.value = ''
+  pinInput.value = ''
+  pinError.value = message
+  notas.value = []
+  selectedNota.value = null
+  selectedItems.value = []
+  clearTimeout(idleTimer)
+  closeRefundForm()
+}
+
+function touchSession() {
+  if (!personPin.value) {
+    return
+  }
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => lockSession('Terkunci otomatis setelah 2 menit tidak dipakai.'), IDLE_LOCK_MS)
+}
+
+async function unlockSession() {
+  const pin = pinInput.value.trim()
+  if (!/^\d{6}$/.test(pin) || pinBusy.value) {
+    pinError.value = 'PIN kasir 6 digit.'
+    return
+  }
+  pinBusy.value = true
+  pinError.value = ''
+  try {
+    let name = ''
+    try {
+      name = await findWorkerNameByPin(pin)
+    } catch {
+      name = ''
+    }
+    if (!name) {
+      /* PIN belum dikenal perangkat: tanya server (scope=akun memverifikasi PIN). */
+      const device = await deviceRepository.getDevice()
+      try {
+        const data = await fetchTransactionHistory(device?.device_token, 1, todayIsoDate(), 'akun', pin)
+        name = data.results?.[0]?.worker_name || 'Kasir'
+      } catch (error) {
+        pinError.value = error.status === 400
+          ? 'PIN tidak cocok.'
+          : error.status === 429
+            ? error.message
+            : 'PIN belum dikenal tablet ini dan server tidak terjangkau.'
+        return
+      }
+    }
+    personPin.value = pin
+    sessionName.value = name
+    pinInput.value = ''
+    activeTab.value = 'nota'
+    touchSession()
+    selectedDate.value === todayIsoDate() ? loadPage(1) : (selectedDate.value = todayIsoDate())
+  } finally {
+    pinBusy.value = false
+  }
+}
 
 /*
  * Filter status aksi untuk peninjauan harian (mis. semua void hari ini).
@@ -630,9 +707,13 @@ function paymentLabel(method) {
 async function loadLocalQueueRows() {
   try {
     const queued = await listQueuedTransactions()
+    const owner = sessionName.value.trim().toLocaleLowerCase()
     return queued
       .filter((row) => !selectedDate.value
         || String(row.created_at).slice(0, 10) === selectedDate.value)
+      /* Nota saya: antrean perangkat hanya milik kasir yang sedang masuk. */
+      .filter((row) => !owner || !row.cashier_name
+        || String(row.cashier_name).trim().toLocaleLowerCase() === owner)
       .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
       .map((row) => ({
         sync_id: row.sync_id,
@@ -719,6 +800,11 @@ function resendQueued(syncId) {
 let loadSequence = 0
 
 async function loadPage(page) {
+  /* Terkunci: belum ada PIN, jadi belum ada nota yang boleh tampil. */
+  if (!personPin.value) {
+    return
+  }
+
   const sequence = ++loadSequence
 
   loading.value = true
@@ -744,7 +830,7 @@ async function loadPage(page) {
         page,
         selectedDate.value,
         historyScope.value,
-        historyScope.value === 'all' ? personPin.value : '',
+        personPin.value,
         historyStatusFilter.value,
       )
 
@@ -756,9 +842,9 @@ async function loadPage(page) {
       if (error.status === 401) {
         errorMessage.value =
           'Device tidak terautentikasi. Daftarkan ulang device lalu coba lagi.'
-      } else if (error.status === 400 && historyScope.value === 'all') {
-        errorMessage.value =
-          'Isi PIN kasir 6 digit untuk melihat nota semua perangkat.'
+      } else if (error.status === 400) {
+        lockSession('PIN tidak diterima server. Masukkan lagi.')
+        return
       } else {
         errorMessage.value = error.message || 'Riwayat nota tidak dapat dimuat.'
       }
@@ -955,7 +1041,7 @@ async function openNota(nota) {
     const detail = await fetchTransactionDetail(
       device.device_token,
       nota.transaction_id,
-      historyScope.value === 'all' ? personPin.value : '',
+      personPin.value,
     )
 
     selectedItems.value = detail.items || []
@@ -1140,29 +1226,12 @@ watch(
   (visible) => {
     if (!visible) {
       /* PIN kasir tidak boleh menetap setelah modal ditutup. */
-      personPin.value = ''
-      historyScope.value = 'self'
-      closeRefundForm()
+      lockSession()
       return
     }
 
-    selectedNota.value = null
-    selectedItems.value = []
+    lockSession()
     reprintMessage.value = ''
-
-    /*
-     * Tanggal kembali ke hari ini setiap modal dibuka. Pemuatannya dilakukan
-     * salah satu pihak saja: kalau tanggalnya memang berubah, watcher tanggal
-     * di bawah yang memuat — kalau tidak, tidak ada watcher yang jalan dan
-     * daftarnya dimuat dari sini. Dua pemuatan sekaligus hanya membuat jawaban
-     * yang lebih lambat menimpa yang lebih baru.
-     */
-    if (selectedDate.value === todayIsoDate()) {
-      loadPage(1)
-    } else {
-      selectedDate.value = todayIsoDate()
-    }
-
     refreshOutstandingProofs()
   },
 )
@@ -1197,17 +1266,6 @@ watch(selectedDate, () => {
   loadPage(1)
 })
 
-/* Ganti cakupan juga memuat ulang dari halaman pertama. */
-watch(historyScope, () => {
-  if (!props.visible) {
-    return
-  }
-
-  selectedNota.value = null
-  selectedItems.value = []
-  reprintMessage.value = ''
-  loadPage(1)
-})
 
 /* Ganti filter status juga memuat ulang dari halaman pertama. */
 watch(historyStatusFilter, () => {
@@ -1278,13 +1336,14 @@ watch(queueSignature, async () => {
     <div class="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-title" tabindex="-1">
       <div class="modal-header">
         <div class="modal-title">
-          <h2 id="history-title">{{ isToday ? 'Riwayat Nota Hari Ini' : 'Riwayat Nota' }}</h2>
+          <h2 id="history-title">Transaksi</h2>
 
-          <p>
-            {{ totalNotas }} nota
-            {{ historyScope === 'all' ? 'semua perangkat' : 'dari perangkat ini' }}
-            · {{ dateLabel }}
+          <p v-if="personPin">
+            {{ sessionName }}
+            <template v-if="activeTab === 'nota'"> · {{ totalNotas }} nota · {{ dateLabel }}</template>
+            · <button type="button" class="lock-link" @click="lockSession()">Kunci / ganti kasir</button>
           </p>
+          <p v-else>Masukkan PIN kasir</p>
         </div>
 
         <!--
@@ -1422,10 +1481,58 @@ watch(queueSignature, async () => {
       </div>
 
       <!-- ==================================
+           GERBANG PIN (menu Transaksi, 2026-11-02)
+      =================================== -->
+
+      <form v-if="!personPin" class="pin-gate" @submit.prevent="unlockSession">
+        <p class="pin-gate-title">Masukkan PIN kasir</p>
+        <p class="pin-gate-hint">Riwayat berisi nota milik akun kamu. Tab belum lunas dan ambil nanti terlihat untuk semua kasir.</p>
+        <input
+          v-model="pinInput"
+          type="password"
+          inputmode="numeric"
+          maxlength="6"
+          autocomplete="off"
+          placeholder="••••••"
+          aria-label="PIN kasir"
+          autofocus
+          @input="pinInput = String(pinInput).replace(/\D/g, '').slice(0, 6); pinInput.length === 6 && unlockSession()"
+        />
+        <p v-if="pinError" class="pin-gate-error" role="alert">{{ pinError }}</p>
+        <button type="submit" class="pin-gate-button" :disabled="pinBusy || pinInput.length !== 6">
+          {{ pinBusy ? 'MEMERIKSA…' : 'MASUK' }}
+        </button>
+      </form>
+
+      <template v-else>
+      <div class="transaksi-tabs" role="tablist" @pointerdown="touchSession" @keydown="touchSession">
+        <button type="button" role="tab" :aria-selected="activeTab === 'nota'" :class="{ active: activeTab === 'nota' }" @click="activeTab = 'nota'; touchSession()">
+          Nota saya
+        </button>
+        <button type="button" role="tab" :aria-selected="activeTab === 'belum_lunas'" :class="{ active: activeTab === 'belum_lunas' }" @click="activeTab = 'belum_lunas'; touchSession()">
+          Belum lunas<span v-if="piutangCounts.belum_lunas" class="tab-count">{{ piutangCounts.belum_lunas }}</span>
+        </button>
+        <button type="button" role="tab" :aria-selected="activeTab === 'ambil'" :class="{ active: activeTab === 'ambil' }" @click="activeTab = 'ambil'; touchSession()">
+          Ambil nanti / Pesanan<span v-if="piutangCounts.ambil" class="tab-count">{{ piutangCounts.ambil }}</span>
+        </button>
+      </div>
+
+      <PiutangPanel
+        v-if="activeTab !== 'nota'"
+        :tab="activeTab"
+        :pin="personPin"
+        :cashier-name="sessionName"
+        @pointerdown="touchSession"
+        @keydown="touchSession"
+        @pin-invalid="lockSession('PIN tidak diterima server. Masukkan lagi.')"
+        @counts="piutangCounts = $event"
+      />
+
+      <!-- ==================================
            DAFTAR + DETAIL BERDAMPINGAN
       =================================== -->
 
-      <div class="history-body">
+      <div v-show="activeTab === 'nota'" class="history-body" @pointerdown="touchSession" @keydown="touchSession">
         <!-- ==================================
              PANEL KIRI: DAFTAR NOTA
         =================================== -->
@@ -1435,74 +1542,19 @@ watch(queueSignature, async () => {
                FILTER TANGGAL (PENCARIAN KALENDER)
           =================================== -->
 
-          <div class="history-filter">
-            <label>Cakupan nota</label>
-
-            <!--
-              Filter "Status aksi" duduk sebaris dengan tombol cakupan, di ruang
-              kosong sebelah kanannya (permintaan pemilik, 2026-10-07), supaya
-              panel kiri tidak memakai satu baris sendiri untuk dropdown.
-              Labelnya tetap ada agar kasir tahu baris itu filter apa; di panel
-              sempit kelompoknya turun utuh ke baris berikutnya.
-            -->
-
-            <div class="history-filter-row scope-row">
-              <button
-                type="button"
-                class="today-button"
-                :disabled="historyScope === 'self'"
-                @click="historyScope = 'self'"
-              >
-                PERANGKAT INI
-              </button>
-
-              <button
-                type="button"
-                class="today-button"
-                :disabled="historyScope === 'all'"
-                @click="historyScope = 'all'"
-              >
-                SEMUA PERANGKAT
-              </button>
-
-              <span class="scope-status-group">
-                <label for="history-status">Status aksi</label>
-
-                <select id="history-status" v-model="historyStatusFilter">
-                  <option value="">Semua status</option>
-                  <option value="none">Belum ada aksi</option>
-                  <option value="returned">Retur</option>
-                  <option value="refunded">Refund</option>
-                  <option value="void">Void</option>
-                </select>
-              </span>
-            </div>
-
-            <div v-if="historyScope === 'all'" class="history-filter-row scope-pin-row">
-              <input
-                v-model="personPin"
-                type="password"
-                inputmode="numeric"
-                maxlength="6"
-                autocomplete="off"
-                placeholder="PIN kasir 6 digit"
-                aria-label="PIN kasir"
-                @change="loadPage(1)"
-              />
-            </div>
-
-            <p v-if="historyScope === 'all'" class="history-filter-hint">
-              Melihat nota semua perangkat wajib PIN kasir.
-            </p>
-
-            <label for="history-date">Tanggal nota</label>
-
+          <!--
+            Filter satu baris (permintaan pemilik 2026-10-31): tanggal + status
+            aksi. Cakupan perangkat dihapus; nota yang tampil selalu milik akun
+            yang memasukkan PIN, dari perangkat mana pun.
+          -->
+          <div class="history-filter compact-filter">
             <div class="history-filter-row">
               <input
                 id="history-date"
                 v-model="selectedDate"
                 type="date"
                 :max="todayIsoDate()"
+                aria-label="Tanggal nota"
               />
 
               <button
@@ -1513,11 +1565,15 @@ watch(queueSignature, async () => {
               >
                 HARI INI
               </button>
-            </div>
 
-            <p class="history-filter-hint">
-              {{ isToday ? 'Menampilkan nota hari ini.' : `Nota hari ${dateLabel}.` }}
-            </p>
+              <select id="history-status" v-model="historyStatusFilter" aria-label="Status aksi">
+                <option value="">Semua status</option>
+                <option value="none">Belum ada aksi</option>
+                <option value="returned">Retur</option>
+                <option value="refunded">Refund</option>
+                <option value="void">Void</option>
+              </select>
+            </div>
           </div>
 
           <!-- ==================================
@@ -2002,11 +2058,133 @@ watch(queueSignature, async () => {
           </template>
         </div>
       </div>
+      </template>
     </div>
   </div>
 </template>
 
 <style scoped>
+.lock-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pos-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pin-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: auto;
+  padding: 32px 24px;
+  width: min(360px, 90%);
+  text-align: center;
+}
+
+.pin-gate-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.pin-gate-hint {
+  margin: 0;
+  color: var(--pos-text-muted);
+  font-size: 0.9rem;
+}
+
+.pin-gate input {
+  width: 100%;
+  height: 60px;
+  box-sizing: border-box;
+  border: 1px solid var(--pos-border);
+  border-radius: 12px;
+  background: var(--pos-field-bg);
+  color: var(--pos-text);
+  font-size: 28px;
+  letter-spacing: 0.5em;
+  text-align: center;
+}
+
+.pin-gate-error {
+  margin: 0;
+  color: var(--pos-danger);
+}
+
+.pin-gate-button {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pos-accent);
+  color: var(--pos-accent-contrast);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pin-gate-button:disabled {
+  opacity: .5;
+}
+
+.transaksi-tabs {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid var(--pos-border);
+}
+
+.transaksi-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--pos-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.transaksi-tabs button.active {
+  border-bottom-color: var(--pos-accent);
+  color: var(--pos-text);
+}
+
+.tab-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pos-accent-soft);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.compact-filter .history-filter-row input[type='date'] {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.compact-filter .history-filter-row select {
+  flex: 1 1 140px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--pos-border);
+  border-radius: 8px;
+  background: var(--pos-field-bg);
+  color: var(--pos-text);
+  font: inherit;
+}
+
 .modal-overlay {
   position: fixed;
 

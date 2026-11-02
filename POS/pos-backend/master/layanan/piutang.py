@@ -252,6 +252,9 @@ def serahkan(pengguna, p):
                     if b.lokasi_id is not None:
                         ambil.buat(b.varian, b.lokasi, b.jumlah, sumber="nota_manual", referensi=n.nomor, nota_manual=n)
             p.stok_dikurangi = True
+        elif not p.stok_dikurangi and p.kasir_sync_id:
+            _kurangi_stok_kasir(p, pengguna)
+            p.stok_dikurangi = True
         p.barang_selesai, p.barang_selesai_oleh = timezone.now(), getattr(pengguna, "username", "") or ""
         p.save(update_fields=["barang_selesai", "barang_selesai_oleh", "stok_dikurangi"])
         layanan.catat(pengguna, objek="piutang", kolom="barang diambil", baru=f"{p.nomor} {p.nama}")
@@ -336,3 +339,139 @@ def wa_url(p):
     if telepon.startswith("0"):
         telepon = "62" + telepon[1:]
     return f"https://wa.me/{telepon}?text={quote(teks_tagihan(p))}"
+
+
+# ---------------------------------------------------------------------------
+# Nota DP dari tablet kasir (fase 2, 2 Nov 2026)
+# ---------------------------------------------------------------------------
+# Server kasir tidak memuat aplikasi master. Ia hanya mencatat nota DP
+# (`nota_piutang`) dan aksi kasir (`aksi_piutang`); master mengimpor dan
+# menerapkannya di sini, dipanggil penjadwal tiap menit dan saat halaman
+# piutang dibuka.
+
+
+class _Kasir:
+    """Pengguna semu untuk log: nama kasir dari PIN, bukan akun master."""
+    pk = None
+
+    def __init__(self, nama):
+        self.username = nama
+
+
+def _nama_kasir(worker_id):
+    from pos.models import Worker
+    nama = Worker.objects.filter(pk=worker_id).values_list("name", flat=True).first() if worker_id else None
+    return f"{nama or worker_id or 'kasir'} (kasir)"
+
+
+def _kurangi_stok_kasir(p, pengguna):
+    """Barang pesanan nota kasir diserahkan: stok dipotong sekarang, dicatat di riwayat stok kasir."""
+    from pos.models import Item, MutasiKasir, TransactionDetail
+    for d in TransactionDetail.objects.filter(sync_id=p.kasir_sync_id).order_by("item_name", "variant"):
+        item = Item.objects.select_for_update().filter(item_name=d.item_name, variant=d.variant).first()
+        if item is None:
+            continue
+        sebelum = item.in_stock or 0
+        item.in_stock = sebelum - d.quantity
+        item.save(update_fields=["in_stock"])
+        MutasiKasir.objects.create(sync_id=p.kasir_sync_id, transaction_id=p.nomor if p.nomor[:1] == "T" else None,
+                                   worker_id="", item_name=d.item_name, variant=d.variant, jumlah=-d.quantity,
+                                   stok_sebelum=sebelum, stok_sesudah=item.in_stock)
+
+
+def barang(p):
+    """Baris barang nota piutang (nota tulis tangan atau nota kasir), bentuk sama untuk template."""
+    if p.nota_manual_id:
+        return list(p.nota_manual.baris.all())
+    if p.kasir_sync_id:
+        from pos.models import TransactionDetail
+        return [{"item_name": d.item_name, "variant": d.variant, "jumlah": d.quantity, "harga": d.unit_price,
+                 "subtotal": d.subtotal} for d in TransactionDetail.objects.filter(sync_id=p.kasir_sync_id)
+                .order_by("item_name", "variant")]
+    return []
+
+
+def _impor_satu(n):
+    from pos.models import TransactionDetail, Transactions
+    from master.models import Toko
+    t = Transactions.objects.filter(sync_id=n.sync_id).first()
+    if t is None:
+        return None
+    baris = [(d.item_name, d.subtotal) for d in TransactionDetail.objects.filter(sync_id=n.sync_id)]
+    total = int(t.total_amount)
+    dibayar = min(int(n.dibayar), total)
+    minimal = minimal_dp(baris)
+    pelanggan = Pelanggan.objects.filter(pk=n.pelanggan_id).first() if n.pelanggan_id else None
+    if pelanggan is None and t.phone_no:
+        pelanggan = cari_pelanggan("", t.phone_no)
+    jenis_acc, catatan = "", ""
+    if dibayar < total and dibayar < minimal:
+        jenis_acc = "invoice"
+        if not (pelanggan and pelanggan.boleh_tempo):
+            catatan = f"Kasir: DP di bawah minimal {rp(minimal)} dan bukan pelanggan tempo."
+        elif pelanggan.batas_piutang is not None and sisa_berjalan(pelanggan) + (total - dibayar) > pelanggan.batas_piutang:
+            catatan = f"Kasir: melewati batas piutang {pelanggan.nama} ({rp(pelanggan.batas_piutang)})."
+    elif dibayar >= total and n.status_barang == "ambil":
+        jenis_acc = "titip"
+    tanggal = timezone.localdate(t.transaction_time)
+    jatuh_tempo = None
+    if dibayar < total:
+        jatuh_tempo = n.jatuh_tempo or tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari)
+    toko = Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.order_by("id").first()
+    pengguna = _Kasir(_nama_kasir(n.worker_id))
+    r = {"status_barang": n.status_barang, "dibayar": dibayar, "pelanggan": pelanggan,
+         "nama": (t.cust_name or (pelanggan.nama if pelanggan else "") or "Tanpa nama")[:150],
+         "telepon": (t.phone_no or (pelanggan.telepon if pelanggan else ""))[:30],
+         "jatuh_tempo": jatuh_tempo, "jenis_acc": jenis_acc, "minimal": minimal,
+         "acc_status": "menunggu" if jenis_acc else "", "acc_oleh": "", "stok_dikurangi": not n.stok_ditunda}
+    p = buat(pengguna, r, toko=toko, nomor=t.transaction_id or f"kasir {str(n.sync_id)[:8]}", tanggal=tanggal,
+             total=total, cara=n.cara if n.cara in CARA_BAYAR else "lainnya", sumber="kasir", kasir_sync_id=n.sync_id)
+    if catatan:
+        Piutang.objects.filter(pk=p.pk).update(acc_catatan=catatan[:300])
+    return p
+
+
+def _terapkan_aksi(a):
+    from pos.models import AksiPiutang
+    p = None
+    if a.piutang_id:
+        p = Piutang.objects.filter(pk=a.piutang_id).first()
+    elif a.sync_id:
+        p = Piutang.objects.filter(kasir_sync_id=a.sync_id).first()
+        if p is None:
+            return False  # nota kasir belum diimpor: coba lagi putaran berikutnya
+    pengguna = _Kasir(_nama_kasir(a.worker_id))
+    try:
+        if p is None:
+            raise Tolak("Piutang tidak ditemukan.")
+        if a.jenis == "bayar":
+            bayar(pengguna, p, jumlah=a.jumlah, cara=a.cara, catatan=a.catatan, sumber="kasir")
+        else:
+            serahkan(pengguna, p)
+        status, pesan = "diterapkan", ""
+    except Tolak as e:
+        status, pesan = "ditolak", str(e)[:300]
+    AksiPiutang.objects.filter(pk=a.pk, status="baru").update(status=status, pesan=pesan)
+    return True
+
+
+def sinkron_kasir():
+    """Impor nota DP kasir baru, batalkan piutang yang notanya di-void, terapkan aksi kasir.
+    Aman dipanggil berulang. Tanpa tabel kasir (database uji master lama): tidak melakukan apa-apa."""
+    from django.db import DatabaseError
+    try:
+        from pos.models import AksiPiutang, NotaPiutang, RefundEvent
+        sudah = Piutang.objects.filter(kasir_sync_id__isnull=False).values("kasir_sync_id")
+        baru = list(NotaPiutang.objects.exclude(sync_id__in=sudah).order_by("masuk")[:200])
+    except DatabaseError:
+        return 0
+    n = 0
+    for nota in baru:
+        with transaction.atomic():
+            if not Piutang.objects.filter(kasir_sync_id=nota.sync_id).exists() and _impor_satu(nota):
+                n += 1
+    void = RefundEvent.objects.filter(event_type="void").values("sync_id")
+    Piutang.objects.filter(kasir_sync_id__in=void, batal=False).update(batal=True)
+    for a in AksiPiutang.objects.filter(status="baru").order_by("masuk")[:200]:
+        _terapkan_aksi(a)
+    return n

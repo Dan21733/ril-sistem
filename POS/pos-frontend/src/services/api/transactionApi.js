@@ -62,8 +62,9 @@ export function fetchTransactionHistory(
     params.set('date', String(date))
   }
 
-  if (scope === 'all') {
-    params.set('scope', 'all')
+  /* 'all' (lama) atau 'akun' (menu Transaksi: nota milik pemilik PIN). */
+  if (scope && scope !== 'self') {
+    params.set('scope', String(scope))
   }
 
   /* Filter status aksi (none/void/returned/refunded) untuk peninjauan harian;

@@ -106,4 +106,23 @@ db.version(6).stores({
   catalog_meta: 'key',
 })
 
+/*
+ * Versi 7 menambah antrean aksi piutang (DP fase 2, 2026-11-02): pelunasan dan
+ * "barang diambil" yang dicatat kasir saat server tidak terjangkau. Satu baris
+ * per aksi (`aksi_id` dibuat tablet), dikirim ulang sampai server menjawab.
+ * PIN kasir ikut disimpan seperti `original_pin` nota antrean.
+ */
+db.version(7).stores({
+  device: 'id',
+  sequence_ranges: 'device_id',
+  items: '[item_name+variant]',
+  transactions: 'sync_id, sync_status, cashier_name_normalized, transaction_id',
+  payment_proofs: 'proof_id, sync_id, upload_status, [upload_status+captured_at]',
+  print_jobs: 'job_id, sync_id, status, [status+created_at]',
+  workers: '++id, pin_format, fetched_at',
+  pin_attempts: 'scope',
+  catalog_meta: 'key',
+  piutang_actions: 'aksi_id, status, created_at',
+})
+
 export default db

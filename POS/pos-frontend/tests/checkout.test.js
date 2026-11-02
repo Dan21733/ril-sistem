@@ -212,6 +212,10 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   modules.set('../utils/rupiahInput', rupiahInput)
   /* Diskon persen di keranjang (31 Okt 2026): util sungguhan, bukan tiruan. */
   modules.set('../utils/discount', await loadRealModule('../src/utils/discount.js', context))
+  /* DP fase 2 (2 Nov 2026): aturan DP sungguhan; API & antrean aksi di-stub. */
+  const piutangUtil = await loadRealModule('../src/utils/piutang.js', context)
+  modules.set('./utils/piutang', piutangUtil)
+  modules.set('../utils/piutang', piutangUtil)
   /* Aturan tutup-modal dipakai sungguhan (bukan di-stub): inilah yang
    * menentukan jalur offline tidak meninggalkan modal di langkah PIN. */
   const checkoutModal = await loadRealModule('../src/utils/checkoutModal.js', context)
@@ -300,6 +304,8 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
       listOutstandingPrintJobs: async () => structuredClone(outstandingPrintJobs),
     },
     './services/workers/workerDirectory': { refreshWorkerDirectory: async () => {} },
+    './services/api/piutangApi': { fetchDpRules: async () => ({}) },
+    './services/storage/piutangQueue': { flushPiutangActions: async () => ({}) },
     './composables/useTheme': { useTheme: () => ({}) },
     './composables/usePrinterStatus': { usePrinterStatus: () => ({ refresh: async () => {} }) },
     './composables/useServerStatus': { useServerStatus: () => ({ refresh: async () => {} }) },
@@ -1020,6 +1026,8 @@ async function historyHarness({
     },
     '../services/storage/printJobRepository': { getPrintJobsBySyncIds: bySync(jobs) },
     './LoadingSpinner.vue': { default: {} },
+    './PiutangPanel.vue': { default: {} },
+    '../services/workers/workerDirectory': { findWorkerNameByPin: async () => 'Rusdi' },
   }
   const realModules = {
     '../directives/modalFocus': await loadRealModule('../src/directives/modalFocus.js', context),
@@ -1039,7 +1047,7 @@ async function historyHarness({
   const text = await readFile(new URL('../src/components/TransactionHistory.vue', import.meta.url), 'utf8')
   const script = text.match(/<script setup>([\s\S]*?)<\/script>/)[1]
   const module = new vm.SourceTextModule(
-    `${script}\nexport { summarizeChannels, loadNotaChannels, notaChannelMap, notas, refundAmount, updateRefundAmount, openRefundForm, submitRefund, selectedNota, refundPin, refundReason, refundMethod, loadPage, openNota, loadLocalQueueRows, selectedItems, errorMessage, totalNotas, detailError, queuedCount, resendBatch, resendQueued, showCheckoutResult, retryPrint, visibleCheckoutResult, showPrintNotice, printActionsVisible, showHeaderNotices, dismissResult, dismissPrint, batchChipVisible, dismissBatch, resultChipLabel, printChipLabel, printChipText, printNoticeKey, batchChipLabel, batchChipTone, queueSignature, showQueueNotice, dismissQueue, queueNoticeKey }`,
+    `${script}\nexport { summarizeChannels, loadNotaChannels, notaChannelMap, notas, refundAmount, updateRefundAmount, openRefundForm, submitRefund, selectedNota, refundPin, refundReason, refundMethod, loadPage, openNota, loadLocalQueueRows, selectedItems, errorMessage, totalNotas, detailError, queuedCount, resendBatch, resendQueued, showCheckoutResult, retryPrint, visibleCheckoutResult, showPrintNotice, printActionsVisible, showHeaderNotices, dismissResult, dismissPrint, batchChipVisible, dismissBatch, resultChipLabel, printChipLabel, printChipText, printNoticeKey, batchChipLabel, batchChipTone, queueSignature, showQueueNotice, dismissQueue, queueNoticeKey, personPin, sessionName }`,
     { context },
   )
   await module.link((specifier) => {
@@ -1050,6 +1058,9 @@ async function historyHarness({
     }, { context })
   })
   await module.evaluate()
+  /* Menu Transaksi (2026-11-02): riwayat baru tampil setelah PIN. Tes riwayat
+     lama mulai dari sesi yang sudah terbuka; gerbang PIN diuji tersendiri. */
+  module.namespace.personPin.value = '111111'
   return {
     ...module.namespace,
     refundCalls,
@@ -1865,7 +1876,7 @@ test('history button marks unprinted notas from the device print queue', async (
   assert.equal(h.app.outstandingPrintCount.value, 0)
   assert.equal(h.app.outstandingPrintKey.value, '')
   assert.equal(h.app.historyNotice.value.hasPrintAlert, false)
-  assert.equal(h.app.historyNotice.value.title, 'Riwayat Nota')
+  assert.equal(h.app.historyNotice.value.title, 'Transaksi')
 
   /*
    * Satu nota diantar = dua pekerjaan (nota + surat jalan), tetapi satu nota.

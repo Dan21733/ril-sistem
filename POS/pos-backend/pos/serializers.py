@@ -38,8 +38,14 @@ class ItemSerializer(serializers.Serializer):
     def get_rak(self, obj):
         return getattr(obj, "rak_kode", None)
 
+    # Minimal DP khusus barang ini (persen), null = ikut bawaan toko.
+    min_dp = serializers.SerializerMethodField()
+
     def get_alias(self, obj):
         return (self.context.get("alias") or {}).get(obj.item_name, "")
+
+    def get_min_dp(self, obj):
+        return (self.context.get("min_dp") or {}).get(obj.item_name)
     stock_alert = serializers.IntegerField(allow_null=True)
 
 
@@ -162,6 +168,23 @@ class TransactionItemSerializer(serializers.Serializer):
     subtotal = serializers.IntegerField(min_value=0)
 
 
+STATUS_BARANG = ("bawa", "antar", "ambil", "pesan")
+
+
+class PiutangNotaSerializer(serializers.Serializer):
+    """DP / barang belum dibawa (rancangan DP 31 Okt 2026).
+
+    Aturan bisnis (DP minimal, pelanggan tempo, ACC) diputuskan master saat
+    nota diimpor, bukan di sini: nota yang sudah final di tablet tidak boleh
+    tertolak karena aturan itu. Server hanya memastikan angkanya masuk akal.
+    """
+
+    dibayar = serializers.IntegerField(min_value=0)
+    status_barang = serializers.ChoiceField(choices=STATUS_BARANG)
+    jatuh_tempo = serializers.DateField(required=False, allow_null=True)
+    pelanggan_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
+
 class TransactionCreateSerializer(serializers.Serializer):
     sync_id = serializers.UUIDField()
 
@@ -228,6 +251,8 @@ class TransactionCreateSerializer(serializers.Serializer):
         many=True,
         allow_empty=False
     )
+
+    piutang = PiutangNotaSerializer(required=False, allow_null=True)
 
     def validate_cust_name(self, value):
         # Kolom nullable demi kompatibilitas: antrean offline yang disegel
@@ -297,10 +322,27 @@ class TransactionCreateSerializer(serializers.Serializer):
 
         payment_amount = attrs["payment_amount"]
 
-        if payment_amount < calculated_total_amount:
+        # DP: yang dibayar sekarang (`piutang.dibayar`) menggantikan total
+        # sebagai jumlah yang harus diterima kasir hari ini.
+        piutang = attrs.get("piutang")
+        if piutang is not None:
+            if piutang["dibayar"] > calculated_total_amount:
+                raise serializers.ValidationError({
+                    "piutang": "DP tidak boleh lebih dari total nota."
+                })
+            if piutang["dibayar"] == calculated_total_amount and piutang["status_barang"] in ("bawa", "antar"):
+                attrs["piutang"] = piutang = None
+            elif not attrs.get("cust_name"):
+                raise serializers.ValidationError({
+                    "cust_name": "Nota DP / barang belum dibawa wajib ada nama pembeli."
+                })
+        harus_dibayar = piutang["dibayar"] if piutang is not None else calculated_total_amount
+
+        if payment_amount < harus_dibayar:
             raise serializers.ValidationError({
                 "payment_amount": (
                     "Jumlah bayar tidak boleh kurang dari total nota."
+                    if piutang is None else "Jumlah bayar kurang dari DP."
                 )
             })
 
@@ -309,15 +351,16 @@ class TransactionCreateSerializer(serializers.Serializer):
         # adalah tanda payload rusak, bukan penjualan sah.
         is_cash = attrs["payment_method"] == "cash"
 
-        if not is_cash and payment_amount != calculated_total_amount:
+        if not is_cash and payment_amount != harus_dibayar:
             raise serializers.ValidationError({
                 "payment_amount": (
                     "Pembayaran non-tunai harus tepat sama dengan total nota."
+                    if piutang is None else "Pembayaran non-tunai harus tepat sama dengan DP."
                 )
             })
 
         calculated_change_amount = (
-            payment_amount - calculated_total_amount
+            payment_amount - harus_dibayar
         )
 
         if attrs["item_amount"] != calculated_item_amount:

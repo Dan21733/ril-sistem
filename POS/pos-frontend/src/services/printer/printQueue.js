@@ -24,7 +24,7 @@
 import { createUuid } from '../id'
 import { buildPrintJob } from './escpos'
 import { PrintBridgeError, sendPrintJob } from './printBridge'
-import { buildDeliverySlipLines, buildReceiptLines, receiptWidthIssues } from './receipt'
+import { buildDeliverySlipLines, buildPiutangLines, buildReceiptLines, receiptWidthIssues } from './receipt'
 import { getStoreProfile } from './storeProfile'
 import {
   PRINT_STATUS,
@@ -160,6 +160,29 @@ export async function enqueueReceiptPrint({ sale, store = getStoreProfile(), job
   }
 
   return receiptJob
+}
+
+/*
+ * Struk piutang (bukti bayar / tagihan / barang diambil). Satu pekerjaan cetak
+ * biasa; `sync_id` nota asal (kalau ada) dipakai supaya riwayat cetaknya ikut
+ * nota itu.
+ */
+export async function enqueuePiutangPrint({ data, store = getStoreProfile() } = {}) {
+  if (!data) {
+    throw new Error('Pekerjaan cetak tanpa data piutang.')
+  }
+
+  return enqueueLinesJob({
+    lines: buildPiutangLines(data, store),
+    sale: {
+      sync_id: data.sync_id ?? null,
+      transaction_id: data.nomor ?? null,
+      transaction_time: data.waktu ?? new Date().toISOString(),
+      total_amount: data.jenis === 'bayar' ? Number(data.jumlah || 0) : null,
+      payment_method: data.cara ?? null,
+    },
+    kind: 'piutang',
+  })
 }
 
 export async function flushPrintJobs() {

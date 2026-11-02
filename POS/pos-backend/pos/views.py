@@ -98,7 +98,7 @@ def catat_persetujuan(sync_id, approver_id):
     """Simpan siapa yang menyetujui harga di bawah floor untuk nota ini."""
     if sync_id and approver_id:
         NotaPersetujuan.objects.get_or_create(sync_id=sync_id, defaults={"approver_worker_id": approver_id})
-from . import data_master, pengaturan
+from . import data_master, pengaturan, piutang_kasir
 from rest_framework import serializers as drf_serializers
 
 
@@ -243,8 +243,10 @@ class ItemListAPIView(ListAPIView):
             # Stok barang yang sedang dihitung (tugas hitung buta) tidak dikirim.
             items = data_master.tutup_stok(list(args[0]))
             args = (items,) + args[1:]
+            nama = {i.item_name for i in items}
             kwargs["context"] = {**self.get_serializer_context(),
-                                 "alias": data_master.alias_untuk({i.item_name for i in items})}
+                                 "alias": data_master.alias_untuk(nama),
+                                 "min_dp": piutang_kasir.min_dp_untuk(nama)}
         return super().get_serializer(*args, **kwargs)
 
     def get_queryset(self):
@@ -557,15 +559,18 @@ def _transaction_history_queryset(
 
 
 def _parse_history_scope(value):
-    """`?scope=self|all`; selain itu dibalas 400 (filter diam-diam tidak jalan
-    membuat kasir melihat nota yang bukan haknya atau sebaliknya)."""
+    """`?scope=self|all|akun`; selain itu dibalas 400 (filter diam-diam tidak jalan
+    membuat kasir melihat nota yang bukan haknya atau sebaliknya).
+
+    `akun` (menu Transaksi, 2 Nov 2026): nota milik kasir pemilik PIN di semua
+    perangkat. Hasil: "self" / "all" / "akun"."""
     text = (value or "self").strip().lower()
 
-    if text in ("self", "all"):
-        return text == "all"
+    if text in ("self", "all", "akun"):
+        return text
 
     raise ValidationError(
-        {"detail": "Parameter scope harus self atau all."}
+        {"detail": "Parameter scope harus self, all, atau akun."}
     )
 
 
@@ -609,21 +614,25 @@ class TransactionHistoryListAPIView(ListAPIView):
     pagination_class = TransactionPagination
 
     def get_queryset(self):
-        scope_all = _parse_history_scope(
+        scope = _parse_history_scope(
             self.request.query_params.get("scope")
         )
+        worker_id = None
 
-        if scope_all:
-            _verify_person_pin(self.request)
+        if scope != "self":
+            worker_id = _verify_person_pin(self.request)
 
-        return _transaction_history_queryset(
+        queryset = _transaction_history_queryset(
             self.request.user.device.device_code,
             on_date=_parse_history_date(self.request.query_params.get("date")),
-            scope_all=scope_all,
+            scope_all=scope != "self",
             refund_status=_parse_history_refund_status(
                 self.request.query_params.get("refund_status")
             ),
         )
+        if scope == "akun":
+            queryset = queryset.filter(worker_id=worker_id)
+        return queryset
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -1312,3 +1321,87 @@ class WorkerOfflineListAPIView(APIView):
                 "kunci_pin": kunci_publik(),
             }
         )
+
+# ---------------------------------------------------------------------------
+# Piutang pelanggan di tablet (DP fase 2, 2 Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+class PiutangAturanAPIView(APIView):
+    """DP minimal bawaan, jatuh tempo, dan pelanggan tempo untuk checkout DP.
+    Disimpan tablet supaya checkout DP tetap jalan offline."""
+
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(piutang_kasir.aturan())
+
+
+def _pin_kasir_atau_jawaban(request):
+    """worker_id dari X-Approver-PIN, atau Response 400/429 untuk dikembalikan."""
+    try:
+        return _verify_person_pin(request), None
+    except PinThrottled as exc:
+        response = Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        response["Retry-After"] = exc.retry_after_seconds
+        return None, response
+
+
+class PiutangDaftarAPIView(APIView):
+    """Belum lunas / ambil nanti & pesanan. Terlihat semua kasir setelah PIN."""
+
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        _, tolak = _pin_kasir_atau_jawaban(request)
+        if tolak is not None:
+            return tolak
+        tab = request.query_params.get("tab") or "belum_lunas"
+        return Response({"hasil": piutang_kasir.daftar(tab, request.query_params.get("q") or ""),
+                         "hitungan": piutang_kasir.hitungan()})
+
+
+class PiutangDetailAPIView(APIView):
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, kunci):
+        _, tolak = _pin_kasir_atau_jawaban(request)
+        if tolak is not None:
+            return tolak
+        hasil = piutang_kasir.detail(kunci)
+        if hasil is None:
+            return Response({"detail": "Nota tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(hasil)
+
+
+class PiutangAksiAPIView(APIView):
+    """Pelunasan / barang diambil dari tablet. Idempoten per `aksi_id`, jadi
+    antrean offline boleh mengirim ulang. PIN di badan permintaan (sama seperti
+    nota): yang tercatat adalah kasir pemilik PIN, bukan pilihan tablet."""
+
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        pin = str(data.get("pin") or "").strip()
+        if not pin:
+            return Response({"detail": "PIN kasir wajib."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            worker_id = _verify_pin(pin, _person_throttle_identifier(request))
+        except PinThrottled as exc:
+            response = Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            response["Retry-After"] = exc.retry_after_seconds
+            return response
+        except drf_serializers.ValidationError:
+            return Response({"detail": "PIN kasir tidak cocok."}, status=status.HTTP_400_BAD_REQUEST)
+        perangkat = getattr(request.user, "device", None)
+        try:
+            aksi, baru = piutang_kasir.catat_aksi(data, worker_id, perangkat.device_code if perangkat else "")
+        except piutang_kasir.AksiDitolak as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"aksi_id": str(aksi.aksi_id), "status": aksi.status, "pesan": aksi.pesan},
+                        status=status.HTTP_201_CREATED if baru else status.HTTP_200_OK)

@@ -23,9 +23,9 @@ test('tombol riwayat menyebut kanal yang benar saat keduanya menunggu', () => {
   assert.equal(notice.showStatuses, true)
   assert.equal(
     notice.title,
-    '2 nota belum tersinkron ke server; 3 nota hari ini belum tercetak. Buka riwayat untuk memeriksa.',
+    '2 nota belum tersinkron ke server; 3 nota hari ini belum tercetak. Buka Transaksi untuk memeriksa.',
   )
-  assert.equal(notice.ariaLabel, 'Riwayat Nota, 2 nota belum tersinkron, 3 nota hari ini belum tercetak')
+  assert.equal(notice.ariaLabel, 'Transaksi, 2 nota belum tersinkron, 3 nota hari ini belum tercetak')
 })
 
 test('antrean saja tetap memakai kalimat lama, tanpa menambah berita cetak', () => {
@@ -35,9 +35,9 @@ test('antrean saja tetap memakai kalimat lama, tanpa menambah berita cetak', () 
   assert.equal(notice.hasQueued, true)
   assert.equal(
     notice.title,
-    '1 nota belum tersinkron ke server. Buka riwayat untuk mengirim ulang.',
+    '1 nota belum tersinkron ke server. Buka Transaksi untuk mengirim ulang.',
   )
-  assert.equal(notice.ariaLabel, 'Riwayat Nota, 1 nota belum tersinkron')
+  assert.equal(notice.ariaLabel, 'Transaksi, 1 nota belum tersinkron')
 })
 
 test('cetak saja tetap memberitahu tanpa lencana antrean', () => {
@@ -48,9 +48,9 @@ test('cetak saja tetap memberitahu tanpa lencana antrean', () => {
   assert.equal(notice.showStatuses, true)
   assert.equal(
     notice.title,
-    '1 nota hari ini belum tercetak di printer. Buka riwayat untuk mencetak ulang.',
+    '1 nota hari ini belum tercetak di printer. Buka Transaksi untuk mencetak ulang.',
   )
-  assert.equal(notice.ariaLabel, 'Riwayat Nota, 1 nota hari ini belum tercetak')
+  assert.equal(notice.ariaLabel, 'Transaksi, 1 nota hari ini belum tercetak')
 })
 
 test('tanpa pekerjaan tertunda tombolnya kembali jadi tombol biasa', () => {
@@ -60,8 +60,8 @@ test('tanpa pekerjaan tertunda tombolnya kembali jadi tombol biasa', () => {
   assert.equal(notice.unprinted, 0)
   assert.equal(notice.showStatuses, false)
   assert.equal(notice.hasPrintAlert, false)
-  assert.equal(notice.title, 'Riwayat Nota')
-  assert.equal(notice.ariaLabel, 'Riwayat Nota')
+  assert.equal(notice.title, 'Transaksi')
+  assert.equal(notice.ariaLabel, 'Transaksi')
 })
 
 test('angka yang tidak masuk akal tidak pernah jadi pemberitahuan palsu', () => {
@@ -71,7 +71,7 @@ test('angka yang tidak masuk akal tidak pernah jadi pemberitahuan palsu', () => 
     assert.equal(notice.queued, 0, String(value))
     assert.equal(notice.unprinted, 0, String(value))
     assert.equal(notice.showStatuses, false, String(value))
-    assert.equal(notice.title, 'Riwayat Nota', String(value))
+    assert.equal(notice.title, 'Transaksi', String(value))
   }
 
   /* Bilangan pecahan dibulatkan ke bawah, dan angka berbentuk teks tetap jalan. */

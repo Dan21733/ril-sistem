@@ -11,6 +11,7 @@ from master.models import Pelanggan, Piutang
 
 @perlu("piutang")
 def daftar(request):
+    svc.sinkron_kasir()
     tab = request.GET.get("tab") or "belum_lunas"
     if tab not in dict(svc.TAB):
         tab = "belum_lunas"
@@ -32,6 +33,7 @@ def daftar(request):
 
 @perlu("piutang")
 def detail(request, piutang_id):
+    svc.sinkron_kasir()
     p = get_object_or_404(Piutang.objects.select_related("toko", "pelanggan", "nota_manual"), pk=piutang_id)
     hak = hak_pengguna(request.user)
     if request.method == "POST":
@@ -56,7 +58,7 @@ def detail(request, piutang_id):
     return render(request, "master/piutang_detail.html", {
         "menu": "piutang", "p": p, "pembayaran": p.pembayaran.all(), "cara": svc.CARA_BAYAR.items(),
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
-        "barang": p.nota_manual.baris.all() if p.nota_manual_id else [],
+        "barang": svc.barang(p),
         "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas),
     })
 
@@ -66,7 +68,7 @@ def cetak(request, piutang_id):
     """Tagihan selebar kertas struk (dicetak dari browser ke printer struk)."""
     p = get_object_or_404(Piutang.objects.select_related("toko", "nota_manual"), pk=piutang_id)
     return render(request, "master/piutang_cetak.html", {
-        "p": p, "pembayaran": p.pembayaran.all(), "barang": p.nota_manual.baris.all() if p.nota_manual_id else [],
+        "p": p, "pembayaran": p.pembayaran.all(), "barang": svc.barang(p),
         "sekarang": timezone.localtime()})
 
 

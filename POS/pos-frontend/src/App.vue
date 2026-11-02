@@ -34,6 +34,9 @@ import {
   summarizePrintSync,
 } from './services/printer/printQueue'
 import deviceRepository from './services/storage/deviceRepository'
+import { fetchDpRules } from './services/api/piutangApi'
+import { flushPiutangActions } from './services/storage/piutangQueue'
+import { noteDpRules } from './utils/piutang'
 import {
   getPrintJobsBySyncId,
   listOutstandingPrintJobs,
@@ -858,7 +861,29 @@ async function sealedApprover(pin) {
   return sealed ? { approver_pin: null, approver_pin_sandi: sealed } : { approver_pin: pin }
 }
 
+/*
+ * Aturan DP (persen minimal, jatuh tempo, pelanggan tempo) disalin ke
+ * perangkat, dan pelunasan/barang diambil yang tertunda dikirim. Keduanya
+ * diam-diam: gagal berarti salinan lama dan antrean tetap dipakai.
+ */
+async function refreshPiutangQuietly() {
+  try {
+    const device = await deviceRepository.getDevice()
+    if (device?.device_token) {
+      noteDpRules(await fetchDpRules(device.device_token))
+    }
+  } catch {
+    /* Offline / server lama tanpa endpoint aturan: pakai salinan lama. */
+  }
+  try {
+    await flushPiutangActions()
+  } catch {
+    /* Dicoba lagi di siklus berikutnya. */
+  }
+}
+
 async function refreshWorkerDirectoryQuietly() {
+  void refreshPiutangQuietly()
   try {
     await refreshWorkerDirectory()
   } catch {
@@ -1007,6 +1032,7 @@ onMounted(() => {
   queueFlushTimer = setInterval(() => {
     void flushProofs({ quiet: true })
     void flushPrints({ quiet: true })
+    void flushPiutangActions().catch(() => {})
     void autoSendQueue().finally(refreshClockWarning)
   }, QUEUE_FLUSH_INTERVAL_MS)
   void probeServerReachability().finally(refreshClockWarning)
@@ -1348,7 +1374,13 @@ function buildTransaction(data) {
   const itemAmount = items.reduce((sum, item) => sum + item.subtotal, 0)
   const shippingAmount = data.deliveryMethod === 'delivery' ? Number(data.shippingCost) : 0
   const totalAmount = itemAmount + shippingAmount
-  const paymentAmount = data.paymentMethod === 'cash' ? Number(data.cashReceived) : totalAmount
+  /*
+   * DP (fase 2): yang diterima hari ini adalah `piutang.dibayar`, bukan total.
+   * Kembalian tunai dihitung dari DP, sama dengan aturan server.
+   */
+  const piutang = data.piutang && typeof data.piutang === 'object' ? { ...data.piutang } : null
+  const amountDue = piutang ? Math.min(Number(piutang.dibayar), totalAmount) : totalAmount
+  const paymentAmount = data.paymentMethod === 'cash' ? Number(data.cashReceived) : amountDue
 
   return {
     sync_id: createSyncId(),
@@ -1361,8 +1393,9 @@ function buildTransaction(data) {
     total_amount: totalAmount,
     payment_method: data.paymentMethod,
     payment_amount: paymentAmount,
-    change_amount: paymentAmount - totalAmount,
+    change_amount: paymentAmount - amountDue,
     items,
+    ...(piutang ? { piutang } : {}),
   }
 }
 
@@ -1476,6 +1509,7 @@ function buildReceiptSale(transaction, data) {
     payment_method: transaction.payment_method,
     payment_amount: transaction.payment_amount,
     change_amount: transaction.change_amount,
+    ...(transaction.piutang ? { piutang: { ...transaction.piutang } } : {}),
   }
 }
 
@@ -2366,7 +2400,7 @@ onBeforeUnmount(() => {
             :aria-label="historyNotice.ariaLabel"
             @click="historyVisible = true"
           >
-            Riwayat Nota
+            Transaksi
 
             <!--
               Penanda tunggu di tombol ini (permintaan pemilik, 2026-10-09 dan

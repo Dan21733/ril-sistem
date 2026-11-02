@@ -782,6 +782,7 @@ def ikon(request, ukuran):
 @perlu_hp("piutang")
 def piutang(request):
     from master.layanan import piutang as svc
+    svc.sinkron_kasir()
     tab = request.GET.get("tab") or "belum_lunas"
     if tab not in dict(svc.TAB):
         tab = "belum_lunas"
@@ -828,5 +829,5 @@ def piutang_detail(request, piutang_id):
     return _tampil(request, "hp/piutang_detail.html", {
         "tab": "", "p": p, "pembayaran": p.pembayaran.all(), "cara": svc.CARA_BAYAR.items(),
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
-        "barang": p.nota_manual.baris.all() if p.nota_manual_id else [],
+        "barang": svc.barang(p),
         "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas)})

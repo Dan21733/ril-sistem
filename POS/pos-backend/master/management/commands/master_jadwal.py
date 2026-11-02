@@ -20,6 +20,12 @@ def satu_putaran():
     dibersihkan = karyawan.bersihkan_pin_tampil()
     karyawan.detak()
     try:
+        from master.layanan import piutang
+        piutang.sinkron_kasir()
+    except Exception:  # piutang kasir tidak boleh menghentikan pekerjaan lain
+        import logging
+        logging.getLogger(__name__).exception("Sinkron piutang kasir gagal")
+    try:
         from master.layanan import push
         push.kirim_baru()
     except Exception:  # notifikasi tidak boleh menghentikan pekerjaan lain

@@ -3,7 +3,7 @@ import datetime
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import Item, MutasiKasir, TransactionDetail, Transactions
+from .models import Item, MutasiKasir, NotaPiutang, TransactionDetail, Transactions
 from .transaction_id import build_transaction_id
 from .transaction_sync import (
     TransactionSyncConflict,
@@ -110,7 +110,7 @@ def _validate_item_price(item_data, item, lewati_floor=False):
         )
 
 
-def _process_inventory(items, lewati_harga=False, lewati_floor=False):
+def _process_inventory(items, lewati_harga=False, lewati_floor=False, kurangi_stok=True):
     """Inventory seam: lock authoritative stock rows and deduct the sale.
 
     Aturan stok (keputusan pemilik, dikunci; diterapkan 17 Okt 2026): stok
@@ -163,6 +163,10 @@ def _process_inventory(items, lewati_harga=False, lewati_floor=False):
         locked_items[item_key] = item
 
     perubahan = []
+    if not kurangi_stok:
+        # Barang "pesan dulu": harga tetap diperiksa, stok baru dipotong master
+        # saat barang diserahkan ke pelanggan.
+        return perubahan
 
     for item_key, item_data in items_by_key.items():
         item = locked_items[item_key]
@@ -295,8 +299,10 @@ def persist_transaction(transaction_data, worker_id, device_code=None, lewati_ha
                 f"Jam nota {menit} menit di depan jam server. Periksa jam tablet."
             )
 
+        piutang = transaction_data.get("piutang")
+        pesan = piutang is not None and piutang.get("status_barang") == "pesan"
         perubahan = _process_inventory(transaction_data["items"], lewati_harga=lewati_harga,
-                                       lewati_floor=lewati_floor)
+                                       lewati_floor=lewati_floor, kurangi_stok=not pesan)
 
         try:
             with transaction.atomic():
@@ -337,5 +343,17 @@ def persist_transaction(transaction_data, worker_id, device_code=None, lewati_ha
             transaction_data["items"],
         )
         _catat_mutasi(perubahan, transaction_data, worker_id)
+        if piutang is not None:
+            NotaPiutang.objects.create(
+                sync_id=created_transaction.sync_id,
+                transaction_id=created_transaction.transaction_id,
+                worker_id=str(worker_id or ""),
+                dibayar=piutang["dibayar"],
+                cara=transaction_data["payment_method"],
+                status_barang=piutang["status_barang"],
+                jatuh_tempo=piutang.get("jatuh_tempo"),
+                pelanggan_id=piutang.get("pelanggan_id"),
+                stok_ditunda=pesan,
+            )
 
         return TransactionSyncStatus.NEW, created_transaction

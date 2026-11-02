@@ -12,10 +12,18 @@ from .views import (
     DeviceRegistrationAPIView,
     DeviceTransactionSequenceAPIView,
     WorkerOfflineListAPIView,
+    PiutangAksiAPIView,
+    PiutangAturanAPIView,
+    PiutangDaftarAPIView,
+    PiutangDetailAPIView,
 )
 
 
 urlpatterns = [
+    path("piutang/aturan/", PiutangAturanAPIView.as_view(), name="piutang-aturan"),
+    path("piutang/", PiutangDaftarAPIView.as_view(), name="piutang-daftar"),
+    path("piutang/aksi/", PiutangAksiAPIView.as_view(), name="piutang-aksi"),
+    path("piutang/<str:kunci>/", PiutangDetailAPIView.as_view(), name="piutang-detail"),
     path(
         "health/",
         HealthAPIView.as_view(),

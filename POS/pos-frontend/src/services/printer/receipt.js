@@ -60,6 +60,20 @@ const PAYMENT_LABELS = {
   bank_transfer: 'TRANSFER',
 }
 
+const STATUS_BARANG_LABELS = {
+  bawa: 'DIBAWA',
+  antar: 'DIANTAR',
+  ambil: 'AMBIL NANTI DI TOKO',
+  pesan: 'PESAN DULU',
+}
+
+/* "2026-11-16" -> "16/11/26" tanpa geser zona waktu. */
+export function formatDueDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+
+  return match ? `${match[3]}/${match[2]}/${match[1].slice(-2)}` : String(value || '')
+}
+
 const FULFILLMENT_LABELS = {
   pickup: 'AMBIL SENDIRI',
   delivery: 'DIANTAR',
@@ -454,6 +468,8 @@ export function buildReceiptLines(sale, store = {}) {
    * (undefined), jadi kertas transaksi normal tidak berubah sama sekali.
    */
   const actionBanner = ACTION_BANNERS[sale.refund_status]
+    || (sale.piutang && Number(sale.piutang.dibayar || 0) < Number(sale.total_amount || 0)
+      ? ['*** NOTA DP - BELUM LUNAS ***'] : null)
 
   if (actionBanner) {
     for (const text of actionBanner) {
@@ -534,10 +550,48 @@ export function buildReceiptLines(sale, store = {}) {
 
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] || String(sale.payment_method || '').toUpperCase()
 
-  pushMoney(lines, `Bayar ${paymentLabel}`.trim(), paymentAmount)
+  /*
+   * Nota DP / barang belum dibawa (rancangan DP 2026-10-31): yang dibayar
+   * hari ini bukan total, jadi kembalian dihitung dari DP dan sisa tagihan
+   * tercetak tebal supaya pelanggan dan kasir sama-sama melihatnya.
+   */
+  const piutang = sale.piutang || null
+  const dibayar = piutang ? Number(piutang.dibayar || 0) : total
+
+  if (piutang && dibayar < total) {
+    pushMoney(lines, `DP ${paymentLabel}`.trim(), dibayar)
+  }
+
+  if (!piutang || dibayar >= total || sale.payment_method === 'cash') {
+    pushMoney(lines, `Bayar ${paymentLabel}`.trim(), paymentAmount)
+  }
 
   if (sale.payment_method === 'cash') {
-    pushMoney(lines, 'Kembali', paymentAmount - total)
+    pushMoney(lines, 'Kembali', paymentAmount - dibayar)
+  }
+
+  if (piutang) {
+    pushLine(lines, RULE_DASH)
+
+    if (dibayar < total) {
+      pushLine(lines, `${pad('SISA TAGIHAN', COLUMNS - MONEY_WIDTH)}${alignRight(rupiah(total - dibayar), MONEY_WIDTH)}`, { bold: true })
+
+      if (piutang.jatuh_tempo) {
+        pushPair(lines, 'Jatuh tempo', formatDueDate(piutang.jatuh_tempo))
+      }
+    } else {
+      pushLine(lines, 'LUNAS', { align: 'center', bold: true })
+    }
+
+    const status = STATUS_BARANG_LABELS[piutang.status_barang]
+
+    if (status) {
+      pushPair(lines, 'Barang', status)
+    }
+
+    if (piutang.status_barang === 'ambil' || piutang.status_barang === 'pesan') {
+      pushLine(lines, 'Bawa nota ini saat mengambil barang', { align: 'center' })
+    }
   }
 
   pushLine(lines, RULE_DASH)
@@ -690,4 +744,112 @@ export default {
   wrapText,
   buildReceiptLines,
   buildDeliverySlipLines,
+}
+
+/*
+ * Struk piutang (fase 2 DP): bukti pembayaran DP/pelunasan, tagihan sisa, dan
+ * bukti barang diambil — di kertas struk yang sama dengan nota (keputusan
+ * pemilik: semua cetakan di kertas struk).
+ *
+ * `data`: { jenis: 'bayar' | 'tagihan' | 'serahkan', nomor, nama, telepon,
+ *   tanggal_nota, total, dibayar_sebelum, jumlah, cara, jatuh_tempo,
+ *   status_barang, kasir, waktu, barang: [{ nama, varian, jumlah }] }
+ */
+export function buildPiutangLines(data, store = {}) {
+  assertPrintableSale(data)
+
+  const lines = []
+
+  pushCentered(lines, store.name || 'TOKO', { bold: true })
+
+  for (const detail of [store.address, store.phone]) {
+    const text = toPrinterText(detail || '').trim()
+
+    if (text) {
+      pushCentered(lines, text)
+    }
+  }
+
+  pushLine(lines, RULE_EQ)
+
+  const total = Number(data.total || 0)
+  const sebelum = Number(data.dibayar_sebelum || 0)
+  const jumlah = data.jenis === 'bayar' ? Number(data.jumlah || 0) : 0
+  const sesudah = sebelum + jumlah
+  const sisa = Math.max(0, total - sesudah)
+  const judul = {
+    bayar: sisa > 0 ? 'BUKTI PEMBAYARAN' : 'BUKTI PELUNASAN',
+    tagihan: 'TAGIHAN',
+    serahkan: 'BUKTI BARANG DIAMBIL',
+  }[data.jenis] || 'NOTA'
+
+  pushLine(lines, judul, { align: 'center', bold: true })
+  pushLine(lines, RULE_DASH)
+  pushPair(lines, LABEL_NOTA, data.nomor || '-')
+
+  if (data.tanggal_nota) {
+    pushPair(lines, 'Tgl nota', formatDueDate(data.tanggal_nota))
+  }
+
+  const stamp = formatReceiptDate(data.waktu || new Date())
+
+  if (stamp) {
+    pushPair(lines, 'Dicetak', stamp)
+  }
+
+  pushPair(lines, LABEL_CASHIER, data.kasir)
+  pushPair(lines, LABEL_CUSTOMER, data.nama)
+  pushPair(lines, LABEL_CUSTOMER_PHONE, data.telepon)
+  pushLine(lines, RULE_DASH)
+
+  const barang = Array.isArray(data.barang) ? data.barang : []
+
+  if (data.jenis === 'serahkan' && barang.length > 0) {
+    for (const item of barang) {
+      const nama = [item.nama, item.varian && item.varian !== 'N/A' ? item.varian : ''].filter(Boolean).join(' ')
+
+      for (const text of wrapText(`${nama} x${item.jumlah}`, COLUMNS)) {
+        pushLine(lines, text)
+      }
+    }
+
+    pushLine(lines, RULE_DASH)
+  }
+
+  pushMoney(lines, 'Total nota', total)
+  pushMoney(lines, 'Sudah dibayar', sebelum)
+
+  if (data.jenis === 'bayar') {
+    const paymentLabel = PAYMENT_LABELS[data.cara] || String(data.cara || '').toUpperCase()
+
+    pushMoney(lines, `Bayar ${paymentLabel}`.trim(), jumlah)
+  }
+
+  pushLine(lines, RULE_DASH)
+
+  if (sisa > 0) {
+    pushLine(lines, `${pad('SISA TAGIHAN', COLUMNS - MONEY_WIDTH)}${alignRight(rupiah(sisa), MONEY_WIDTH)}`, { bold: true })
+
+    if (data.jatuh_tempo) {
+      pushPair(lines, 'Jatuh tempo', formatDueDate(data.jatuh_tempo))
+    }
+  } else {
+    pushLine(lines, 'LUNAS', { align: 'center', bold: true })
+  }
+
+  if (data.jenis === 'serahkan') {
+    pushLine(lines, 'Barang sudah diterima pelanggan', { align: 'center' })
+    pushBlank(lines)
+    pushLine(lines, pairCells('Penerima,', 'Kasir,'))
+    pushBlank(lines)
+    pushBlank(lines)
+    pushLine(lines, pairCells('(__________)', '(__________)'))
+  } else if (STATUS_BARANG_LABELS[data.status_barang] && data.status_barang !== 'bawa') {
+    pushPair(lines, 'Barang', STATUS_BARANG_LABELS[data.status_barang])
+  }
+
+  pushLine(lines, RULE_DASH)
+  pushLine(lines, 'Terima kasih', { align: 'center' })
+
+  return lines
 }

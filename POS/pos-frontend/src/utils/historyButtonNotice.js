@@ -30,18 +30,18 @@ function toCount(value) {
 
 function noticeTitle(queued, unprinted) {
   if (queued > 0 && unprinted > 0) {
-    return `${queued} nota belum tersinkron ke server; ${unprinted} nota hari ini belum tercetak. Buka riwayat untuk memeriksa.`
+    return `${queued} nota belum tersinkron ke server; ${unprinted} nota hari ini belum tercetak. Buka Transaksi untuk memeriksa.`
   }
 
   if (queued > 0) {
-    return `${queued} nota belum tersinkron ke server. Buka riwayat untuk mengirim ulang.`
+    return `${queued} nota belum tersinkron ke server. Buka Transaksi untuk mengirim ulang.`
   }
 
   if (unprinted > 0) {
-    return `${unprinted} nota hari ini belum tercetak di printer. Buka riwayat untuk mencetak ulang.`
+    return `${unprinted} nota hari ini belum tercetak di printer. Buka Transaksi untuk mencetak ulang.`
   }
 
-  return 'Riwayat Nota'
+  return 'Transaksi'
 }
 
 function noticeAriaLabel(queued, unprinted) {
@@ -55,7 +55,7 @@ function noticeAriaLabel(queued, unprinted) {
     parts.push(`${unprinted} nota hari ini belum tercetak`)
   }
 
-  return parts.length > 0 ? `Riwayat Nota, ${parts.join(', ')}` : 'Riwayat Nota'
+  return parts.length > 0 ? `Transaksi, ${parts.join(', ')}` : 'Transaksi'
 }
 
 /*

@@ -13,6 +13,7 @@ import { DEFAULT_SUGGESTION_COUNT, suggestCashAmounts } from '../utils/cashSugge
 import { shouldCloseCheckoutModal } from '../utils/checkoutModal'
 import { PRICE_RANGE_PROBLEM, priceRangeProblem, resolveItemPrices } from '../utils/priceRange'
 import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../utils/discount'
+import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, minimalDp } from '../utils/piutang'
 import vModalFocus from '../directives/modalFocus'
 import {
   digitsOnly,
@@ -153,6 +154,27 @@ const isCustomerPhoneValid = computed(() => {
 const paymentMethod = ref('')
 
 const cashReceived = ref('')
+
+/*
+ * DP & barang belum dibawa (rancangan DP 2026-10-31, fase 2). `dpMode` = bayar
+ * sebagian; `statusBarang` 'sekarang' berarti dibawa/diantar seperti biasa.
+ * Aturan (persen minimal, jatuh tempo, pelanggan tempo) dibaca dari salinan di
+ * perangkat setiap kali modal dibuka, jadi tetap jalan offline.
+ */
+const dpMode = ref(false)
+const dpAmount = ref('')
+const statusBarang = ref('sekarang')
+const pelangganTempoId = ref('')
+const jatuhTempo = ref('')
+const aturanDp = ref(dpRules())
+
+function resetDp() {
+  dpMode.value = false
+  dpAmount.value = ''
+  statusBarang.value = 'sekarang'
+  pelangganTempoId.value = ''
+  jatuhTempo.value = ''
+}
 
 const cashierPin = ref('')
 const completing = ref(false)
@@ -339,14 +361,85 @@ const finalTotal = computed(() => {
    CHANGE
 ======================================== */
 
+/* Yang harus diterima kasir hari ini: total, atau DP kalau bayar sebagian. */
+const amountDue = computed(() => (
+  dpMode.value ? Math.min(Number(dpAmount.value || 0), finalTotal.value) : finalTotal.value
+))
+
+const dpMinimal = computed(() => minimalDp(props.cartItems, aturanDp.value.dp_minimal_persen))
+
+const dpSisa = computed(() => Math.max(0, finalTotal.value - amountDue.value))
+
+/* DP di bawah minimal: hanya boleh untuk pelanggan tempo (nota menunggu ACC pemilik). */
+const dpBelowMinimal = computed(() => dpMode.value && dpAmount.value !== '' && amountDue.value < dpMinimal.value)
+
+const dpProblem = computed(() => {
+  if (!dpMode.value) {
+    return ''
+  }
+  if (dpAmount.value === '') {
+    return 'Isi jumlah DP.'
+  }
+  if (Number(dpAmount.value) >= finalTotal.value) {
+    return 'DP sama dengan total: pilih Lunas.'
+  }
+  if (dpBelowMinimal.value && !pelangganTempoId.value) {
+    return `DP minimal ${formatPrice(dpMinimal.value)}. Kurang dari itu hanya untuk pelanggan tempo.`
+  }
+  return ''
+})
+
+const piutangPayload = computed(() => buildPiutangPayload({
+  total: finalTotal.value,
+  dpMode: dpMode.value,
+  dp: dpAmount.value,
+  statusBarang: statusBarang.value,
+  delivery: deliveryMethod.value === 'delivery',
+  pelangganId: pelangganTempoId.value,
+  jatuhTempo: jatuhTempo.value,
+}))
+
+function setDpMode(value) {
+  if (isEditingLocked.value) {
+    return
+  }
+  dpMode.value = value
+  if (value && !jatuhTempo.value) {
+    jatuhTempo.value = dueDateFrom(aturanDp.value.jatuh_tempo_hari)
+  }
+  if (value && dpAmount.value === '') {
+    dpAmount.value = String(dpMinimal.value)
+  }
+}
+
+function updateDpAmount(event) {
+  if (isEditingLocked.value) {
+    return
+  }
+  dpAmount.value = digitsOnly(event.target.value)
+}
+
+function pickPelangganTempo(event) {
+  pelangganTempoId.value = event.target.value
+  const pelanggan = aturanDp.value.pelanggan.find((c) => String(c.id) === String(event.target.value))
+  if (pelanggan) {
+    if (!customerName.value.trim()) {
+      customerName.value = pelanggan.nama
+    }
+    if (!customerPhone.value.trim() && pelanggan.telepon) {
+      customerPhone.value = pelanggan.telepon
+    }
+  }
+}
+
 const changeAmount = computed(() => {
   const received = Number(cashReceived.value || 0)
 
-  if (received < finalTotal.value) {
+  if (received < amountDue.value) {
     return 0
   }
 
-  return received - finalTotal.value
+  return received - amountDue.value
 })
 
 /* ========================================
@@ -364,11 +457,11 @@ const changeAmount = computed(() => {
 ======================================== */
 
 const suggestedCashAmounts = computed(() => {
-  if (paymentMethod.value !== 'cash' || finalTotal.value <= 0) {
+  if (paymentMethod.value !== 'cash' || amountDue.value <= 0) {
     return []
   }
 
-  return suggestCashAmounts(finalTotal.value, {
+  return suggestCashAmounts(amountDue.value, {
     max: isNarrowCashLayout.value
       ? NARROW_CASH_SUGGESTION_COUNT
       : DEFAULT_SUGGESTION_COUNT,
@@ -526,6 +619,12 @@ watch(() => props.pendingReceipt, (sale) => {
   paymentMethod.value = sale.payment_method
   cashReceived.value = String(sale.payment_amount)
   resolvedCashierName.value = sale.cashier_name || ''
+  const piutang = sale.piutang || null
+  dpMode.value = Boolean(piutang && Number(piutang.dibayar) < Number(sale.total_amount))
+  dpAmount.value = piutang ? String(piutang.dibayar) : ''
+  statusBarang.value = piutang && ['ambil', 'pesan'].includes(piutang.status_barang) ? piutang.status_barang : 'sekarang'
+  pelangganTempoId.value = piutang?.pelanggan_id ? String(piutang.pelanggan_id) : ''
+  jatuhTempo.value = piutang?.jatuh_tempo || ''
 }, { immediate: true })
 
 watch(() => props.checkoutStatus, (status, previousStatus) => {
@@ -538,6 +637,7 @@ watch(() => props.checkoutStatus, (status, previousStatus) => {
      */
     customerName.value = ''
     customerPhone.value = ''
+    resetDp()
     /*
      * Bukti sudah dikaitkan ke nota oleh App.vue, jadi fungsi ini hanya
      * mereset tampilan — record-nya tetap menunggu giliran diunggah.
@@ -556,6 +656,7 @@ watch(() => props.checkoutStatus, (status, previousStatus) => {
        */
       customerName.value = ''
       customerPhone.value = ''
+      resetDp()
       void discardUnusedTransferProof()
     }
     cashierPin.value = ''
@@ -617,6 +718,7 @@ function openConfirmation() {
 
   checkoutStep.value = STEP_ORDER
   transitionDirection.value = 'forward'
+  aturanDp.value = dpRules()
 
   showConfirmation.value = true
 }
@@ -661,7 +763,11 @@ const isPaymentStepComplete = computed(() => {
     return false
   }
 
-  if (paymentMethod.value === 'cash' && Number(cashReceived.value) < finalTotal.value) {
+  if (dpProblem.value) {
+    return false
+  }
+
+  if (paymentMethod.value === 'cash' && Number(cashReceived.value) < amountDue.value) {
     return false
   }
 
@@ -898,6 +1004,7 @@ async function completeTransaction() {
     cashReceived: paymentMethod.value === 'cash' ? Number(cashReceived.value) : 0,
     change: paymentMethod.value === 'cash' ? changeAmount.value : 0,
     total: finalTotal.value,
+    piutang: piutangPayload.value,
     proofId: transferProofId.value,
   }
   try {
@@ -1368,6 +1475,28 @@ async function completeTransaction() {
                     />
                   </div>
 
+                  <!-- Barang belum dibawa: ambil nanti di toko / pesan dulu (DP fase 2). -->
+                  <div class="field-block">
+                    <span class="field-label">Barang</span>
+                    <div class="dp-chips" role="radiogroup" aria-label="Status barang">
+                      <button
+                        v-for="opsi in STATUS_BARANG"
+                        :key="opsi.value"
+                        type="button"
+                        class="dp-chip"
+                        :class="{ selected: statusBarang === opsi.value }"
+                        role="radio"
+                        :aria-checked="statusBarang === opsi.value"
+                        :disabled="isEditingLocked"
+                        @click="statusBarang = opsi.value"
+                      >
+                        {{ opsi.label }}
+                      </button>
+                    </div>
+                    <p v-if="statusBarang === 'pesan'" class="dp-hint">Stok berkurang saat barang diserahkan.</p>
+                    <p v-else-if="statusBarang === 'ambil' && !dpMode" class="dp-hint">Lunas, barang dititip di toko: menunggu ACC pemilik.</p>
+                  </div>
+
                   <!--
                     Data pelanggan (keputusan pemilik 2026-10-14): nama wajib,
                     No. HP opsional. Selalu tampil untuk ambil maupun antar
@@ -1405,6 +1534,55 @@ async function completeTransaction() {
                 <!-- Metode bayar + pembayaran -->
 
                 <div class="checkout-pane">
+                  <p class="pane-title">Pembayaran</p>
+
+                  <div class="dp-chips dp-mode" role="radiogroup" aria-label="Lunas atau DP">
+                    <button type="button" class="dp-chip" :class="{ selected: !dpMode }" role="radio"
+                      :aria-checked="!dpMode" :disabled="isEditingLocked" @click="setDpMode(false)">Lunas</button>
+                    <button type="button" class="dp-chip" :class="{ selected: dpMode }" role="radio"
+                      :aria-checked="dpMode" :disabled="isEditingLocked" @click="setDpMode(true)">DP / bayar sebagian</button>
+                  </div>
+
+                  <div v-if="dpMode" class="dp-block">
+                    <div class="field-block">
+                      <label for="dp-amount"> DP dibayar sekarang </label>
+                      <input
+                        id="dp-amount"
+                        :value="dpAmount ? `Rp ${formatRupiahInput(dpAmount)}` : ''"
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        autocomplete="off"
+                        placeholder="Rp 0"
+                        :disabled="isEditingLocked"
+                        @keydown="preventNonNumericInput"
+                        @input="updateDpAmount"
+                      />
+                      <p class="dp-hint">
+                        Minimal {{ formatPrice(dpMinimal) }} · sisa <strong>{{ formatPrice(dpSisa) }}</strong>
+                      </p>
+                    </div>
+
+                    <div v-if="dpBelowMinimal" class="field-block">
+                      <label for="dp-tempo"> Pelanggan tempo (invoice) </label>
+                      <select id="dp-tempo" :value="pelangganTempoId" :disabled="isEditingLocked" @change="pickPelangganTempo">
+                        <option value="">Pilih pelanggan tempo…</option>
+                        <option v-for="c in aturanDp.pelanggan" :key="c.id" :value="String(c.id)">
+                          {{ c.nama }}{{ c.telepon ? ` · ${c.telepon}` : '' }}
+                        </option>
+                      </select>
+                      <p v-if="!aturanDp.pelanggan.length" class="dp-hint">Belum ada pelanggan tempo di master.</p>
+                      <p v-else-if="pelangganTempoId" class="dp-hint">Nota menunggu ACC pemilik.</p>
+                    </div>
+
+                    <div class="field-block">
+                      <label for="dp-due"> Jatuh tempo </label>
+                      <input id="dp-due" v-model="jatuhTempo" type="date" :disabled="isEditingLocked" />
+                    </div>
+
+                    <p v-if="dpProblem" class="checkout-inline-message" role="alert">{{ dpProblem }}</p>
+                  </div>
+
                   <p class="pane-title">Metode pembayaran</p>
 
                   <div class="payment-options">
@@ -1477,7 +1655,7 @@ async function completeTransaction() {
 
                     </div>
 
-                    <div v-if="Number(cashReceived) >= finalTotal" class="change-row">
+                    <div v-if="Number(cashReceived) >= amountDue" class="change-row">
                       <span> Kembalian </span>
 
                       <strong>
@@ -1541,11 +1719,15 @@ async function completeTransaction() {
                   </div>
 
                   <div class="payment-total">
-                    <span> Total Pembayaran </span>
+                    <span> {{ dpMode ? 'Dibayar sekarang' : 'Total Pembayaran' }} </span>
 
                     <strong>
-                      {{ formatPrice(finalTotal) }}
+                      {{ formatPrice(amountDue) }}
                     </strong>
+                  </div>
+                  <div v-if="dpMode" class="payment-total dp-total-note">
+                    <span> Total nota {{ formatPrice(finalTotal) }} · sisa </span>
+                    <strong>{{ formatPrice(dpSisa) }}</strong>
                   </div>
 
                   <!--
@@ -1609,10 +1791,26 @@ async function completeTransaction() {
                     </strong>
                   </div>
 
+                  <div v-if="piutangPayload && statusBarang !== 'sekarang'" class="summary-row">
+                    <span>Barang</span>
+                    <strong>{{ { ambil: 'Ambil nanti', pesan: 'Pesan dulu' }[statusBarang] }}</strong>
+                  </div>
+
                   <div class="summary-row summary-total">
                     <span>Total</span>
                     <strong>{{ formatPrice(finalTotal) }}</strong>
                   </div>
+
+                  <template v-if="dpMode">
+                    <div class="summary-row">
+                      <span>DP dibayar</span>
+                      <strong>{{ formatPrice(amountDue) }}</strong>
+                    </div>
+                    <div class="summary-row">
+                      <span>Sisa tagihan</span>
+                      <strong>{{ formatPrice(dpSisa) }}</strong>
+                    </div>
+                  </template>
                 </div>
 
                 <div class="checkout-pane">
@@ -1720,6 +1918,65 @@ async function completeTransaction() {
 </template>
 
 <style scoped>
+.dp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dp-chips.dp-mode {
+  margin-bottom: 12px;
+}
+
+.dp-chip {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--pos-border);
+  border-radius: 10px;
+  background: var(--pos-field-bg);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dp-chip.selected {
+  border-color: var(--pos-accent);
+  background: var(--pos-accent-soft);
+  color: var(--pos-text);
+}
+
+.dp-chip:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.dp-block {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--pos-surface-alt);
+}
+
+.dp-hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--pos-text-muted);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.dp-total-note {
+  font-size: 0.9rem;
+}
+
 .floor-approval {
   margin-top: 14px;
   text-align: left;
@@ -2915,7 +3172,8 @@ async function completeTransaction() {
   font-weight: 600;
 }
 
-.field-block input {
+.field-block input,
+.field-block select {
   width: 100%;
 
   height: 52px;
@@ -2937,7 +3195,8 @@ async function completeTransaction() {
   outline: none;
 }
 
-.field-block input:focus {
+.field-block input:focus,
+.field-block select:focus {
   border-color: var(--pos-accent);
   box-shadow: 0 0 0 3px var(--pos-accent-soft);
 }

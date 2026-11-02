@@ -29,6 +29,8 @@ export function mapApiItem(item = {}) {
     ...(item.rak ? { rak: String(item.rak) } : {}),
     /* Alias pencarian dari master, dipakai pencarian offline; hanya kalau ada. */
     ...(item.alias ? { alias: String(item.alias) } : {}),
+    /* Minimal DP khusus barang (persen); hanya kalau diatur di master. */
+    ...(Number.isInteger(item.min_dp) && item.min_dp > 0 ? { min_dp: item.min_dp } : {}),
   }
 }
 

@@ -390,3 +390,57 @@ class MutasiKasir(models.Model):
     class Meta:
         db_table = "mutasi_kasir"
         ordering = ["-waktu", "-id"]
+
+
+class NotaPiutang(models.Model):
+    """Nota kasir dengan DP / barang belum dibawa (rancangan DP 31 Okt 2026).
+
+    Kasir hanya mencatat faktanya. Master (layanan piutang) mengimpor baris ini
+    menjadi Piutang: menghitung DP minimal, pelanggan tempo, dan ACC.
+    `stok_ditunda`: barang "pesan dulu" belum memotong stok saat nota masuk.
+    """
+
+    sync_id = models.UUIDField(primary_key=True)
+    transaction_id = models.CharField(max_length=10, null=True, blank=True)
+    worker_id = models.CharField(max_length=5, blank=True, default="")
+    dibayar = models.IntegerField()
+    cara = models.CharField(max_length=20)
+    status_barang = models.CharField(max_length=10)
+    jatuh_tempo = models.DateField(null=True, blank=True)
+    pelanggan_id = models.IntegerField(null=True, blank=True)
+    stok_ditunda = models.BooleanField(default=False)
+    masuk = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "nota_piutang"
+
+
+class AksiPiutang(models.Model):
+    """Pelunasan / barang diambil yang dicatat kasir (ber-PIN, bisa dari antrean offline).
+
+    `aksi_id` dibuat tablet, jadi kirim ulang tidak mencatat dua kali. Master
+    menerapkannya ke Piutang (status `baru` -> `diterapkan` / `ditolak`).
+    Satu nota dirujuk lewat `piutang_id` (piutang master) atau `sync_id` (nota
+    kasir yang mungkin belum diimpor master).
+    """
+
+    JENIS = [("bayar", "Pembayaran"), ("serahkan", "Barang diambil")]
+    STATUS = [("baru", "Menunggu diproses"), ("diterapkan", "Diterapkan"), ("ditolak", "Ditolak")]
+
+    aksi_id = models.UUIDField(primary_key=True)
+    jenis = models.CharField(max_length=10, choices=JENIS)
+    piutang_id = models.IntegerField(null=True, blank=True)
+    sync_id = models.UUIDField(null=True, blank=True)
+    jumlah = models.IntegerField(default=0)
+    cara = models.CharField(max_length=20, blank=True, default="")
+    catatan = models.CharField(max_length=300, blank=True, default="")
+    worker_id = models.CharField(max_length=5)
+    device_code = models.CharField(max_length=3, blank=True, default="")
+    waktu = models.DateTimeField()
+    masuk = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=10, choices=STATUS, default="baru", db_index=True)
+    pesan = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        db_table = "aksi_piutang"
+        ordering = ["masuk"]
