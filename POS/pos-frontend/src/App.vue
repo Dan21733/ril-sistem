@@ -1950,7 +1950,8 @@ async function submitSealedTransaction(data) {
     }
 
     throw new Error('Hasil pengiriman belum diketahui.')
-  } catch {
+  } catch (error) {
+    console.error('[checkout]', error)
     if (checkoutStatus.value === 'review') {
       checkoutMessage.value = 'Penyimpanan keranjang bermasalah. Nota tetap ditahan; jangan membuat transaksi pengganti.'
       return
@@ -1988,7 +1989,9 @@ async function submitSealedTransaction(data) {
     }
     // Failed local writes/numbering must be checked before allowing another sale.
     checkoutStatus.value = 'review'
-    checkoutMessage.value = 'Nota tidak dapat disiapkan dengan aman. Buka ulang dan periksa antrean lokal; jangan membuat pengganti.'
+    // Nota belum tersegel (belum ada nomor/rekaman lokal): belum ada penjualan yang tercatat.
+    checkoutMessage.value = 'Nota belum tersimpan (' + (error?.message || 'kesalahan tidak dikenal')
+      + '). Tutup lalu buka ulang aplikasi kasir, cek antrean nota, lalu ulangi bila nota belum ada.'
   } finally {
     clearTimeout(timer)
   }

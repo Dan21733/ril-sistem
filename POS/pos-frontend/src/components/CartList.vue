@@ -548,6 +548,16 @@ watch(() => props.checkoutStatus, (status, previousStatus) => {
     if (status === 'pending' || status === 'unknown' || status === 'syncing') {
       return
     }
+    if (status === 'idle' && ['submitting', 'restoring'].includes(previousStatus)) {
+      /*
+       * Jalur offline: nota (beserta buktinya) sudah masuk antrean dan
+       * keranjang dilepas. Tampilan bukti dikosongkan supaya penjualan
+       * transfer berikutnya memakai foto dan bukti baru, bukan bukti nota tadi.
+       */
+      customerName.value = ''
+      customerPhone.value = ''
+      void discardUnusedTransferProof()
+    }
     cashierPin.value = ''
     /*
      * Keputusan menutup modal ada di satu tempat (`utils/checkoutModal.js`) —
@@ -807,15 +817,22 @@ async function updateTransferProof(event) {
      * `proof_id` baru. Selama belum terunggah, mengganti foto cukup memperbarui
      * record yang sama supaya satu nota tidak punya dua bukti kembar.
      */
-    const proofId =
-      previous && previous.upload_status !== 'uploaded' ? previous.proof_id : createUuid()
+    /*
+     * Bukti yang sudah menempel pada nota lain (mis. nota sebelumnya masuk
+     * antrean offline) tidak boleh dipakai ulang: fotonya akan menimpa bukti
+     * nota itu dan checkout ini ditolak "sudah dipakai nota lain"
+     * (dilaporkan pemilik 2 Nov 2026). Hanya bukti yang belum punya nota yang
+     * diperbarui di tempat.
+     */
+    const reusable = previous && !previous.sync_id && previous.upload_status !== 'uploaded'
+    const proofId = reusable ? previous.proof_id : createUuid()
     const now = new Date().toISOString()
 
     await savePaymentProof({
-      ...previous,
+      ...(reusable ? previous : {}),
       proof_id: proofId,
-      sync_id: previous?.sync_id || null,
-      transaction_id: previous?.transaction_id || null,
+      sync_id: null,
+      transaction_id: null,
       blob: compressed.blob,
       content_type: compressed.contentType,
       byte_size: compressed.byteSize,
@@ -824,8 +841,8 @@ async function updateTransferProof(event) {
       /* `false` = berkas diteruskan apa adanya (KEPUTUSAN-8). */
       recompressed: compressed.reencoded,
       captured_at: now,
-      created_at: previous?.created_at || now,
-      upload_status: previous?.sync_id ? 'pending' : 'captured',
+      created_at: (reusable && previous.created_at) || now,
+      upload_status: 'captured',
       upload_attempts: 0,
       last_attempt_at: null,
       next_attempt_at: null,
@@ -1104,8 +1121,8 @@ async function completeTransaction() {
         <span v-if="checkoutStatus !== 'success' && checkoutMessage">
           {{ checkoutMessage }}
         </span>
-        <span v-if="checkoutStatus === 'conflict' || checkoutStatus === 'review'
-          || (checkoutStatus === 'error' && pendingReceipt)">
+        <span v-if="(checkoutStatus === 'conflict' || checkoutStatus === 'review'
+          || checkoutStatus === 'error') && pendingReceipt">
           Jangan kirim ulang. Nota dan bukti tetap tersimpan; minta penanggung jawab memeriksa sebelum membuat transaksi baru.
         </span>
         <span v-if="checkoutStatus !== 'success' && checkoutResult?.transaction_id">
