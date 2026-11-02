@@ -225,7 +225,10 @@ function loadMore() {
             <span class="product-info">
               <span class="product-name">{{ productLabel(item) }}</span>
               <!-- Letak barang (kode rak dari master), kalau sudah diisi. -->
-              <span v-if="item.rak" class="product-rak">Rak {{ item.rak }}</span>
+              <span v-if="item.rak || item.pemilik_nama" class="product-rak">
+                <span v-if="item.pemilik_nama" class="product-owner">{{ item.pemilik_nama }}</span>
+                <template v-if="item.rak">Rak {{ item.rak }}</template>
+              </span>
             </span>
 
             <!--
@@ -380,6 +383,17 @@ function loadMore() {
 .product-item[aria-disabled='true'] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.product-owner {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--pos-accent-soft);
+  color: var(--pos-text);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .product-rak {

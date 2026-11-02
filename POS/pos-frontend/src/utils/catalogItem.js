@@ -31,6 +31,10 @@ export function mapApiItem(item = {}) {
     ...(item.alias ? { alias: String(item.alias) } : {}),
     /* Minimal DP khusus barang (persen); hanya kalau diatur di master. */
     ...(Number.isInteger(item.min_dp) && item.min_dp > 0 ? { min_dp: item.min_dp } : {}),
+    /* Barang titipan (brand): pemilik barang, untuk label dan pemecahan nota. */
+    ...(item.pemilik && Number.isInteger(item.pemilik.id)
+      ? { pemilik_id: item.pemilik.id, pemilik_nama: String(item.pemilik.nama || '') }
+      : {}),
   }
 }
 

@@ -216,6 +216,9 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   const piutangUtil = await loadRealModule('../src/utils/piutang.js', context)
   modules.set('./utils/piutang', piutangUtil)
   modules.set('../utils/piutang', piutangUtil)
+  const pecahNota = await loadRealModule('../src/utils/pecahNota.js', context)
+  modules.set('./utils/pecahNota', pecahNota)
+  modules.set('../utils/pecahNota', pecahNota)
   /* Aturan tutup-modal dipakai sungguhan (bukan di-stub): inilah yang
    * menentukan jalur offline tidak meninggalkan modal di langkah PIN. */
   const checkoutModal = await loadRealModule('../src/utils/checkoutModal.js', context)
@@ -440,6 +443,52 @@ test('matched PIN still seals and prints while the server is unreachable', async
   /* Nota final lokal dicetak tanpa menunggu jaringan. */
   assert.equal(h.printed.length, 1)
   assert.equal(h.pinResets(), 1)
+})
+
+/*
+ * Titipan fase 2 (2026-11-02): keranjang campur barang toko + barang titipan
+ * dibayar sekali lalu dipecah satu nota per pemilik, nomor ikut urutan tablet.
+ */
+test('keranjang campur titipan dipecah jadi dua nota bernomor urut', async () => {
+  const h = await harness()
+  h.app.cart.value = [
+    { item_name: 'Item', variant: 'Default', quantity: 1, unit_price: 100, price: 100 },
+    { item_name: 'Kloset', variant: 'CW1', quantity: 2, unit_price: 50, price: 50, pemilik_id: 7, pemilik_nama: 'DB X Brand' },
+  ]
+  h.setServerUp(false)
+  await h.app.completeTransaction({ ...checkout, cashReceived: 250 })
+  const rows = h.rows()
+  assert.equal(rows.length, 2)
+  assert.equal(h.sequenceConsumed(), 2)
+  const [toko, brand] = rows
+  assert.deepEqual([toko.payload.total_amount, brand.payload.total_amount], [110, 100])
+  assert.equal(brand.payload.toko_id, 7)
+  assert.equal(toko.payload.toko_id, undefined)
+  assert.equal(toko.payload.grup_id, brand.payload.grup_id)
+  /* Uang dibayar sekali: kembalian seluruhnya di nota pertama, nota brand pas. */
+  assert.deepEqual([toko.payload.payment_amount, toko.payload.change_amount], [150, 40])
+  assert.deepEqual([brand.payload.payment_amount, brand.payload.change_amount], [100, 0])
+  assert.deepEqual(toko.group_sync_ids, [brand.sync_id])
+  assert.equal(brand.original_pin, checkout.pin)
+  assert.equal(brand.sync_status, 'draft')
+  /* Payload ke server tidak membawa kop/rekap cetak; struk yang membawanya. */
+  assert.equal(toko.payload.gabungan, undefined)
+  assert.equal(brand.receipt_sale.toko.nama, 'DB X Brand')
+  assert.deepEqual(brand.receipt_sale.gabungan.nota, [toko.transaction_id, brand.transaction_id])
+  /* Dua struk keluar, dan keranjang hanya memegang nota pertama. */
+  assert.equal(h.printed.length, 2)
+})
+
+test('keranjang campur titipan tidak boleh DP', async () => {
+  const h = await harness()
+  h.app.cart.value = [
+    { item_name: 'Item', variant: 'Default', quantity: 1, unit_price: 100, price: 100 },
+    { item_name: 'Kloset', variant: 'CW1', quantity: 1, unit_price: 50, price: 50, pemilik_id: 7, pemilik_nama: 'DB X Brand' },
+  ]
+  await h.app.completeTransaction({ ...checkout, piutang: { dibayar: 50, status_barang: 'antar' } })
+  assert.equal(h.rows().length, 0)
+  assert.equal(h.sequenceConsumed(), 0)
+  assert.equal(h.app.checkoutStatus.value, 'error')
 })
 
 test('local PIN cooldown holds the next attempt before numbering or storage', async () => {

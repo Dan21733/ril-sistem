@@ -217,13 +217,15 @@ def hitung(toko, dari, sampai):
     selesai = timezone.make_aware(datetime.combine(sampai + timedelta(days=1), time.min), zona)
     milik = set(ItemInfo.objects.filter(toko=toko).values_list("item_name", flat=True))
     utama = toko.titip_di
-    _, baris = svc_laporan.ambil(mulai, selesai, toko=utama, potong_titipan=False)
+    # Semua nota kasir (nota toko pemegang kasir dan nota yang sudah dipecah atas nama
+    # toko titipan): yang dihitung barangnya, bukan pemilik notanya.
+    _, baris = svc_laporan.ambil(mulai, selesai, toko=utama, potong_titipan=False, pisah_titipan=False)
     baris = [b for b in baris if b["item_name"] in milik]
     if utama:
         # Nota tulis tangan yang dicatat langsung atas nama toko titipan juga dihitung.
         _, manual = svc_laporan.ambil(mulai, selesai, toko=toko, sumber="manual", potong_titipan=False)
         baris += [b for b in manual if b["item_name"] in milik]
-    kembali = svc_laporan.ambil_kembali(mulai, selesai, toko=utama) if utama else []
+    kembali = svc_laporan.ambil_kembali(mulai, selesai, toko=utama, pisah_titipan=False) if utama else []
 
     # Harga di nota asal untuk barang yang diretur.
     asal_sync = {k["sync_id"] for k in kembali}

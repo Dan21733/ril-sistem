@@ -145,15 +145,20 @@ export async function enqueueReceiptPrint({ sale, store = getStoreProfile(), job
     throw new Error('Pekerjaan cetak tanpa data nota.')
   }
 
+  /* Nota toko titipan (keranjang campur yang dipecah) memakai kop toko itu. */
+  const kop = sale.toko
+    ? { ...store, name: sale.toko.nama || store.name, address: sale.toko.alamat || '', phone: sale.toko.telepon || '' }
+    : store
+
   const receiptJob = await enqueueLinesJob({
-    lines: buildReceiptLines(sale, store),
+    lines: buildReceiptLines(sale, kop),
     sale,
     jobId,
   })
 
   if (sale.fulfillment === 'delivery') {
     await enqueueLinesJob({
-      lines: buildDeliverySlipLines(sale, store),
+      lines: buildDeliverySlipLines(sale, kop),
       sale,
       kind: 'nota-antaran',
     })

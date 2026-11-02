@@ -44,13 +44,14 @@ export function dpRules() {
         dp_minimal_persen: Number(data.dp_minimal_persen) || BAWAAN.dp_minimal_persen,
         jatuh_tempo_hari: Number(data.jatuh_tempo_hari) || BAWAAN.jatuh_tempo_hari,
         pelanggan: Array.isArray(data.pelanggan) ? data.pelanggan : [],
+        toko_titipan: Array.isArray(data.toko_titipan) ? data.toko_titipan : [],
       }
     }
   } catch {
     /* Salinan rusak: pakai bawaan. */
   }
 
-  return { ...BAWAAN, pelanggan: [] }
+  return { ...BAWAAN, pelanggan: [], toko_titipan: [] }
 }
 
 export function noteDpRules(data) {
@@ -66,6 +67,13 @@ export function noteDpRules(data) {
         id: c.id,
         nama: String(c.nama || ''),
         telepon: String(c.telepon || ''),
+      })),
+      /* Kop struk toko titipan (brand) untuk nota yang dipecah. */
+      toko_titipan: (Array.isArray(data.toko_titipan) ? data.toko_titipan : []).map((t) => ({
+        id: t.id,
+        nama: String(t.nama || ''),
+        alamat: String(t.alamat || ''),
+        telepon: String(t.telepon || ''),
       })),
     }))
   } catch {

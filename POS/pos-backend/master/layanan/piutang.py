@@ -417,7 +417,10 @@ def _impor_satu(n):
     jatuh_tempo = None
     if dibayar < total:
         jatuh_tempo = n.jatuh_tempo or tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari)
-    toko = Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.order_by("id").first()
+    from pos.models import NotaToko
+    milik = NotaToko.objects.filter(sync_id=n.sync_id).values_list("toko_id", flat=True).first()
+    toko = (Toko.objects.filter(pk=milik).first() if milik else None) \
+        or Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.order_by("id").first()
     pengguna = _Kasir(_nama_kasir(n.worker_id))
     r = {"status_barang": n.status_barang, "dibayar": dibayar, "pelanggan": pelanggan,
          "nama": (t.cust_name or (pelanggan.nama if pelanggan else "") or "Tanpa nama")[:150],

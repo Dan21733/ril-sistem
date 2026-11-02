@@ -562,12 +562,31 @@ export function buildReceiptLines(sale, store = {}) {
     pushMoney(lines, `DP ${paymentLabel}`.trim(), dibayar)
   }
 
-  if (!piutang || dibayar >= total || sale.payment_method === 'cash') {
-    pushMoney(lines, `Bayar ${paymentLabel}`.trim(), paymentAmount)
-  }
+  /*
+   * Keranjang campur yang dipecah per pemilik barang (titipan fase 2): uang
+   * dibayar sekali untuk semua nota, jadi tiap struk menulis nota pasangannya
+   * dan rekap pembayaran gabungannya, bukan angka bayar per nota.
+   */
+  const gabungan = sale.gabungan || null
 
-  if (sale.payment_method === 'cash') {
-    pushMoney(lines, 'Kembali', paymentAmount - dibayar)
+  if (gabungan) {
+    const lain = (gabungan.nota || []).filter((nomor) => nomor !== sale.transaction_id)
+
+    pushPair(lines, 'Dibayar bersama', lain.join(', '))
+    pushMoney(lines, 'Total semua nota', gabungan.total)
+    pushMoney(lines, `Bayar ${paymentLabel}`.trim(), gabungan.diterima)
+
+    if (sale.payment_method === 'cash') {
+      pushMoney(lines, 'Kembali', gabungan.kembali)
+    }
+  } else {
+    if (!piutang || dibayar >= total || sale.payment_method === 'cash') {
+      pushMoney(lines, `Bayar ${paymentLabel}`.trim(), paymentAmount)
+    }
+
+    if (sale.payment_method === 'cash') {
+      pushMoney(lines, 'Kembali', paymentAmount - dibayar)
+    }
   }
 
   if (piutang) {

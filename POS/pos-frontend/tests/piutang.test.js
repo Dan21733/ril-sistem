@@ -116,3 +116,33 @@ test('struk pelunasan dan tagihan', async () => {
   assert.ok(tagihan.some((t) => t.startsWith('SISA TAGIHAN') && t.trim().endsWith('820.000')))
   assert.equal(receiptWidthIssues(tagihanLines).length, 0)
 })
+
+test('struk nota pecahan memakai rekap bayar gabungan', async () => {
+  const { buildReceiptLines } = (await loadReceipt()).namespace
+  const isi = teks(buildReceiptLines({
+    transaction_id: 'T01-000126', transaction_time: '2026-11-02T10:00:00+07:00', fulfillment: 'pickup',
+    items: [{ item_name: 'Kloset', variant: 'CW1', quantity: 1, unit_price: 67500, discount: 0, subtotal: 67500 }],
+    total_amount: 67500, payment_method: 'cash', payment_amount: 67500, change_amount: 0,
+    gabungan: { nota: ['T01-000125', 'T01-000126'], total: 167500, diterima: 200000, kembali: 32500 },
+  }, { name: 'DB X Brand' }))
+  assert.equal(isi[0].trim(), 'DB X Brand')
+  assert.ok(isi.some((t) => t.startsWith('Dibayar bersama') && t.endsWith('T01-000125')))
+  assert.ok(isi.some((t) => t.startsWith('Total semua nota') && t.trim().endsWith('167.500')))
+  assert.ok(isi.some((t) => t.startsWith('Kembali') && t.trim().endsWith('32.500')))
+})
+
+test('pecah keranjang per pemilik dan bagi pembayaran', async () => {
+  const { groupByOwner, splitPayment } = await import('../src/utils/pecahNota.js')
+  const groups = groupByOwner([
+    { item_name: 'A', pemilik_id: 7, pemilik_nama: 'Brand' },
+    { item_name: 'B' },
+    { item_name: 'C', pemilik_id: 7 },
+  ])
+  assert.deepEqual(groups.map((g) => [g.owner, g.items.length]), [[null, 1], [7, 2]])
+  assert.deepEqual(splitPayment([110, 100], { method: 'cash', cashReceived: 250 }), [
+    { payment: 150, change: 40 }, { payment: 100, change: 0 },
+  ])
+  assert.deepEqual(splitPayment([110, 100], { method: 'edc' }), [
+    { payment: 110, change: 0 }, { payment: 100, change: 0 },
+  ])
+})

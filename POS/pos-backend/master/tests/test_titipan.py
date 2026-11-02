@@ -261,3 +261,30 @@ class TitipanTest(Dasar):
         # Barang toko sendiri tetap diperiksa.
         Item.objects.filter(item_name="Palu", variant="Kecil").update(cost_amount=0)
         self.assertTrue(aturan["saring"](Item.objects.filter(item_name="Palu")).exists())
+
+    # ---- tahap 2: nota kasir dipecah per pemilik barang ----
+
+    def test_nota_dipecah_masuk_laporan_toko_masing_masing_dan_setoran_tetap(self):
+        from pos.models import NotaToko
+        from master.layanan import laporan
+        titipan.simpan_syarat(self.admin, self.info("Kloset Brand", "CW1"), potongan="10", diskon_maks="10",
+                              berlaku_mulai=timezone.localdate() - timedelta(days=5))
+        grup = uuid.uuid4()
+        sendiri = self._jual("Palu", "Kecil", 2, 1500)
+        brand = self._jual("Kloset Brand", "CW1", 1, 67500)
+        NotaToko.objects.create(sync_id=sendiri, grup_id=grup)
+        NotaToko.objects.create(sync_id=brand, toko_id=self.brand.id, grup_id=grup)
+        mulai, selesai = laporan.rentang(timezone.localdate(), timezone.localdate())
+        nota_t1, _ = laporan.ambil(mulai, selesai, toko=self.t1)
+        nota_b, _ = laporan.ambil(mulai, selesai, toko=self.brand)
+        self.assertIn(sendiri, {n["sync_id"] for n in nota_t1})
+        self.assertNotIn(brand, {n["sync_id"] for n in nota_t1})
+        self.assertEqual({n["sync_id"] for n in nota_b}, {brand})
+        h = titipan.hitung(self.brand, timezone.localdate(), timezone.localdate())
+        self.assertEqual((h["total"]["jual"], h["total"]["disetor"]), (67500, 60750))
+
+    def test_katalog_kasir_membawa_pemilik_dan_kop_toko_titipan(self):
+        from pos import piutang_kasir
+        self.assertEqual(piutang_kasir.pemilik_untuk({"Kloset Brand", "Palu"}),
+                         {"Kloset Brand": {"id": self.brand.id, "nama": "DB X Brand"}})
+        self.assertEqual([t["nama"] for t in piutang_kasir.toko_titipan()], ["DB X Brand"])

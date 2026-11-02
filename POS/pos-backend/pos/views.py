@@ -246,7 +246,8 @@ class ItemListAPIView(ListAPIView):
             nama = {i.item_name for i in items}
             kwargs["context"] = {**self.get_serializer_context(),
                                  "alias": data_master.alias_untuk(nama),
-                                 "min_dp": piutang_kasir.min_dp_untuk(nama)}
+                                 "min_dp": piutang_kasir.min_dp_untuk(nama),
+                                 "pemilik": piutang_kasir.pemilik_untuk(nama)}
         return super().get_serializer(*args, **kwargs)
 
     def get_queryset(self):

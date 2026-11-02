@@ -44,6 +44,12 @@ class ItemSerializer(serializers.Serializer):
     def get_alias(self, obj):
         return (self.context.get("alias") or {}).get(obj.item_name, "")
 
+    # Pemilik barang titipan (brand): {"id", "nama"}; null = barang toko sendiri.
+    pemilik = serializers.SerializerMethodField()
+
+    def get_pemilik(self, obj):
+        return (self.context.get("pemilik") or {}).get(obj.item_name)
+
     def get_min_dp(self, obj):
         return (self.context.get("min_dp") or {}).get(obj.item_name)
     stock_alert = serializers.IntegerField(allow_null=True)
@@ -253,6 +259,11 @@ class TransactionCreateSerializer(serializers.Serializer):
     )
 
     piutang = PiutangNotaSerializer(required=False, allow_null=True)
+
+    # Titipan fase 2: nota milik toko titipan (brand) dan grup bayar bersama
+    # untuk keranjang campur yang dipecah tablet. Kosong = toko pemegang kasir.
+    toko_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    grup_id = serializers.UUIDField(required=False, allow_null=True)
 
     def validate_cust_name(self, value):
         # Kolom nullable demi kompatibilitas: antrean offline yang disegel

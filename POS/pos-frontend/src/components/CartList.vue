@@ -14,6 +14,7 @@ import { shouldCloseCheckoutModal } from '../utils/checkoutModal'
 import { PRICE_RANGE_PROBLEM, priceRangeProblem, resolveItemPrices } from '../utils/priceRange'
 import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../utils/discount'
 import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, minimalDp } from '../utils/piutang'
+import { groupByOwner } from '../utils/pecahNota'
 import vModalFocus from '../directives/modalFocus'
 import {
   digitsOnly,
@@ -167,6 +168,23 @@ const statusBarang = ref('sekarang')
 const pelangganTempoId = ref('')
 const jatuhTempo = ref('')
 const aturanDp = ref(dpRules())
+
+/*
+ * Keranjang campur barang toko + barang titipan dipecah jadi beberapa nota
+ * (titipan fase 2). Keputusan pemilik 2026-11-02: keranjang campur tidak
+ * boleh DP dan barangnya dibawa/diantar sekarang.
+ */
+const ownerGroups = computed(() => groupByOwner(props.cartItems))
+const isMixedCart = computed(() => ownerGroups.value.length > 1)
+const mixedOwnerNames = computed(() => ownerGroups.value
+  .filter((group) => group.owner !== null).map((group) => group.nama).join(', '))
+
+watch(isMixedCart, (mixed) => {
+  if (mixed) {
+    dpMode.value = false
+    statusBarang.value = 'sekarang'
+  }
+})
 
 function resetDp() {
   dpMode.value = false
@@ -1067,6 +1085,7 @@ async function completeTransaction() {
           <h3>
             {{ item.item_name }}
             <span v-if="item.variant && item.variant !== 'N/A'" class="cart-item-variant">{{ item.variant }}</span>
+            <span v-if="item.pemilik_nama" class="cart-item-owner">{{ item.pemilik_nama }}</span>
           </h3>
 
           <strong class="cart-item-total">
@@ -1487,7 +1506,7 @@ async function completeTransaction() {
                         :class="{ selected: statusBarang === opsi.value }"
                         role="radio"
                         :aria-checked="statusBarang === opsi.value"
-                        :disabled="isEditingLocked"
+                        :disabled="isEditingLocked || (isMixedCart && opsi.value !== 'sekarang')"
                         @click="statusBarang = opsi.value"
                       >
                         {{ opsi.label }}
@@ -1540,8 +1559,13 @@ async function completeTransaction() {
                     <button type="button" class="dp-chip" :class="{ selected: !dpMode }" role="radio"
                       :aria-checked="!dpMode" :disabled="isEditingLocked" @click="setDpMode(false)">Lunas</button>
                     <button type="button" class="dp-chip" :class="{ selected: dpMode }" role="radio"
-                      :aria-checked="dpMode" :disabled="isEditingLocked" @click="setDpMode(true)">DP / bayar sebagian</button>
+                      :aria-checked="dpMode" :disabled="isEditingLocked || isMixedCart" @click="setDpMode(true)">DP / bayar sebagian</button>
                   </div>
+
+                  <p v-if="isMixedCart" class="dp-hint mixed-note">
+                    Keranjang campur dengan barang {{ mixedOwnerNames }}: dibayar sekali, dicetak jadi
+                    {{ ownerGroups.length }} nota. Harus lunas dan barang dibawa/diantar sekarang.
+                  </p>
 
                   <div v-if="dpMode" class="dp-block">
                     <div class="field-block">
@@ -1918,6 +1942,17 @@ async function completeTransaction() {
 </template>
 
 <style scoped>
+.cart-item-owner {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--pos-accent-soft);
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .dp-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1971,6 +2006,14 @@ async function completeTransaction() {
   display: block;
   margin-bottom: 6px;
   font-weight: 600;
+}
+
+.mixed-note {
+  margin: -4px 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--pos-warning-bg);
+  color: var(--pos-warning-text);
 }
 
 .dp-total-note {

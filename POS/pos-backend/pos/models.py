@@ -444,3 +444,20 @@ class AksiPiutang(models.Model):
     class Meta:
         db_table = "aksi_piutang"
         ordering = ["masuk"]
+
+
+class NotaToko(models.Model):
+    """Nota kasir milik toko titipan (brand), bukan toko pemegang kasir.
+
+    Keranjang campur dipecah tablet menjadi beberapa nota (satu per pemilik
+    barang) yang dibayar sekaligus; `grup_id` menyatukan nota-nota itu. Nota
+    tanpa baris ini milik toko pemegang kasir (perilaku lama).
+    """
+
+    sync_id = models.UUIDField(primary_key=True)
+    toko_id = models.IntegerField(null=True, blank=True, db_index=True)
+    grup_id = models.UUIDField(null=True, blank=True, db_index=True)
+    masuk = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "nota_toko"

@@ -48,7 +48,8 @@ export async function saveTransaction(transaction) {
         upload_status: proof.upload_status === 'uploaded' ? 'uploaded' : 'pending',
         updated_at: new Date().toISOString(),
       })
-    } else if (transaction.payload.payment_method === 'bank_transfer') {
+    } else if (transaction.payload.payment_method === 'bank_transfer' && !transaction.proof_shared) {
+      /* `proof_shared`: nota pecahan keranjang campur; buktinya ada di nota pertama grupnya. */
       throw new Error('Bukti transfer wajib tersimpan sebelum nota dibuat.')
     }
 

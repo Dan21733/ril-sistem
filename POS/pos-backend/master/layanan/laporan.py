@@ -97,7 +97,27 @@ def _angka(teks):
         return None
 
 
-def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None, potong_titipan=True):
+def _kasir_milik(toko):
+    """Toko itu memegang nota kasir? Toko pemegang kasir, atau toko titipan yang dijual di kasirnya."""
+    if toko is None or toko.stok_di_kasir:
+        return True
+    return bool(toko.titip_di_id and toko.titip_di.stok_di_kasir)
+
+
+def _saring_nota_toko(qs, toko, pisah):
+    """Nota kasir yang dipecah per pemilik (titipan fase 2): tiap toko hanya melihat notanya sendiri.
+    Nota lama (sebelum dipecah) tetap milik toko pemegang kasir."""
+    if toko is None or not pisah:
+        return qs
+    from pos.models import NotaToko
+    if toko.stok_di_kasir:
+        return qs.exclude(sync_id__in=NotaToko.objects.filter(toko_id__isnull=False).exclude(toko_id=toko.id)
+                          .values("sync_id"))
+    return qs.filter(sync_id__in=NotaToko.objects.filter(toko_id=toko.id).values("sync_id"))
+
+
+def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None, potong_titipan=True,
+          pisah_titipan=True):
     """Nota dan barisnya dalam satu periode, lengkap dengan modal dan laba per baris.
 
     toko: hanya nota toko itu (nota kasir milik toko yang memegang stok kasir).
@@ -105,8 +125,9 @@ def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None,
     potong_titipan: baris barang titipan memakai potongan toko sebagai laba
     (modal = bagian yang disetor ke pemilik barang).
     """
-    nota_k, baris_k = ([], []) if (sumber == "manual" or (toko and not toko.stok_di_kasir)) else \
-        _ambil_kasir(mulai, selesai, kasir=kasir, metode=metode, perangkat=perangkat)
+    pakai_kasir = sumber != "manual" and (_kasir_milik(toko) if pisah_titipan else (toko is None or toko.stok_di_kasir))
+    nota_k, baris_k = _ambil_kasir(mulai, selesai, kasir=kasir, metode=metode, perangkat=perangkat,
+                                   toko=toko if pisah_titipan else None) if pakai_kasir else ([], [])
     nota_m, baris_m = ([], []) if (sumber == "kasir" or kasir or perangkat) else \
         _ambil_manual(mulai, selesai, metode=metode, toko=toko)
     nota = sorted(nota_k + nota_m, key=lambda n: n["transaction_time"], reverse=True)
@@ -218,8 +239,9 @@ def _baris_kasir(qs_nota, per_id):
     return baris
 
 
-def _ambil_kasir(mulai, selesai, *, kasir=None, metode=None, perangkat=None):
-    qs = Transactions.objects.filter(transaction_time__gte=mulai, transaction_time__lt=selesai)
+def _ambil_kasir(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None):
+    qs = _saring_nota_toko(Transactions.objects.filter(transaction_time__gte=mulai, transaction_time__lt=selesai),
+                           toko, True)
     if kasir:
         qs = qs.filter(worker_id=kasir)
     if metode:
@@ -262,7 +284,8 @@ def _ambil_kasir(mulai, selesai, *, kasir=None, metode=None, perangkat=None):
     return nota, baris
 
 
-def ambil_kembali(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None):
+def ambil_kembali(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None, sumber=None,
+                  pisah_titipan=True):
     """Refund, retur, dan void yang DICATAT dalam periode (QA 18 Okt 2026).
 
     Dihitung pada tanggal kejadiannya, bukan tanggal nota asal, supaya laporan
@@ -277,9 +300,12 @@ def ambil_kembali(mulai, selesai, *, kasir=None, metode=None, perangkat=None, to
     from master.models import PenerimaanReturBaris
     from pos.models import RefundEvent, RefundEventDetail
 
-    if sumber == "manual" or (toko and not toko.stok_di_kasir) or not retur_jual.tersedia():
+    milik = _kasir_milik(toko) if pisah_titipan else (toko is None or toko.stok_di_kasir)
+    if sumber == "manual" or not milik or not retur_jual.tersedia():
         return []
     qs = RefundEvent.objects.filter(created_at__gte=mulai, created_at__lt=selesai)
+    if pisah_titipan and toko is not None:
+        qs = qs.filter(sync_id__in=_saring_nota_toko(Transactions.objects.all(), toko, True).values("sync_id"))
     if metode:
         qs = qs.filter(refund_method=metode)
     events = list(qs.order_by("-created_at"))

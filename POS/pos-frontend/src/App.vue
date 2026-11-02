@@ -36,7 +36,8 @@ import {
 import deviceRepository from './services/storage/deviceRepository'
 import { fetchDpRules } from './services/api/piutangApi'
 import { flushPiutangActions } from './services/storage/piutangQueue'
-import { noteDpRules } from './utils/piutang'
+import { dpRules, noteDpRules } from './utils/piutang'
+import { groupByOwner, isMixedCart, splitPayment } from './utils/pecahNota'
 import {
   getPrintJobsBySyncId,
   listOutstandingPrintJobs,
@@ -1355,8 +1356,8 @@ async function nextTransactionId() {
   }
 }
 
-function buildTransaction(data) {
-  const items = cart.value.map((item) => {
+function buildTransaction(data, { cartItems = cart.value, withShipping = true } = {}) {
+  const items = cartItems.map((item) => {
     const unitPrice = Number(item.unit_price ?? item.price)
     const quantity = Number(item.quantity)
     const discount = 0
@@ -1372,7 +1373,7 @@ function buildTransaction(data) {
   })
 
   const itemAmount = items.reduce((sum, item) => sum + item.subtotal, 0)
-  const shippingAmount = data.deliveryMethod === 'delivery' ? Number(data.shippingCost) : 0
+  const shippingAmount = withShipping && data.deliveryMethod === 'delivery' ? Number(data.shippingCost) : 0
   const totalAmount = itemAmount + shippingAmount
   /*
    * DP (fase 2): yang diterima hari ini adalah `piutang.dibayar`, bukan total.
@@ -1510,7 +1511,77 @@ function buildReceiptSale(transaction, data) {
     payment_amount: transaction.payment_amount,
     change_amount: transaction.change_amount,
     ...(transaction.piutang ? { piutang: { ...transaction.piutang } } : {}),
+    ...(transaction.toko ? { toko: { ...transaction.toko } } : {}),
+    ...(transaction.gabungan ? { gabungan: structuredCloneSafe(transaction.gabungan) } : {}),
   }
+}
+
+function structuredCloneSafe(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+/*
+ * Titipan fase 2 (keputusan pemilik 2026-10-31 / 2026-11-02): keranjang campur
+ * barang toko + barang titipan dibayar sekali lalu dipecah satu nota per
+ * pemilik barang, nomor ikut urutan tablet. Nota pertama (toko sendiri) yang
+ * menjalani alur checkout biasa; nota berikutnya disegel bersamaan dan dikirim
+ * lewat antrean dengan PIN yang sama. Keranjang campur tidak boleh DP.
+ */
+async function buildSealedParts(data) {
+  const groups = groupByOwner(cart.value)
+  const toko = new Map(dpRules().toko_titipan.map((t) => [t.id, t]))
+  const grupId = groups.length > 1 ? createSyncId() : null
+  const parts = groups.map((group, index) => {
+    const transaction = buildTransaction(
+      groups.length > 1 ? { ...data, piutang: null } : data,
+      { cartItems: group.items, withShipping: index === 0 },
+    )
+    if (group.owner !== null) {
+      transaction.toko_id = group.owner
+      const profil = toko.get(group.owner)
+      transaction.toko = {
+        nama: profil?.nama || group.nama || 'TOKO',
+        alamat: profil?.alamat || '',
+        telepon: profil?.telepon || '',
+      }
+    }
+    if (grupId) {
+      transaction.grup_id = grupId
+    }
+    return transaction
+  })
+
+  if (parts.length > 1) {
+    const pays = splitPayment(parts.map((t) => t.total_amount), {
+      method: data.paymentMethod,
+      cashReceived: data.cashReceived,
+    })
+    parts.forEach((t, index) => {
+      t.payment_amount = pays[index].payment
+      t.change_amount = pays[index].change
+    })
+  }
+
+  for (const transaction of parts) {
+    transaction.transaction_id = await nextTransactionId()
+    if (!transaction.transaction_id && await isSequenceRangeExhausted()) {
+      return null
+    }
+  }
+
+  if (parts.length > 1) {
+    const total = parts.reduce((sum, t) => sum + t.total_amount, 0)
+    const diterima = data.paymentMethod === 'cash' ? Number(data.cashReceived) : total
+    const gabungan = {
+      nota: parts.map((t) => t.transaction_id || '(belum bernomor)'),
+      total,
+      diterima,
+      kembali: diterima - total,
+    }
+    parts.forEach((t) => { t.gabungan = gabungan })
+  }
+
+  return parts
 }
 
 /*
@@ -1540,6 +1611,20 @@ async function queueReceiptPrint(sale) {
  * `getPrintJobsBySyncId` menghindari job baru selama job lama masih tersimpan.
  * Ini bukan jaminan exactly-once fisik setelah retensi atau restart penghubung.
  */
+/* Struk nota pecahan lain (keranjang campur titipan) dicetak bersama nota pertama. */
+async function printGroupSiblings(record) {
+  for (const syncId of record?.group_sync_ids || []) {
+    try {
+      const sibling = await getTransaction(syncId)
+      if (sibling?.receipt_sale) {
+        await ensureReceiptPrint(sibling.receipt_sale)
+      }
+    } catch {
+      /* Cetak upaya terbaik; nota tetap tersimpan di antrean. */
+    }
+  }
+}
+
 async function ensureReceiptPrint(sale) {
   let alreadyQueued
 
@@ -1772,19 +1857,31 @@ async function submitSealedTransaction(data) {
       if (!gate.allowed) {
         return
       }
-      const transaction = buildTransaction(data)
-      transaction.transaction_id = await nextTransactionId()
-      if (!transaction.transaction_id && await isSequenceRangeExhausted()) {
+      if (data.piutang && isMixedCart(cart.value)) {
+        checkoutStatus.value = 'error'
+        checkoutMessage.value = 'Keranjang campur barang titipan harus lunas dan barang dibawa sekarang.'
+        return
+      }
+      const parts = await buildSealedParts(data)
+      if (!parts) {
         checkoutStatus.value = 'error'
         checkoutMessage.value = 'Jatah nomor nota habis. Sambungkan kembali agar perangkat mendapat jatah baru; keranjang dan antrean tetap aman.'
         return
+      }
+      const [transaction, ...siblings] = parts
+      const payloadOf = (t) => {
+        const payload = { ...t }
+        delete payload.toko
+        delete payload.gabungan
+        return payload
       }
       const record = {
         checkout_version: 1,
         sync_id: transaction.sync_id,
         transaction_id: transaction.transaction_id,
-        payload: transaction,
+        payload: payloadOf(transaction),
         receipt_sale: buildReceiptSale(transaction, data),
+        ...(siblings.length ? { group_sync_ids: siblings.map((t) => t.sync_id) } : {}),
         cashier_name: data.cashierName,
         original_pin: data.pin,
         /*
@@ -1804,6 +1901,24 @@ async function submitSealedTransaction(data) {
       }
       // Persist nota + proof association atomically before final display/printing.
       await saveTransaction(record)
+      /*
+       * Nota pecahan lain: disegel sekarang (nomor sudah diambil) dan masuk
+       * antrean dengan PIN yang sama. Bukti transfer menempel di nota pertama.
+       */
+      for (const sibling of siblings) {
+        await saveTransaction({
+          ...record,
+          sync_id: sibling.sync_id,
+          transaction_id: sibling.transaction_id,
+          payload: payloadOf(sibling),
+          receipt_sale: buildReceiptSale(sibling, data),
+          group_sync_ids: undefined,
+          group_of: transaction.sync_id,
+          proof_id: null,
+          proof_shared: Boolean(record.proof_id),
+          created_at: sibling.transaction_time,
+        })
+      }
       showPendingRecord(record)
     }
 
@@ -1816,6 +1931,7 @@ async function submitSealedTransaction(data) {
     if (stored.local_final) {
       // Printing is best effort; a failed spool must not hold up a finalized sale.
       await ensureReceiptPrint(stored.receipt_sale)
+      await printGroupSiblings(stored)
       void flushPrints({ quiet: true })
     }
 
@@ -1897,6 +2013,9 @@ async function submitSealedTransaction(data) {
       await registerPinSuccess()
       // Server acceptance finalizes the sale even when the best-effort print queue is unavailable.
       await ensureReceiptPrint(attempt.receipt_sale)
+      await printGroupSiblings(attempt)
+      /* Nota pecahan lain menunggu di antrean: kirim sekarang, jangan tunggu siklus. */
+      setTimeout(() => { void autoSendQueue() }, 1500)
       await updateTransactionStatus(attempt.sync_id, 'synced', {
         server_status: body.status,
         rejection_detail: null,

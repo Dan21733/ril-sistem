@@ -57,6 +57,27 @@ def min_dp_untuk(nama_item):
         f"AND item_name IN ({tanda})", nama)}
 
 
+def pemilik_untuk(nama_item):
+    """{item_name: {"id", "nama"}} untuk barang milik toko titipan (brand)."""
+    if not nama_item or not _ada("master_item_info", "toko_id") or not _ada("master_toko", "titip_di_id"):
+        return {}
+    nama = list(nama_item)
+    tanda = ", ".join(["%s"] * len(nama))
+    return {r["item_name"]: {"id": r["id"], "nama": r["nama"]} for r in _baris(
+        f"SELECT i.item_name, t.id, t.nama FROM master_item_info i JOIN master_toko t ON t.id = i.toko_id "
+        f"WHERE t.titip_di_id IS NOT NULL AND i.item_name IN ({tanda})", nama)}
+
+
+def toko_titipan():
+    """Toko titipan yang dijual di kasir ini: kop struk nota mereka (nama, alamat, telepon)."""
+    if not _ada("master_toko", "titip_di_id"):
+        return []
+    aktif = "t.aktif" if connection.vendor != "sqlite" else "t.aktif = 1"
+    return _baris(
+        "SELECT t.id, t.nama, t.alamat, t.telepon FROM master_toko t JOIN master_toko k ON k.id = t.titip_di_id "
+        f"WHERE k.stok_di_kasir AND {aktif} ORDER BY t.urutan, t.nama")
+
+
 def aturan():
     """DP minimal bawaan, jatuh tempo, dan daftar pelanggan tempo (untuk dipilih kasir)."""
     hasil = {"dp_minimal_persen": 50, "jatuh_tempo_hari": 14, "pelanggan": [], "tersedia": False}
@@ -65,6 +86,7 @@ def aturan():
         if atur:
             hasil.update(atur[0])
         hasil["tersedia"] = True
+    hasil["toko_titipan"] = toko_titipan()
     if _ada("master_pelanggan"):
         hasil["pelanggan"] = _baris(
             "SELECT id, nama, telepon FROM master_pelanggan WHERE aktif AND boleh_tempo ORDER BY nama, id")
