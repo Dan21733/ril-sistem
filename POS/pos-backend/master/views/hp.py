@@ -104,28 +104,53 @@ def _kembali(request, bawaan):
     return k if k.startswith("/hp/") and "//" not in k else reverse(bawaan)
 
 
+def _acc_semua(request):
+    """Semua yang menunggu ACC akun ini (dihitung sekali per permintaan)."""
+    if not hasattr(request, "_acc_hp"):
+        from master.layanan import acc_hp
+        request._acc_hp = acc_hp.daftar(request.user)
+    return request._acc_hp
+
+
 def _jumlah_acc(request):
-    """Angka di tab Beranda: yang menunggu keputusan pemilik (sesuai hak akun)."""
+    """Angka di tab Beranda: semua yang menunggu keputusan pemilik (semua toko)."""
+    return len(_acc_semua(request))
+
+
+def _toko_hp(request):
+    """Toko satuan yang sedang dibuka di HP dan apakah beranda sedang "Semua toko"."""
+    from master.layanan.toko import toko_aktif
+    return toko_aktif(request), bool(request.session.get("hp_semua"))
+
+
+def _daftar_toko_hp(request):
+    """Isi lembar Pindah toko: toko yang boleh dibuka akun ini + keadaan singkatnya."""
+    from master.layanan import acc_hp
+    from master.layanan import kas as svc_kas
+    from master.layanan.toko import boleh_untuk
     hak = hak_pengguna(request.user)
-    n = 0
-    if "kelola_kasir" in hak:
-        from pos.models import NotaTinjau
-        n += min(NotaTinjau.objects.filter(status="menunggu").count(), 30)
-    if "kelola_lokasi" in hak:
-        n += Tiket.objects.filter(status="dikirim").count()
-    if "ubah_stok" in hak:
-        n += BukaDus.objects.filter(status="menunggu").count()
-    if "acc_piutang" in hak:
-        from master.models import Piutang
-        n += Piutang.objects.filter(batal=False, acc_status="menunggu").count()
-    if "kas" in hak:
-        from master.layanan.kas import jumlah_menunggu
-        n += jumlah_menunggu()
-    return n
+    hitung = acc_hp.per_toko(_acc_semua(request))
+    hasil = []
+    for t in boleh_untuk(request.user):
+        if t.titip_di_id:
+            continue
+        bagian = []
+        if "kas" in hak and svc_kas.punya_kas(t):
+            h = svc_kas.angka_hari_ini(t)
+            bagian.append("Kas dibuka" if h["buka"] else "Kas sudah ditutup" if h["terakhir_hari_ini"] else "Kas belum dibuka")
+        if hitung.get(t.pk):
+            bagian.append(f"{hitung[t.pk]} perlu ACC")
+        hasil.append({"t": t, "status": " · ".join(bagian), "acc": hitung.get(t.pk, 0)})
+    return hasil
 
 
 def _tampil(request, nama, isi):
+    toko, semua = _toko_hp(request)
     isi.setdefault("jumlah_acc", _jumlah_acc(request))
+    isi.setdefault("toko_hp", toko)
+    isi.setdefault("hp_semua", semua)
+    isi.setdefault("daftar_toko_hp", _daftar_toko_hp(request))
+    isi["acc_toko_lain"] = sum(d["acc"] for d in isi["daftar_toko_hp"] if toko is None or d["t"].pk != toko.pk)
     return render(request, nama, isi)
 
 
@@ -138,46 +163,61 @@ def _jawab(ok=True, pesan="", status=200, **lain):
 # ---------------------------------------------------------------------------
 
 
+def _uang_toko(toko, hak, awal, akhir, kode):
+    """Penjualan satu toko + baris uang di bawahnya (tunai/laci, transfer, EDC)."""
+    from master.layanan import dasbor
+    from master.layanan import kas as svc_kas
+    jual = dasbor.periode(toko, hak, awal, akhir) if "laporan" in hak else None
+    kas = svc_kas.angka_hari_ini(toko) if "kas" in hak and kode == "hari" else None
+    return jual, kas
+
+
 @perlu_hp()
 def beranda(request):
-    from master.layanan import dasbor
-    from master.layanan.toko import toko_aktif
+    from master.layanan import acc_hp
     hak = hak_pengguna(request.user)
-    toko = toko_aktif(request)
+    toko, semua = _toko_hp(request)
     kode, awal, akhir, judul = _periode(request)
-    hari_ini = timezone.localdate()
-    jual = dasbor.periode(toko, hak, awal, akhir) if "laporan" in hak else None
-    lain = dasbor.lain(request, hak, toko)
-    nota = []
-    if "kelola_kasir" in hak:
-        from master.layanan import nota_tinjau
-        nota = nota_tinjau.daftar()[:30]
-    tugas = list(Tiket.objects.filter(status="dikirim").select_related("untuk")[:30]) if "kelola_lokasi" in hak else []
-    dus = list(BukaDus.objects.filter(status="menunggu").select_related("konversi__dari", "konversi__ke")[:30]) \
-        if "ubah_stok" in hak else []
-    piutang_acc, piutang_ringkas = [], None
-    if "acc_piutang" in hak:
-        from master.models import Piutang
-        piutang_acc = list(Piutang.objects.filter(batal=False, acc_status="menunggu").select_related("pelanggan")[:30])
+    jam = timezone.localtime().hour
+    sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
+    items = _acc_semua(request)
+    isi = {
+        "tab": "beranda", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "hari_ini": timezone.localdate(), "pembanding": _pembanding(kode), "sapa": sapa,
+        "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
+    }
+    if semua:
+        isi["acc"] = items
+        isi["per_toko"] = []
+        for d in _daftar_toko_hp(request):
+            jual, kas = _uang_toko(d["t"], hak, awal, akhir, kode)
+            isi["per_toko"].append({**d, "jual": jual, "kas": kas})
+        return _tampil(request, "hp/beranda_semua.html", isi)
+    jual, kas = _uang_toko(toko, hak, awal, akhir, kode)
+    piutang_ringkas = None
     if "piutang" in hak:
         from master.layanan import piutang as svc_piutang
         piutang_ringkas = svc_piutang.ringkas()
-    kas_acc, kas_hari = [], None
-    if "kas" in hak:
-        from master.layanan import kas as svc_kas
-        from pos.models import KasSesi
-        kas_acc = list(KasSesi.objects.filter(status="ditutup", acc_status="menunggu").order_by("ditutup_waktu")[:30])
-        kas_hari = svc_kas.angka_hari_ini(toko)
-    jam = timezone.localtime().hour
-    sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
-    return render(request, "hp/beranda.html", {
-        "tab": "beranda", "jual": jual, "lain": lain, "periode": PERIODE, "p": kode, "judul_periode": judul,
-        "awal": awal, "akhir": akhir, "hari_ini": hari_ini,
-        "pembanding": _pembanding(kode), "nota": nota, "tugas": tugas, "dus": dus,
-        "piutang_acc": piutang_acc, "piutang_ringkas": piutang_ringkas, "kas_acc": kas_acc, "kas_hari": kas_hari,
-        "jumlah_acc": len(nota) + len(tugas) + len(dus) + len(piutang_acc) + len(kas_acc), "sapa": sapa,
-        "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
-    })
+    isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas})
+    return _tampil(request, "hp/beranda.html", isi)
+
+
+@require_POST
+@perlu_hp()
+def pilih_toko(request):
+    """Pindah toko di HP. "semua" hanya untuk Beranda; menu lain tetap memakai toko satuan terakhir."""
+    from master.layanan.toko import pilih_toko as pilih
+    nilai = request.POST.get("toko") or ""
+    if nilai == "semua":
+        request.session["hp_semua"] = True
+        return redirect("hp:beranda")
+    try:
+        pilih(request, nilai)
+    except Tolak:
+        return redirect("hp:beranda")
+    request.session["hp_semua"] = False
+    k = request.POST.get("next") or ""
+    return redirect(k if k.startswith("/hp/") and "//" not in k else "hp:beranda")
 
 
 @require_POST
@@ -899,3 +939,34 @@ def kas_detail(request, sesi_id):
             return _jawab(False, str(e), 400)
         return _jawab(pesan="Tutup kas diterima." if b.get("aksi") == "terima" else "Tutup kas ditolak.")
     return _tampil(request, "hp/kas_detail.html", {"tab": "", **d})
+
+
+# ---------------------------------------------------------------------------
+# Periksa opname (satu tugas hitung = satu ACC; rinciannya per barang)
+# ---------------------------------------------------------------------------
+
+
+@perlu_hp("opname")
+def opname(request, opname_id):
+    from master.layanan import opname as svc
+    from master.models import Opname
+    op = get_object_or_404(Opname.objects.exclude(status="draf").select_related("toko", "lokasi"), pk=opname_id)
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        d = _json_badan(request)
+        try:
+            if d.get("aksi") == "acc":
+                pilih = d.get("pilih") or []
+                svc.acc(request.user, op, pilih, hak=hak)
+                return _jawab(pesan=f"Opname diterima: {len(pilih)} barang diterapkan.")
+            if d.get("aksi") == "tolak":
+                svc.tolak(request.user, op, d.get("alasan"), hak=hak)
+                return _jawab(pesan="Opname ditolak.")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(False, "Permintaan tidak dikenali.", 400)
+    baris = svc.rincian(op)
+    return _tampil(request, "hp/opname.html", {
+        "tab": "", "op": op, "beda": [b for b in baris if b.selisih], "cocok": [b for b in baris if not b.selisih],
+        "lihat_modal": "lihat_modal" in hak, "punya_stok": op.toko is None or op.toko.stok_di_kasir,
+    })

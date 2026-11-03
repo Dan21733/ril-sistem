@@ -8,7 +8,7 @@
 {% for t in semua %}
 <div class="kartu" style="margin-bottom:14px;{% if not t.aktif %}opacity:.6{% endif %}">
   <div class="baris" style="justify-content:space-between;align-items:center">
-    <div><b style="font-size:19px">{{ t.nama }}</b> <span class="label netral">{{ t.kode }}</span>
+    <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:{{ t.warna_tampil }};margin-right:6px" aria-hidden="true"></span><b style="font-size:19px">{{ t.nama }}</b> <span class="label netral">{{ t.kode }}</span>
       {% if t.titip_di %}<span class="label">titipan di {{ t.titip_di.nama }}</span>{% elif t.stok_di_kasir %}<span class="label baik">stok di kasir</span>{% else %}<span class="label netral">belum punya kasir</span>{% endif %}
       {% if t.pkp %}<span class="label">PKP sejak {{ t.pkp_mulai|date:"d M Y" }}</span>{% else %}<span class="label netral">belum PKP</span>{% endif %}
       {% if not t.aktif %}<span class="label bahaya">nonaktif</span>{% endif %}

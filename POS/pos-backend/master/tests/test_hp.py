@@ -225,7 +225,7 @@ class HpTest(Dasar):
             r = self.client.get(reverse("hp:transaksi") + "?p=" + p)
             self.assertContains(r, "Penjualan bersih · " + judul)
         self.assertContains(self.client.get(reverse("hp:beranda")), "3.000")          # nota uji hari ini
-        self.assertContains(self.client.get(reverse("hp:beranda") + "?p=kemarin"), "Belum ada penjualan")
+        self.assertEqual(self.client.get(reverse("hp:beranda") + "?p=kemarin").context["jual"]["omzet"], 0)
         r = self.client.get(reverse("hp:transaksi") + "?p=7hari")
         self.assertContains(r, "T01-000001")
         kemarin = (timezone.localdate() - timedelta(days=1)).isoformat()

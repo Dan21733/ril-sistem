@@ -172,7 +172,7 @@ html[data-ukuran="110"] body{zoom:1.1}
   <nav class="sisi" id="sisi">
     <div class="kepala"><div><h1>Master POS</h1><p class="toko">Dunia Bangunan</p></div>
       <button type="button" class="kunci" id="tombol-kunci" title="Kunci menu supaya selalu tampil, atau lepas supaya menu sembunyi sendiri"></button></div>
-    {% if toko_aktif %}<div class="pilih-toko">
+    {% if toko_aktif %}<div class="pilih-toko" style="border-left:5px solid {{ toko_aktif.warna_tampil }}">
       {% if banyak_toko %}<form method="post" action="{% url 'master:pilih_toko' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
         <label for="pilih-toko">Sedang mengerjakan</label>
         <select id="pilih-toko" name="toko" onchange="this.form.submit()">{% for t in daftar_toko %}<option value="{{ t.id }}" {% if t.id == toko_aktif.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></form>

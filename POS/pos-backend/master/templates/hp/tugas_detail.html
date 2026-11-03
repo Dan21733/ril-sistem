@@ -30,8 +30,7 @@
   {% if op %}<div class="sel"><div class="utama">Stok opname</div><span class="nilai">{{ op.get_status_display }}</span></div>
   {% if op.dihitung_oleh %}<div class="sel"><div class="utama">Dihitung oleh</div><span class="nilai">{{ op.dihitung_oleh }}</span></div>{% endif %}{% endif %}
 </div>
-{% if op and op.status != 'draf' %}<a class="tombol penuh" style="margin-top:12px" href="{% url 'master:opname_detail' op.id %}">Periksa hasil di Stok opname</a>
-<p class="ket-grup">Halaman pemeriksaan opname masih memakai tampilan master.</p>
+{% if op and op.status != 'draf' %}<a class="tombol penuh" style="margin-top:12px" href="{% url 'hp:opname' op.id %}">Periksa hasil hitung</a>
 {% elif t.status == 'terbuka' %}
 <p class="ket-grup" style="margin:8px 4px">{% if t.lewat_batas %}Batas waktu lewat. Hitungan yang ada bisa diteruskan ke Stok opname.{% else %}Karyawan masih menghitung. Hasilnya masuk Stok opname setelah dikirim.{% endif %}</p>
 {% if t.lewat_batas and jumlah_hitung %}<button type="button" class="tombol penuh" data-aksi="teruskan">Teruskan {{ jumlah_hitung }} hitungan</button>{% endif %}

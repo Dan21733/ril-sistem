@@ -208,6 +208,24 @@ dialog.lembar[open]{animation:naikk .28s cubic-bezier(.2,.8,.2,1)}
 }
 @keyframes muncul{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 
+/* Pil toko & tanggal di bilah atas (rancangan HP 3 Nov 2026) */
+.pil{display:inline-flex;align-items:center;gap:6px;border:0;background:var(--kartu);border-radius:999px;padding:0 14px;min-height:40px;
+  font-size:15px;font-weight:600;color:var(--teks)!important;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;white-space:nowrap;max-width:100%}
+.pil .tt{width:10px;height:10px;border-radius:50%;flex:none}
+.pil .panah-bawah{width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);opacity:.6}
+.pil.tanggal{color:var(--tint)!important}
+.pil .merah{width:8px;height:8px;border-radius:50%;background:var(--merah)}
+.pil-nama{overflow:hidden;text-overflow:ellipsis}
+.atas .kanan button.pil,.atas .kiri button.pil{background:var(--kartu);padding:0 14px;gap:6px;color:var(--teks)}
+.atas .kanan button.pil.tanggal{color:var(--tint)}
+.atas .kanan a.avatar{background:var(--tint);background-image:linear-gradient(145deg,rgba(255,255,255,.18),rgba(0,0,0,.25));color:#fff;justify-content:center;width:40px;height:40px}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--tint);color:#fff!important;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;
+  background-image:linear-gradient(145deg,rgba(255,255,255,.18),rgba(0,0,0,.25))}
+.pilih-toko-baris{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;border:0;background:none;text-align:left;padding:13px 16px;min-height:60px;color:var(--teks);cursor:pointer;position:relative}
+.pilih-toko-baris+.pilih-toko-baris::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--garis)}
+.pilih-toko-baris b{font-size:17px;display:flex;align-items:center;gap:8px}
+.pilih-toko-baris small{display:block;font-size:14px;color:var(--teks2);margin-top:2px}
+.centang{width:16px;height:9px;border-left:2.5px solid var(--tint);border-bottom:2.5px solid var(--tint);transform:rotate(-45deg) translateY(-3px);flex:none}
 details.lipat>summary{list-style:none;cursor:pointer}
 details.lipat>summary::-webkit-details-marker{display:none}
 </style>
@@ -217,7 +235,7 @@ details.lipat>summary::-webkit-details-marker{display:none}
 <header class="atas" id="atas">
   <div class="kiri">{% block kiri %}{% endblock %}</div>
   <div class="tengah">{% block judul_kecil %}{% endblock %}</div>
-  <div class="kanan">{% block kanan %}{% endblock %}</div>
+  <div class="kanan">{% block kanan %}{% if toko_hp %}<button type="button" class="pil" data-buka-lembar="lembar-toko" aria-label="Toko: {{ toko_hp.nama }}. Ganti toko"><span class="tt" style="background:{{ toko_hp.warna_tampil }}"></span><span class="pil-nama">{{ toko_hp.nama }}</span><span class="panah-bawah"></span></button>{% endif %}{% endblock %}</div>
 </header>
 <main class="isi">{% block isi %}{% endblock %}</main>
 
@@ -239,6 +257,22 @@ details.lipat>summary::-webkit-details-marker{display:none}
     Transaksi</a>
 </nav>{% endblock %}
 <div id="kabar" role="status"></div>
+{% if daftar_toko_hp %}<dialog class="lembar" id="lembar-toko" aria-label="Pindah toko">
+  <div class="pegangan"></div>
+  <div class="kepala"><span></span><b>Pindah toko</b><button class="kanan" data-tutup type="button">Tutup</button></div>
+  <div class="badan">
+    <form method="post" action="{% url 'hp:pilih_toko' %}" class="grup">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      {% if daftar_toko_hp|length > 1 %}<button class="pilih-toko-baris" name="toko" value="semua" style="border-bottom:6px solid var(--latar)">
+        <span><b>Semua toko</b><small>Ringkasan dan ACC dari semua toko (Beranda)</small></span>
+        {% if hp_semua %}<span class="centang"></span>{% elif jumlah_acc %}<span class="pil" style="padding:0;min-height:0;box-shadow:none;background:none"><span class="merah"></span></span>{% endif %}</button>{% endif %}
+      {% for d in daftar_toko_hp %}<button class="pilih-toko-baris" name="toko" value="{{ d.t.id }}">
+        <span><b><span class="tt" style="width:10px;height:10px;border-radius:50%;background:{{ d.t.warna_tampil }};display:inline-block"></span>{{ d.t.nama }}</b>
+          {% if d.status %}<small>{{ d.status }}</small>{% endif %}</span>
+        {% if not hp_semua and toko_hp and d.t.id == toko_hp.id %}<span class="centang"></span>{% elif d.acc %}<span class="lencana merah">{{ d.acc }}</span>{% endif %}</button>{% endfor %}
+    </form>
+    <p class="ket-grup" style="text-align:center;margin-top:10px">"Semua toko" hanya untuk Beranda. Menu lain memakai toko yang terakhir dipilih.</p>
+  </div>
+</dialog>{% endif %}
 {% include "master/_tanya.html" %}
 {% include "master/_rentang.html" %}
 <script>

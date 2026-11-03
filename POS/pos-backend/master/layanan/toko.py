@@ -97,6 +97,12 @@ def ambil(nilai, *, wajib=True):
     return t
 
 
+def _warna(nilai):
+    import re
+    nilai = (nilai or "").strip()
+    return nilai.upper() if re.fullmatch(r"#[0-9A-Fa-f]{6}", nilai) else ""
+
+
 def simpan(pengguna, data, toko=None):
     kode = rapikan_teks(data.get("kode")).upper()[:10]
     nama = rapikan_teks(data.get("nama"))[:100]
@@ -120,7 +126,7 @@ def simpan(pengguna, data, toko=None):
         raise Tolak(f"{toko.nama} masih punya {toko.barang_milik.count()} barang titipan. Pindahkan dulu barangnya.")
     isi = {"kode": kode, "nama": nama, "titip_di": titip_di, "atas_nama": rapikan_teks(data.get("atas_nama"))[:150],
            "alamat": (data.get("alamat") or "").strip()[:500], "telepon": rapikan_teks(data.get("telepon"))[:50],
-           "pkp": pkp, "pkp_mulai": pkp_mulai}
+           "pkp": pkp, "pkp_mulai": pkp_mulai, "warna": _warna(data.get("warna"))}
     with transaction.atomic():
         if toko is None:
             toko = Toko.objects.create(urutan=Toko.objects.count() + 1, **isi)

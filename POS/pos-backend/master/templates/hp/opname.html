@@ -1,0 +1,80 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Opname #{{ op.id }} · DB Toko{% endblock %}
+{% block judul_kecil %}Opname #{{ op.id }}{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block gaya %}<style>
+.baris-opname{display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:52px;position:relative;cursor:pointer}
+.baris-opname+.baris-opname::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:.5px solid var(--garis)}
+.baris-opname input{width:22px;height:22px;flex:none;accent-color:var(--tint);margin:0}
+.baris-opname .utama{flex:1;min-width:0}
+.baris-opname .nama{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.baris-opname .sub{font-size:13px;color:var(--teks2)}
+.baris-opname .selisih{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.baris-opname:has(input:not(:checked)) .nama{color:var(--teks2);text-decoration:line-through}
+details.cocok>summary{list-style:none;cursor:pointer}details.cocok>summary::-webkit-details-marker{display:none}
+.aksi-bawah{position:sticky;bottom:calc(84px + var(--aman-b));display:grid;gap:8px;padding-top:10px}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Stok opname</h1>
+<p class="anak-judul">{{ op.toko.nama|default:"" }}{% if punya_stok %} · {{ op.lokasi.nama|default:"Toko (display)" }}{% endif %}
+  · {{ op.diajukan_waktu|date:"d M H.i" }}<br>Dihitung oleh: <b style="color:var(--teks)">{{ op.dihitung_oleh|default:op.dibuat_oleh }}</b></p>
+{% if op.catatan %}<p class="ket-grup" style="margin:0 4px 10px">Catatan: {{ op.catatan }}</p>{% endif %}
+
+{% if op.status != 'diajukan' %}
+<div class="grup"><div class="kosong">Opname ini sudah {{ op.get_status_display|lower }}{% if op.diputus_oleh %} oleh {{ op.diputus_oleh }}{% endif %}.{% if op.catatan_putusan %}<br>{{ op.catatan_putusan }}{% endif %}</div></div>
+{% else %}
+<div class="kepala-grup"><h2>Selisih · {{ beda|length }}</h2><span class="redup kecil">hilangkan centang yang ragu</span></div>
+<div class="grup" id="daftar">
+  {% for b in beda %}<label class="baris-opname"><input type="checkbox" name="pilih" value="{{ b.id }}" checked>
+    <div class="utama"><div class="nama">{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">/ {{ b.variant }}</span>{% endif %}</div>
+      <div class="sub">sistem {{ b.stok_sekarang }} → dihitung {{ b.hitung }}{% if lihat_modal and b.nilai_selisih is not None %} · {{ b.nilai_selisih|rupiah }}{% endif %}{% if b.catatan %} · {{ b.catatan }}{% endif %}</div></div>
+    <span class="selisih {% if b.selisih < 0 %}turun{% else %}naik{% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih }}</span></label>
+  {% empty %}<div class="kosong">Tidak ada selisih.</div>{% endfor %}
+</div>
+
+{% if cocok %}
+<details class="grup cocok" style="margin-top:12px">
+  <summary class="sel panah"><div class="utama"><div class="nama">{{ cocok|length }} barang cocok</div><div class="sub">ikut diterima</div></div></summary>
+  {% for b in cocok %}<label class="baris-opname"><input type="checkbox" name="pilih" value="{{ b.id }}" checked>
+    <div class="utama"><div class="nama">{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">/ {{ b.variant }}</span>{% endif %}</div>
+      <div class="sub">{{ b.hitung }}</div></div></label>{% endfor %}
+</details>
+{% endif %}
+
+<div class="aksi-bawah">
+  <button class="tombol penuh" id="tombol-terima">Terima</button>
+  <button class="tombol abu penuh" id="tombol-tolak">Tolak semua</button>
+</div>
+<p class="ket-grup">Yang tidak dicentang tidak diterapkan ke stok; hitung ulang lewat tugas baru.</p>
+{% endif %}
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+(() => {
+  const URL_INI = "{% url 'hp:opname' op.id %}";
+  const kotak = () => [...document.querySelectorAll('input[name=pilih]')];
+  const tombol = document.getElementById('tombol-terima');
+  function hitung(){
+    if (!tombol) return;
+    const ya = kotak().filter(c => c.checked).length, tidak = kotak().length - ya;
+    tombol.textContent = tidak ? `Terima ${ya} · Tolak ${tidak}` : `Terima semua (${ya})`;
+    tombol.disabled = ya === 0;
+  }
+  document.addEventListener('change', e => { if (e.target.name === 'pilih') hitung(); });
+  hitung();
+  tombol?.addEventListener('click', async () => {
+    tombol.disabled = true;
+    try { const d = await kirim(URL_INI, {aksi: 'acc', pilih: kotak().filter(c => c.checked).map(c => c.value)});
+      kabar(d.pesan); setTimeout(() => location.href = "{% url 'hp:beranda' %}", 800); }
+    catch (e) { kabar(e.message, true); tombol.disabled = false; }
+  });
+  document.getElementById('tombol-tolak')?.addEventListener('click', async e => {
+    const alasan = prompt('Alasan menolak (kepala gudang perlu tahu apa yang dihitung ulang)?'); if (!alasan) return;
+    e.currentTarget.disabled = true;
+    try { const d = await kirim(URL_INI, {aksi: 'tolak', alasan}); kabar(d.pesan); setTimeout(() => location.href = "{% url 'hp:beranda' %}", 800); }
+    catch (err) { kabar(err.message, true); e.currentTarget.disabled = false; }
+  });
+})();
+</script>
+{% endblock %}

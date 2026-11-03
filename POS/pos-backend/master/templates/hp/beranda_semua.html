@@ -1,0 +1,41 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Semua toko · DB Toko{% endblock %}
+{% block judul_kecil %}Semua toko{% endblock %}
+{% block kiri %}<button type="button" class="pil" data-buka-lembar="lembar-toko" aria-label="Semua toko. Ganti toko"><span class="pil-nama">Semua toko</span><span class="panah-bawah"></span></button>{% endblock %}
+{% block kanan %}{% include "hp/_atas_pil.html" %}{% endblock %}
+{% block gaya %}<style>
+.atas{grid-template-columns:auto 1fr auto}
+.acc-label{font-size:12px!important;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--tint)!important}
+.acc-label.acc-kas{color:var(--kuning)!important}.acc-label.acc-opname{color:#7E57C2!important}.acc-label.acc-piutang{color:#2F6FB0!important}
+details.toko>summary{list-style:none;cursor:pointer}details.toko>summary::-webkit-details-marker{display:none}
+details.toko .buka{width:9px;height:9px;border-right:2px solid var(--teks3);border-bottom:2px solid var(--teks3);transform:rotate(45deg);transition:.2s;flex:none}
+details.toko[open] .buka{transform:rotate(-135deg)}
+details.toko .isi-toko{background:var(--kartu2);border-top:.5px solid var(--garis)}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{{ sapa }}, {{ request.user.first_name|default:request.user.username }}</h1>
+<p class="anak-judul">{% now "l, j F" %}</p>
+
+{% include "hp/_acc.html" with semua=True %}
+
+<div class="kepala-grup"><h2>Penjualan · {{ judul_periode }}</h2></div>
+{% for d in per_toko %}
+<details class="grup toko" style="margin-bottom:10px">
+  <summary class="sel"><div class="utama"><div class="nama"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ d.t.warna_tampil }};margin-right:6px"></span><b>{{ d.t.nama }}</b></div>
+    <div class="sub">{% if d.jual %}{{ d.jual.nota }} nota{% if d.jual.banding is not None %} · <span class="{% if d.jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if d.jual.banding >= 0 %}naik {{ d.jual.banding }}{% else %}turun {{ d.jual.banding|stringformat:"d"|slice:"1:" }}{% endif %}%</span>{% endif %}{% endif %}{% if d.status %}{% if d.jual %} · {% endif %}{{ d.status }}{% endif %}</div></div>
+    {% if d.jual %}<b class="nilai" style="color:var(--teks);font-size:19px">{{ d.jual.omzet|rupiah }}</b>{% endif %}<span class="buka"></span></summary>
+  <div class="isi-toko">
+    {% if d.kas %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Tunai di laci</div>
+      <div class="sub">{% if d.kas.buka %}Kas dibuka {{ d.kas.dibuka_waktu|date:"H.i" }}{% elif d.kas.terakhir_hari_ini %}Kas sudah ditutup{% else %}Kas belum dibuka{% endif %}</div></div>
+      <span class="nilai">{% if d.kas.buka %}{{ d.kas.seharusnya|rupiah }}{% else %}–{% endif %}</span></div>
+    {% elif d.jual %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Tunai</div></div><span class="nilai">{{ d.jual.per_metode.cash|rupiah }}</span></div>{% endif %}
+    {% if d.jual %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Transfer</div>{% if d.jual.per_metode.jumlah_transfer %}<div class="sub">{{ d.jual.per_metode.jumlah_transfer }} bukti</div>{% endif %}</div><span class="nilai">{{ d.jual.per_metode.bank_transfer|rupiah }}</span></div>
+    <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">EDC</div></div><span class="nilai">{{ d.jual.per_metode.edc|rupiah }}</span></div>{% endif %}
+    <form method="post" action="{% url 'hp:pilih_toko' %}">{% csrf_token %}<input type="hidden" name="toko" value="{{ d.t.id }}"><input type="hidden" name="next" value="{% url 'hp:beranda' %}">
+      <button class="sel" style="width:100%;border:0;background:none;color:var(--tint);font-weight:600;font-size:16px;cursor:pointer">Buka {{ d.t.nama }} ›</button></form>
+  </div>
+</details>
+{% endfor %}
+<div style="height:16px"></div>
+{% include "hp/_lembar_tanggal.html" %}
+{% endblock %}

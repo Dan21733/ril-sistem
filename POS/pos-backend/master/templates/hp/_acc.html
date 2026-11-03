@@ -1,0 +1,82 @@
+{% load master_tags %}{# Perlu ACC: kartu ringkas (maks 3) + lembar Cek berisi semua kejadian. Variabel: acc, semua (bool). #}
+<div class="grup" style="margin-top:12px">
+  <div class="sel"><div class="utama"><div class="nama"><b>Perlu ACC</b></div></div>
+    {% if acc %}<span class="lencana merah" style="font-size:14px">{{ acc|length }}</span>{% endif %}</div>
+  {% for x in acc|slice:":3" %}
+  <div class="sel"><div class="utama">
+    <div class="sub acc-label acc-{{ x.jenis }}">{% if semua and x.toko %}{{ x.toko.nama }} · {% endif %}{{ x.label }}</div>
+    <div class="nama" style="font-size:16px">{{ x.judul }}{% if x.oleh %} <span class="redup">· {{ x.oleh }}</span>{% endif %}</div></div></div>
+  {% empty %}
+  <div class="kosong" style="padding:16px">Tidak ada yang menunggu. 👍</div>
+  {% endfor %}
+  {% if acc %}<button type="button" class="sel" data-buka-lembar="lembar-acc" style="width:100%;border:0;background:none;color:var(--tint);font-weight:600;font-size:16px;cursor:pointer">
+    {% if acc|length > 3 %}Cek semua ({{ acc|length }}) ›{% else %}Cek ›{% endif %}</button>{% endif %}
+</div>
+
+<dialog class="lembar" id="lembar-acc" aria-label="Perlu ACC">
+  <div class="pegangan"></div>
+  <div class="kepala"><span></span><b>Perlu ACC · <span id="acc-sisa">{{ acc|length }}</span></b><button class="kanan" data-tutup type="button">Tutup</button></div>
+  <div class="badan">
+  {% for x in acc %}
+  <div class="grup kartu-acc" data-acc="{{ x.jenis }}" data-id="{{ x.id }}" style="margin-bottom:10px">
+    <div class="sel" style="align-items:flex-start"><div class="utama">
+      <div class="sub acc-label acc-{{ x.jenis }}">{% if semua and x.toko %}{{ x.toko.nama }} · {% endif %}{{ x.label }}</div>
+      <div class="nama" style="white-space:normal"><b>{{ x.judul }}</b></div>
+      <div class="sub" style="white-space:normal">{{ x.sub }}{% if x.oleh %} · dihitung oleh {{ x.oleh }}{% endif %}</div></div>
+      <div class="nilai">{% if x.nilai %}<b style="color:var(--teks)">{{ x.nilai|rupiah }}</b>{% endif %}<div class="kecil redup">{{ x.waktu|date:"d M H.i" }}</div></div></div>
+    {% if x.jenis == 'nota' %}
+      {% for b in x.detail.baris %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.nama }}{% if b.varian and b.varian != "N/A" %} <span class="redup">/ {{ b.varian }}</span>{% endif %}</div>
+        <div class="sub">{{ b.jumlah }} × {{ b.harga|rupiah }}{% if b.floor %} · floor {{ b.floor|rupiah }}{% endif %}</div></div>
+        {% if b.di_bawah_floor %}<span class="lencana merah">di bawah floor</span>{% endif %}</div>{% endfor %}
+      {% if x.detail.n.alasan and 'floor' not in x.detail.n.alasan|lower %}<div class="sel"><div class="utama"><div class="sub" style="white-space:normal">Alasan ditahan: {{ x.detail.n.alasan }}</div></div></div>{% endif %}
+    {% endif %}
+    <div class="sel" style="flex-wrap:wrap">
+      {% if x.putus %}
+        {% if x.jenis == 'nota' and not x.detail.n.worker_id %}<select class="kolom" data-worker style="background:var(--isi);flex:1 1 100%;margin-bottom:6px"><option value="">Pilih kasir…</option>{% for wid, nama in pekerja %}<option value="{{ wid }}">{{ nama }}</option>{% endfor %}</select>{% endif %}
+        <button class="tombol kecil hijau" data-aksi="terima">Terima</button>
+        <button class="tombol kecil merah" data-aksi="tolak">Tolak</button>
+        {% if x.url %}<a class="tombol kecil abu" href="{{ x.url }}" style="margin-left:auto">Rincian</a>{% endif %}
+      {% else %}
+        <a class="tombol kecil penuh" href="{{ x.url }}">Periksa</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  <p class="ket-grup" style="text-align:center">Satu kartu = satu kejadian. Tugas berisi banyak barang dibuka lewat Periksa.</p>
+  </div>
+</dialog>
+
+<dialog class="lembar" id="lembar-tolak">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup type="button">Batal</button><b>Tolak</b><button class="kanan" id="kirim-tolak" type="button">Tolak</button></div>
+  <div class="badan"><div class="grup"><textarea class="kolom" id="alasan-tolak" rows="3" placeholder="Alasan (wajib, kecuali buka dus)"></textarea></div></div>
+</dialog>
+<script>
+(() => {
+  let tolakKartu = null;
+  async function putuskan(kartu, aksi, alasan){
+    const data = {jenis: kartu.dataset.acc, id: kartu.dataset.id, aksi, alasan};
+    const w = kartu.querySelector('[data-worker]'); if (w) data.worker_id = w.value;
+    kartu.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+      const d = await kirim("{% url 'hp:acc' %}", data);
+      document.getElementById('lembar-acc').dataset.berubah = '1'; kabar(d.pesan); kartu.style.transition = '.3s'; kartu.style.opacity = '0';
+      setTimeout(() => { kartu.remove(); const s = document.getElementById('acc-sisa'); s.textContent = Math.max(0, (+s.textContent) - 1); }, 300);
+    } catch (e) { kabar(e.message, true); kartu.querySelectorAll('button').forEach(b => b.disabled = false); }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.kartu-acc [data-aksi]'); if (!b) return;
+    const kartu = b.closest('.kartu-acc');
+    if (b.dataset.aksi === 'terima') putuskan(kartu, 'terima');
+    else { tolakKartu = kartu; document.getElementById('alasan-tolak').value = ''; document.getElementById('lembar-tolak').showModal(); }
+  });
+  document.getElementById('kirim-tolak').addEventListener('click', () => {
+    const alasan = document.getElementById('alasan-tolak').value.trim();
+    if (tolakKartu.dataset.acc !== 'dus' && !alasan){ kabar('Tulis alasannya dulu.', true); return; }
+    document.getElementById('lembar-tolak').close(); putuskan(tolakKartu, 'tolak', alasan);
+  });
+  document.getElementById('lembar-acc').addEventListener('close', () => {
+    if (document.getElementById('lembar-acc').dataset.berubah) location.reload();
+  });
+})();
+</script>

@@ -35,6 +35,10 @@ class Toko(models.Model):
     # Toko titipan (konsinyasi): barangnya dijual kasir toko lain (`titip_di`), tapi nota,
     # laporan, dan setorannya terpisah. Kosong = toko biasa.
     titip_di = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="titipan")
+    # Warna penanda toko di master dan HP (cegah salah input toko). Kosong = warna bawaan menurut urutan.
+    warna = models.CharField(max_length=7, blank=True, default="")
+
+    WARNA_BAWAAN = ["#2F5D8A", "#A8461F", "#2E7D4F", "#6B4FA0", "#B0841C", "#1F7A80"]
 
     class Meta:
         db_table = "master_toko"
@@ -42,6 +46,10 @@ class Toko(models.Model):
 
     def __str__(self):
         return self.nama
+
+    @property
+    def warna_tampil(self):
+        return self.warna or self.WARNA_BAWAAN[(self.pk or 0) % len(self.WARNA_BAWAAN)]
 
     def pkp_pada(self, tanggal):
         return bool(self.pkp and (self.pkp_mulai is None or tanggal >= self.pkp_mulai))
