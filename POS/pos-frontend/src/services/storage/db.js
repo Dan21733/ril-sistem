@@ -125,4 +125,22 @@ db.version(7).stores({
   piutang_actions: 'aksi_id, status, created_at',
 })
 
+/*
+ * Versi 8 menambah antrean kas (2026-11-03): uang keluar dan tambah modal yang
+ * dicatat kasir, juga saat offline. Pola sama dengan `piutang_actions`.
+ */
+db.version(8).stores({
+  device: 'id',
+  sequence_ranges: 'device_id',
+  items: '[item_name+variant]',
+  transactions: 'sync_id, sync_status, cashier_name_normalized, transaction_id',
+  payment_proofs: 'proof_id, sync_id, upload_status, [upload_status+captured_at]',
+  print_jobs: 'job_id, sync_id, status, [status+created_at]',
+  workers: '++id, pin_format, fetched_at',
+  pin_attempts: 'scope',
+  catalog_meta: 'key',
+  piutang_actions: 'aksi_id, status, created_at',
+  kas_gerak: 'gerak_id, status, created_at',
+})
+
 export default db

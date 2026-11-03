@@ -80,10 +80,15 @@ def hapus_baris(pengguna, baris_id):
     OpnameBaris.objects.filter(pk=baris_id, opname__status="draf", opname__dibuat_oleh=pengguna.username).delete()
 
 
-def ajukan(pengguna, catatan="", toko=None, lokasi=None, tiket=None):
+def ajukan(pengguna, catatan="", toko=None, lokasi=None, tiket=None, dihitung_oleh=None):
     op = draf(pengguna, buat=False, toko=toko, lokasi=lokasi, tiket=tiket)
     if op is None or not op.baris.exists():
         raise Tolak("Belum ada barang yang dihitung.")
+    if dihitung_oleh is not None:
+        dihitung_oleh = rapikan_teks(dihitung_oleh)[:200]
+        if not dihitung_oleh:
+            raise Tolak("Isi siapa saja yang menghitung.")
+        op.dihitung_oleh = dihitung_oleh
     op.status = "diajukan"
     op.diajukan_waktu = timezone.now()
     op.catatan = rapikan_teks(catatan)[:300]
@@ -205,13 +210,13 @@ def lingkup_teks(t):
     return " · ".join(x for x in bagian if x)
 
 
-def kirim_tugas(pengguna, t, catatan=""):
+def kirim_tugas(pengguna, t, catatan="", dihitung_oleh=None):
     from master.layanan.tiket import _harus_bisa_diisi
     if t.jenis != "hitung":
         raise Tolak("Tiket ini bukan tugas hitung.")
     _harus_bisa_diisi(pengguna, t)
     with transaction.atomic():
-        op = ajukan(pengguna, catatan, toko=t_toko(t), lokasi=lokasi_tugas(t), tiket=t)
+        op = ajukan(pengguna, catatan, toko=t_toko(t), lokasi=lokasi_tugas(t), tiket=t, dihitung_oleh=dihitung_oleh)
         t.status = "dikirim"
         t.dikirim_waktu = timezone.now()
         t.catatan_admin = rapikan_teks(catatan)[:500]

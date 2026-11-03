@@ -16,10 +16,18 @@ from .views import (
     PiutangAturanAPIView,
     PiutangDaftarAPIView,
     PiutangDetailAPIView,
+    KasBukaAPIView,
+    KasGerakAPIView,
+    KasStatusAPIView,
+    KasTutupAPIView,
 )
 
 
 urlpatterns = [
+    path("kas/", KasStatusAPIView.as_view(), name="kas-status"),
+    path("kas/buka/", KasBukaAPIView.as_view(), name="kas-buka"),
+    path("kas/tutup/", KasTutupAPIView.as_view(), name="kas-tutup"),
+    path("kas/gerak/", KasGerakAPIView.as_view(), name="kas-gerak"),
     path("piutang/aturan/", PiutangAturanAPIView.as_view(), name="piutang-aturan"),
     path("piutang/", PiutangDaftarAPIView.as_view(), name="piutang-daftar"),
     path("piutang/aksi/", PiutangAksiAPIView.as_view(), name="piutang-aksi"),

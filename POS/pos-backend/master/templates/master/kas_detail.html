@@ -1,0 +1,47 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Kas {{ s.dibuka_waktu|date:"d M" }}{% endblock %}
+{% block isi %}
+<p class="kecil"><a href="{% url 'master:kas' %}">Kas laci</a> /</p>
+<h2>Kas {{ s.dibuka_waktu|date:"l, d M Y" }}</h2>
+<p class="sub">Dibuka {{ s.dibuka_waktu|date:"H:i" }} oleh {{ s.dibuka_oleh }}{% if s.dibuka_dari %} ({{ s.dibuka_dari }}){% endif %}
+  {% if s.ditutup_waktu %}· ditutup {{ s.ditutup_waktu|date:"d M H:i" }} oleh {{ s.ditutup_oleh }}{% if s.ditutup_dari %} ({{ s.ditutup_dari }}){% endif %}{% else %}· masih buka{% endif %}</p>
+
+{% if s.acc_status == 'menunggu' %}
+<div class="pesan warning">Tutup kas menunggu ACC.
+  <form method="post" class="baris" style="margin-top:10px;align-items:end">{% csrf_token %}
+    <div style="flex:1;min-width:200px"><label>Catatan (wajib kalau menolak)</label><input type="text" name="catatan" maxlength="300"></div>
+    <button class="tombol utama" name="aksi" value="terima">Terima</button>
+    <button class="tombol bahaya" name="aksi" value="tolak">Tolak</button></form></div>
+{% elif s.acc_status %}
+<div class="pesan {% if s.acc_status == 'ditolak' %}error{% else %}info{% endif %}">{{ s.get_acc_status_display }} oleh {{ s.acc_oleh }} · {{ s.acc_waktu|date:"d M H:i" }}{% if s.acc_catatan %} · {{ s.acc_catatan }}{% endif %}</div>
+{% endif %}
+{% if berubah %}<div class="pesan warning">Ada nota/uang keluar yang masuk sesudah tutup kas dengan waktu sebelum tutup. Angka di bawah adalah saat tutup ({{ hitung.seharusnya|ribuan }}); kalau dihitung sekarang {{ sekarang.seharusnya|ribuan }}.</div>{% endif %}
+{% if hitung.paksa %}<div class="pesan warning">Ditutup paksa walau ada tablet dengan nota belum terkirim.</div>{% endif %}
+
+<div class="kisi">
+  <div class="kartu"><div class="redup kecil">Seharusnya di laci</div><div style="font-size:24px;font-weight:600">{{ hitung.seharusnya|ribuan }}</div></div>
+  {% if s.status == 'ditutup' %}
+  <div class="kartu"><div class="redup kecil">Dihitung</div><div style="font-size:24px;font-weight:600">{{ s.dihitung|ribuan }}</div>
+    <div class="kecil redup">diambil {{ s.diambil|ribuan }} ({{ s.ambil_100 }}×100rb, {{ s.ambil_50 }}×50rb) + sisa {{ s.uang_sisa|ribuan }}</div></div>
+  <div class="kartu" {% if s.selisih %}style="border-color:var(--bahaya)"{% endif %}><div class="redup kecil">Selisih</div>
+    <div style="font-size:24px;font-weight:600;{% if s.selisih %}color:var(--bahaya){% endif %}">{{ s.selisih|ribuan }}</div>
+    <div class="kecil redup">{% if s.selisih < 0 %}uang kurang{% elif s.selisih > 0 %}uang lebih{% else %}cocok{% endif %}</div></div>
+  {% endif %}
+  <div class="kartu"><div class="redup kecil">Cadangan</div><div style="font-size:17px;font-weight:600">{% if s.cadangan_lengkap_buka %}lengkap{% else %}kurang{% endif %} saat buka{% if s.status == 'ditutup' %} · {% if s.cadangan_lengkap_tutup %}lengkap{% else %}kurang{% endif %} saat tutup{% endif %}</div></div>
+</div>
+
+<h3>Rincian</h3>
+<div class="gulir"><table>
+  {% for label, n in rincian %}<tr><td>{{ label }}</td><td class="angka">{{ n|ribuan }}</td></tr>{% endfor %}
+  <tr><td><b>Seharusnya di laci</b></td><td class="angka"><b>{{ hitung.seharusnya|ribuan }}</b></td></tr>
+</table></div>
+<p class="kecil redup">Di luar laci: EDC {{ hitung.edc|ribuan }} · Transfer {{ hitung.transfer|ribuan }}{% if hitung.jumlah_transfer %} ({{ hitung.jumlah_transfer }} bukti){% endif %}.
+  Modal saran saat buka {{ s.modal_saran|ribuan }}{% if s.modal_saran != s.modal_awal %}, yang diisi {{ s.modal_awal|ribuan }} (beda {{ s.modal_awal|kurang:s.modal_saran|ribuan }}){% endif %}.</p>
+{% if s.catatan_buka %}<p class="kecil">Catatan buka: {{ s.catatan_buka }}</p>{% endif %}
+{% if s.catatan_tutup %}<p class="kecil">Catatan tutup: {{ s.catatan_tutup }}</p>{% endif %}
+
+<h3>Uang keluar &amp; modal</h3>
+<div class="gulir"><table><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th class="angka">Jumlah</th><th>Oleh</th></tr>
+{% for g in gerak %}<tr class="{% if g.batal %}nonaktif{% endif %}"><td>{{ g.waktu|date:"H:i" }}</td><td>{{ g.get_jenis_display }}</td><td>{{ g.kategori }}</td><td>{{ g.keterangan }}{% if g.batal %} <span class="label bahaya">batal: {{ g.batal_alasan }}</span>{% endif %}</td><td class="angka">{{ g.jumlah|ribuan }}</td><td class="kecil redup">{{ g.oleh }}{% if g.device_code %} · {{ g.device_code }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="redup">Tidak ada.</td></tr>{% endfor %}</table></div>
+{% endblock %}

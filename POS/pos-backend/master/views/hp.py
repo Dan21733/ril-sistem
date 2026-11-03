@@ -118,6 +118,9 @@ def _jumlah_acc(request):
     if "acc_piutang" in hak:
         from master.models import Piutang
         n += Piutang.objects.filter(batal=False, acc_status="menunggu").count()
+    if "kas" in hak:
+        from master.layanan.kas import jumlah_menunggu
+        n += jumlah_menunggu()
     return n
 
 
@@ -159,14 +162,20 @@ def beranda(request):
     if "piutang" in hak:
         from master.layanan import piutang as svc_piutang
         piutang_ringkas = svc_piutang.ringkas()
+    kas_acc, kas_hari = [], None
+    if "kas" in hak:
+        from master.layanan import kas as svc_kas
+        from pos.models import KasSesi
+        kas_acc = list(KasSesi.objects.filter(status="ditutup", acc_status="menunggu").order_by("ditutup_waktu")[:30])
+        kas_hari = svc_kas.angka_hari_ini(toko)
     jam = timezone.localtime().hour
     sapa = "Selamat pagi" if jam < 11 else "Selamat siang" if jam < 15 else "Selamat sore" if jam < 18 else "Selamat malam"
     return render(request, "hp/beranda.html", {
         "tab": "beranda", "jual": jual, "lain": lain, "periode": PERIODE, "p": kode, "judul_periode": judul,
         "awal": awal, "akhir": akhir, "hari_ini": hari_ini,
         "pembanding": _pembanding(kode), "nota": nota, "tugas": tugas, "dus": dus,
-        "piutang_acc": piutang_acc, "piutang_ringkas": piutang_ringkas,
-        "jumlah_acc": len(nota) + len(tugas) + len(dus) + len(piutang_acc), "sapa": sapa,
+        "piutang_acc": piutang_acc, "piutang_ringkas": piutang_ringkas, "kas_acc": kas_acc, "kas_hari": kas_hari,
+        "jumlah_acc": len(nota) + len(tugas) + len(dus) + len(piutang_acc) + len(kas_acc), "sapa": sapa,
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
     })
 
@@ -196,6 +205,12 @@ def acc(request):
             p = get_object_or_404(Piutang, pk=d.get("id"))
             svc_piutang.acc(request.user, p, setuju=aksi == "terima", catatan=d.get("alasan") or "")
             return _jawab(pesan=f"{p.nomor} {'disetujui' if aksi == 'terima' else 'ditolak'}.")
+        if jenis == "kas":
+            if "kas" not in hak:
+                raise Tolak("Akun ini tidak boleh memberi ACC kas.")
+            from master.layanan import kas as svc_kas
+            svc_kas.acc(request.user, d.get("id"), aksi == "terima", d.get("alasan") or "")
+            return _jawab(pesan="Tutup kas diterima." if aksi == "terima" else "Tutup kas ditolak.")
         if jenis == "dus":
             if "ubah_stok" not in hak:
                 raise Tolak("Akun ini tidak boleh mengubah stok.")
@@ -554,7 +569,8 @@ def setelan(request):
                                               ("tugas", "Tugas karyawan selesai dikerjakan"),
                                               ("dus", "Buka dus dari gudang"), ("po", "Barang datang, PO menunggu ACC"),
                                               ("piutang", "Invoice / titip barang menunggu ACC"),
-                                              ("tempo", "Piutang pelanggan lewat jatuh tempo"))
+                                              ("tempo", "Piutang pelanggan lewat jatuh tempo"),
+                                              ("kas", "Tutup kas menunggu ACC"))
                   if svc_push.HAK_JENIS[jenis] in hak],
     })
 
@@ -831,3 +847,55 @@ def piutang_detail(request, piutang_id):
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
         "barang": svc.barang(p),
         "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas)})
+
+
+# ---------------------------------------------------------------------------
+# Kas laci (rancangan 3 Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+@perlu_hp("kas")
+def kas(request):
+    import uuid as _uuid
+    from master.layanan import kas as svc
+    from master.layanan.toko import toko_aktif
+    toko = toko_aktif(request)
+    if request.method == "POST":
+        d = _json_badan(request)
+        aksi = d.get("aksi")
+        try:
+            if aksi == "buka":
+                svc.buka(request.user, toko, d, dari="hp")
+                return _jawab(pesan="Kas dibuka.")
+            if aksi == "tutup":
+                s = svc.tutup(request.user, d.get("sesi_id"), d, dari="hp")
+                return _jawab(pesan="Kas ditutup. Selisih " + svc.rp(s.selisih) + ".", sesi_id=str(s.pk))
+            if aksi == "gerak":
+                g = svc.catat_gerak(request.user, toko, d, dari="hp")
+                return _jawab(pesan=f"{g.get_jenis_display()} {svc.rp(g.jumlah)} tercatat.")
+            if aksi == "batal":
+                svc.batal_gerak(request.user, d.get("gerak_id"), d.get("alasan"))
+                return _jawab(pesan="Catatan dibatalkan.")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(False, "Permintaan tidak dikenali.", 400)
+    return _tampil(request, "hp/kas.html", {
+        "tab": "", "toko": toko, "k": svc.ringkas(toko), "riwayat": svc.riwayat(toko, 14),
+        "kategori": svc.KATEGORI_KELUAR, "gerak_baru": _uuid.uuid4()})
+
+
+@perlu_hp("kas")
+def kas_detail(request, sesi_id):
+    from master.layanan import kas as svc
+    d = svc.detail(sesi_id)
+    if d is None:
+        from django.http import Http404
+        raise Http404
+    if request.method == "POST":
+        b = _json_badan(request)
+        try:
+            svc.acc(request.user, sesi_id, b.get("aksi") == "terima", b.get("catatan") or "")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(pesan="Tutup kas diterima." if b.get("aksi") == "terima" else "Tutup kas ditolak.")
+    return _tampil(request, "hp/kas_detail.html", {"tab": "", **d})

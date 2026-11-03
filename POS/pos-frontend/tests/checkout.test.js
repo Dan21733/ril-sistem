@@ -216,6 +216,9 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   const piutangUtil = await loadRealModule('../src/utils/piutang.js', context)
   modules.set('./utils/piutang', piutangUtil)
   modules.set('../utils/piutang', piutangUtil)
+  const kasUtil = await loadRealModule('../src/utils/kas.js', context)
+  modules.set('./utils/kas', kasUtil)
+  modules.set('../utils/kas', kasUtil)
   const pecahNota = await loadRealModule('../src/utils/pecahNota.js', context)
   modules.set('./utils/pecahNota', pecahNota)
   modules.set('../utils/pecahNota', pecahNota)
@@ -308,7 +311,9 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
     },
     './services/workers/workerDirectory': { refreshWorkerDirectory: async () => {} },
     './services/api/piutangApi': { fetchDpRules: async () => ({}) },
-    './services/storage/piutangQueue': { flushPiutangActions: async () => ({}) },
+    './services/storage/piutangQueue': { flushPiutangActions: async () => ({}), listPendingPiutangActions: async () => [] },
+    './services/api/kasApi': { fetchKasStatus: async () => ({ boleh_kas: false, sesi: null }) },
+    './services/storage/kasQueue': { flushKasGerak: async () => ({}), listPendingKasGerak: async () => [] },
     './composables/useTheme': { useTheme: () => ({}) },
     './composables/usePrinterStatus': { usePrinterStatus: () => ({ refresh: async () => {} }) },
     './composables/useServerStatus': { useServerStatus: () => ({ refresh: async () => {} }) },
@@ -1076,6 +1081,7 @@ async function historyHarness({
     '../services/storage/printJobRepository': { getPrintJobsBySyncIds: bySync(jobs) },
     './LoadingSpinner.vue': { default: {} },
     './PiutangPanel.vue': { default: {} },
+    './KasPanel.vue': { default: {} },
     '../services/workers/workerDirectory': { findWorkerNameByPin: async () => 'Rusdi' },
   }
   const realModules = {

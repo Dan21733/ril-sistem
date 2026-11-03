@@ -40,6 +40,7 @@ import {
 import { findWorkerNameByPin } from '../services/workers/workerDirectory'
 
 import LoadingSpinner from './LoadingSpinner.vue'
+import KasPanel from './KasPanel.vue'
 import PiutangPanel from './PiutangPanel.vue'
 import vModalFocus from '../directives/modalFocus'
 
@@ -122,9 +123,14 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  /* Tab yang dibuka setelah PIN (mis. 'kas' dari pengingat "Kas belum dibuka"). */
+  initialTab: {
+    type: String,
+    default: 'nota',
+  },
 })
 
-const emit = defineEmits(['close', 'resend-queued', 'resend-batch', 'retry-print'])
+const emit = defineEmits(['close', 'resend-queued', 'resend-batch', 'retry-print', 'kas-status'])
 
 const showCheckoutResult = computed(() => props.checkoutStatus === 'success' && Boolean(props.checkoutMessage))
 
@@ -495,7 +501,7 @@ async function unlockSession() {
     personPin.value = pin
     sessionName.value = name
     pinInput.value = ''
-    activeTab.value = 'nota'
+    activeTab.value = ['nota', 'belum_lunas', 'ambil', 'kas'].includes(props.initialTab) ? props.initialTab : 'nota'
     touchSession()
     selectedDate.value === todayIsoDate() ? loadPage(1) : (selectedDate.value = todayIsoDate())
   } finally {
@@ -1515,10 +1521,24 @@ watch(queueSignature, async () => {
         <button type="button" role="tab" :aria-selected="activeTab === 'ambil'" :class="{ active: activeTab === 'ambil' }" @click="activeTab = 'ambil'; touchSession()">
           Ambil nanti / Pesanan<span v-if="piutangCounts.ambil" class="tab-count">{{ piutangCounts.ambil }}</span>
         </button>
+        <button type="button" role="tab" :aria-selected="activeTab === 'kas'" :class="{ active: activeTab === 'kas' }" @click="activeTab = 'kas'; touchSession()">
+          Kas
+        </button>
       </div>
 
+      <KasPanel
+        v-if="activeTab === 'kas'"
+        :pin="personPin"
+        :cashier-name="sessionName"
+        :queued-count="queuedCount"
+        @pointerdown="touchSession"
+        @keydown="touchSession"
+        @pin-invalid="lockSession('PIN tidak diterima server. Masukkan lagi.')"
+        @status="emit('kas-status', $event)"
+      />
+
       <PiutangPanel
-        v-if="activeTab !== 'nota'"
+        v-else-if="activeTab !== 'nota'"
         :tab="activeTab"
         :pin="personPin"
         :cashier-name="sessionName"

@@ -98,7 +98,7 @@ def catat_persetujuan(sync_id, approver_id):
     """Simpan siapa yang menyetujui harga di bawah floor untuk nota ini."""
     if sync_id and approver_id:
         NotaPersetujuan.objects.get_or_create(sync_id=sync_id, defaults={"approver_worker_id": approver_id})
-from . import data_master, pengaturan, piutang_kasir
+from . import data_master, kas, pengaturan, piutang_kasir
 from rest_framework import serializers as drf_serializers
 
 
@@ -1405,4 +1405,122 @@ class PiutangAksiAPIView(APIView):
         except piutang_kasir.AksiDitolak as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"aksi_id": str(aksi.aksi_id), "status": aksi.status, "pesan": aksi.pesan},
+                        status=status.HTTP_201_CREATED if baru else status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Kas laci (rancangan 3 Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+def _device_id(request):
+    perangkat = getattr(request.user, "device", None)
+    return getattr(perangkat, "id", None), getattr(perangkat, "device_code", "") or ""
+
+
+def _pin_badan(request, data):
+    """worker_id dari `pin` di badan permintaan, atau Response galat."""
+    pin = str(data.get("pin") or "").strip()
+    if not pin:
+        return None, Response({"detail": "PIN kasir wajib."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        return _verify_pin(pin, _person_throttle_identifier(request)), None
+    except PinThrottled as exc:
+        response = Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        response["Retry-After"] = exc.retry_after_seconds
+        return None, response
+    except drf_serializers.ValidationError:
+        return None, Response({"detail": "PIN kasir tidak cocok."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _boleh_kas(device_id):
+    from .models import DeviceStatus
+    return DeviceStatus.objects.filter(device_id=device_id, aktif=True, boleh_kas=True).exists()
+
+
+class KasStatusAPIView(APIView):
+    """Status kas toko untuk tablet. `?antrean=N` = laporan nota/aksi tablet yang belum terkirim."""
+
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        device_id, _ = _device_id(request)
+        if device_id is not None and request.query_params.get("antrean") not in (None, ""):
+            kas.lapor_antrean(device_id, request.query_params.get("antrean"))
+        return Response(kas.status_tablet(device_id))
+
+
+class KasBukaAPIView(APIView):
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        device_id, kode = _device_id(request)
+        if not _boleh_kas(device_id):
+            return Response({"detail": "Tablet ini tidak diatur untuk membuka kas."}, status=status.HTTP_403_FORBIDDEN)
+        worker_id, tolak = _pin_badan(request, data)
+        if tolak is not None:
+            return tolak
+        try:
+            kas.buka(kas.toko_kasir(), modal=data.get("modal"), cadangan_lengkap=bool(data.get("cadangan_lengkap")),
+                     pakai_cadangan=data.get("pakai_cadangan") or 0, catatan=data.get("catatan") or "",
+                     oleh=kas.nama_kasir(worker_id), dari=kode, worker_id=worker_id)
+        except kas.KasDitolak as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(kas.status_tablet(device_id), status=status.HTTP_201_CREATED)
+
+
+class KasTutupAPIView(APIView):
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        device_id, kode = _device_id(request)
+        if not _boleh_kas(device_id):
+            return Response({"detail": "Tablet ini tidak diatur untuk menutup kas."}, status=status.HTTP_403_FORBIDDEN)
+        if device_id is not None and data.get("antrean") not in (None, ""):
+            kas.lapor_antrean(device_id, data.get("antrean"))
+        try:
+            if int(data.get("antrean") or 0) > 0:
+                return Response({"detail": "Masih ada nota di tablet ini yang belum terkirim. Tunggu sampai terkirim, "
+                                           "baru tutup kas."}, status=status.HTTP_409_CONFLICT)
+        except (TypeError, ValueError):
+            pass
+        worker_id, tolak = _pin_badan(request, data)
+        if tolak is not None:
+            return tolak
+        try:
+            kas.tutup(data.get("sesi_id"), ambil_100=data.get("ambil_100"), ambil_50=data.get("ambil_50"),
+                      uang_sisa=data.get("uang_sisa"), cadangan_lengkap=bool(data.get("cadangan_lengkap")),
+                      isi_cadangan=data.get("isi_cadangan") or 0, catatan=data.get("catatan") or "",
+                      oleh=kas.nama_kasir(worker_id), dari=kode, worker_id=worker_id, device_id=device_id)
+        except kas.AntreanBelumKosong as exc:
+            return Response({"detail": str(exc), "tablet": exc.tablet}, status=status.HTTP_409_CONFLICT)
+        except kas.KasDitolak as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(kas.status_tablet(device_id))
+
+
+class KasGerakAPIView(APIView):
+    """Uang keluar (semua tablet) dan tambah modal (tablet kas). Idempoten per `gerak_id`."""
+
+    authentication_classes = [DeviceTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        device_id, kode = _device_id(request)
+        boleh = ("keluar", "tambah_modal") if _boleh_kas(device_id) else ("keluar",)
+        worker_id, tolak = _pin_badan(request, data)
+        if tolak is not None:
+            return tolak
+        try:
+            g, baru = kas.catat_gerak(data, toko_id=kas.toko_kasir(), oleh=kas.nama_kasir(worker_id), dari=kode,
+                                      worker_id=worker_id, jenis_boleh=boleh)
+        except kas.KasDitolak as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"gerak_id": str(g.gerak_id), "oleh": g.oleh},
                         status=status.HTTP_201_CREATED if baru else status.HTTP_200_OK)

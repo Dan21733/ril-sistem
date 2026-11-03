@@ -514,6 +514,8 @@ class Opname(models.Model):
     dibuat_waktu = models.DateTimeField(auto_now_add=True)
     diajukan_waktu = models.DateTimeField(null=True, blank=True)
     catatan = models.CharField(max_length=300, blank=True, default="")
+    # Siapa saja yang ikut menghitung (teks bebas, mis. "Andi, Budi"); bukan daftar karyawan.
+    dihitung_oleh = models.CharField(max_length=200, blank=True, default="")
     diputus_oleh = models.CharField(max_length=150, blank=True, default="")
     diputus_waktu = models.DateTimeField(null=True, blank=True)
     catatan_putusan = models.CharField(max_length=300, blank=True, default="")

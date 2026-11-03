@@ -3,7 +3,7 @@
 {% block isi %}
 <p class="kecil"><a href="{% url 'master:opname' %}">Stok opname</a> /</p>
 <h2>Opname #{{ op.id }} · {{ op.dibuat_oleh }}{% if banyak_toko %} · {{ op.toko.nama }}{% endif %}{% if op.toko.stok_di_kasir %} · {{ op.lokasi.nama|default:"Toko (display)" }}{% endif %}</h2>
-<p class="sub">Diajukan {{ op.diajukan_waktu|date:"d M Y H:i" }}{% if op.catatan %} · {{ op.catatan }}{% endif %}</p>
+<p class="sub">Diajukan {{ op.diajukan_waktu|date:"d M Y H:i" }}{% if op.dihitung_oleh %} · dihitung oleh <b>{{ op.dihitung_oleh }}</b>{% endif %}{% if op.catatan %} · {{ op.catatan }}{% endif %}</p>
 {% if op.status == "disetujui" %}<div class="pesan success">Disetujui {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}.</div>
 {% elif op.status == "ditolak" %}<div class="pesan warning">Ditolak {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}: {{ op.catatan_putusan }}</div>{% endif %}
 

@@ -37,6 +37,7 @@
   {% endfor %}
 </div>
 <form method="post" class="alat" style="margin-top:10px" data-tanya="Kirim {{ sudah|length }} hitungan ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
+  <input type="text" name="dihitung_oleh" required maxlength="200" placeholder="Dihitung oleh (mis. Andi, Budi)" aria-label="Dihitung oleh" value="{{ request.user.first_name|default:'' }}">
   <input type="text" name="catatan" placeholder="Catatan untuk pemilik (boleh kosong)" aria-label="Catatan untuk pemilik">
   <button class="tombol utama" type="submit">Kirim {{ sudah|length }} ke pemilik</button>
 </form>

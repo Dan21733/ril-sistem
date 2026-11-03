@@ -127,6 +127,11 @@ def tablet(request):
             elif aksi == "nama":
                 svc.atur_tablet(request.user, request.POST.get("id"), nama=request.POST.get("nama"))
                 messages.success(request, "Nama tablet tersimpan.")
+            elif aksi in ("kas_ya", "kas_tidak"):
+                from master.layanan import kas as svc_kas
+                svc_kas.atur_tablet_kas(request.user, request.POST.get("id"), aksi == "kas_ya")
+                messages.success(request, "Tablet ini sekarang boleh membuka & menutup kas." if aksi == "kas_ya" else
+                                 "Tablet ini tidak lagi membuka & menutup kas.")
             elif aksi in ("aktif", "nonaktif"):
                 svc.atur_tablet(request.user, request.POST.get("id"), aktif=aksi == "aktif")
                 messages.success(request, "Tablet diaktifkan." if aksi == "aktif" else

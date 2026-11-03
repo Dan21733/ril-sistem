@@ -35,7 +35,10 @@ import {
 } from './services/printer/printQueue'
 import deviceRepository from './services/storage/deviceRepository'
 import { fetchDpRules } from './services/api/piutangApi'
-import { flushPiutangActions } from './services/storage/piutangQueue'
+import { flushPiutangActions, listPendingPiutangActions } from './services/storage/piutangQueue'
+import { fetchKasStatus } from './services/api/kasApi'
+import { flushKasGerak, listPendingKasGerak } from './services/storage/kasQueue'
+import { kasBanner, readKasStatus, rememberKasStatus } from './utils/kas'
 import { dpRules, noteDpRules } from './utils/piutang'
 import { groupByOwner, isMixedCart, splitPayment } from './utils/pecahNota'
 import {
@@ -208,6 +211,10 @@ const checkoutResult = ref(null)
 const retryAfterSeconds = ref(0)
 
 const historyVisible = ref(false)
+const historyInitialTab = ref('nota')
+/* Kas laci (2026-11-03): status terakhir dari server, untuk pengingat "Kas belum dibuka". */
+const kasStatus = ref(readKasStatus())
+const kasNotice = computed(() => kasBanner(kasStatus.value))
 
 const deviceRegistered = ref(true)
 
@@ -883,8 +890,43 @@ async function refreshPiutangQuietly() {
   }
 }
 
+/*
+ * Kas: kirim uang keluar yang antre, lalu laporkan jumlah antrean tablet ini
+ * (nota + kas + piutang) supaya tutup kas di tablet kas ditahan selama masih
+ * ada yang belum terkirim. Diam-diam: offline berarti status lama dipakai.
+ */
+async function refreshKasQuietly() {
+  try {
+    await flushKasGerak()
+  } catch {
+    /* Dicoba lagi di siklus berikutnya. */
+  }
+  try {
+    const device = await deviceRepository.getDevice()
+    if (!device?.device_token) {
+      return
+    }
+    const [kasPending, piutangPending] = await Promise.all([listPendingKasGerak(), listPendingPiutangActions()])
+    const antrean = queuedNotices.value.length + kasPending.length + piutangPending.length
+    noteKasStatus(await fetchKasStatus(device.device_token, antrean))
+  } catch {
+    /* Offline / server lama tanpa endpoint kas. */
+  }
+}
+
+function noteKasStatus(status) {
+  kasStatus.value = status
+  rememberKasStatus(status)
+}
+
+function openHistory(tab = 'nota') {
+  historyInitialTab.value = tab
+  historyVisible.value = true
+}
+
 async function refreshWorkerDirectoryQuietly() {
   void refreshPiutangQuietly()
+  void refreshKasQuietly()
   try {
     await refreshWorkerDirectory()
   } catch {
@@ -1034,7 +1076,10 @@ onMounted(() => {
     void flushProofs({ quiet: true })
     void flushPrints({ quiet: true })
     void flushPiutangActions().catch(() => {})
-    void autoSendQueue().finally(refreshClockWarning)
+    void autoSendQueue().finally(() => {
+      refreshClockWarning()
+      void refreshKasQuietly()
+    })
   }, QUEUE_FLUSH_INTERVAL_MS)
   void probeServerReachability().finally(refreshClockWarning)
 
@@ -2517,7 +2562,7 @@ onBeforeUnmount(() => {
             :class="{ 'has-queue': historyNotice.hasQueued, 'has-print-alert': historyNotice.hasPrintAlert }"
             :title="historyNotice.title"
             :aria-label="historyNotice.ariaLabel"
-            @click="historyVisible = true"
+            @click="openHistory('nota')"
           >
             Transaksi
 
@@ -2583,6 +2628,12 @@ onBeforeUnmount(() => {
           {{ clockWarning }}
         </p>
 
+        <!-- Kas (2026-11-03): hanya di tablet kas; penjualan tetap jalan. -->
+        <p v-if="kasNotice" class="kas-reminder" role="status">
+          <span>{{ kasNotice.text }}</span>
+          <button type="button" @click="openHistory('kas')">{{ kasNotice.action }}</button>
+        </p>
+
         <!-- PRODUCT LIST -->
 
         <ProductList
@@ -2640,7 +2691,9 @@ onBeforeUnmount(() => {
       @retry-print="retryPrint"
       @resend-queued="resendQueuedTransaction"
       @resend-batch="resendQueuedBatch"
-      @close="historyVisible = false"
+      :initial-tab="historyInitialTab"
+      @kas-status="noteKasStatus"
+      @close="historyVisible = false; void refreshKasQuietly()"
     />
 
     <DeviceRegistrationModal
@@ -3011,6 +3064,46 @@ onBeforeUnmount(() => {
   color: var(--pos-warning-text);
 
   font-size: 14px;
+}
+
+.kas-reminder {
+  display: flex;
+
+  flex-shrink: 0;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin: 0 0 10px;
+  padding: 6px 6px 6px 12px;
+
+  border: 1px solid var(--pos-warning-border);
+  border-radius: 8px;
+
+  background: var(--pos-warning-bg);
+  color: var(--pos-warning-text);
+
+  font-size: 14px;
+}
+
+.kas-reminder button {
+  min-height: 44px;
+
+  padding: 0 14px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: var(--pos-accent);
+  color: var(--pos-accent-contrast);
+
+  font: inherit;
+  font-weight: 700;
+
+  cursor: pointer;
 }
 
 .catalog-notice {

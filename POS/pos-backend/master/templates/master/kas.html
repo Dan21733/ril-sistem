@@ -1,0 +1,102 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Kas laci{% endblock %}
+{% block isi %}
+<h2>Kas laci · {{ toko.nama }}</h2>
+{% if not k %}
+<div class="pesan info">Kas hanya untuk toko yang memegang kasir. Pilih toko kasir di menu samping.</div>
+{% else %}
+<p class="sub">{% if k.tablet_kas %}Kas dibuka &amp; ditutup dari tablet: {% for t in k.tablet_kas %}<b>{{ t.nama }}</b>{% if not forloop.last %}, {% endif %}{% endfor %}. Pemilik tetap bisa membuka/menutup dari sini.{% else %}Belum ada tablet yang boleh buka &amp; tutup kas, jadi kas dibuka dan ditutup pemilik dari sini atau HP.{% endif %}
+  Atur di <a href="{% url 'master:tablet' %}">Perangkat &gt; Tablet</a>.</p>
+
+{% for s in k.menunggu_acc %}
+<div class="pesan warning">Tutup kas {{ s.ditutup_waktu|date:"d M H:i" }} oleh {{ s.ditutup_oleh }} menunggu ACC · selisih <b>{{ s.selisih|ribuan }}</b>
+  · <a href="{% url 'master:kas_detail' s.id %}">Periksa</a></div>
+{% endfor %}
+
+<div class="kisi" style="align-items:start;grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">
+{% if k.sesi %}
+  <div class="kartu">
+    <div class="baris" style="justify-content:space-between"><b style="font-size:18px">Kas dibuka</b><span class="label baik">buka</span></div>
+    <div class="redup kecil" style="margin-top:4px">{{ k.sesi.dibuka_waktu|date:"d M Y H:i" }} · {{ k.sesi.dibuka_oleh }}{% if k.sesi.dibuka_dari %} · {{ k.sesi.dibuka_dari }}{% endif %}</div>
+    <div style="margin-top:14px" class="redup kecil">Seharusnya ada di laci</div>
+    <div style="font-size:30px;font-weight:700">{{ k.hitung.seharusnya|ribuan }}</div>
+    <table style="margin-top:10px">
+      {% for label, n in k.rincian %}<tr><td>{{ label }}</td><td class="angka">{{ n|ribuan }}</td></tr>{% endfor %}
+    </table>
+    <div class="kecil redup" style="margin-top:10px">Di luar laci: EDC {{ k.hitung.edc|ribuan }} · Transfer {{ k.hitung.transfer|ribuan }}{% if k.hitung.jumlah_transfer %} ({{ k.hitung.jumlah_transfer }} bukti){% endif %}</div>
+  </div>
+{% else %}
+  <form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="buka">
+    <b style="font-size:18px">{% if k.tutup_hari_ini %}Kas sudah ditutup hari ini{% else %}Kas belum dibuka{% endif %}</b>
+    <p class="redup kecil">Penjualan tetap jalan walau kas belum dibuka; uangnya masuk ke kas yang dibuka berikutnya.{% if k.terakhir %} Tutup kas terakhir {{ k.terakhir.ditutup_waktu|date:"d M H:i" }}.{% endif %}</p>
+    <label>Modal di laci (hitung)</label>
+    <input type="text" name="modal" inputmode="numeric" value="{{ k.modal_saran|ribuan }}">
+    <div class="kecil redup">Sisa tutup kas terakhir: {{ k.modal_saran|ribuan }}. Kalau beda, isi yang benar-benar ada.</div>
+    <label style="margin-top:10px">Pakai cadangan sebagai modal (boleh 0)</label>
+    <input type="text" name="pakai_cadangan" inputmode="numeric" value="0">
+    <label style="display:flex;gap:8px;align-items:center;margin:10px 0 0"><input style="width:auto" type="checkbox" name="cadangan_lengkap" value="1" checked> Cadangan {{ k.cadangan|ribuan }} lengkap (2×100rb + 4×50rb)</label>
+    <label style="margin-top:10px">Catatan (boleh kosong)</label><input type="text" name="catatan" maxlength="300">
+    <button class="tombol utama" type="submit" style="margin-top:12px">Buka kas</button>
+  </form>
+{% endif %}
+
+  <div class="kartu">
+    <b>Cadangan {{ k.cadangan|ribuan }}</b>
+    {% if k.cadangan_terpakai %}<div class="pesan warning" style="margin:8px 0 0">Terpakai {{ k.cadangan_terpakai|ribuan }}, belum diisi lagi. Isi lagi saat tutup kas.</div>
+    {% else %}<div class="redup kecil" style="margin-top:4px">Lengkap. Tidak boleh dipinjam karyawan.</div>{% endif %}
+    {% if k.antrean %}<div class="pesan warning" style="margin:10px 0 0">Nota belum terkirim: {% for t in k.antrean %}{{ t.nama }} ({{ t.jumlah }}){% if t.basi %} · laporan lama{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}. Tutup kas ditahan sampai terkirim.</div>{% endif %}
+  </div>
+</div>
+
+{% if k.sesi %}
+<div class="kisi" style="margin-top:14px;align-items:start;grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">
+  <form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="gerak"><input type="hidden" name="gerak_id" value="{{ gerak_baru }}">
+    <h3 style="margin-top:0">Catat uang keluar / tambah modal</h3>
+    <div class="kisi">
+      <div><label>Jenis</label><select name="jenis"><option value="keluar">Uang keluar</option><option value="tambah_modal">Tambah modal</option></select></div>
+      <div><label>Jumlah</label><input type="text" name="jumlah" inputmode="numeric" required></div>
+    </div>
+    <label style="margin-top:10px">Kategori (uang keluar)</label>
+    <select name="kategori"><option value="">Pilih…</option>{% for x in kategori %}<option>{{ x }}</option>{% endfor %}</select>
+    <label style="margin-top:10px">Keterangan</label><input type="text" name="keterangan" maxlength="300" placeholder="mis. bensin motor antar Pak Budi">
+    <button class="tombol" type="submit" style="margin-top:12px">Simpan</button>
+  </form>
+
+  <form method="post" class="kartu" data-tanya="Tutup kas sekarang? Angka dibekukan dan menunggu ACC." data-tanya-ya="Tutup kas">{% csrf_token %}<input type="hidden" name="aksi" value="tutup"><input type="hidden" name="sesi_id" value="{{ k.sesi.id }}">
+    <h3 style="margin-top:0">Tutup kas</h3>
+    <div class="kisi">
+      <div><label>Lembar 100rb diambil</label><input type="number" name="ambil_100" min="0" value="0"></div>
+      <div><label>Lembar 50rb diambil</label><input type="number" name="ambil_50" min="0" value="0"></div>
+    </div>
+    <label style="margin-top:10px">Uang sisa di laci (jadi modal besok)</label>
+    <input type="text" name="uang_sisa" inputmode="numeric" required>
+    {% if k.cadangan_terpakai %}<label style="margin-top:10px">Isi lagi cadangan dari laci</label>
+    <input type="text" name="isi_cadangan" inputmode="numeric" value="{{ k.cadangan_terpakai|ribuan }}">{% endif %}
+    <label style="display:flex;gap:8px;align-items:center;margin:10px 0 0"><input style="width:auto" type="checkbox" name="cadangan_lengkap" value="1" checked> Cadangan lengkap</label>
+    {% if k.antrean %}<label style="display:flex;gap:8px;align-items:center;margin:6px 0 0"><input style="width:auto" type="checkbox" name="paksa" value="1"> Tetap tutup walau ada nota belum terkirim</label>{% endif %}
+    <label style="margin-top:10px">Catatan</label><input type="text" name="catatan" maxlength="300">
+    <button class="tombol utama" type="submit" style="margin-top:12px">Tutup kas</button>
+  </form>
+</div>
+
+<h3>Uang keluar &amp; modal sesi ini</h3>
+<div class="gulir"><table><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th class="angka">Jumlah</th><th>Oleh</th><th></th></tr>
+{% for g in k.gerak %}<tr class="{% if g.batal %}nonaktif{% endif %}"><td>{{ g.waktu|date:"H:i" }}</td><td>{{ g.get_jenis_display }}</td><td>{{ g.kategori }}</td><td>{{ g.keterangan }}{% if g.batal %} <span class="label bahaya">batal: {{ g.batal_alasan }}</span>{% endif %}</td>
+  <td class="angka">{{ g.jumlah|ribuan }}</td><td class="kecil redup">{{ g.oleh }}{% if g.device_code %} · {{ g.device_code }}{% endif %}</td>
+  <td>{% if not g.batal %}<form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="batal"><input type="hidden" name="gerak_id" value="{{ g.gerak_id }}"><input type="text" name="alasan" placeholder="alasan batal" style="width:130px" required><button class="tombol kecil bahaya" type="submit">Batal</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="redup">Belum ada.</td></tr>{% endfor %}</table></div>
+{% endif %}
+
+<h3>Riwayat kas</h3>
+<div class="gulir"><table><tr><th>Dibuka</th><th>Ditutup</th><th class="angka">Modal</th><th class="angka">Seharusnya</th><th class="angka">Dihitung</th><th class="angka">Selisih</th><th>ACC</th></tr>
+{% for s in riwayat %}<tr>
+  <td><a href="{% url 'master:kas_detail' s.id %}">{{ s.dibuka_waktu|date:"d M H:i" }}</a> <span class="kecil redup">{{ s.dibuka_oleh }}</span></td>
+  <td>{% if s.ditutup_waktu %}{{ s.ditutup_waktu|date:"d M H:i" }} <span class="kecil redup">{{ s.ditutup_oleh }}</span>{% else %}<span class="label baik">masih buka</span>{% endif %}</td>
+  <td class="angka">{{ s.modal_awal|ribuan }}</td>
+  <td class="angka">{% if s.status == 'ditutup' %}{{ s.seharusnya|ribuan }}{% endif %}</td>
+  <td class="angka">{% if s.status == 'ditutup' %}{{ s.dihitung|ribuan }}{% endif %}</td>
+  <td class="angka" {% if s.status == 'ditutup' and s.selisih %}style="color:var(--bahaya);font-weight:600"{% endif %}>{% if s.status == 'ditutup' %}{{ s.selisih|ribuan }}{% endif %}</td>
+  <td>{% if s.acc_status == 'menunggu' %}<span class="label">menunggu</span>{% elif s.acc_status == 'diterima' %}<span class="label baik">diterima</span>{% elif s.acc_status == 'ditolak' %}<span class="label bahaya">ditolak</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="redup">Belum pernah buka kas.</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endblock %}

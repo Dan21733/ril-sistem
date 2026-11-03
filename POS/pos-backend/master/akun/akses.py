@@ -39,6 +39,8 @@ SEMUA_HAK = {
     # DP & piutang pelanggan: lihat, catat pembayaran, tandai barang diambil. ACC = setujui invoice / titip barang.
     "piutang",
     "acc_piutang",
+    # Kas laci: buka/tutup kas, uang keluar, ACC tutup kas (melihat angka seharusnya & selisih).
+    "kas",
     # Aplikasi operasional (/gudang/). "gudang" = boleh membukanya; menu dibuka per hak di bawah.
     "gudang_datang",
     "gudang_hitung",
@@ -89,6 +91,7 @@ LABEL_HAK = [
         ("laporan", "Nota dan laporan"),
         ("piutang", "Piutang pelanggan: catat pembayaran, barang diambil"),
         ("acc_piutang", "ACC invoice (ngutang) dan titip barang"),
+        ("kas", "Kas laci: buka/tutup kas, uang keluar, ACC tutup kas"),
         ("lihat_log", "Melihat log"),
         ("pengaturan", "Pengaturan"),
         ("kelola_toko", "Kelola toko"),
@@ -265,6 +268,12 @@ def konteks(request):
         from master.models import Piutang
         return Piutang.objects.filter(batal=False, acc_status="menunggu").count()
 
+    def _kas_acc():
+        if "kas" not in hak_pengguna(user):
+            return 0
+        from master.layanan.kas import jumlah_menunggu
+        return jumlah_menunggu()
+
     hak = hak_pengguna(user)
     return {"hak": hak, "hak_tugas": bool(hak & HAK_TUGAS), "daftar_toko": daftar, "tema": SimpleLazyObject(_tema),
             "toko_aktif": SimpleLazyObject(_toko_aktif), "toko_stok": SimpleLazyObject(_toko_stok),
@@ -273,5 +282,7 @@ def konteks(request):
             "jumlah_ambil": SimpleLazyObject(_ambil), "jumlah_retur": SimpleLazyObject(_retur),
             "jumlah_tinjau": SimpleLazyObject(_tinjau), "jumlah_tugas_acc": SimpleLazyObject(_tugas_acc),
             "jumlah_piutang_acc": SimpleLazyObject(_piutang_acc),
-            "jumlah_penjualan": SimpleLazyObject(lambda: str(int(str(_retur())) + int(str(_tinjau())) + int(str(_piutang_acc())))),
+            "jumlah_kas_acc": SimpleLazyObject(_kas_acc),
+            "jumlah_penjualan": SimpleLazyObject(lambda: str(int(str(_retur())) + int(str(_tinjau())) + int(str(_piutang_acc()))
+                                                             + int(str(_kas_acc())))),
             "ada_titipan": SimpleLazyObject(_ada_titipan)}

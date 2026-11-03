@@ -1,0 +1,104 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Kas laci · DB Toko{% endblock %}
+{% block judul_kecil %}Kas laci{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Kas laci</h1>
+<p class="anak-judul">{{ toko.nama }}</p>
+{% if not k %}
+<div class="grup"><div class="kosong">Kas hanya untuk toko yang memegang kasir.</div></div>
+{% else %}
+{% for s in k.menunggu_acc %}
+<div class="grup" style="margin-bottom:10px"><a class="sel panah" href="{% url 'hp:kas_detail' s.id %}"><div class="utama"><div class="nama"><b>Menunggu ACC</b></div>
+  <div class="sub">{{ s.ditutup_waktu|date:"d M H:i" }} · {{ s.ditutup_oleh }}</div></div>
+  <div class="nilai"><b class="{% if s.selisih %}turun{% endif %}">{{ s.selisih|rupiah }}</b><div class="kecil redup">selisih</div></div></a></div>
+{% endfor %}
+
+{% if k.sesi %}
+<div class="ubin">
+  <div><div class="lbl">Tunai di laci</div><div class="angka">{{ k.hitung.seharusnya|rupiah }}</div><div class="ket">dibuka {{ k.sesi.dibuka_waktu|date:"H.i" }} · {{ k.sesi.dibuka_oleh }}</div></div>
+  <div><div class="lbl">Di luar laci</div><div class="angka" style="font-size:20px">{{ k.hitung.transfer|add:k.hitung.edc|rupiah }}</div><div class="ket">transfer {{ k.hitung.transfer|singkat }} · EDC {{ k.hitung.edc|singkat }}</div></div>
+</div>
+<div class="kepala-grup"><h2>Rincian</h2></div>
+<div class="grup">{% for label, n in k.rincian %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ label }}</div></div><span class="nilai{% if n < 0 %} turun{% endif %}">{{ n|rupiah }}</span></div>{% endfor %}</div>
+
+<div class="kepala-grup"><h2>Uang keluar &amp; modal</h2></div>
+<div class="grup">{% for g in k.gerak %}<div class="sel"{% if g.batal %} style="opacity:.5"{% endif %}><div class="utama"><div class="nama" style="font-size:15px">{{ g.kategori|default:g.get_jenis_display }}{% if g.keterangan %} <span class="redup">· {{ g.keterangan }}</span>{% endif %}</div>
+  <div class="sub">{{ g.waktu|date:"H.i" }} · {{ g.oleh }}{% if g.batal %} · batal{% endif %}</div></div><span class="nilai">{{ g.jumlah|rupiah }}</span>
+  {% if not g.batal %}<button class="tombol kecil abu" data-batal="{{ g.gerak_id }}" aria-label="Batalkan">Batal</button>{% endif %}</div>
+  {% empty %}<div class="kosong">Belum ada.</div>{% endfor %}</div>
+
+<div class="kepala-grup"><h2>Catat</h2></div>
+<div class="grup">
+  <label class="isian"><span>Jenis</span><select id="g-jenis"><option value="keluar">Uang keluar</option><option value="tambah_modal">Tambah modal</option></select></label>
+  <label class="isian"><span>Jumlah</span><input id="g-jumlah" inputmode="numeric" placeholder="0"></label>
+  <label class="isian"><span>Kategori</span><select id="g-kategori"><option value="">Pilih…</option>{% for x in kategori %}<option>{{ x }}</option>{% endfor %}</select></label>
+  <label class="isian"><span>Keterangan</span><input id="g-ket" placeholder="opsional"></label>
+</div>
+<button class="tombol abu penuh" id="tombol-gerak" style="margin-top:10px">Simpan</button>
+
+<div class="kepala-grup"><h2>Tutup kas</h2></div>
+<div class="grup">
+  <label class="isian"><span>100rb diambil</span><input id="t-100" inputmode="numeric" value="0"></label>
+  <label class="isian"><span>50rb diambil</span><input id="t-50" inputmode="numeric" value="0"></label>
+  <label class="isian"><span>Uang sisa</span><input id="t-sisa" inputmode="numeric" placeholder="jadi modal besok"></label>
+  {% if k.cadangan_terpakai %}<label class="isian"><span>Isi cadangan</span><input id="t-isi" inputmode="numeric" value="{{ k.cadangan_terpakai|ribuan }}"></label>{% endif %}
+  <label class="isian"><span>Cadangan lengkap</span><input type="checkbox" id="t-cadangan" checked style="flex:none;width:22px;height:22px;-webkit-appearance:auto;appearance:auto;accent-color:var(--tint);margin-left:auto"></label>
+  {% if k.antrean %}<label class="isian"><span>Tutup paksa</span><input type="checkbox" id="t-paksa" style="flex:none;width:22px;height:22px;-webkit-appearance:auto;appearance:auto;accent-color:var(--tint);margin-left:auto"></label>{% endif %}
+  <label class="isian"><span>Catatan</span><input id="t-catatan" placeholder="opsional"></label>
+</div>
+{% if k.antrean %}<p class="ket-grup turun">Nota belum terkirim: {% for t in k.antrean %}{{ t.nama }} ({{ t.jumlah }}){% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+<button class="tombol penuh" id="tombol-tutup" style="margin-top:10px">Tutup kas</button>
+{% else %}
+<div class="grup"><div class="sel"><div class="utama"><div class="nama"><b>{% if k.tutup_hari_ini %}Kas sudah ditutup{% else %}Kas belum dibuka{% endif %}</b></div>
+  <div class="sub" style="white-space:normal">Penjualan tetap jalan; uangnya masuk ke kas berikutnya.{% if k.terakhir %} Tutup terakhir {{ k.terakhir.ditutup_waktu|date:"d M H.i" }}.{% endif %}</div></div></div></div>
+<div class="kepala-grup"><h2>{% if k.tutup_hari_ini %}Buka kas lagi{% else %}Buka kas{% endif %}</h2></div>
+<div class="grup">
+  <label class="isian"><span>Modal di laci</span><input id="b-modal" inputmode="numeric" value="{{ k.modal_saran|ribuan }}"></label>
+  <label class="isian"><span>Pakai cadangan</span><input id="b-cadangan" inputmode="numeric" value="0"></label>
+  <label class="isian"><span>Cadangan lengkap</span><input type="checkbox" id="b-lengkap" checked style="flex:none;width:22px;height:22px;-webkit-appearance:auto;appearance:auto;accent-color:var(--tint);margin-left:auto"></label>
+  <label class="isian"><span>Catatan</span><input id="b-catatan" placeholder="opsional"></label>
+</div>
+<p class="ket-grup">Sisa tutup kas terakhir {{ k.modal_saran|rupiah }}. Cadangan {{ k.cadangan|rupiah }} (2×100rb + 4×50rb) terpisah dari modal.</p>
+<button class="tombol penuh" id="tombol-buka" style="margin-top:10px">Buka kas</button>
+{% endif %}
+
+<p class="ket-grup">Cadangan {{ k.cadangan|rupiah }}: {% if k.cadangan_terpakai %}<span class="turun">terpakai {{ k.cadangan_terpakai|rupiah }}, belum diisi lagi</span>{% else %}lengkap{% endif %}.
+  {% if k.tablet_kas %}Tablet kas: {% for t in k.tablet_kas %}{{ t.nama }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% else %}Belum ada tablet kas; kas dibuka/ditutup dari sini.{% endif %}</p>
+
+<div class="kepala-grup"><h2>Riwayat</h2></div>
+<div class="grup">{% for s in riwayat %}<a class="sel panah" href="{% url 'hp:kas_detail' s.id %}"><div class="utama"><div class="nama" style="font-size:15px">{{ s.dibuka_waktu|date:"D, d M" }}</div>
+  <div class="sub">{% if s.status == 'ditutup' %}ditutup {{ s.ditutup_waktu|date:"H.i" }} · {{ s.get_acc_status_display|lower }}{% else %}masih buka{% endif %}</div></div>
+  {% if s.status == 'ditutup' %}<span class="nilai{% if s.selisih %} turun{% endif %}">{{ s.selisih|rupiah }}</span>{% endif %}</a>
+  {% empty %}<div class="kosong">Belum pernah buka kas.</div>{% endfor %}</div>
+{% endif %}
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+const URL_INI = "{% url 'hp:kas' %}";
+const nilai = id => document.getElementById(id)?.value ?? '';
+async function aksi(data, tombol, lalu){
+  if (tombol) tombol.disabled = true;
+  try { const d = await kirim(URL_INI, data); kabar(d.pesan); setTimeout(() => lalu ? lalu(d) : location.reload(), 700); }
+  catch (e) { kabar(e.message, true); if (tombol) tombol.disabled = false; }
+}
+document.getElementById('tombol-buka')?.addEventListener('click', e => aksi({aksi: 'buka', modal: angka(nilai('b-modal')) ?? 0,
+  pakai_cadangan: angka(nilai('b-cadangan')) ?? 0, cadangan_lengkap: document.getElementById('b-lengkap').checked, catatan: nilai('b-catatan')}, e.currentTarget));
+document.getElementById('tombol-gerak')?.addEventListener('click', e => aksi({aksi: 'gerak', gerak_id: "{{ gerak_baru }}", jenis: nilai('g-jenis'),
+  jumlah: angka(nilai('g-jumlah')), kategori: nilai('g-kategori'), keterangan: nilai('g-ket')}, e.currentTarget));
+document.getElementById('tombol-tutup')?.addEventListener('click', e => {
+  const sisa = angka(nilai('t-sisa'));
+  if (sisa === null) { kabar('Isi uang sisa di laci.', true); return; }
+  if (!confirm('Tutup kas sekarang? Angka dibekukan dan menunggu ACC.')) return;
+  aksi({aksi: 'tutup', sesi_id: "{{ k.sesi.id|default:'' }}", ambil_100: angka(nilai('t-100')) ?? 0, ambil_50: angka(nilai('t-50')) ?? 0,
+    uang_sisa: sisa, isi_cadangan: angka(nilai('t-isi')) ?? 0, cadangan_lengkap: document.getElementById('t-cadangan').checked,
+    paksa: !!document.getElementById('t-paksa')?.checked, catatan: nilai('t-catatan')}, e.currentTarget,
+    d => location.href = "{% url 'hp:kas' %}" + d.sesi_id + "/");
+});
+document.querySelectorAll('[data-batal]').forEach(b => b.addEventListener('click', () => {
+  const alasan = prompt('Alasan membatalkan catatan ini?'); if (!alasan) return;
+  aksi({aksi: 'batal', gerak_id: b.dataset.batal, alasan}, b);
+}));
+</script>
+{% endblock %}

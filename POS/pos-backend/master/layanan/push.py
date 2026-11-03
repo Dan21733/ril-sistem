@@ -147,7 +147,7 @@ def kirim_ke(langganan_qs, data):
 
 # Hak yang dibutuhkan untuk tiap jenis permintaan ACC.
 HAK_JENIS = {"nota": "kelola_kasir", "tugas": "kelola_lokasi", "dus": "ubah_stok", "po": "pembelian",
-             "piutang": "acc_piutang", "tempo": "piutang"}
+             "piutang": "acc_piutang", "tempo": "piutang", "kas": "kas"}
 
 
 def menunggu():
@@ -176,6 +176,10 @@ def menunggu():
     for p in Piutang.objects.filter(batal=False, acc_status="menunggu")[:50]:
         hasil.append((f"piutang:{p.id}", "piutang", "Invoice menunggu ACC" if p.jenis_acc == "invoice" else "Titip barang menunggu ACC",
                       f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))
+    from pos.models import KasSesi
+    for s in KasSesi.objects.filter(status="ditutup", acc_status="menunggu").order_by("ditutup_waktu")[:50]:
+        hasil.append((f"kas:{s.pk}", "kas", "Tutup kas menunggu ACC",
+                      f"{s.ditutup_oleh} · selisih {svc_piutang.rp(s.selisih)}", reverse("hp:kas_detail", args=[s.pk])))
     for p in svc_piutang.lewat_tempo()[:50]:
         hasil.append((f"tempo:{p.id}:{p.jatuh_tempo:%Y%m%d}", "tempo", "Piutang lewat jatuh tempo",
                       f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))

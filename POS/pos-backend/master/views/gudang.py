@@ -184,7 +184,8 @@ def tiket_hitung(request, tiket_id):
             elif aksi == "hapus":
                 opname.hapus_baris(request.user, request.POST.get("id"))
             elif aksi == "kirim":
-                op = opname.kirim_tugas(request.user, t, request.POST.get("catatan"))
+                op = opname.kirim_tugas(request.user, t, request.POST.get("catatan"),
+                                        dihitung_oleh=request.POST.get("dihitung_oleh", ""))
                 messages.success(request, f"Hitungan tugas #{t.id} dikirim ({op.baris.count()} barang). Stok berubah setelah pemilik ACC.")
                 return redirect("gudang:tiket")
         except Tolak as tolak:

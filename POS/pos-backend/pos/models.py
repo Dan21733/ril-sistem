@@ -323,6 +323,12 @@ class DeviceStatus(models.Model):
     aktif = models.BooleanField(default=True)
     didaftar = models.DateTimeField(null=True, blank=True)
     terakhir_dilihat = models.DateTimeField(null=True, blank=True)
+    # Kas (rancangan 3 Nov 2026): tablet ini boleh membuka & menutup kas toko.
+    boleh_kas = models.BooleanField(default=False)
+    # Jumlah nota/aksi kas yang belum terkirim menurut laporan terakhir tablet.
+    # Tutup kas ditahan selama ada tablet dengan antrean.
+    antrean = models.IntegerField(default=0)
+    antrean_waktu = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "device_status"
@@ -461,3 +467,89 @@ class NotaToko(models.Model):
 
     class Meta:
         db_table = "nota_toko"
+
+
+class KasSesi(models.Model):
+    """Satu sesi laci kas toko: dari buka kas sampai tutup kas (rancangan 3 Nov 2026).
+
+    Sesi per toko, bukan per tablet. Penjualan tidak pernah diblokir walau kas
+    belum dibuka: semua uang yang masuk/keluar sejak tutup kas sebelumnya
+    (`awal_hitung`) masuk ke sesi ini. Saat tutup kas, angka seharusnya dan
+    rinciannya dibekukan di `rincian` supaya ACC sore hari melihat angka yang
+    sama dengan yang dilihat saat tutup.
+    """
+
+    STATUS = [("buka", "Kas dibuka"), ("ditutup", "Kas ditutup")]
+    ACC = [("menunggu", "Menunggu ACC"), ("diterima", "Diterima"), ("ditolak", "Ditolak")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    toko_id = models.IntegerField(null=True, blank=True, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS, default="buka", db_index=True)
+    awal_hitung = models.DateTimeField()
+    dibuka_waktu = models.DateTimeField(default=timezone.now)
+    dibuka_oleh = models.CharField(max_length=150)
+    dibuka_dari = models.CharField(max_length=20, blank=True, default="")
+    modal_saran = models.IntegerField(default=0)
+    modal_awal = models.IntegerField(default=0)
+    cadangan_lengkap_buka = models.BooleanField(default=True)
+    catatan_buka = models.CharField(max_length=300, blank=True, default="")
+    ditutup_waktu = models.DateTimeField(null=True, blank=True)
+    ditutup_oleh = models.CharField(max_length=150, blank=True, default="")
+    ditutup_dari = models.CharField(max_length=20, blank=True, default="")
+    ambil_100 = models.IntegerField(default=0)
+    ambil_50 = models.IntegerField(default=0)
+    uang_sisa = models.IntegerField(default=0)
+    cadangan_lengkap_tutup = models.BooleanField(default=True)
+    seharusnya = models.IntegerField(default=0)
+    selisih = models.IntegerField(default=0)
+    rincian = models.JSONField(default=dict, blank=True)
+    catatan_tutup = models.CharField(max_length=300, blank=True, default="")
+    acc_status = models.CharField(max_length=10, choices=ACC, blank=True, default="", db_index=True)
+    acc_oleh = models.CharField(max_length=150, blank=True, default="")
+    acc_waktu = models.DateTimeField(null=True, blank=True)
+    acc_catatan = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        db_table = "kas_sesi"
+        ordering = ["-dibuka_waktu"]
+        constraints = [models.UniqueConstraint(
+            fields=["toko_id"], condition=models.Q(status="buka"), name="kas_sesi_satu_buka_per_toko")]
+
+    @property
+    def diambil(self):
+        return self.ambil_100 * 100000 + self.ambil_50 * 50000
+
+    @property
+    def dihitung(self):
+        return self.diambil + self.uang_sisa
+
+
+class KasGerak(models.Model):
+    """Uang keluar/masuk laci di luar nota: uang keluar, tambah modal, cadangan.
+
+    Dicatat saat kejadian (ber-PIN di tablet, atau oleh pemilik di master/HP).
+    `gerak_id` dibuat pencatat, jadi antrean offline tablet boleh mengirim ulang.
+    Masuk ke sesi kas menurut waktunya, sama seperti nota.
+    """
+
+    JENIS = [("keluar", "Uang keluar"), ("tambah_modal", "Tambah modal"),
+             ("pakai_cadangan", "Pakai cadangan"), ("isi_cadangan", "Isi lagi cadangan")]
+
+    gerak_id = models.UUIDField(primary_key=True)
+    toko_id = models.IntegerField(null=True, blank=True, db_index=True)
+    jenis = models.CharField(max_length=20, choices=JENIS)
+    jumlah = models.IntegerField()
+    kategori = models.CharField(max_length=40, blank=True, default="")
+    keterangan = models.CharField(max_length=300, blank=True, default="")
+    worker_id = models.CharField(max_length=5, blank=True, default="")
+    oleh = models.CharField(max_length=150, blank=True, default="")
+    device_code = models.CharField(max_length=20, blank=True, default="")
+    waktu = models.DateTimeField(db_index=True)
+    masuk = models.DateTimeField(default=timezone.now)
+    batal = models.BooleanField(default=False)
+    batal_oleh = models.CharField(max_length=150, blank=True, default="")
+    batal_alasan = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        db_table = "kas_gerak"
+        ordering = ["waktu"]

@@ -443,7 +443,8 @@ def daftar_tablet():
         s = status.get(d.id)
         hasil.append({"id": d.id, "kode": d.device_code, "nama": s.nama if s else "",
                       "aktif": s.aktif if s else True, "didaftar": s.didaftar if s else None,
-                      "terakhir": s.terakhir_dilihat if s else None})
+                      "terakhir": s.terakhir_dilihat if s else None, "boleh_kas": bool(s and s.boleh_kas),
+                      "antrean": s.antrean if s else 0})
     return hasil
 
 

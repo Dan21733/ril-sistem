@@ -17,6 +17,8 @@ def ribuan(nilai):
 @register.filter
 def rupiah(nilai):
     teks = ribuan(nilai)
+    if isinstance(teks, str) and teks.startswith("-"):
+        return f"−Rp{teks[1:]}"     # -25000 -> −Rp25.000 (bukan Rp-25.000)
     return f"Rp{teks}" if teks != "" else "-"
 
 
@@ -56,4 +58,13 @@ def get(kamus, kunci):
     try:
         return kamus.get(kunci, "")
     except AttributeError:
+        return ""
+
+
+@register.filter
+def kurang(a, b):
+    """a - b untuk angka (kosong kalau bukan angka)."""
+    try:
+        return int(a) - int(b)
+    except (TypeError, ValueError):
         return ""

@@ -29,6 +29,12 @@
   <div><div class="lbl">Rata-rata per nota</div><div class="angka">{{ jual.rata|rupiah }}</div><div class="ket">{{ jual.nota }} nota</div></div>
 </div>
 
+{% if kas_hari %}
+<a class="grup sel panah" href="{% url 'hp:kas' %}" style="margin-top:10px;display:flex">
+  <div class="utama"><div class="nama">Tunai di laci</div>
+    <div class="sub">{% if kas_hari.buka %}<span class="naik">Kas dibuka {{ kas_hari.dibuka_waktu|date:"H.i" }}</span>{% elif kas_hari.terakhir_hari_ini %}Kas sudah ditutup {{ kas_hari.ditutup_waktu|date:"H.i" }}{% else %}<span class="turun">Kas belum dibuka</span>{% endif %}</div></div>
+  <span class="nilai">{% if kas_hari.buka %}{{ kas_hari.seharusnya|rupiah }}{% else %}–{% endif %}</span></a>
+{% endif %}
 <div class="grup" id="ajak-push" hidden style="margin-top:12px"><div style="font-size:26px">🔔</div><div style="flex:1"><b>Nyalakan notifikasi ACC</b><div class="redup kecil">Diberi tahu saat ada nota di bawah floor, tugas selesai, dan lainnya.</div></div><a class="tombol kecil" href="{% url 'hp:setelan' %}">Atur</a></div>
 <div class="kepala-grup"><h2>{{ jual.grafik_judul }}</h2><span class="redup kecil">{{ judul_periode }}</span></div>
 <div class="grup"><div class="batang">
@@ -54,6 +60,15 @@
     <button class="tombol kecil hijau" data-aksi="terima">Terima</button>
     <button class="tombol kecil merah" data-aksi="tolak">Tolak</button>
   </div>
+</div>
+{% endfor %}
+
+{% for k in kas_acc %}
+<div class="grup kartu-acc" data-acc="kas" data-id="{{ k.id }}" style="margin-bottom:10px">
+  <a class="sel panah" href="{% url 'hp:kas_detail' k.id %}"><div class="utama"><div class="nama"><b>Tutup kas</b> <span class="redup">· {{ k.ditutup_oleh }}</span></div>
+    <div class="sub">{{ k.ditutup_waktu|date:"d M H.i" }} · dihitung {{ k.dihitung|rupiah }}</div></div>
+    <div class="nilai"><b class="{% if k.selisih %}turun{% endif %}">{{ k.selisih|rupiah }}</b><div class="kecil redup">selisih</div></div></a>
+  <div class="sel"><button class="tombol kecil hijau" data-aksi="terima">Terima</button><button class="tombol kecil merah" data-aksi="tolak">Tolak</button></div>
 </div>
 {% endfor %}
 

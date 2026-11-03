@@ -27,7 +27,8 @@
 <div class="kepala-grup"><h2>Hitungan</h2></div>
 <div class="grup">
   <div class="sel"><div class="utama">Barang sudah dihitung</div><span class="nilai">{{ jumlah_hitung|ribuan }}</span></div>
-  {% if op %}<div class="sel"><div class="utama">Stok opname</div><span class="nilai">{{ op.get_status_display }}</span></div>{% endif %}
+  {% if op %}<div class="sel"><div class="utama">Stok opname</div><span class="nilai">{{ op.get_status_display }}</span></div>
+  {% if op.dihitung_oleh %}<div class="sel"><div class="utama">Dihitung oleh</div><span class="nilai">{{ op.dihitung_oleh }}</span></div>{% endif %}{% endif %}
 </div>
 {% if op and op.status != 'draf' %}<a class="tombol penuh" style="margin-top:12px" href="{% url 'master:opname_detail' op.id %}">Periksa hasil di Stok opname</a>
 <p class="ket-grup">Halaman pemeriksaan opname masih memakai tampilan master.</p>
