@@ -498,6 +498,8 @@ class KasSesi(models.Model):
     ditutup_dari = models.CharField(max_length=20, blank=True, default="")
     ambil_100 = models.IntegerField(default=0)
     ambil_50 = models.IntegerField(default=0)
+    # Uang yang diambil saat tutup kas (rupiah). Lembar 100rb/50rb hanya dari tablet versi lama.
+    diambil_uang = models.IntegerField(default=0)
     uang_sisa = models.IntegerField(default=0)
     cadangan_lengkap_tutup = models.BooleanField(default=True)
     seharusnya = models.IntegerField(default=0)
@@ -517,7 +519,7 @@ class KasSesi(models.Model):
 
     @property
     def diambil(self):
-        return self.ambil_100 * 100000 + self.ambil_50 * 50000
+        return self.ambil_100 * 100000 + self.ambil_50 * 50000 + self.diambil_uang
 
     @property
     def dihitung(self):

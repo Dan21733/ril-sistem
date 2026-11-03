@@ -32,18 +32,14 @@
     <label>Modal di laci (hitung)</label>
     <input type="text" name="modal" inputmode="numeric" value="{{ k.modal_saran|ribuan }}">
     <div class="kecil redup">Sisa tutup kas terakhir: {{ k.modal_saran|ribuan }}. Kalau beda, isi yang benar-benar ada.</div>
-    <label style="margin-top:10px">Pakai cadangan sebagai modal (boleh 0)</label>
-    <input type="text" name="pakai_cadangan" inputmode="numeric" value="0">
-    <label style="display:flex;gap:8px;align-items:center;margin:10px 0 0"><input style="width:auto" type="checkbox" name="cadangan_lengkap" value="1" checked> Cadangan {{ k.cadangan|ribuan }} lengkap (2×100rb + 4×50rb)</label>
     <label style="margin-top:10px">Catatan (boleh kosong)</label><input type="text" name="catatan" maxlength="300">
     <button class="tombol utama" type="submit" style="margin-top:12px">Buka kas</button>
   </form>
 {% endif %}
 
   <div class="kartu">
-    <b>Cadangan {{ k.cadangan|ribuan }}</b>
-    {% if k.cadangan_terpakai %}<div class="pesan warning" style="margin:8px 0 0">Terpakai {{ k.cadangan_terpakai|ribuan }}, belum diisi lagi. Isi lagi saat tutup kas.</div>
-    {% else %}<div class="redup kecil" style="margin-top:4px">Lengkap. Tidak boleh dipinjam karyawan.</div>{% endif %}
+    <b>Sisa minimal saat tutup: {{ k.sisa_minimal|ribuan }}</b>
+    <div class="redup kecil" style="margin-top:4px">Uang yang ditinggal di laci untuk keperluan pagi. Diatur per toko di menu Toko.</div>
     {% if k.antrean %}<div class="pesan warning" style="margin:10px 0 0">Nota belum terkirim: {% for t in k.antrean %}{{ t.nama }} ({{ t.jumlah }}){% if t.basi %} · laporan lama{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}. Tutup kas ditahan sampai terkirim.</div>{% endif %}
   </div>
 </div>
@@ -64,15 +60,11 @@
 
   <form method="post" class="kartu" data-tanya="Tutup kas sekarang? Angka dibekukan dan menunggu ACC." data-tanya-ya="Tutup kas">{% csrf_token %}<input type="hidden" name="aksi" value="tutup"><input type="hidden" name="sesi_id" value="{{ k.sesi.id }}">
     <h3 style="margin-top:0">Tutup kas</h3>
+    <p class="redup kecil" style="margin-top:0">Hitung semua uang di laci, lalu isi yang diambil dan yang ditinggal.</p>
     <div class="kisi">
-      <div><label>Lembar 100rb diambil</label><input type="number" name="ambil_100" min="0" value="0"></div>
-      <div><label>Lembar 50rb diambil</label><input type="number" name="ambil_50" min="0" value="0"></div>
+      <div><label>Uang diambil</label><input type="text" name="diambil" inputmode="numeric" value="0"></div>
+      <div><label>Uang sisa (modal besok, min {{ k.sisa_minimal|ribuan }})</label><input type="text" name="uang_sisa" inputmode="numeric" required></div>
     </div>
-    <label style="margin-top:10px">Uang sisa di laci (jadi modal besok)</label>
-    <input type="text" name="uang_sisa" inputmode="numeric" required>
-    {% if k.cadangan_terpakai %}<label style="margin-top:10px">Isi lagi cadangan dari laci</label>
-    <input type="text" name="isi_cadangan" inputmode="numeric" value="{{ k.cadangan_terpakai|ribuan }}">{% endif %}
-    <label style="display:flex;gap:8px;align-items:center;margin:10px 0 0"><input style="width:auto" type="checkbox" name="cadangan_lengkap" value="1" checked> Cadangan lengkap</label>
     {% if k.antrean %}<label style="display:flex;gap:8px;align-items:center;margin:6px 0 0"><input style="width:auto" type="checkbox" name="paksa" value="1"> Tetap tutup walau ada nota belum terkirim</label>{% endif %}
     <label style="margin-top:10px">Catatan</label><input type="text" name="catatan" maxlength="300">
     <button class="tombol utama" type="submit" style="margin-top:12px">Tutup kas</button>

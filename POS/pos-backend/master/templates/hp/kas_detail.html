@@ -8,15 +8,14 @@
 
 {% if s.status == 'ditutup' %}
 <div class="ubin">
-  <div><div class="lbl">Selisih</div><div class="angka{% if s.selisih %} turun{% endif %}">{{ s.selisih|rupiah }}</div>
+  <div><div class="lbl">Selisih</div><div class="angka{% if s.selisih %} turun{% else %} naik{% endif %}">{% if s.selisih %}{{ s.selisih|rupiah }}{% else %}Cocok{% endif %}</div>
     <div class="ket">{% if s.selisih < 0 %}uang kurang{% elif s.selisih > 0 %}uang lebih{% else %}cocok{% endif %}</div></div>
   <div><div class="lbl">Dihitung</div><div class="angka" style="font-size:20px">{{ s.dihitung|rupiah }}</div>
     <div class="ket">seharusnya {{ hitung.seharusnya|rupiah }}</div></div>
 </div>
 <div class="grup" style="margin-top:12px">
-  <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Diambil</div><div class="sub">{{ s.ambil_100 }} × 100rb · {{ s.ambil_50 }} × 50rb</div></div><span class="nilai">{{ s.diambil|rupiah }}</span></div>
+  <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Uang diambil</div></div><span class="nilai">{{ s.diambil|rupiah }}</span></div>
   <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Uang sisa (modal besok)</div></div><span class="nilai">{{ s.uang_sisa|rupiah }}</span></div>
-  <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Cadangan</div></div><span class="nilai{% if not s.cadangan_lengkap_tutup %} turun{% endif %}">{% if s.cadangan_lengkap_tutup %}lengkap{% else %}kurang{% endif %}</span></div>
   {% if s.catatan_tutup %}<div class="sel"><div class="utama"><div class="sub" style="white-space:normal">Catatan: {{ s.catatan_tutup }}</div></div></div>{% endif %}
 </div>
 {% if berubah %}<p class="ket-grup turun">Ada catatan yang masuk telat; kalau dihitung sekarang seharusnya {{ sekarang.seharusnya|rupiah }}.</p>{% endif %}
@@ -24,6 +23,8 @@
 
 {% if s.acc_status == 'menunggu' %}
 <div class="kepala-grup"><h2>ACC</h2></div>
+<p class="ket-grup" style="margin:0 4px 8px">{% if s.selisih %}Uang {% if s.selisih < 0 %}kurang{% else %}lebih{% endif %} {{ s.selisih|cut:"-"|rupiah }} dari yang seharusnya.{% else %}Uang cocok dengan yang seharusnya.{% endif %}
+  <b>Terima</b> = hitungan ini kamu benarkan, selisihnya tercatat di laporan. <b>Tolak</b> = tetap tercatat, dengan alasanmu, untuk dibahas dengan {{ s.ditutup_oleh }}.</p>
 <div class="grup"><textarea class="kolom" id="acc-catatan" rows="2" placeholder="Catatan (wajib kalau menolak)"></textarea>
   <div class="sel"><button class="tombol kecil hijau" data-acc="terima">Terima</button><button class="tombol kecil merah" data-acc="tolak">Tolak</button></div></div>
 {% else %}

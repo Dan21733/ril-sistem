@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from master.akun.akses import hak_pengguna
-from master.layanan.piutang import rp
+from pos.kas import rp
 
 
 def _toko_map():
@@ -37,6 +37,7 @@ def daftar(user):
                 "label": "Harga di bawah floor" if floor else "Nota ditahan",
                 "judul": f"Nota {n.transaction_id or ''}" + (f" · {d['pembeli']}" if d.get("pembeli") else ""),
                 "sub": d.get("kasir") or "kasir tidak dikenal", "nilai": d.get("total"),
+                "arti": "Terima: nota masuk penjualan dan stok dipotong. Tolak: tetap tercatat, tidak dihitung.",
                 "waktu": d.get("waktu_nota") or n.masuk, "putus": True, "detail": d, "url": "",
             })
 
@@ -47,6 +48,7 @@ def daftar(user):
                 "kunci": f"piutang:{p.id}", "jenis": "piutang", "id": p.id, "toko": p.toko,
                 "label": "Invoice (ngutang)" if p.jenis_acc == "invoice" else "Titip barang",
                 "judul": f"{p.nama} · {p.nomor}", "sub": f"dibayar {rp(p.dibayar)} · sisa {rp(p.sisa)}",
+                "arti": "Terima: pelanggan boleh membawa barang dulu dan membayar sisanya nanti.",
                 "nilai": p.total, "waktu": timezone.make_aware(datetime.datetime.combine(p.tanggal, datetime.time.min)),
                 "putus": True, "url": reverse("hp:piutang_detail", args=[p.id]),
             })
@@ -56,8 +58,11 @@ def daftar(user):
         for s in KasSesi.objects.filter(status="ditutup", acc_status="menunggu").order_by("ditutup_waktu")[:30]:
             hasil.append({
                 "kunci": f"kas:{s.pk}", "jenis": "kas", "id": str(s.pk), "toko": toko.get(s.toko_id) or kasir,
-                "label": "Tutup kas", "judul": f"Selisih {rp(s.selisih)}",
-                "sub": f"{s.ditutup_oleh} · dihitung {rp(s.dihitung)}", "nilai": None, "selisih": s.selisih,
+                "label": "Tutup kas",
+                "judul": "Uang cocok" if not s.selisih else f"Uang {'kurang' if s.selisih < 0 else 'lebih'} {rp(abs(s.selisih))}",
+                "sub": f"{s.ditutup_oleh} · dihitung {rp(s.dihitung)} · seharusnya {rp(s.seharusnya)}",
+                "nilai": None, "selisih": s.selisih,
+                "arti": "Terima: hitungan dibenarkan, selisih tercatat di laporan. Tolak: tetap tercatat dengan alasanmu.",
                 "waktu": s.ditutup_waktu, "putus": True, "url": reverse("hp:kas_detail", args=[s.pk]),
             })
 
@@ -68,6 +73,7 @@ def daftar(user):
                 "kunci": f"dus:{b.id}", "jenis": "dus", "id": b.id, "toko": kasir, "label": "Buka dus",
                 "judul": f"{b.jumlah} {b.konversi.dari.item_name} → {b.isi_total} {b.konversi.ke.item_name}",
                 "sub": b.oleh + (f" · {b.catatan}" if b.catatan else ""), "nilai": None, "waktu": b.waktu,
+                "arti": "Terima: stok dus berkurang dan stok isinya bertambah.",
                 "putus": True, "url": "",
             })
 

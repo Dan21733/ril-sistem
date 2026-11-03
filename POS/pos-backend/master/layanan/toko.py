@@ -97,6 +97,15 @@ def ambil(nilai, *, wajib=True):
     return t
 
 
+def _sisa_minimal(nilai, toko):
+    teks = str(nilai if nilai is not None else "").replace(".", "").strip()
+    if not teks:
+        return toko.kas_sisa_minimal if toko is not None else 400000
+    if not teks.isdigit():
+        raise Tolak("Sisa minimal kas harus angka.")
+    return int(teks)
+
+
 def _warna(nilai):
     import re
     nilai = (nilai or "").strip()
@@ -126,7 +135,8 @@ def simpan(pengguna, data, toko=None):
         raise Tolak(f"{toko.nama} masih punya {toko.barang_milik.count()} barang titipan. Pindahkan dulu barangnya.")
     isi = {"kode": kode, "nama": nama, "titip_di": titip_di, "atas_nama": rapikan_teks(data.get("atas_nama"))[:150],
            "alamat": (data.get("alamat") or "").strip()[:500], "telepon": rapikan_teks(data.get("telepon"))[:50],
-           "pkp": pkp, "pkp_mulai": pkp_mulai, "warna": _warna(data.get("warna"))}
+           "pkp": pkp, "pkp_mulai": pkp_mulai, "warna": _warna(data.get("warna")),
+           "kas_sisa_minimal": _sisa_minimal(data.get("kas_sisa_minimal"), toko)}
     with transaction.atomic():
         if toko is None:
             toko = Toko.objects.create(urutan=Toko.objects.count() + 1, **isi)

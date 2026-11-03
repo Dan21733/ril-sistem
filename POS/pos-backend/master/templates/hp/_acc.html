@@ -22,7 +22,8 @@
     <div class="sel" style="align-items:flex-start"><div class="utama">
       <div class="sub acc-label acc-{{ x.jenis }}">{% if semua and x.toko %}{{ x.toko.nama }} · {% endif %}{{ x.label }}</div>
       <div class="nama" style="white-space:normal"><b>{{ x.judul }}</b></div>
-      <div class="sub" style="white-space:normal">{{ x.sub }}{% if x.oleh %} · dihitung oleh {{ x.oleh }}{% endif %}</div></div>
+      <div class="sub" style="white-space:normal">{{ x.sub }}{% if x.oleh %} · dihitung oleh {{ x.oleh }}{% endif %}</div>
+      {% if x.arti %}<div class="sub" style="white-space:normal;margin-top:4px;color:var(--teks)">{{ x.arti }}</div>{% endif %}</div>
       <div class="nilai">{% if x.nilai %}<b style="color:var(--teks)">{{ x.nilai|rupiah }}</b>{% endif %}<div class="kecil redup">{{ x.waktu|date:"d M H.i" }}</div></div></div>
     {% if x.jenis == 'nota' %}
       {% for b in x.detail.baris %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.nama }}{% if b.varian and b.varian != "N/A" %} <span class="redup">/ {{ b.varian }}</span>{% endif %}</div>

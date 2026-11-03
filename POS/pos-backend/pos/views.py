@@ -1493,8 +1493,9 @@ class KasTutupAPIView(APIView):
         if tolak is not None:
             return tolak
         try:
-            kas.tutup(data.get("sesi_id"), ambil_100=data.get("ambil_100"), ambil_50=data.get("ambil_50"),
-                      uang_sisa=data.get("uang_sisa"), cadangan_lengkap=bool(data.get("cadangan_lengkap")),
+            kas.tutup(data.get("sesi_id"), diambil=data.get("diambil"), ambil_100=data.get("ambil_100"),
+                      ambil_50=data.get("ambil_50"), uang_sisa=data.get("uang_sisa"),
+                      cadangan_lengkap=data.get("cadangan_lengkap", True) is not False,
                       isi_cadangan=data.get("isi_cadangan") or 0, catatan=data.get("catatan") or "",
                       oleh=kas.nama_kasir(worker_id), dari=kode, worker_id=worker_id, device_id=device_id)
         except kas.AntreanBelumKosong as exc:

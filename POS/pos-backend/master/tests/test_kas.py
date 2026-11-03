@@ -30,6 +30,8 @@ class _KasDasar(Dasar):
         super().setUpTestData()
         cls.toko = Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.create(
             kode="KAS1", nama="Toko 1", stok_di_kasir=True)
+        # Sisa minimal diuji sendiri (test_sisa_minimal); uji lain bebas mengambil semua uang.
+        Toko.objects.filter(pk=cls.toko.pk).update(kas_sisa_minimal=0)
         # Nota Dasar dibuat "sekarang"; geser ke kemarin supaya tidak masuk kas uji.
         Transactions.objects.filter(pk=cls.nota.pk).update(transaction_time=timezone.now() - datetime.timedelta(days=1))
         cls.device = Device.objects.create(id=uuid.uuid4(), device_code="T01")
@@ -98,6 +100,18 @@ class HitungKasTest(_KasDasar):
         self.assertEqual(kas.cadangan_terpakai(self.toko.id), 0)
         with self.assertRaises(kas.KasDitolak):
             kas.buka(self.toko.id, modal=0, pakai_cadangan=500000, cadangan_lengkap=True, oleh="R", dari="T01")
+
+    def test_sisa_minimal_per_toko(self):
+        Toko.objects.filter(pk=self.toko.pk).update(kas_sisa_minimal=400000)
+        s = kas.buka(self.toko.id, modal=600000, cadangan_lengkap=True, oleh="Daniel", dari="master")
+        with self.assertRaises(kas.KasDitolak):
+            kas.tutup(s.id, diambil=300000, uang_sisa=300000, oleh="R", dari="T01")
+        s = kas.tutup(s.id, diambil=200000, uang_sisa=400000, oleh="R", dari="T01")
+        self.assertEqual((s.diambil, s.dihitung, s.selisih), (200000, 600000, 0))
+        # Uang di laci memang di bawah minimal: semuanya ditinggal, boleh.
+        s2 = kas.buka(self.toko.id, modal=250000, cadangan_lengkap=True, oleh="Daniel", dari="master")
+        self.assertEqual(kas.tutup(s2.id, diambil=0, uang_sisa=250000, oleh="R", dari="T01").status, "ditutup")
+        self.assertEqual(kas.sisa_minimal(self.toko.id), 400000)
 
     def test_satu_kas_buka_per_toko_dan_acc(self):
         s = kas.buka(self.toko.id, modal=0, cadangan_lengkap=True, oleh="Daniel", dari="master")
@@ -212,8 +226,8 @@ class KasMasterTest(_KasDasar):
         self.assertEqual(KasGerak.objects.count(), 1)
         r = self.client.get("/master/kas/")
         self.assertContains(r, "240.000")                    # 200rb + 50rb - 10rb
-        self.client.post("/master/kas/", {"aksi": "tutup", "sesi_id": str(s.id), "ambil_100": "2", "ambil_50": "0",
-                                   "uang_sisa": "35.000", "cadangan_lengkap": "1"})
+        self.client.post("/master/kas/", {"aksi": "tutup", "sesi_id": str(s.id), "diambil": "200.000",
+                                   "uang_sisa": "35.000"})
         s.refresh_from_db()
         self.assertEqual((s.status, s.selisih), ("ditutup", -5000))
         r = self.client.get(f"/master/kas/{s.id}/")
@@ -235,8 +249,8 @@ class KasMasterTest(_KasDasar):
         self.assertTrue(r.json()["ok"], r.json())
         s = KasSesi.objects.get()
         self.assertContains(self.client.get("/hp/"), "Tunai di laci")
-        r = self.client.post("/hp/kas/", {"aksi": "tutup", "sesi_id": str(s.id), "ambil_100": 1, "ambil_50": 0,
-                                          "uang_sisa": 0, "cadangan_lengkap": True}, content_type="application/json")
+        r = self.client.post("/hp/kas/", {"aksi": "tutup", "sesi_id": str(s.id), "diambil": 100000,
+                                          "uang_sisa": 0}, content_type="application/json")
         self.assertTrue(r.json()["ok"], r.json())
         self.assertIn(f"kas:{s.id}", [m[0] for m in push.menunggu()])
         self.assertContains(self.client.get("/hp/"), "Tutup kas")

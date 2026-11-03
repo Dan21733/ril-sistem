@@ -84,6 +84,17 @@ def _periode(request, *, boleh_tanggal=True):
 _BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
 
 
+def _judul_pendek(kode, awal, akhir):
+    """Label pendek untuk pil tanggal (muat di layar HP 360px)."""
+    if kode != "tanggal":
+        return {"hari": "Hari ini", "kemarin": "Kemarin", "7hari": "7 hari", "bulan": "Bulan ini"}.get(kode, "Hari ini")
+    if awal == akhir:
+        return f"{awal.day} {_BULAN[awal.month - 1]}"
+    if awal.month == akhir.month and awal.year == akhir.year:
+        return f"{awal.day}–{akhir.day} {_BULAN[akhir.month - 1]}"
+    return f"{awal.day} {_BULAN[awal.month - 1]}–{akhir.day} {_BULAN[akhir.month - 1]}"
+
+
 def _pembanding(kode):
     return {"hari": "kemarin", "kemarin": "hari sebelumnya", "7hari": "7 hari sebelumnya",
             "bulan": "periode sama sebelumnya", "tanggal": "periode sebelumnya"}.get(kode, "sebelumnya")
@@ -183,6 +194,7 @@ def beranda(request):
     items = _acc_semua(request)
     isi = {
         "tab": "beranda", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "judul_pendek": _judul_pendek(kode, awal, akhir),
         "hari_ini": timezone.localdate(), "pembanding": _pembanding(kode), "sapa": sapa,
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
     }
@@ -305,6 +317,7 @@ def transaksi(request):
         hari[-1]["total"] += n["total_amount"]
     return _tampil(request, "hp/transaksi.html", {
         "tab": "transaksi", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "judul_pendek": _judul_pendek(kode, awal, akhir),
         "hari_ini": timezone.localdate(), "satu_hari": awal == akhir, "hari": hari, "jumlah_nota": len(nota),
         "terpotong": len(nota) > BATAS, "batas": BATAS, "kembali": kembali,
         "omzet": omzet, "ongkir": sum(n["shipping_amount"] for n in nota), "lihat_modal": lihat_modal, "laba": laba,

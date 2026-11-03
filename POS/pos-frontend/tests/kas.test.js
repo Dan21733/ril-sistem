@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { diambilTotal, gerakProblem, kasBanner, mergeGerak, readKasStatus, rememberKasStatus, tutupHariIni, tutupProblem } from '../src/utils/kas.js'
+import { gerakProblem, kasBanner, mergeGerak, readKasStatus, rememberKasStatus, tutupHariIni, tutupProblem } from '../src/utils/kas.js'
 
 /* Kas laci di tablet (3 Nov 2026). */
 
@@ -18,11 +18,6 @@ test('pengingat buka kas hanya di tablet kas yang kasnya belum dibuka', () => {
   assert.equal(kasBanner(tutup, new Date(2026, 10, 4, 7, 0)).action, 'Buka kas')
 })
 
-test('lembar diambil dihitung dari 100rb dan 50rb', () => {
-  assert.equal(diambilTotal(3, 2), 400000)
-  assert.equal(diambilTotal('', -1), 0)
-})
-
 test('tutup kas ditahan selama offline atau ada antrean di tablet ini', () => {
   const status = { boleh_kas: true, sesi: { id: 's' } }
   assert.match(tutupProblem({ status: { ...status, sesi: null }, online: true, localPending: 0, uangSisa: '0' }), /belum dibuka/)
@@ -31,6 +26,12 @@ test('tutup kas ditahan selama offline atau ada antrean di tablet ini', () => {
   assert.match(tutupProblem({ status, online: true, localPending: 2, uangSisa: '0' }), /2 catatan/)
   assert.match(tutupProblem({ status, online: true, localPending: 0, uangSisa: '' }), /uang sisa/)
   assert.equal(tutupProblem({ status, online: true, localPending: 0, uangSisa: '0' }), '')
+  /* Sisa minimal per toko: tidak boleh mengambil sampai sisa di bawah minimal. */
+  const minimal = { ...status, sisa_minimal: 400000 }
+  assert.match(tutupProblem({ status: minimal, online: true, localPending: 0, uangSisa: '300000', diambil: '500000' }), /minimal/)
+  assert.equal(tutupProblem({ status: minimal, online: true, localPending: 0, uangSisa: '400000', diambil: '500000' }), '')
+  /* Uang di laci memang kurang dari minimal: semuanya ditinggal, boleh. */
+  assert.equal(tutupProblem({ status: minimal, online: true, localPending: 0, uangSisa: '250000', diambil: '' }), '')
 })
 
 test('uang keluar wajib kategori; "Lainnya" wajib keterangan; tambah modal tanpa kategori', () => {

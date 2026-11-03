@@ -1,12 +1,13 @@
 """Kas laci toko (rancangan 3 Nov 2026).
 
 Satu sesi kas per toko: buka kas (modal) -> uang masuk/keluar -> tutup kas
-(lembar 100rb & 50rb diambil, sisa jadi modal besok) -> ACC pemilik.
+(uang diambil + uang sisa, sisa jadi modal besok) -> ACC pemilik.
 
 - Penjualan tidak pernah diblokir. Uang yang masuk sejak tutup kas sebelumnya
   dihitung ke sesi berikutnya (`KasSesi.awal_hitung`).
-- Cadangan (bawaan Rp400.000) terpisah dari modal. Dipakai = uang masuk laci
-  ("pakai cadangan"), wajib diisi lagi ("isi cadangan" = uang keluar laci).
+- Sisa minimal per toko (master Toko, bawaan Rp400.000): uang yang ditinggal di
+  laci saat tutup tidak boleh kurang dari ini (untuk keperluan pagi). Pengganti
+  "cadangan" terpisah dari rancangan awal (diubah 3 Nov 2026).
 - Tablet tidak pernah melihat angka seharusnya / selisih (hitung buta); hanya
   pemilik (master/HP) yang melihatnya.
 
@@ -54,7 +55,8 @@ class AntreanBelumKosong(KasDitolak):
 
 
 def rp(n):
-    return "Rp" + f"{int(n or 0):,}".replace(",", ".")
+    n = int(n or 0)
+    return ("−" if n < 0 else "") + "Rp" + f"{abs(n):,}".replace(",", ".")
 
 
 def _baris(sql, param=()):
@@ -82,6 +84,19 @@ def toko_kasir():
     benar = "stok_di_kasir" if connection.vendor != "sqlite" else "stok_di_kasir = 1"
     r = _baris(f"SELECT id FROM master_toko WHERE {benar} ORDER BY id LIMIT 1")
     return r[0]["id"] if r else None
+
+
+SISA_MINIMAL_BAWAAN = 400000
+
+
+def sisa_minimal(toko_id):
+    """Uang minimal yang ditinggal di laci saat tutup kas (diatur per toko di master)."""
+    if toko_id is None or not _ada("master_toko"):
+        return SISA_MINIMAL_BAWAAN
+    r = _baris("SELECT kas_sisa_minimal FROM master_toko WHERE id = %s", [toko_id])
+    if not r or r[0].get("kas_sisa_minimal") is None:
+        return SISA_MINIMAL_BAWAAN
+    return max(0, int(r[0]["kas_sisa_minimal"]))
 
 
 def cadangan_nominal():
@@ -271,15 +286,25 @@ def lapor_antrean(device_id, jumlah):
 
 
 @transaction.atomic
-def tutup(sesi_id, *, ambil_100, ambil_50, uang_sisa, cadangan_lengkap, oleh, dari, catatan="",
-          isi_cadangan=0, worker_id="", paksa=False, device_id=None):
+def tutup(sesi_id, *, uang_sisa, oleh, dari, diambil=None, ambil_100=0, ambil_50=0, cadangan_lengkap=True,
+          catatan="", isi_cadangan=0, worker_id="", paksa=False, device_id=None):
+    """Tutup kas: uang yang diambil (rupiah) + uang sisa di laci. `ambil_100`/`ambil_50` hanya untuk
+    tablet lama yang masih mengirim jumlah lembar."""
     s = KasSesi.objects.select_for_update().filter(pk=_uuid(sesi_id)).first()
     if s is None or s.status != "buka":
         raise KasDitolak("Kas ini sudah ditutup.")
+    if uang_sisa in (None, ""):
+        raise KasDitolak("Isi uang sisa di laci.")
     a100 = _int(ambil_100, "Lembar 100 ribu")
     a50 = _int(ambil_50, "Lembar 50 ribu")
+    ambil = _int(diambil, "Uang diambil")
     sisa = _int(uang_sisa, "Uang sisa")
     isi = _int(isi_cadangan, "Isi cadangan")
+    minimal = sisa_minimal(s.toko_id)
+    total = ambil + a100 * 100000 + a50 * 50000 + sisa
+    if sisa < min(minimal, total):
+        raise KasDitolak(f"Uang sisa di laci minimal {rp(minimal)} untuk keperluan pagi. "
+                         f"Kurangi uang yang diambil.")
     if not paksa:
         tertunda = antrean_tertunda(kecuali=device_id)
         if tertunda:
@@ -290,7 +315,7 @@ def tutup(sesi_id, *, ambil_100, ambil_50, uang_sisa, cadangan_lengkap, oleh, da
                                 keterangan="Diisi dari laci saat tutup kas", worker_id=worker_id or "",
                                 oleh=oleh[:150], device_code=dari[:20], waktu=sekarang)
     s.ditutup_waktu = sekarang
-    s.ambil_100, s.ambil_50, s.uang_sisa = a100, a50, sisa
+    s.ambil_100, s.ambil_50, s.diambil_uang, s.uang_sisa = a100, a50, ambil, sisa
     s.cadangan_lengkap_tutup = bool(cadangan_lengkap)
     s.ditutup_oleh, s.ditutup_dari = oleh[:150], dari[:20]
     s.catatan_tutup = str(catatan or "")[:300]
@@ -411,6 +436,7 @@ def status_tablet(device_id):
         "boleh_kas": bool(st and st.boleh_kas),
         "mode_pemilik": not ada_tablet_kas(),
         "kategori": KATEGORI_KELUAR,
+        "sisa_minimal": sisa_minimal(toko_id),
         "cadangan": cadangan_nominal(),
         "cadangan_terpakai": cadangan_terpakai(toko_id) if toko_id is not None else 0,
         "modal_saran": lalu.uang_sisa if lalu else 0,

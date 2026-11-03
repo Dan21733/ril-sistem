@@ -22,12 +22,11 @@
   <div class="kartu"><div class="redup kecil">Seharusnya di laci</div><div style="font-size:24px;font-weight:600">{{ hitung.seharusnya|ribuan }}</div></div>
   {% if s.status == 'ditutup' %}
   <div class="kartu"><div class="redup kecil">Dihitung</div><div style="font-size:24px;font-weight:600">{{ s.dihitung|ribuan }}</div>
-    <div class="kecil redup">diambil {{ s.diambil|ribuan }} ({{ s.ambil_100 }}×100rb, {{ s.ambil_50 }}×50rb) + sisa {{ s.uang_sisa|ribuan }}</div></div>
+    <div class="kecil redup">diambil {{ s.diambil|ribuan }} + sisa {{ s.uang_sisa|ribuan }}</div></div>
   <div class="kartu" {% if s.selisih %}style="border-color:var(--bahaya)"{% endif %}><div class="redup kecil">Selisih</div>
     <div style="font-size:24px;font-weight:600;{% if s.selisih %}color:var(--bahaya){% endif %}">{{ s.selisih|ribuan }}</div>
     <div class="kecil redup">{% if s.selisih < 0 %}uang kurang{% elif s.selisih > 0 %}uang lebih{% else %}cocok{% endif %}</div></div>
   {% endif %}
-  <div class="kartu"><div class="redup kecil">Cadangan</div><div style="font-size:17px;font-weight:600">{% if s.cadangan_lengkap_buka %}lengkap{% else %}kurang{% endif %} saat buka{% if s.status == 'ditutup' %} · {% if s.cadangan_lengkap_tutup %}lengkap{% else %}kurang{% endif %} saat tutup{% endif %}</div></div>
 </div>
 
 <h3>Rincian</h3>

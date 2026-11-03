@@ -3,6 +3,7 @@
   <div><label>Nama toko</label><input type="text" name="nama" value="{{ t.nama }}" required></div>
   <div><label>Atas nama (pemilik / NPWP)</label><input type="text" name="atas_nama" value="{{ t.atas_nama }}"></div>
   <div><label>Telepon</label><input type="text" name="telepon" value="{{ t.telepon }}"></div>
+  <div><label>Sisa minimal kas saat tutup</label><input type="text" name="kas_sisa_minimal" inputmode="numeric" value="{% if t %}{{ t.kas_sisa_minimal }}{% else %}400000{% endif %}"></div>
   <div><label>Warna penanda (master &amp; HP)</label><input type="color" name="warna" value="{% if t %}{{ t.warna_tampil }}{% else %}#2F5D8A{% endif %}" style="height:42px;padding:2px"></div>
   <div><label>Status pajak</label><select name="pkp"><option value="0">Belum PKP</option><option value="1" {% if t.pkp %}selected{% endif %}>PKP</option></select></div>
   <div><label>PKP sejak (kalau PKP)</label><input type="date" name="pkp_mulai" value="{{ t.pkp_mulai|date:'Y-m-d' }}"></div>

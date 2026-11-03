@@ -75,7 +75,7 @@ def ringkas(toko):
     s = inti.sesi_buka(toko.pk)
     hasil = {
         "sesi": s, "hitung": inti.hitung(s) if s else None, "modal_saran": inti.modal_saran(toko.pk),
-        "cadangan": inti.cadangan_nominal(), "cadangan_terpakai": inti.cadangan_terpakai(toko.pk),
+        "sisa_minimal": inti.sisa_minimal(toko.pk),
         "tablet_kas": tablet_kas(), "antrean": inti.antrean_tertunda(),
         "menunggu_acc": list(KasSesi.objects.filter(toko_id=toko.pk, status="ditutup", acc_status="menunggu")
                              .order_by("-ditutup_waktu")),
@@ -100,17 +100,15 @@ def jumlah_menunggu():
 def buka(pengguna, toko, data, dari="master"):
     if not punya_kas(toko):
         raise Tolak("Kas hanya untuk toko yang memegang kasir.")
-    s = _jalankan(inti.buka, toko.pk, modal=data.get("modal"), cadangan_lengkap=bool(data.get("cadangan_lengkap")),
-                  pakai_cadangan=data.get("pakai_cadangan") or 0, catatan=data.get("catatan") or "",
+    s = _jalankan(inti.buka, toko.pk, modal=data.get("modal"), cadangan_lengkap=True, catatan=data.get("catatan") or "",
                   oleh=nama(pengguna), dari=dari)
     layanan.catat(pengguna, aksi="tambah", objek="kas", kolom="buka kas", baru=f"{toko.nama}: modal {rp(s.modal_awal)}")
     return s
 
 
 def tutup(pengguna, sesi_id, data, dari="master"):
-    s = _jalankan(inti.tutup, sesi_id, ambil_100=data.get("ambil_100"), ambil_50=data.get("ambil_50"),
-                  uang_sisa=data.get("uang_sisa"), cadangan_lengkap=bool(data.get("cadangan_lengkap")),
-                  isi_cadangan=data.get("isi_cadangan") or 0, catatan=data.get("catatan") or "",
+    s = _jalankan(inti.tutup, sesi_id, diambil=data.get("diambil"), uang_sisa=data.get("uang_sisa"),
+                  catatan=data.get("catatan") or "",
                   oleh=nama(pengguna), dari=dari, paksa=bool(data.get("paksa")))
     layanan.catat(pengguna, aksi="ubah", objek="kas", kolom="tutup kas",
                   baru=f"dihitung {rp(s.dihitung)}, seharusnya {rp(s.seharusnya)}, selisih {rp(s.selisih)}")

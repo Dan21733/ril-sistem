@@ -57,7 +57,8 @@ async function aksi(data, tombol){
 }
 document.getElementById('tombol-bayar')?.addEventListener('click', e => aksi({aksi: 'bayar', jumlah: angka(document.getElementById('bayar-jumlah').value),
   cara: document.getElementById('bayar-cara').value, catatan: document.getElementById('bayar-catatan').value}, e.currentTarget));
-document.getElementById('tombol-serahkan')?.addEventListener('click', e => { if (confirm('Barang sudah diambil pelanggan?')) aksi({aksi: 'serahkan'}, e.currentTarget); });
+document.getElementById('tombol-serahkan')?.addEventListener('click', async e => { const b = e.currentTarget;
+  if (await tanya('Barang sudah diambil pelanggan?', {ya: 'Sudah diambil'})) aksi({aksi: 'serahkan'}, b); });
 document.querySelectorAll('[data-acc]').forEach(b => b.addEventListener('click', () => aksi({aksi: b.dataset.acc, catatan: document.getElementById('acc-catatan').value}, b)));
 </script>
 {% endblock %}

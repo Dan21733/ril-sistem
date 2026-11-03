@@ -7,7 +7,7 @@ import deviceRepository from '../services/storage/deviceRepository'
 import { enqueueKasGerak, flushKasGerak, listPendingKasGerak, listRecentKasGerak } from '../services/storage/kasQueue'
 import { listPendingPiutangActions } from '../services/storage/piutangQueue'
 import {
-  KATEGORI_BAWAAN, diambilTotal, gerakProblem, mergeGerak, readKasStatus, rememberKasStatus, tutupHariIni, tutupProblem,
+  KATEGORI_BAWAAN, gerakProblem, mergeGerak, readKasStatus, rememberKasStatus, tutupHariIni, tutupProblem,
 } from '../utils/kas'
 import { digitsOnly, formatRupiahInput, preventNonNumericInput } from '../utils/rupiahInput'
 
@@ -41,19 +41,14 @@ const message = ref('')
 const errorMessage = ref('')
 
 const modal = ref('')
-const pakaiCadangan = ref('')
-const cadanganLengkapBuka = ref(true)
 
 const jenis = ref('keluar')
 const kategori = ref('')
 const jumlah = ref('')
 const keterangan = ref('')
 
-const lembar100 = ref(0)
-const lembar50 = ref(0)
+const diambil = ref('')
 const uangSisa = ref('')
-const isiCadangan = ref('')
-const cadanganLengkapTutup = ref(true)
 const catatanTutup = ref('')
 const confirmTutup = ref(false)
 
@@ -64,10 +59,10 @@ const actionPane = ref(null)
 const bolehKas = computed(() => Boolean(status.value?.boleh_kas))
 const gerak = computed(() => mergeGerak(sesi.value?.gerak || [], localRows.value))
 const totalKeluar = computed(() => gerak.value.filter((g) => g.jenis === 'keluar').reduce((n, g) => n + Number(g.jumlah || 0), 0))
-const diambil = computed(() => diambilTotal(lembar100.value, lembar50.value))
+const totalDihitung = computed(() => Number(digitsOnly(diambil.value) || 0) + Number(digitsOnly(uangSisa.value) || 0))
 const pendingTotal = computed(() => props.queuedCount + localPending.value)
 const gerakError = computed(() => gerakProblem({ jenis: jenis.value, jumlah: jumlah.value, kategori: kategori.value, keterangan: keterangan.value }))
-const tutupError = computed(() => tutupProblem({ status: status.value, online: online.value, localPending: pendingTotal.value, uangSisa: uangSisa.value }))
+const tutupError = computed(() => tutupProblem({ status: status.value, online: online.value, localPending: pendingTotal.value, uangSisa: uangSisa.value, diambil: diambil.value }))
 
 function formatPrice(value) {
   return `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(Number(value) || 0))}`
@@ -110,7 +105,6 @@ function applyStatus(data) {
   if (!data.sesi) {
     modal.value = String(data.modal_saran || 0)
   }
-  isiCadangan.value = data.cadangan_terpakai ? String(data.cadangan_terpakai) : ''
 }
 
 async function load() {
@@ -153,10 +147,7 @@ async function buka() {
     applyStatus(await postKasBuka(await token(), {
       pin: props.pin,
       modal: Number(digitsOnly(modal.value) || 0),
-      pakai_cadangan: Number(digitsOnly(pakaiCadangan.value) || 0),
-      cadangan_lengkap: cadanganLengkapBuka.value,
     }))
-    pakaiCadangan.value = ''
     message.value = 'Kas dibuka.'
   } catch (error) {
     handleError(error)
@@ -217,16 +208,12 @@ async function tutup() {
     applyStatus(await postKasTutup(await token(), {
       pin: props.pin,
       sesi_id: sesi.value.id,
-      ambil_100: Number(lembar100.value) || 0,
-      ambil_50: Number(lembar50.value) || 0,
+      diambil: Number(digitsOnly(diambil.value) || 0),
       uang_sisa: Number(digitsOnly(uangSisa.value) || 0),
-      isi_cadangan: Number(digitsOnly(isiCadangan.value) || 0),
-      cadangan_lengkap: cadanganLengkapTutup.value,
       catatan: catatanTutup.value.trim(),
       antrean: pendingTotal.value,
     }))
-    lembar100.value = 0
-    lembar50.value = 0
+    diambil.value = ''
     uangSisa.value = ''
     catatanTutup.value = ''
     message.value = 'Kas ditutup. Hitungan dikirim ke pemilik untuk ACC.'
@@ -237,12 +224,6 @@ async function tutup() {
     confirmTutup.value = false
     scrollTop()
   }
-}
-
-function step(lembar, delta) {
-  const target = lembar === 100 ? lembar100 : lembar50
-  target.value = Math.max(0, (Number(target.value) || 0) + delta)
-  confirmTutup.value = false
 }
 
 onMounted(load)
@@ -265,9 +246,6 @@ defineExpose({ load })
 
       <p v-if="loading" class="kas-empty"><LoadingSpinner /></p>
       <p v-if="loadError" class="kas-note warn">{{ loadError }}</p>
-      <p v-if="status?.cadangan_terpakai" class="kas-note warn">
-        Cadangan terpakai {{ formatPrice(status.cadangan_terpakai) }}, belum diisi lagi.
-      </p>
 
       <p class="kas-section-title">
         Uang keluar &amp; modal
@@ -297,12 +275,6 @@ defineExpose({ load })
             @keydown="preventNonNumericInput" @input="modal = digitsOnly($event.target.value)" />
           <small>Sisa tutup kas terakhir {{ formatPrice(status?.modal_saran) }}. Kalau beda, isi yang benar-benar ada.</small>
         </label>
-        <label class="kas-field">
-          <span>Pakai cadangan (kalau tidak ada modal)</span>
-          <input :value="pakaiCadangan ? `Rp ${formatRupiahInput(pakaiCadangan)}` : ''" type="text" inputmode="numeric" placeholder="Rp 0" aria-label="Cadangan dipakai"
-            @keydown="preventNonNumericInput" @input="pakaiCadangan = digitsOnly($event.target.value)" />
-        </label>
-        <label class="kas-check"><input v-model="cadanganLengkapBuka" type="checkbox" /> Cadangan {{ formatPrice(status?.cadangan) }} lengkap (2×100rb + 4×50rb)</label>
         <button type="button" class="kas-primary" :disabled="busy || !online" @click="buka">{{ busy ? 'MEMBUKA…' : 'BUKA KAS' }}</button>
         <p v-if="!online" class="kas-muted">Buka kas butuh koneksi ke server.</p>
       </div>
@@ -325,28 +297,20 @@ defineExpose({ load })
 
       <div v-if="sesi && bolehKas" class="kas-action">
         <p class="kas-action-title">Tutup kas</p>
-        <div class="kas-steppers">
-          <div class="kas-stepper">
-            <span>Lembar 100rb diambil</span>
-            <div><button type="button" aria-label="Kurangi 100rb" @click="step(100, -1)">−</button><strong>{{ lembar100 }}</strong><button type="button" aria-label="Tambah 100rb" @click="step(100, 1)">+</button></div>
-          </div>
-          <div class="kas-stepper">
-            <span>Lembar 50rb diambil</span>
-            <div><button type="button" aria-label="Kurangi 50rb" @click="step(50, -1)">−</button><strong>{{ lembar50 }}</strong><button type="button" aria-label="Tambah 50rb" @click="step(50, 1)">+</button></div>
-          </div>
+        <p class="kas-muted">Hitung semua uang di laci, lalu isi yang diambil dan yang ditinggal.</p>
+        <div class="kas-two">
+          <label class="kas-field">
+            <span>Uang diambil</span>
+            <input :value="diambil ? `Rp ${formatRupiahInput(diambil)}` : ''" type="text" inputmode="numeric" placeholder="Rp 0" aria-label="Uang diambil"
+              @keydown="preventNonNumericInput" @input="diambil = digitsOnly($event.target.value); confirmTutup = false" />
+          </label>
+          <label class="kas-field">
+            <span>Uang sisa (modal besok)</span>
+            <input :value="uangSisa !== '' ? `Rp ${formatRupiahInput(uangSisa) || 0}` : ''" type="text" inputmode="numeric" :placeholder="`min Rp ${formatRupiahInput(status?.sisa_minimal ?? 0) || 0}`" aria-label="Uang sisa di laci"
+              @keydown="preventNonNumericInput" @input="uangSisa = digitsOnly($event.target.value); confirmTutup = false" />
+          </label>
         </div>
-        <p class="kas-muted">Diambil {{ formatPrice(diambil) }}</p>
-        <label class="kas-field">
-          <span>Uang sisa di laci (jadi modal besok)</span>
-          <input :value="uangSisa !== '' ? `Rp ${formatRupiahInput(uangSisa) || 0}` : ''" type="text" inputmode="numeric" placeholder="Rp 0" aria-label="Uang sisa di laci"
-            @keydown="preventNonNumericInput" @input="uangSisa = digitsOnly($event.target.value); confirmTutup = false" />
-        </label>
-        <label v-if="status?.cadangan_terpakai" class="kas-field">
-          <span>Isi lagi cadangan dari laci</span>
-          <input :value="isiCadangan ? `Rp ${formatRupiahInput(isiCadangan)}` : ''" type="text" inputmode="numeric" placeholder="Rp 0" aria-label="Isi cadangan"
-            @keydown="preventNonNumericInput" @input="isiCadangan = digitsOnly($event.target.value)" />
-        </label>
-        <label class="kas-check"><input v-model="cadanganLengkapTutup" type="checkbox" /> Cadangan lengkap</label>
+        <p class="kas-muted">Total dihitung {{ formatPrice(totalDihitung) }} · sisa minimal {{ formatPrice(status?.sisa_minimal) }} untuk keperluan pagi.</p>
         <input v-model="catatanTutup" type="text" maxlength="200" placeholder="Catatan (opsional)" aria-label="Catatan tutup kas" />
         <p v-if="tutupError && (uangSisa !== '' || pendingTotal || !online)" class="kas-note warn">{{ tutupError }}</p>
         <button type="button" class="kas-primary" :class="{ confirm: confirmTutup }" :disabled="Boolean(tutupError) || busy" @click="tutup">
@@ -551,6 +515,12 @@ defineExpose({ load })
 .kas-chip.selected {
   border-color: var(--pos-accent);
   background: var(--pos-accent-soft);
+}
+
+.kas-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .kas-steppers {

@@ -62,7 +62,7 @@ try { const t = localStorage.getItem('hp-tema'), a = localStorage.getItem('hp-ak
 .ubin a.ubin-link{color:inherit;display:block}
 html{background:var(--latar)}
 body{margin:0;background:var(--latar);color:var(--teks);font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased;padding-bottom:calc(84px + var(--aman-b));min-height:100vh}
+  -webkit-font-smoothing:antialiased;padding-bottom:calc(84px + var(--aman-b));min-height:100vh;min-height:100dvh}
 a{color:var(--tint);text-decoration:none}
 button,input,select,textarea{font:inherit;color:inherit}
 .isi{max-width:720px;margin:0 auto;padding:0 16px}
@@ -215,7 +215,15 @@ dialog.lembar[open]{animation:naikk .28s cubic-bezier(.2,.8,.2,1)}
 .pil .panah-bawah{width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);opacity:.6}
 .pil.tanggal{color:var(--tint)!important}
 .pil .merah{width:8px;height:8px;border-radius:50%;background:var(--merah)}
-.pil-nama{overflow:hidden;text-overflow:ellipsis}
+.pil-nama{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pil{max-width:100%;min-width:0}
+/* Bilah atas tidak boleh lebih lebar dari layar (nama toko panjang, rentang tanggal). */
+.atas{grid-template-columns:auto minmax(0,1fr) auto;column-gap:8px}
+.atas .kiri,.atas .kanan{min-width:0;display:flex;align-items:center}
+.atas .kanan{justify-content:flex-end;max-width:58vw}
+.atas .kiri{max-width:40vw}
+.atas .tengah{max-width:none;min-width:0}
+html,body{overflow-x:hidden}
 .atas .kanan button.pil,.atas .kiri button.pil{background:var(--kartu);padding:0 14px;gap:6px;color:var(--teks)}
 .atas .kanan button.pil.tanggal{color:var(--tint)}
 .atas .kanan a.avatar{background:var(--tint);background-image:linear-gradient(145deg,rgba(255,255,255,.18),rgba(0,0,0,.25));color:#fff;justify-content:center;width:40px;height:40px}

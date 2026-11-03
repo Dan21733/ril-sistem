@@ -6,7 +6,9 @@
   {% if acc_toko_lain %}<span class="merah" aria-label="Toko lain ada yang perlu ACC"></span>{% endif %}<span class="panah-bawah"></span></button>{% endif %}{% endblock %}
 {% block kanan %}{% include "hp/_atas_pil.html" %}{% endblock %}
 {% block gaya %}<style>
-.atas{grid-template-columns:auto 1fr auto}
+.atas{grid-template-columns:minmax(0,1fr) auto}
+.atas .kiri{max-width:none}.atas .kanan{max-width:none}
+.atas .tengah{display:none}
 .kartu-jual{background:var(--kartu);border-radius:18px;box-shadow:var(--bayang);overflow:hidden}
 .kartu-jual .kepala-jual{display:block;padding:16px 18px 12px;color:var(--teks)!important}
 .kartu-jual .lbl{font-size:15px;color:var(--teks2);font-weight:500}

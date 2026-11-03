@@ -64,16 +64,21 @@ details.cocok>summary{list-style:none;cursor:pointer}details.cocok>summary::-web
   document.addEventListener('change', e => { if (e.target.name === 'pilih') hitung(); });
   hitung();
   tombol?.addEventListener('click', async () => {
+    const ya = kotak().filter(c => c.checked).length, tidak = kotak().length - ya;
+    if (!await tanya(tidak ? `Terapkan ${ya} hitungan ke stok? ${tidak} yang tidak dicentang dibiarkan.` : `Terapkan ${ya} hitungan ke stok?`, {ya: 'Terima'})) return;
     tombol.disabled = true;
     try { const d = await kirim(URL_INI, {aksi: 'acc', pilih: kotak().filter(c => c.checked).map(c => c.value)});
       kabar(d.pesan); setTimeout(() => location.href = "{% url 'hp:beranda' %}", 800); }
     catch (e) { kabar(e.message, true); tombol.disabled = false; }
   });
   document.getElementById('tombol-tolak')?.addEventListener('click', async e => {
-    const alasan = prompt('Alasan menolak (kepala gudang perlu tahu apa yang dihitung ulang)?'); if (!alasan) return;
-    e.currentTarget.disabled = true;
+    const b = e.currentTarget;
+    const alasan = await tanya('Tolak seluruh hitungan ini? Stok tidak berubah.', {ya: 'Tolak semua', bahaya: true, isian: 'Alasan (apa yang perlu dihitung ulang)'});
+    if (alasan === false) return;
+    if (!String(alasan).trim()) { kabar('Tulis alasannya.', true); return; }
+    b.disabled = true;
     try { const d = await kirim(URL_INI, {aksi: 'tolak', alasan}); kabar(d.pesan); setTimeout(() => location.href = "{% url 'hp:beranda' %}", 800); }
-    catch (err) { kabar(err.message, true); e.currentTarget.disabled = false; }
+    catch (err) { kabar(err.message, true); b.disabled = false; }
   });
 })();
 </script>

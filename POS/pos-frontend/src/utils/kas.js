@@ -58,12 +58,8 @@ export function kasBanner(status, now = new Date()) {
   return { text: 'Kas belum dibuka. Penjualan tetap bisa jalan.', action: 'Buka kas' }
 }
 
-export function diambilTotal(lembar100, lembar50) {
-  return (Math.max(0, Number(lembar100) || 0) * 100000) + (Math.max(0, Number(lembar50) || 0) * 50000)
-}
-
 /* Alasan tombol tutup kas tidak bisa dipakai, atau '' kalau boleh. */
-export function tutupProblem({ status, online, localPending, uangSisa }) {
+export function tutupProblem({ status, online, localPending, uangSisa, diambil = 0 }) {
   if (!status?.sesi) {
     return 'Kas belum dibuka.'
   }
@@ -78,6 +74,12 @@ export function tutupProblem({ status, online, localPending, uangSisa }) {
   }
   if (uangSisa === '' || uangSisa === null || uangSisa === undefined) {
     return 'Isi uang sisa di laci.'
+  }
+  const sisa = Number(uangSisa) || 0
+  const total = sisa + (Number(diambil) || 0)
+  const minimal = Number(status.sisa_minimal) || 0
+  if (sisa < Math.min(minimal, total)) {
+    return `Uang sisa minimal Rp ${new Intl.NumberFormat('id-ID').format(minimal)} untuk keperluan pagi. Kurangi uang yang diambil.`
   }
   return ''
 }
