@@ -216,6 +216,8 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   const piutangUtil = await loadRealModule('../src/utils/piutang.js', context)
   modules.set('./utils/piutang', piutangUtil)
   modules.set('../utils/piutang', piutangUtil)
+  const kunciUtil = await loadRealModule('../src/utils/kunciKasir.js', context)
+  modules.set('./utils/kunciKasir', kunciUtil)
   const kasUtil = await loadRealModule('../src/utils/kas.js', context)
   modules.set('./utils/kas', kasUtil)
   modules.set('../utils/kas', kasUtil)

@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Nota panjang: kotak cari digeser ke atas layar supaya baris baru dan hasil cari selalu kelihatan tanpa menggulir manual.
   function jagaKotak(){
     const r = kotak.getBoundingClientRect(), tinggi = window.innerHeight;
-    if (r.bottom + 360 > tinggi && r.top > tinggi * 0.3) window.scrollBy({top: r.top - tinggi * 0.3, behavior: 'smooth'});
+    if (r.bottom + 360 > tinggi && r.top > tinggi * 0.3) window.scrollBy({top: r.top - tinggi * 0.3, behavior: 'instant'});
   }
   kotak.addEventListener('focus', jagaKotak);
   function pilih(d){ kotak.value = ''; wadah.innerHTML = ''; const r = tambah(d, null, hargaCari); hargaCari = null; if (r){ r.q.focus({preventScroll: true}); jagaKotak(); } }
@@ -195,6 +195,16 @@ document.addEventListener('DOMContentLoaded', () => {
       wadah.appendChild(b);
     }
     if (document.activeElement === kotak) jagaKotak();
+    tampakkanHasil();
+  }
+  // Hasil cari harus selalu kelihatan utuh, walau nota sudah panjang (laporan Daniel 5 Nov 2026):
+  // kalau terpotong di bawah layar, halaman langsung digeser (tanpa animasi, supaya tidak dibatalkan ketikan berikutnya).
+  function tampakkanHasil(){
+    if (!wadah.children.length) return;
+    requestAnimationFrame(() => {
+      const r = wadah.getBoundingClientRect();
+      if (r.bottom > window.innerHeight - 8) window.scrollBy({top: r.bottom - window.innerHeight + 16, behavior: 'instant'});
+    });
   }
   // Nama dari kotak cari tanpa bagian harga (@2000).
   const namaDariCari = () => kotak.value.replace(/[@~]\s*\d[\d.,]*\s*(rb|ribu|k|jt|juta)?(?![a-z])/i, '').replace(/\s+/g, ' ').trim();

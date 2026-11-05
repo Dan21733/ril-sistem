@@ -6,12 +6,17 @@ sama). Hanya memeriksa alamat /gudang/; master (/master/) tidak tersentuh.
 Selain perangkat, sesi yang masuk dengan PIN karyawan diikat ke perangkatnya dan
 ikut keluar kalau karyawannya dinonaktifkan atau perangkatnya dicabut.
 """
+import re
+
 from django.contrib.auth import logout
 from django.shortcuts import render
 
 from master.layanan import perangkat_ops
 
 AWALAN = "/gudang/"
+# Selama perangkat dikunci pemilik (mis. stock opname) hanya ini yang terbuka: masuk/keluar,
+# daftar Tugas, panduan, dan halaman hitung (opname buta, tanpa angka stok sistem).
+BOLEH_SAAT_DIKUNCI = re.compile(r"^/gudang/(masuk/|keluar/|panduan/|hitung/|tiket/\d+/hitung/)?$")
 
 
 def karyawan_aktif(worker_id):
@@ -47,7 +52,10 @@ class GerbangPerangkat:
                     logout(request)
                 elif terikat is None:
                     request.session["ops_perangkat"] = p.pk
-            response = self.get_response(request)
+            if p.dikunci and not BOLEH_SAAT_DIKUNCI.match(request.path):
+                response = render(request, "gudang/dikunci.html", {"p": p}, status=423)
+            else:
+                response = self.get_response(request)
         if kunci_baru:
             perangkat_ops.pasang_cookie(response, kunci_baru)
         response["Cache-Control"] = "no-store"

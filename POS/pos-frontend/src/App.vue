@@ -39,6 +39,7 @@ import { flushPiutangActions, listPendingPiutangActions } from './services/stora
 import { fetchKasStatus } from './services/api/kasApi'
 import { flushKasGerak, listPendingKasGerak } from './services/storage/kasQueue'
 import { kasBanner, readKasStatus, rememberKasStatus } from './utils/kas'
+import { kunciDariJawaban, kunciDariStatus, readKunci, rememberKunci } from './utils/kunciKasir'
 import { dpRules, noteDpRules } from './utils/piutang'
 import { groupByOwner, isMixedCart, splitPayment } from './utils/pecahNota'
 import {
@@ -215,6 +216,35 @@ const historyInitialTab = ref('nota')
 /* Kas laci (2026-11-03): status terakhir dari server, untuk pengingat "Kas belum dibuka". */
 const kasStatus = ref(readKasStatus())
 const kasNotice = computed(() => kasBanner(kasStatus.value))
+/* Kasir dikunci pemilik dari master (mis. stock opname): layar tertutup sampai dibuka lagi. */
+const kunci = ref(readKunci())
+const kunciMemeriksa = ref(false)
+
+function terapkanKunci(baru) {
+  if (!baru) {
+    return
+  }
+  const tadinya = kunci.value.dikunci
+  kunci.value = baru
+  rememberKunci(baru)
+  if (baru.dikunci) {
+    items.value = []
+    totalItems.value = 0
+    hasMoreItems.value = false
+    historyVisible.value = false
+  } else if (tadinya) {
+    void loadItems(1)
+  }
+}
+
+async function periksaKunci() {
+  kunciMemeriksa.value = true
+  try {
+    await refreshKasQuietly()
+  } finally {
+    kunciMemeriksa.value = false
+  }
+}
 
 const deviceRegistered = ref(true)
 
@@ -374,6 +404,11 @@ async function storedDeviceHeader() {
 async function loadItems(page = 1) {
   const isFirstPage = page === 1
 
+  /* Dikunci pemilik: barang, stok, dan harga tidak ditampilkan, termasuk dari salinan offline. */
+  if (kunci.value.dikunci) {
+    return
+  }
+
   /*
    * Batalkan request sebelumnya jika ada.
    */
@@ -403,6 +438,17 @@ async function loadItems(page = 1) {
         headers: await storedDeviceHeader(),
       },
     )
+
+    if (response.status === 423) {
+      let body = {}
+      try {
+        body = await response.json()
+      } catch {
+        body = {}
+      }
+      terapkanKunci(kunciDariJawaban(423, body))
+      return
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`)
@@ -917,6 +963,7 @@ async function refreshKasQuietly() {
 function noteKasStatus(status) {
   kasStatus.value = status
   rememberKasStatus(status)
+  terapkanKunci(kunciDariStatus(status))
 }
 
 function openHistory(tab = 'nota') {
@@ -2696,6 +2743,16 @@ onBeforeUnmount(() => {
       @close="historyVisible = false; void refreshKasQuietly()"
     />
 
+    <!-- Dikunci pemilik dari master (mis. stock opname): menutup seluruh layar kasir. -->
+    <div v-if="kunci.dikunci" class="kunci-kasir" role="alertdialog" aria-modal="true" aria-labelledby="kunci-judul">
+      <div class="kunci-kasir-kotak">
+        <h2 id="kunci-judul">Kasir dikunci pemilik</h2>
+        <p>{{ kunci.alasan || 'Kasir sedang ditutup sementara.' }}</p>
+        <p class="kunci-kasir-ket">Barang, stok, dan harga tidak bisa dibuka sampai pemilik membuka kuncinya dari master.</p>
+        <button type="button" :disabled="kunciMemeriksa" @click="periksaKunci">{{ kunciMemeriksa ? 'MEMERIKSA…' : 'PERIKSA LAGI' }}</button>
+      </div>
+    </div>
+
     <DeviceRegistrationModal
       :visible="!deviceRegistered"
       :cancellable="registrationDismissible"
@@ -3064,6 +3121,66 @@ onBeforeUnmount(() => {
   color: var(--pos-warning-text);
 
   font-size: 14px;
+}
+
+.kunci-kasir {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 2000;
+
+  display: grid;
+
+  place-items: center;
+
+  padding: 24px;
+
+  background: var(--pos-bg, #1f1d1a);
+}
+
+.kunci-kasir-kotak {
+  max-width: 440px;
+
+  padding: 28px 24px;
+
+  border-radius: 16px;
+
+  background: var(--pos-surface);
+  color: var(--pos-text);
+
+  text-align: center;
+}
+
+.kunci-kasir-kotak h2 {
+  margin: 0 0 10px;
+}
+
+.kunci-kasir-kotak p {
+  margin: 0 0 12px;
+}
+
+.kunci-kasir-ket {
+  color: var(--pos-text-muted);
+
+  font-size: 14px;
+}
+
+.kunci-kasir-kotak button {
+  min-height: 50px;
+
+  padding: 0 24px;
+
+  border: 0;
+  border-radius: 12px;
+
+  background: var(--pos-accent);
+  color: var(--pos-accent-contrast);
+
+  font: inherit;
+  font-weight: 700;
+
+  cursor: pointer;
 }
 
 .kas-reminder {

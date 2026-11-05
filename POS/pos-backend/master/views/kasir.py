@@ -99,6 +99,10 @@ def perangkat_ops(request):
             elif aksi == "hapus":
                 svc_perangkat.hapus_menunggu(request.user, pid)
                 messages.info(request, "Permintaan dihapus.")
+            elif aksi in ("kunci", "buka_kunci"):
+                from master.layanan import kunci as svc_kunci
+                n = svc_kunci.kunci_ops(request.user, pid, aksi == "kunci", request.POST.get("alasan"))
+                messages.success(request, f"{n} perangkat gudang {'dikunci: hanya tugas hitung yang terbuka' if aksi == 'kunci' else 'dibuka lagi'}.")
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:perangkat_ops")
@@ -127,6 +131,10 @@ def tablet(request):
             elif aksi == "nama":
                 svc.atur_tablet(request.user, request.POST.get("id"), nama=request.POST.get("nama"))
                 messages.success(request, "Nama tablet tersimpan.")
+            elif aksi in ("kunci", "buka_kunci"):
+                from master.layanan import kunci as svc_kunci
+                n = svc_kunci.kunci_tablet(request.user, request.POST.get("id"), aksi == "kunci", request.POST.get("alasan"))
+                messages.success(request, f"{n} tablet kasir {'dikunci. Layar kasirnya tertutup paling lambat 30 detik lagi' if aksi == 'kunci' else 'dibuka lagi'}.")
             elif aksi in ("kas_ya", "kas_tidak"):
                 from master.layanan import kas as svc_kas
                 svc_kas.atur_tablet_kas(request.user, request.POST.get("id"), aksi == "kas_ya")

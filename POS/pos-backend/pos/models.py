@@ -329,6 +329,10 @@ class DeviceStatus(models.Model):
     # Tutup kas ditahan selama ada tablet dengan antrean.
     antrean = models.IntegerField(default=0)
     antrean_waktu = models.DateTimeField(null=True, blank=True)
+    # Dikunci pemilik (mis. saat stock opname): kasir tertutup sampai dibuka lagi dari master.
+    dikunci = models.BooleanField(default=False)
+    kunci_alasan = models.CharField(max_length=200, blank=True, default="")
+    kunci_waktu = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "device_status"

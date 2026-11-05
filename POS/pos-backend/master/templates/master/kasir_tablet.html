@@ -17,6 +17,18 @@
   </div>
 </div>
 
+<div class="kartu" style="margin-bottom:20px">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <div><b style="font-size:18px">Kunci semua tablet kasir</b>
+      <div class="redup kecil" style="margin-top:4px">Untuk stock opname: layar kasir tertutup, barang, stok, dan harga tidak bisa dilihat, tidak bisa jualan. Nota offline yang sudah terjadi tetap terkirim.</div></div>
+    <div class="baris">
+      <form method="post" class="baris" style="flex-wrap:nowrap;gap:6px" data-tanya="Kunci semua tablet kasir sekarang?" data-tanya-ya="Kunci">{% csrf_token %}<input type="hidden" name="aksi" value="kunci"><input type="hidden" name="id" value="semua">
+        <input type="text" name="alasan" placeholder="Alasan, mis. stock opname" maxlength="200" style="width:200px"><button class="tombol utama" type="submit">Kunci semua</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="buka_kunci"><input type="hidden" name="id" value="semua"><button class="tombol" type="submit">Buka semua</button></form>
+    </div>
+  </div>
+</div>
+
 <div class="gulir"><table>
   <tr><th>Kode</th><th>Nama tablet</th><th>Status</th><th>Buka &amp; tutup kas</th><th>Terdaftar</th><th>Terakhir terlihat</th><th></th></tr>
   {% for t in daftar %}
@@ -24,7 +36,10 @@
     <td><b>{{ t.kode }}</b></td>
     <td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="nama"><input type="hidden" name="id" value="{{ t.id }}">
       <input type="text" name="nama" value="{{ t.nama }}" placeholder="mis. Tab kasir depan" style="width:200px" maxlength="60"><button class="tombol kecil" type="submit">Simpan</button></form></td>
-    <td>{% if t.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label bahaya">nonaktif</span>{% endif %}</td>
+    <td>{% if t.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label bahaya">nonaktif</span>{% endif %}
+      {% if t.dikunci %}<span class="label bahaya" title="{{ t.kunci_alasan }}">dikunci</span>{% endif %}
+      <form method="post" style="margin-top:4px">{% csrf_token %}<input type="hidden" name="id" value="{{ t.id }}">
+        {% if t.dikunci %}<button class="tombol kecil" name="aksi" value="buka_kunci" type="submit">Buka kunci</button>{% else %}<button class="tombol kecil" name="aksi" value="kunci" type="submit">Kunci</button>{% endif %}</form></td>
     <td><form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ t.id }}">
       {% if t.boleh_kas %}<span class="label baik">boleh</span> <button class="tombol kecil" name="aksi" value="kas_tidak" type="submit">Cabut</button>
       {% else %}<button class="tombol kecil" name="aksi" value="kas_ya" type="submit">Izinkan</button>{% endif %}</form>

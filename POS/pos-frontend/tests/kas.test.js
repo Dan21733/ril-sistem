@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { kunciDariJawaban, kunciDariStatus, readKunci, rememberKunci } from '../src/utils/kunciKasir.js'
 import { gerakProblem, kasBanner, mergeGerak, readKasStatus, rememberKasStatus, tutupHariIni, tutupProblem } from '../src/utils/kas.js'
 
 /* Kas laci di tablet (3 Nov 2026). */
@@ -61,4 +62,17 @@ test('status kas disalin untuk dipakai offline', () => {
   rememberKasStatus({ boleh_kas: true, sesi: null }, storage)
   assert.equal(readKasStatus(storage).boleh_kas, true)
   assert.equal(readKasStatus({ getItem: () => '{rusak' }), null)
+})
+
+test('kunci kasir dari status kas / jawaban 423, diingat untuk offline', () => {
+  assert.equal(kunciDariStatus({ boleh_kas: true }), null)
+  assert.deepEqual(kunciDariStatus({ dikunci: true, kunci_alasan: 'stock opname' }), { dikunci: true, alasan: 'stock opname' })
+  assert.deepEqual(kunciDariStatus({ dikunci: false }), { dikunci: false, alasan: '' })
+  assert.equal(kunciDariJawaban(500, {}), null)
+  assert.equal(kunciDariJawaban(423, { alasan: 'opname' }).dikunci, true)
+  const isi = new Map()
+  const storage = { setItem: (k, v) => isi.set(k, v), getItem: (k) => isi.get(k) ?? null }
+  assert.equal(readKunci(storage).dikunci, false)
+  rememberKunci({ dikunci: true, alasan: 'x' }, storage)
+  assert.equal(readKunci(storage).dikunci, true)
 })

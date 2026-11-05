@@ -962,6 +962,9 @@ class PerangkatOps(models.Model):
     dibuat = models.DateTimeField(auto_now_add=True)
     terakhir = models.DateTimeField(null=True, blank=True)
     terakhir_akun = models.CharField(max_length=150, blank=True, default="")
+    # Dikunci pemilik (mis. saat stock opname): hanya tugas hitung yang bisa dibuka.
+    dikunci = models.BooleanField(default=False)
+    kunci_alasan = models.CharField(max_length=200, blank=True, default="")
 
     class Meta:
         db_table = "master_perangkat_ops"

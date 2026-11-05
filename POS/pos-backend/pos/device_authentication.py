@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core import signing
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import APIException, AuthenticationFailed
 
 from .models import Device, DeviceStatus
 
@@ -151,6 +151,32 @@ def get_device_from_token(token, max_age=None):
     return device
 
 
+class KasirDikunci(APIException):
+    """Tablet dikunci pemilik dari master (Perangkat > Tablet). Kode 423 supaya tablet bisa membedakannya
+    dari server mati: salinan katalog di tablet tidak boleh dipakai sebagai gantinya."""
+
+    status_code = 423
+    default_code = "kasir_dikunci"
+
+    def __init__(self, alasan=""):
+        pesan = "Kasir dikunci pemilik." + (f" {alasan}" if alasan else "")
+        super().__init__({"detail": pesan, "kode": "kasir_dikunci", "alasan": alasan})
+
+
+# Yang tetap boleh selama dikunci: nota offline yang sudah terjadi tetap terkirim, status kas (memberi
+# tahu tablet bahwa ia dikunci), bukti transfer, pendaftaran & nomor nota, cek server hidup.
+BOLEH_SAAT_DIKUNCI = ("/api/transactions/sync/", "/api/payment-proofs/", "/api/health/", "/api/devices/")
+
+
+def periksa_kunci(device, path):
+    device_id = _id_uuid(device)
+    if device_id is None or path == "/api/kas/" or path.startswith(BOLEH_SAAT_DIKUNCI):
+        return
+    s = DeviceStatus.objects.filter(device_id=device_id, dikunci=True).only("kunci_alasan").first()
+    if s is not None:
+        raise KasirDikunci(s.kunci_alasan)
+
+
 class DeviceTokenAuthentication(BaseAuthentication):
     keyword = "Device"
 
@@ -174,5 +200,6 @@ class DeviceTokenAuthentication(BaseAuthentication):
 
         device = get_device_from_token(parts[1])
         catat_terlihat(device)
+        periksa_kunci(device, request.path)
 
         return AuthenticatedDevice(device=device), parts[1]

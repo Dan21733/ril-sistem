@@ -433,6 +433,8 @@ def status_tablet(device_id):
     lalu = sesi_tutup_terakhir(toko_id) if toko_id is not None else None
     hasil = {
         "toko_id": toko_id,
+        "dikunci": bool(st and st.dikunci),
+        "kunci_alasan": st.kunci_alasan if st and st.dikunci else "",
         "boleh_kas": bool(st and st.boleh_kas),
         "mode_pemilik": not ada_tablet_kas(),
         "kategori": KATEGORI_KELUAR,

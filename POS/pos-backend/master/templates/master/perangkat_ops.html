@@ -21,6 +21,17 @@
 </table></div>
 
 <h3>Disetujui</h3>
+<div class="kartu" style="margin-bottom:12px">
+  <div class="baris" style="justify-content:space-between;align-items:center">
+    <div><b>Kunci semua perangkat gudang</b>
+      <div class="redup kecil" style="margin-top:4px">Untuk stock opname: hanya daftar Tugas dan halaman hitung yang terbuka. Menu lain (lihat stok, ambil, datang, buka dus) tertutup.</div></div>
+    <div class="baris">
+      <form method="post" class="baris" style="flex-wrap:nowrap;gap:6px" data-tanya="Kunci semua perangkat gudang sekarang?" data-tanya-ya="Kunci">{% csrf_token %}<input type="hidden" name="aksi" value="kunci"><input type="hidden" name="id" value="semua">
+        <input type="text" name="alasan" placeholder="Alasan, mis. stock opname" maxlength="200" style="width:200px"><button class="tombol utama" type="submit">Kunci semua</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="buka_kunci"><input type="hidden" name="id" value="semua"><button class="tombol" type="submit">Buka semua</button></form>
+    </div>
+  </div>
+</div>
 <div class="gulir"><table>
   <tr><th>Nama</th><th>Kode</th><th>Disetujui</th><th>Terakhir dipakai</th><th></th></tr>
   {% for p in disetujui %}
@@ -30,7 +41,9 @@
     <td style="font-family:monospace">{{ p.kode }}</td>
     <td class="kecil">{{ p.disetujui|date:"d M Y H:i" }} · {{ p.disetujui_oleh }}</td>
     <td class="kecil">{% if p.terakhir %}{{ p.terakhir|date:"d M Y H:i" }}{% if p.terakhir_akun %} · {{ p.terakhir_akun }}{% endif %}{% else %}<span class="redup">belum</span>{% endif %}</td>
-    <td><form method="post" data-tanya="Cabut {{ p.nama }}? Perangkat itu langsung tidak bisa membuka aplikasi, dan yang sedang masuk ikut keluar.">{% csrf_token %}<input type="hidden" name="aksi" value="cabut"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil bahaya" type="submit">Cabut</button></form></td></tr>
+    <td><div class="baris" style="flex-wrap:nowrap;gap:6px">{% if p.dikunci %}<span class="label bahaya" title="{{ p.kunci_alasan }}">dikunci</span>{% endif %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ p.id }}">{% if p.dikunci %}<button class="tombol kecil" name="aksi" value="buka_kunci" type="submit">Buka kunci</button>{% else %}<button class="tombol kecil" name="aksi" value="kunci" type="submit">Kunci</button>{% endif %}</form>
+      <form method="post" data-tanya="Cabut {{ p.nama }}? Perangkat itu langsung tidak bisa membuka aplikasi, dan yang sedang masuk ikut keluar.">{% csrf_token %}<input type="hidden" name="aksi" value="cabut"><input type="hidden" name="id" value="{{ p.id }}"><button class="tombol kecil bahaya" type="submit">Cabut</button></form></div></td></tr>
   {% empty %}<tr><td colspan="5" class="redup">Belum ada perangkat yang disetujui.</td></tr>
   {% endfor %}
 </table></div>
