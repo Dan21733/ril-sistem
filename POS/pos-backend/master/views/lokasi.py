@@ -148,7 +148,7 @@ def stok(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "jumlah_minus": semua.filter(in_stock__lt=F("di_gudang")).count(),
         "daftar_lokasi": Lokasi.objects.filter(aktif=True),
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_rak": Rak.objects.select_related("tempat"),
     })
 
@@ -282,8 +282,8 @@ def tiket_daftar(request, baru=False):
     if baru:
         return render(request, "master/tiket_baru.html", {
             "menu": "tiket", "admin": admin, "izin_barang": Tiket.IZIN_BARANG,
-            "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
-            "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
+            "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami),
+            "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True).distinct() if b}, key=kunci_alami),
             "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
             "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
         })

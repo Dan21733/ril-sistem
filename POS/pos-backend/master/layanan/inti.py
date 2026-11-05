@@ -3,6 +3,7 @@
 Layar, impor Excel, dan perintah baris semuanya memanggil fungsi yang sama.
 """
 import re
+from functools import lru_cache
 import uuid
 
 from django.db import connection, transaction
@@ -411,6 +412,32 @@ def ganti_nama_kelompok(pengguna, kolom, lama, baru, *, hak, qs=None):
     return jumlah
 
 
+def kunci_kembar(nama):
+    """Kunci pembanding nama kategori/brand: 'Aksesoris  Pintu', 'aksesoris-pintu', 'Alat Berat & Angkut'
+    vs 'Alat berat dan angkut' dianggap sama (kemungkinan dobel ketik)."""
+    teks = (nama or "").casefold().replace("&", " dan ")
+    return re.sub(r"[^0-9a-z]", "", teks)
+
+
+def gabung_kelompok(pengguna, kolom, daftar_lama, tujuan, *, hak, qs=None):
+    """Gabungkan beberapa kategori/brand ke satu nama (yang sudah ada atau baru).
+
+    Sama dengan ganti nama tiap kategori lama ke nama tujuan, dalam satu transaksi; nama lama
+    hilang dari daftar karena tidak ada lagi barang yang memakainya. Tercatat di log per nama.
+    """
+    tujuan = rapikan_teks(tujuan)
+    lama = [n for n in dict.fromkeys(daftar_lama) if n != tujuan]
+    if not tujuan:
+        raise Tolak("Pilih atau ketik nama tujuan.")
+    if not lama:
+        raise Tolak("Pilih minimal satu nama lain untuk digabung.")
+    total = 0
+    with transaction.atomic():
+        for n in lama:
+            total += ganti_nama_kelompok(pengguna, kolom, n, tujuan, hak=hak, qs=qs)
+    return len(lama), total
+
+
 # ---------------------------------------------------------------------------
 # Ganti nama barang / varian
 # ---------------------------------------------------------------------------
@@ -715,8 +742,17 @@ def kunci_alami(teks):
     """Urutan yang enak dibaca: tidak peduli huruf besar-kecil, dan angka diurut
     sebagai angka (CW 53 sebelum CW 415). Spasi diabaikan, jadi 'Cw420' dan
     'CW 427' berurutan."""
-    rapat = re.sub(r"\s+", "", str(teks or "").casefold())
-    return [int(b) if b.isdigit() else b for b in re.split(r"(\d+)", rapat)]
+    return _kunci_alami(str(teks or ""))
+
+
+@lru_cache(maxsize=50000)
+def _kunci_alami(teks):
+    # Disimpan: daftar barang/harga/stok mengurutkan seluruh katalog di setiap halaman.
+    rapat = _SPASI.sub("", teks.casefold())
+    return tuple(int(b) if b.isdigit() else b for b in _ANGKA.split(rapat))
+
+
+_SPASI, _ANGKA = re.compile(r"\s+"), re.compile(r"(\d+)")
 
 
 def urut_alami(baris, nama="item_name", varian="variant"):

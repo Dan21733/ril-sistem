@@ -425,7 +425,7 @@ def tiket_isi(request, tiket_id):
         "boleh_pindah": "ops_tiket_pindah" in hak, "boleh_rak": "ops_tiket_rak" in hak,
         "baris": t.baris.select_related("varian", "rak", "dari", "ke"),
         "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
-        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True).distinct()), key=kunci_alami),
     })
 
 

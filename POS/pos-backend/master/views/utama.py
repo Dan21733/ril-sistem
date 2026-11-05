@@ -283,8 +283,8 @@ def barang_daftar(request):
         "g": request.GET,
         "qs_halaman": _qs_tanpa(request, "hal", "buka"),
         "qs_export": _qs_tanpa(request, "hal", "export", "buka"),
-        "daftar_kategori": sorted(set(milik.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(milik.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(milik.values_list("category", flat=True).distinct()), key=kunci_alami),
+        "daftar_brand": sorted(set(milik.values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
         "daftar_rak": Rak.objects.all(),
         "daftar_masalah": masalah.aturan_untuk(hak),
@@ -354,8 +354,8 @@ def barang_baru(request):
     if request.GET.get("panel") != "1":
         return redirect(f"{reverse('master:barang')}?baru=1")
     return render(request, "master/_barang_baru.html", {
-        "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True) if k}, key=kunci_alami),
-        "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True) if k}, key=kunci_alami),
+        "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True).distinct() if k}, key=kunci_alami),
+        "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
     })
 
@@ -583,8 +583,8 @@ def item_detail(request, item_id, panel=False):
         "baris_nota": layanan.jumlah_baris_nota(item_info.item_name),
         "stok_total": sum(b["in_stock"] or 0 for b in barang),
         "ada_terjual": any(b["terjual"] for b in barang),
-        "daftar_kategori": sorted(set(milik_item.values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(milik_item.values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(milik_item.values_list("category", flat=True).distinct()), key=kunci_alami),
+        "daftar_brand": sorted(set(milik_item.values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "log_item": Log.objects.filter(item_name=item_info.item_name)[:15] if "lihat_log" in hak else [],
         "pemasok": pemasok.untuk_barang(item_info, hak) if pemasok.boleh_lihat(hak) else None,
@@ -639,8 +639,8 @@ def harga(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "pratinjau": pratinjau,
         "param": param or request.POST,
-        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
+        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "kolom_massal": [(k, layanan.KOLOM_VARIAN[k][0]) for k in layanan.KOLOM_HARGA
@@ -671,8 +671,8 @@ def stok(request):
         "qs_halaman": _qs_tanpa(request, "hal"),
         "jumlah_habis": semua.filter(in_stock__lte=0).count(),
         "jumlah_menipis": semua.filter(stock_alert__isnull=False, in_stock__lte=F("stock_alert"), in_stock__gt=0).count(),
-        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True)), key=kunci_alami),
-        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True)), key=kunci_alami),
+        "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
+        "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_rak": Rak.objects.all(),
         "daftar_jenis": layanan.JENIS_MUTASI.items(),
         "pilihan_lokasi": svc_lokasi.pilihan() if Lokasi.objects.filter(jenis="gudang", aktif=True).exists() else [],
@@ -870,14 +870,21 @@ def kelompok(request, kolom):
     param = "kategori" if kolom == "category" else "brand"
     if request.method == "POST":
         try:
-            jumlah = layanan.ganti_nama_kelompok(
-                request.user, kolom, request.POST.get("lama", ""), request.POST.get("baru", ""), hak=hak,
-                qs=_milik(request),
-            )
-            messages.success(request, f"{judul} diganti di {jumlah} varian.")
+            if request.POST.get("aksi") == "gabung":
+                n, jumlah = layanan.gabung_kelompok(
+                    request.user, kolom, request.POST.getlist("lama"), request.POST.get("baru", ""), hak=hak,
+                    qs=_milik(request),
+                )
+                messages.success(request, f"{n} {judul.lower()} digabung ke {layanan.rapikan_teks(request.POST.get('baru'))} ({jumlah} varian).")
+            else:
+                jumlah = layanan.ganti_nama_kelompok(
+                    request.user, kolom, request.POST.get("lama", ""), request.POST.get("baru", ""), hak=hak,
+                    qs=_milik(request),
+                )
+                messages.success(request, f"{judul} diganti di {jumlah} varian.")
         except Tolak as tolak:
             messages.error(request, str(tolak))
-        return redirect(request.path)
+        return redirect(request.get_full_path())
 
     baris = list(
         _milik(request).values(kolom)
@@ -892,8 +899,17 @@ def kelompok(request, kolom):
         if not cari or cari in (b[kolom] or "").lower()
     ]
     daftar.sort(key=lambda d: kunci_alami(d["nama"]))
+    # Kemungkinan dobel: nama yang sama kalau huruf besar-kecil, spasi, dan tanda baca diabaikan.
+    grup = {}
+    for b in baris:
+        if b[kolom]:
+            grup.setdefault(layanan.kunci_kembar(b[kolom]), []).append(
+                {"nama": b[kolom], "varian": b["varian"], "item": b["item"]})
+    kembar = [sorted(g, key=lambda d: -d["varian"]) for g in grup.values() if len(g) > 1]
+    kembar.sort(key=lambda g: kunci_alami(g[0]["nama"]))
     return render(request, "master/kelompok.html", {
-        "menu": param, "judul": judul, "daftar": daftar, "cari": request.GET.get("q", ""),
+        "menu": param, "judul": judul, "daftar": daftar, "cari": request.GET.get("q", ""), "kembar": kembar,
+        "semua_nama": [b[kolom] for b in baris if b[kolom]],
     })
 
 

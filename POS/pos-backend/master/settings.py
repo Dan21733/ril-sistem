@@ -60,6 +60,11 @@ CSRF_FAILURE_VIEW = "master.akun.masuk.csrf_gagal"
 MIDDLEWARE = [*MIDDLEWARE, "master.akun.gerbang.GerbangPerangkat"]  # noqa: F405
 # Aplikasi HP terkunci sendiri setelah beberapa menit tidak dipakai (Face ID / sidik jari / kata sandi).
 MIDDLEWARE = [*MIDDLEWARE, "master.akun.kunci_hp.KunciHp"]
+# Halaman master/HP/gudang dibuka lewat Tailscale tanpa proxy yang memampatkan; HTML-nya
+# besar (daftar harga ~180 KB) dan menyusut 4–15x dengan gzip. Ditaruh paling depan supaya
+# memampatkan hasil akhir semua middleware lain (django.middleware.gzip menambah pengacak
+# panjang untuk mencegah BREACH).
+MIDDLEWARE = ["master.akun.mampat.GzipTeks", *MIDDLEWARE]
 OPS_WAJIB_PERANGKAT = True
 
 TEMPLATES = copy.deepcopy(TEMPLATES)

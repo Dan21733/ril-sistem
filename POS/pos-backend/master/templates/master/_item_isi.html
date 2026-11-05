@@ -44,16 +44,9 @@
 <div data-atur-rencana></div>
 {% if 'ubah_info' in hak and 'ubah_harga' in hak %}
 <form method="post" action="{% url 'master:item' item_info.id %}" id="form-varian-baru">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="tambah_varian"><input type="hidden" name="in_stock" value="0"></form>
-<style>.varian-baru td{background:var(--latar,#faf9f6);padding-top:8px;padding-bottom:8px}.varian-baru input,.varian-baru select{padding:7px 8px;min-width:0;width:100%}.varian-baru .uang-varian{text-align:right;min-width:80px}.varian-baru td:first-child input{min-width:120px}</style>
+<style>.varian-baru td{background:var(--latar,#faf9f6);padding-top:8px;padding-bottom:8px}.varian-baru input,.varian-baru select{padding:7px 8px;min-width:0;width:110px}.varian-baru .uang-varian{text-align:right}.varian-baru input[name=variant]{width:180px}.varian-baru select{width:90px}</style>
 {% endif %}
 
-{% if 'ubah_harga' in hak %}
-<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu baris" style="margin-top:16px;align-items:end">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="min_dp">
-  <div style="width:220px"><label>Minimal DP barang ini (%)</label><input type="text" name="min_dp_persen" inputmode="numeric" value="{{ item_info.min_dp_persen|default_if_none:'' }}" placeholder="bawaan {{ dp_bawaan }}%"></div>
-  <button class="tombol" type="submit">Simpan</button>
-  <span class="redup kecil">Kosong = ikut bawaan toko. Isi lebih tinggi untuk barang pesanan khusus.</span>
-</form>
-{% endif %}
 
 {% if titipan %}
 <h3 style="margin-top:22px">Syarat titipan · {{ titipan.nama }}</h3>
@@ -80,49 +73,43 @@
 <style>.tabel-syarat input{width:90px;text-align:right;padding:7px 8px}.tabel-syarat .isi-semua td{background:var(--latar)}</style>
 {% endif %}
 
-{% if 'ubah_harga' in hak and barang|length > 1 %}
-<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu baris" style="margin-top:10px;align-items:end">{% csrf_token %}
-  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="samakan">
-  <div style="min-width:220px;flex:1"><label>Samakan semua varian dengan</label><select name="acuan">{% for b in barang %}<option value="{{ b.id }}">{{ b.variant|varian }} · {{ b.max_price|ribuan|default:"-" }}</option>{% endfor %}</select></div>
-  <div class="baris" style="gap:14px;padding-bottom:10px">
-    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="min_price" checked style="width:auto"> Floor</label>
-    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="max_price" checked style="width:auto"> Harga jual</label>
-    {% if 'ubah_modal' in hak %}<label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="cost_amount" style="width:auto"> Modal terakhir</label>{% endif %}
-  </div>
-  <div><button class="tombol" type="submit" data-tanya="Samakan kolom yang dicentang di semua {{ barang|length }} varian dengan varian yang dipilih?">Samakan</button></div>
-</form>
-{% endif %}
 
-<form id="form-ganti" method="post" action="{% url 'master:item' item_info.id %}" hidden>{% csrf_token %}
-  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi"><input type="hidden" name="id">
-  <input type="hidden" name="nama_baru"><input type="hidden" name="varian_baru">
-</form>
-
-{% if 'hapus_barang' in hak and barang|length > 1 and not ada_terjual %}
-<form method="post" action="{% url 'master:item' item_info.id %}" data-buang data-nama="{{ item_info.item_name }} (semua {{ barang|length }} varian)" data-stok="{{ stok_total }}" style="margin-top:8px">{% csrf_token %}
-  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="buang_semua"><input type="hidden" name="alasan">
-  <button class="tombol kecil" type="submit">Hapus barang ini (semua varian)</button>
-</form>
-{% endif %}
-
-<h3>Kategori, brand, dan alias</h3>
-<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="simpan_item">
-  <div class="kisi">
-    <div><label>Kategori{% if kategori_campur %} (varian berbeda-beda; menyimpan akan menyamakan){% endif %}</label>
+<div class="pk-kisi">
+<form method="post" action="{% url 'master:item' item_info.id %}" class="kartu pk-kartu"><h4>Kategori, brand, alias</h4>{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="simpan_item">
+  <div class="pk-dua">
+    <div><label>Kategori{% if kategori_campur %} <span class="label" title="Varian berbeda-beda; menyimpan akan menyamakan">campur</span>{% endif %}</label>
       <input type="text" name="category" value="{{ kategori }}" list="dl-kategori" {% if 'ubah_info' not in hak %}disabled{% endif %}></div>
-    <div><label>Brand{% if brand_campur %} (varian berbeda-beda; menyimpan akan menyamakan){% endif %}</label>
+    <div><label>Brand{% if brand_campur %} <span class="label" title="Varian berbeda-beda; menyimpan akan menyamakan">campur</span>{% endif %}</label>
       <input type="text" name="brand" value="{{ brand }}" list="dl-brand" {% if 'ubah_info' not in hak %}disabled{% endif %}></div>
   </div>
-  <div style="margin-top:16px"><label>Alias, pisahkan dengan koma</label>
-    <textarea name="alias" {% if 'ubah_info' not in hak %}disabled{% endif %}>{{ item_info.alias }}</textarea></div>
-  {% if 'ubah_info' in hak %}<div style="margin-top:16px"><button class="tombol utama" type="submit">Simpan</button></div>{% endif %}
+  <div style="margin-top:10px"><label>Alias, pisahkan dengan koma</label>
+    <textarea name="alias" rows="2" {% if 'ubah_info' not in hak %}disabled{% endif %}>{{ item_info.alias }}</textarea></div>
+  {% if 'ubah_info' in hak %}<div style="margin-top:10px"><button class="tombol kecil utama" type="submit">Simpan</button></div>{% endif %}
   <datalist id="dl-kategori">{% for k in daftar_kategori %}<option value="{{ k }}">{% endfor %}</datalist>
   <datalist id="dl-brand">{% for k in daftar_brand %}<option value="{{ k }}">{% endfor %}</datalist>
 </form>
-
+{% if 'ubah_harga' in hak %}<div class="kartu pk-kartu"><h4>Harga varian</h4>
+{% if 'ubah_harga' in hak and barang|length > 1 %}
+<form method="post" action="{% url 'master:item' item_info.id %}" class="pk-bagian">{% csrf_token %}
+  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="samakan">
+  <label>Samakan semua varian dengan</label><div class="pk-baris"><select name="acuan">{% for b in barang %}<option value="{{ b.id }}">{{ b.variant|varian }} · {{ b.max_price|ribuan|default:"-" }}</option>{% endfor %}</select></div>
+  <div class="pk-baris" style="margin-top:8px">
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="min_price" checked style="width:auto"> Floor</label>
+    <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="max_price" checked style="width:auto"> Harga jual</label>
+    {% if 'ubah_modal' in hak %}<label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" name="kolom" value="cost_amount" style="width:auto"> Modal terakhir</label>{% endif %}
+    <button class="tombol kecil" type="submit" style="margin-left:auto" data-tanya="Samakan kolom yang dicentang di semua {{ barang|length }} varian dengan varian yang dipilih?">Samakan</button>
+  </div>
+</form>
+{% endif %}
+{% if 'ubah_harga' in hak %}
+<form method="post" action="{% url 'master:item' item_info.id %}" class="pk-bagian">{% csrf_token %}<input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="min_dp">
+  <label>Minimal DP barang ini (%)</label><div class="pk-baris"><input style="width:140px" type="text" name="min_dp_persen" inputmode="numeric" value="{{ item_info.min_dp_persen|default_if_none:'' }}" placeholder="bawaan {{ dp_bawaan }}%" title="Kosong = ikut bawaan toko. Isi lebih tinggi untuk barang pesanan khusus.">
+  <button class="tombol kecil" type="submit">Simpan</button><span class="redup kecil">kosong = bawaan toko</span></div>
+</form>
+{% endif %}
+</div>{% endif %}
 {% if pemasok %}
-<h3>Diambil dari</h3>
-<div class="kartu">
+<div class="kartu pk-kartu"><h4>Diambil dari</h4>
   {% if pemasok.riwayat %}
   <div class="kecil redup" style="margin-bottom:6px">Dari riwayat pembelian (otomatis)</div>
   {% for r in pemasok.riwayat %}
@@ -140,20 +127,21 @@
   </form>
   {% endfor %}
   {% endif %}
-  {% if not pemasok.riwayat and not pemasok.catatan %}<p class="redup kecil" style="margin-top:0">Belum ada catatan. Barang ini juga belum pernah dibeli lewat menu Pembelian.</p>{% endif %}
-  <form method="post" action="{% url 'master:item' item_info.id %}" class="baris" style="margin-top:12px">{% csrf_token %}
+  {% if not pemasok.riwayat and not pemasok.catatan %}<p class="redup kecil" style="margin:0">Belum ada catatan atau riwayat pembelian.</p>{% endif %}
+  <form method="post" action="{% url 'master:item' item_info.id %}" class="pk-baris" style="margin-top:10px">{% csrf_token %}
     <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="pemasok_tambah">
-    <div style="flex:1;min-width:170px"><label>Supplier / distributor</label><input type="text" name="supplier" list="dl-supplier" required placeholder="ketik atau pilih"></div>
-    <div style="flex:2;min-width:200px"><label>Catatan (opsional)</label><input type="text" name="catatan" maxlength="300" placeholder="mis. sales Pak Budi, min. 50 sak"></div>
-    <div><button class="tombol" type="submit">Tambah</button></div>
+    <input type="text" name="supplier" list="dl-supplier" required placeholder="Supplier (ketik/pilih)" aria-label="Supplier" style="flex:1 1 150px;width:auto">
+    <input type="text" name="catatan" maxlength="300" placeholder="Catatan, mis. sales Pak Budi" aria-label="Catatan" style="flex:2 1 180px;width:auto">
+    <button class="tombol kecil" type="submit">Tambah</button>
     <datalist id="dl-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% endfor %}</datalist>
   </form>
-  {% if 'kelola_supplier' in hak %}<p class="kecil redup" style="margin-bottom:0">Nama yang belum ada di daftar Supplier otomatis ditambahkan.</p>{% endif %}
 </div>
 {% endif %}
-
-
-
+</div>
+<form id="form-ganti" method="post" action="{% url 'master:item' item_info.id %}" hidden>{% csrf_token %}
+  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi"><input type="hidden" name="id">
+  <input type="hidden" name="nama_baru"><input type="hidden" name="varian_baru">
+</form>
 {% if log_item %}
 <details class="lipat"><summary>Riwayat perubahan</summary>
 <div class="gulir"><table>
@@ -165,3 +153,19 @@
 </table></div>
 </details>
 {% endif %}
+{% if 'hapus_barang' in hak and barang|length > 1 and not ada_terjual %}
+<form method="post" action="{% url 'master:item' item_info.id %}" data-buang data-nama="{{ item_info.item_name }} (semua {{ barang|length }} varian)" data-stok="{{ stok_total }}" style="margin-top:12px">{% csrf_token %}
+  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="buang_semua"><input type="hidden" name="alasan">
+  <button class="tombol kecil" type="submit">Hapus barang ini (semua varian)</button>
+</form>
+{% endif %}
+<style>
+.gulir:has(>table[data-tabel-varian]){width:fit-content;max-width:100%}.gulir table[data-tabel-varian]{width:auto}[data-tabel-varian] td,[data-tabel-varian] th{padding-left:12px;padding-right:12px}
+.pk-kisi{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:16px;align-items:start;max-width:1400px}
+.pk-kartu{padding:14px 16px}.pk-kartu h4{margin:0 0 10px;font-size:15px}
+.pk-dua{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pk-baris{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pk-baris select{flex:1 1 180px;width:auto;max-width:360px}
+.pk-baris label{display:flex;gap:6px;align-items:center;margin:0}
+.pk-bagian+.pk-bagian{margin-top:12px;padding-top:12px;border-top:1px solid var(--garis)}
+.pk-bawah{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.pk-bawah details{flex:1 1 100%}
+</style>

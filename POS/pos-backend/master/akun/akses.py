@@ -205,6 +205,17 @@ def perlu(hak=None):
     return bungkus
 
 
+def _sekali(fungsi):
+    """Hitungan menu dipakai dua kali per halaman (lencana menu + jumlah_penjualan): cukup satu query."""
+    hasil = []
+
+    def dalam():
+        if not hasil:
+            hasil.append(fungsi())
+        return hasil[0]
+    return dalam
+
+
 def konteks(request):
     user = getattr(request, "user", None)
     if user is None:
@@ -233,12 +244,14 @@ def konteks(request):
         from master.models import PermintaanAmbil
         return PermintaanAmbil.objects.filter(status="menunggu").count()
 
+    @_sekali
     def _retur():
         if "ubah_stok" not in hak_pengguna(user) and "laporan" not in hak_pengguna(user):
             return 0
         from master.layanan.retur_jual import jumlah_menunggu
         return jumlah_menunggu()
 
+    @_sekali
     def _tinjau():
         if "kelola_kasir" not in hak_pengguna(user):
             return 0
@@ -262,12 +275,14 @@ def konteks(request):
         from master.models import Toko
         return Toko.objects.filter(aktif=True, titip_di__isnull=False).exists()
 
+    @_sekali
     def _piutang_acc():
         if "acc_piutang" not in hak_pengguna(user):
             return 0
         from master.models import Piutang
         return Piutang.objects.filter(batal=False, acc_status="menunggu").count()
 
+    @_sekali
     def _kas_acc():
         if "kas" not in hak_pengguna(user):
             return 0

@@ -1,25 +1,38 @@
 {% extends "master/base.html" %}{% load master_tags %}
 {% block judul %}Nota tulis tangan{% endblock %}
 {% block isi %}
-<div class="baris" style="justify-content:space-between;align-items:start">
-  <div><h2>Nota tulis tangan</h2><p class="sub">Penjualan dari nota tulisan tangan, di luar kasir. Ikut masuk ke Nota kasir dan Laporan penjualan.</p></div>
+<style>
+.nm-atas{display:flex;align-items:center;gap:12px;margin-bottom:12px}.nm-atas h2{margin:0}.nm-atas .sub{margin:0;flex:1;font-size:14px}
+.nm-saring{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.nm-saring input[type=search]{flex:1 1 260px;width:auto}.nm-saring input[type=date]{width:150px;flex:none;padding:9px 10px}
+.nm-saring select{width:140px;flex:none}
+.nm-massal{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px;position:sticky;top:8px;z-index:5;
+  background:var(--aksen-lembut);border:1px solid var(--aksen);border-radius:10px}
+.nm-massal input[type=date]{width:150px;flex:none;padding:7px 10px}.nm-massal select{width:170px;flex:none;padding:7px 10px}
+.nm-massal input[type=text]{flex:1 1 220px;width:auto;padding:7px 10px}.nm-massal .pisah{width:1px;align-self:stretch;background:var(--garis-kuat)}
+</style>
+<div class="nm-atas">
+  <h2>Nota tulis tangan</h2>
+  <p class="sub">Penjualan di luar kasir; ikut masuk Nota dan Laporan.</p>
   <a class="tombol utama" href="{% url 'master:nota_manual_baru' %}">Input nota</a>
 </div>
-<form method="get" class="kartu baris" style="margin-bottom:18px">
-  <div style="flex:2;min-width:220px"><label>Cari nomor, pembeli, atau barang</label><input type="search" name="q" value="{{ g.q }}"></div>
-  <div style="min-width:160px"><label>Tanggal</label><input type="date" name="tanggal" value="{{ g.tanggal }}" style="font:inherit;padding:9px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff"></div>
-  <div style="min-width:160px"><label>Status</label><select name="status"><option value="">Berlaku</option><option value="batal" {% if g.status == "batal" %}selected{% endif %}>Dibatalkan</option><option value="semua" {% if g.status == "semua" %}selected{% endif %}>Semua</option></select></div>
-  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:nota_manual' %}">Reset</a></div>
+<form method="get" class="nm-saring" id="form-saring">
+  <input type="search" name="q" value="{{ g.q }}" placeholder="Cari nomor, pembeli, atau barang" aria-label="Cari">
+  <input type="date" name="tanggal" value="{{ g.tanggal }}" aria-label="Tanggal" title="Tanggal nota">
+  <select name="status" aria-label="Status"><option value="">Berlaku</option><option value="batal" {% if g.status == "batal" %}selected{% endif %}>Dibatalkan</option><option value="semua" {% if g.status == "semua" %}selected{% endif %}>Semua</option></select>
+  <button class="tombol" type="submit">Cari</button>
+  {% if g.q or g.tanggal or g.status %}<a class="tombol kecil" href="{% url 'master:nota_manual' %}">Hapus saringan</a>{% endif %}
 </form>
 <form method="post" id="form-massal">{% csrf_token %}
-<div class="kartu baris" id="bar-massal" hidden style="margin-bottom:12px;align-items:end;position:sticky;top:8px;z-index:5;border-color:var(--aksen)">
-  <div style="align-self:center"><b id="jumlah-pilih">0</b> nota dipilih</div>
-  <div><label>Ganti tanggal jadi</label><input type="date" name="tanggal" max="{{ hari_ini }}" style="font:inherit;padding:9px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff"></div>
-  <div><button class="tombol utama" type="submit" name="aksi" value="tanggal">Ganti tanggal</button></div>
-  {% if pilihan_toko|length > 1 %}<div style="align-self:center" class="redup">atau</div>
-  <div><label>Pindah ke toko</label><select name="toko_tujuan"><option value="">Pilih toko...</option>{% for t in pilihan_toko %}<option value="{{ t.id }}">{{ t.nama }}</option>{% endfor %}</select></div>
-  <div><button class="tombol" type="submit" name="aksi" value="pindah">Pindah toko</button></div>{% endif %}
-  <div style="flex-basis:100%;min-width:220px"><label>Alasan</label><input type="text" name="alasan" placeholder="mis. salah tanggal / salah pilih toko waktu input"></div>
+<div class="nm-massal" id="bar-massal" hidden>
+  <b><span id="jumlah-pilih">0</span> dipilih</b><span class="pisah"></span>
+  <input type="date" name="tanggal" max="{{ hari_ini }}" aria-label="Tanggal baru" title="Tanggal baru">
+  <button class="tombol kecil utama" type="submit" name="aksi" value="tanggal">Ganti tanggal</button>
+  {% if pilihan_toko|length > 1 %}<span class="pisah"></span>
+  <select name="toko_tujuan" aria-label="Toko tujuan"><option value="">Pindah ke toko…</option>{% for t in pilihan_toko %}<option value="{{ t.id }}">{{ t.nama }}</option>{% endfor %}</select>
+  <button class="tombol kecil" type="submit" name="aksi" value="pindah">Pindah toko</button>{% endif %}
+  <span class="pisah"></span>
+  <input type="text" name="alasan" placeholder="Alasan (wajib), mis. salah tanggal waktu input" aria-label="Alasan">
 </div>
 <div class="gulir"><table>
   <tr><th style="width:34px"><input type="checkbox" id="pilih-semua" style="width:auto" title="Pilih semua di halaman ini" aria-label="Pilih semua di halaman ini"></th><th>Tanggal</th><th>Nomor</th>{% if banyak_toko %}<th>Toko</th>{% endif %}<th>Pembeli</th><th class="angka">Barang</th><th>Bayar</th><th class="angka">Total</th></tr>
@@ -34,13 +47,13 @@
   {% endfor %}
 </table></div>
 </form>
-<p class="kecil redup">Salah tanggal atau salah toko? Centang notanya, lalu ganti tanggal atau pindah toko sekaligus. Barang dan harga tetap tidak bisa diubah.</p>
 <script>
 (() => {
   const kotak = () => [...document.querySelectorAll('input[name=pilih]')], bar = document.getElementById('bar-massal');
   const segar = () => { const n = kotak().filter(c => c.checked).length; bar.hidden = !n; document.getElementById('jumlah-pilih').textContent = n; };
   document.getElementById('pilih-semua').addEventListener('change', e => { kotak().forEach(c => c.checked = e.target.checked); segar(); });
   document.getElementById('form-massal').addEventListener('change', segar);
+  document.querySelectorAll('#form-saring [name=tanggal], #form-saring [name=status]').forEach(el => el.addEventListener('change', () => el.form.submit()));
   document.getElementById('form-massal').addEventListener('submit', e => {
     const n = kotak().filter(c => c.checked).length, t = e.target.tanggal.value;
     if (e.submitter && e.submitter.value === 'pindah') {

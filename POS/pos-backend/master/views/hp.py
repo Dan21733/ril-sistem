@@ -481,8 +481,8 @@ def tugas_baru(request):
         "tab": "tugas", "jenis": jenis, "jenis_tugas": JENIS_TUGAS,
         "karyawan": [k for k in _karyawan_tugas() if jenis in k["jenis"]], "galat": galat, "isi": request.POST,
         "izin": Tiket.IZIN_BARANG, "boleh_hitung": "opname" in hak,
-        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True) if k}, key=kunci_alami),
-        "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True) if b}, key=kunci_alami),
+        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami),
+        "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True).distinct() if b}, key=kunci_alami),
         "lokasi": svc_lokasi.pilihan(), "daftar_rak": list(Rak.objects.select_related("tempat").order_by("kode")),
     })
 

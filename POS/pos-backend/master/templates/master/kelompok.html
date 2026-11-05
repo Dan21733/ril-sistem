@@ -1,16 +1,88 @@
 {% extends "master/base.html" %}{% load master_tags %}
 {% block judul %}{{ judul }}{% endblock %}
 {% block isi %}
-<h2>{{ judul }}</h2>
-<p class="sub">{{ daftar|length }} {{ judul|lower }}. Klik nama untuk melihat barangnya.</p>
-<form method="get" class="baris" style="margin-bottom:12px"><div style="width:280px"><input type="search" name="q" value="{{ cari }}" placeholder="Cari {{ judul|lower }}"></div><button class="tombol" type="submit">Cari</button></form>
-<div class="gulir"><table>
-  <tr><th>{{ judul }}</th><th class="angka">Barang</th><th class="angka">Varian</th>{% if 'ubah_info' in hak %}<th>Ganti nama</th>{% endif %}</tr>
+<style>
+.kl-atas{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.kl-atas h2{margin:0}.kl-atas .sub{margin:0;flex:1}
+.kl-atas form{display:flex;gap:8px}.kl-atas input[type=search]{width:240px}
+.kl-kembar{border:1px solid var(--awas,#c08a1e);background:var(--awas-lembut,#fbf0d3);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.kl-kembar h4{margin:0 0 8px;font-size:15px}
+.kl-grup{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0}.kl-grup+.kl-grup{border-top:1px solid rgba(0,0,0,.08)}
+.kl-grup .chip{background:var(--kartu);border:1px solid var(--garis-kuat);border-radius:999px;padding:3px 10px;font-size:14px}
+.kl-grup select{width:auto;padding:6px 8px}
+.gulir:has(>.kl-tabel){width:fit-content;max-width:100%}.gulir .kl-tabel{width:auto}.kl-tabel td:nth-child(2){min-width:240px}
+.kl-tabel td,.kl-tabel th{padding:7px 14px}
+.kl-tabel input[type=text]{width:220px;padding:6px 9px}
+.kl-tabel td.pilih-sel,.kl-tabel th.pilih-sel{width:34px}
+.kl-massal{width:fit-content;max-width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:12px;position:sticky;top:8px;z-index:5;
+  background:var(--aksen-lembut);border:1px solid var(--aksen);border-radius:10px}
+.kl-massal input[type=text]{width:260px;padding:7px 10px}
+</style>
+<div class="kl-atas">
+  <h2>{{ judul }}</h2><p class="sub">{{ daftar|length }} {{ judul|lower }}</p>
+  <form method="get"><input type="search" name="q" value="{{ cari }}" placeholder="Cari {{ judul|lower }}" aria-label="Cari"><button class="tombol" type="submit">Cari</button></form>
+</div>
+<datalist id="dl-nama">{% for n in semua_nama %}<option value="{{ n }}">{% endfor %}</datalist>
+
+{% if kembar and 'ubah_info' in hak %}
+<div class="kl-kembar"><h4>Kemungkinan dobel ({{ kembar|length }})</h4>
+  {% for g in kembar %}
+  <form method="post" class="kl-grup" data-tanya="Gabungkan semua nama di baris ini jadi satu? Nama yang lain hilang dari daftar, barangnya pindah.">{% csrf_token %}
+    <input type="hidden" name="aksi" value="gabung">
+    {% for d in g %}<span class="chip">{{ d.nama }} <span class="redup">· {{ d.varian }}</span></span><input type="hidden" name="lama" value="{{ d.nama }}">{% endfor %}
+    <span class="redup">→</span>
+    <select name="baru" aria-label="Jadi nama">{% for d in g %}<option value="{{ d.nama }}">{{ d.nama }}</option>{% endfor %}</select>
+    <button class="tombol kecil utama" type="submit">Gabung</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if 'ubah_info' in hak %}
+<form method="post" id="form-gabung">{% csrf_token %}<input type="hidden" name="aksi" value="gabung">
+<div class="kl-massal" id="bar-gabung" hidden>
+  <b><span id="jumlah-gabung">0</span> dipilih</b>
+  <span>gabung ke</span><input type="text" name="baru" list="dl-nama" placeholder="pilih nama yang ada / ketik baru" aria-label="Gabung ke" autocomplete="off">
+  <button class="tombol kecil utama" type="submit">Gabung</button>
+  <button class="tombol kecil" type="button" id="batal-gabung">Batal</button>
+</div>
+</form>
+{% endif %}
+
+<div class="gulir"><table class="kl-tabel">
+  <tr>{% if 'ubah_info' in hak %}<th class="pilih-sel"></th>{% endif %}<th>{{ judul }}</th><th class="angka">Barang</th><th class="angka">Varian</th>{% if 'ubah_info' in hak %}<th>Ganti nama / gabung ke</th>{% endif %}</tr>
   {% for d in daftar %}
-  <tr><td><a href="{{ d.tautan }}">{{ d.nama|default:"(kosong)" }}</a></td><td class="angka">{{ d.item|ribuan }}</td><td class="angka">{{ d.varian|ribuan }}</td>
-    {% if 'ubah_info' in hak %}<td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px" data-tanya="Ganti nama untuk semua {{ d.varian }} varian?">{% csrf_token %}
-      <input type="hidden" name="lama" value="{{ d.nama }}"><input type="text" name="baru" placeholder="nama baru" style="width:200px" required>
+  <tr>{% if 'ubah_info' in hak %}<td class="pilih-sel">{% if d.nama %}<input type="checkbox" name="lama" value="{{ d.nama }}" form="form-gabung" style="width:auto" aria-label="Pilih {{ d.nama }}">{% endif %}</td>{% endif %}
+    <td><a href="{{ d.tautan }}">{{ d.nama|default:"(kosong)" }}</a></td><td class="angka">{{ d.item|ribuan }}</td><td class="angka">{{ d.varian|ribuan }}</td>
+    {% if 'ubah_info' in hak %}<td><form method="post" class="baris" style="flex-wrap:nowrap;gap:4px" data-ganti-satu data-nama="{{ d.nama }}" data-varian="{{ d.varian }}">{% csrf_token %}
+      <input type="hidden" name="lama" value="{{ d.nama }}"><input type="text" name="baru" list="dl-nama" placeholder="nama baru" required autocomplete="off" aria-label="Nama baru untuk {{ d.nama }}">
       <button class="tombol kecil" type="submit">Ganti</button></form></td>{% endif %}</tr>
   {% endfor %}
 </table></div>
+{% if 'ubah_info' in hak %}
+<script>
+(() => {
+  const ada = new Set([...document.querySelectorAll('#dl-nama option')].map(o => o.value));
+  // Nama yang diketik sudah ada = gabung (barang pindah ke nama itu, nama lama hilang dari daftar).
+  document.querySelectorAll('[data-ganti-satu]').forEach(f => {
+    const isi = f.querySelector('[name=baru]'), tombol = f.querySelector('button');
+    isi.addEventListener('input', () => { tombol.textContent = ada.has(isi.value.trim()) && isi.value.trim() !== f.dataset.nama ? 'Gabung' : 'Ganti'; });
+    f.addEventListener('submit', e => {
+      const baru = isi.value.trim(), gabung = ada.has(baru);
+      tanyaKirim(e, gabung ? `Gabungkan ${f.dataset.nama} ke ${baru}? ${f.dataset.varian} varian pindah, ${f.dataset.nama} hilang dari daftar.`
+                           : `Ganti nama ${f.dataset.nama} jadi ${baru} untuk ${f.dataset.varian} varian?`, {ya: gabung ? 'Gabung' : 'Ganti'});
+    });
+  });
+  const form = document.getElementById('form-gabung'), bar = document.getElementById('bar-gabung');
+  const kotak = () => [...document.querySelectorAll('input[name=lama][form=form-gabung]')];
+  const segar = () => { const n = kotak().filter(c => c.checked).length; bar.hidden = !n; document.getElementById('jumlah-gabung').textContent = n; };
+  document.addEventListener('change', e => { if (e.target.matches('input[form=form-gabung]')) segar(); });
+  document.getElementById('batal-gabung').addEventListener('click', () => { kotak().forEach(c => c.checked = false); segar(); });
+  form.addEventListener('submit', e => {
+    const pilih = kotak().filter(c => c.checked).map(c => c.value), baru = form.baru.value.trim();
+    if (!baru) { e.preventDefault(); kabar('Isi nama tujuan.', true); return; }
+    tanyaKirim(e, `Gabungkan ${pilih.join(', ')} ke ${baru}?`, {ya: 'Gabung'});
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
