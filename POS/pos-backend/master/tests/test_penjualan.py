@@ -154,6 +154,29 @@ class NotaManualTest(Dasar):
         with self.assertRaises(Tolak):
             nota_manual.batalkan(self.admin, n, "lagi")
 
+    def test_pindah_toko_massal_betulkan_stok(self):
+        from master.layanan import nota_manual
+        from master.models import Log, NotaManual
+        a = nota_manual.buat(self.admin, self._data(toko=self.t2.id))             # salah toko: stok belum berkurang
+        b = nota_manual.buat(self.admin, self._data(nomor_tulisan="0452"))        # toko kasir: stok berkurang 3
+        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 7)
+        with self.assertRaises(Tolak):
+            nota_manual.pindah_toko_massal(self.admin, [a.id], self.t1.id, " ")
+        n, lewat = nota_manual.pindah_toko_massal(self.admin, [a.id], self.t1.id, "salah pilih toko")
+        self.assertEqual((n, NotaManual.objects.get(pk=a.pk).toko), (1, self.t1))
+        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 4)
+        # Nomor kertas 0451 sudah ada di toko 2? Tidak - a sudah pindah. b (0452) dipindah ke toko 2: stok kembali.
+        n, lewat = nota_manual.pindah_toko_massal(self.admin, [b.id, a.id], self.t2.id, "balik")
+        self.assertEqual(n, 2)
+        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 10)
+        self.assertTrue(Log.objects.filter(kolom="toko nota", catatan="balik").exists())
+        # Lewat layar
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:nota_manual"), {"aksi": "pindah", "pilih": [a.id], "toko_tujuan": self.t1.id,
+                                                            "alasan": "salah toko"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(NotaManual.objects.get(pk=a.pk).toko, self.t1)
+
     def test_validasi(self):
         from datetime import timedelta
         from master.layanan import nota_manual
