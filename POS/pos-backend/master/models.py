@@ -123,6 +123,11 @@ class VarianInfo(models.Model):
     # Modal terakhir tetap di item.cost_amount (tabel POS). Modal rata-rata
     # disimpan di sini; sampai barang masuk dicatat, nilainya sama dengan modal terakhir.
     modal_rata = models.IntegerField(null=True, blank=True)
+    # Jual per satuan dengan kelipatan (6 Nov 2026), mis. fiber per meter kelipatan 10 cm:
+    # satuan="m", kelipatan=10 -> stok, jumlah nota, dan harga di tabel POS disimpan per 0,1 m
+    # (bilangan bulat), semua layar menampilkannya per meter. Kosong/1 = barang biasa per buah.
+    satuan = models.CharField(max_length=10, blank=True, default="")
+    kelipatan = models.PositiveIntegerField(default=1)
 
     class Meta:
         db_table = "master_varian_info"

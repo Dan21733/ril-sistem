@@ -110,3 +110,16 @@ test('nota mencetak "Anda hemat" bila ada potongan dari pricelist, tidak ada bil
   const tanpa = buildReceiptLines(sale(), {}).map((line) => line.text)
   assert.ok(!tanpa.some((row) => row.includes('hemat')), 'tanpa potongan tidak dicetak')
 })
+
+test('barang meteran tercetak dalam satuan asli (x1,5m)', async () => {
+  const { buildReceiptLines, receiptWidthIssues } = (await loadReceipt()).namespace
+  const lines = buildReceiptLines(sale({
+    items: [{ item_name: 'Fiber Pagar', variant: '1m', quantity: 15, unit_price: 2500, discount: 0, subtotal: 37500,
+      satuan: 'm', kelipatan: 10 }],
+    item_amount: 37500, shipping_amount: 0, total_amount: 37500, payment_amount: 40000, change_amount: 2500,
+  }), {})
+  const baris = lines.map((line) => line.text).find((row) => row.includes('Fiber'))
+  assert.ok(baris.includes('x1,5m'), baris)
+  assert.ok(baris.includes('37.500'), baris)
+  assert.equal(receiptWidthIssues(lines).length, 0)
+})

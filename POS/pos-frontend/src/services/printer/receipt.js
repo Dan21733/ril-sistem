@@ -383,10 +383,24 @@ function itemIdentity(item) {
  * Harga satuan sengaja tidak dicetak lagi (permintaan pemilik, 2026-09-30):
  * yang dibutuhkan pelanggan adalah berapa banyak dan berapa bayarnya.
  */
-function pushItem(lines, number, item) {
+/*
+ * Jumlah di nota kertas. Barang meteran/kiloan (2026-11-06) disimpan per kelipatan
+ * (15 = 1,5 m); kertas mencetak satuan aslinya: "x1,5m". Sama dengan utils/satuan.js,
+ * ditulis ulang di sini karena modul cetak sengaja tanpa impor selain escpos.
+ */
+function qtyText(item) {
   const quantity = Number(item.quantity) || 0
+  const k = Number(item.kelipatan)
+  if (!item.satuan || !Number.isInteger(k) || k <= 1) {
+    return String(quantity)
+  }
+  const desimal = String(k).length - 1
+  return `${(quantity / k).toFixed(desimal).replace(/\.?0+$/, '').replace('.', ',')}${item.satuan}`
+}
+
+function pushItem(lines, number, item) {
   const amount = itemAmount(item)
-  const qtyTag = ` x${quantity}`
+  const qtyTag = ` x${qtyText(item)}`
   const prefix = `${number} `
 
   const nameWidth = Math.max(

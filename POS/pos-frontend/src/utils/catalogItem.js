@@ -25,6 +25,10 @@ export function mapApiItem(item = {}) {
     /* null = stok sedang ditutup karena ada tugas hitung stok (hitung buta), bukan 0. */
     stock: item.stock === null || item.stock === undefined ? null : Number(item.stock),
     stock_alert: stockAlert === null || stockAlert === undefined ? null : Number(stockAlert),
+    /* Satuan jual (m, kg) + kelipatan dari master; hanya untuk barang meteran/kiloan. */
+    ...(item.satuan && Number(item.kelipatan) > 1
+      ? { satuan: String(item.satuan), kelipatan: Number(item.kelipatan) }
+      : {}),
     /* Kode rak dari master; kunci hanya ada kalau rak diisi. */
     ...(item.rak ? { rak: String(item.rak) } : {}),
     /* Alias pencarian dari master, dipakai pencarian offline; hanya kalau ada. */

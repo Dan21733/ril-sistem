@@ -505,3 +505,17 @@ class KunciPinTests(PenyetujuFloorTests):
     def test_daftar_offline_membawa_kunci_publik(self):
         r = self.klien.get("/api/workers/offline-list/")
         self.assertTrue(r.data["kunci_pin"].startswith("MII"))
+
+
+class SatuanItemSerializerTests(TestCase):
+    """Satuan jual dari master ikut dikirim ke tablet (6 Nov 2026); tanpa tabel master = per buah."""
+
+    def test_satuan_dan_kelipatan(self):
+        from types import SimpleNamespace
+        from .serializers import ItemSerializer
+
+        dasar = dict(item_name="Fiber", variant="1m", max_price=2500, min_price=2200, in_stock=500, stock_alert=None)
+        data = ItemSerializer(SimpleNamespace(**dasar, satuan_kode="m", kelipatan_angka=10)).data
+        self.assertEqual((data["satuan"], data["kelipatan"]), ("m", 10))
+        data = ItemSerializer(SimpleNamespace(**dasar)).data
+        self.assertEqual((data["satuan"], data["kelipatan"]), ("", 1))

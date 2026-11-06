@@ -218,6 +218,10 @@ async function harness({ records = [], savedCart = null, storageFailure = false,
   modules.set('../utils/piutang', piutangUtil)
   const kunciUtil = await loadRealModule('../src/utils/kunciKasir.js', context)
   modules.set('./utils/kunciKasir', kunciUtil)
+  /* Satuan jual (meteran/kiloan) dipakai sungguhan: langkah +/- dan jumlah awal keranjang. */
+  const satuanUtil = await loadRealModule('../src/utils/satuan.js', context)
+  modules.set('./utils/satuan', satuanUtil)
+  modules.set('../utils/satuan', satuanUtil)
   const kasUtil = await loadRealModule('../src/utils/kas.js', context)
   modules.set('./utils/kas', kasUtil)
   modules.set('../utils/kas', kasUtil)

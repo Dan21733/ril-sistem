@@ -3,7 +3,7 @@
   <h2>{% if 'ganti_nama' in hak %}<span data-ganti="item" data-nilai="{{ item_info.item_name }}" data-tanya="{{ baris_nota }} baris nota lama ikut diperbarui." title="Klik dua kali untuk ganti nama">{{ item_info.item_name }}</span>{% else %}{{ item_info.item_name }}{% endif %}</h2>
   {% if panel %}<button type="button" class="tombol kecil" data-tutup-panel title="Tutup (Esc)">Tutup</button>{% endif %}
 </div>
-<p class="sub">{{ kategori }}{% if brand %} · {{ brand }}{% endif %}{% if 'ganti_nama' in hak %} · <span class="kecil">klik dua kali nama untuk menggantinya</span>{% endif %}</p>
+<p class="sub">{{ kategori }}{% if brand %} · {{ brand }}{% endif %}{% if satuan_kini.satuan %} · <span class="label">dijual {{ satuan_kini.label }}{% if satuan_kini.kelipatan > 1 %}; angka di tabel per {{ satuan_kini.unit }}{% endif %}</span>{% endif %}{% if 'ganti_nama' in hak %} · <span class="kecil">klik dua kali nama untuk menggantinya</span>{% endif %}</p>
 
 {% if barang|length > 6 %}<div style="margin-bottom:10px;max-width:320px"><input type="search" data-saring-varian placeholder="Cari varian, mis. 011 atau mocha" autocomplete="off"></div>{% endif %}
 {% if boleh_pilih %}
@@ -88,6 +88,16 @@
   {% if 'ubah_info' in hak %}<div style="margin-top:10px"><button class="tombol kecil utama" type="submit">Simpan</button></div>{% endif %}
   <datalist id="dl-kategori">{% for k in daftar_kategori %}<option value="{{ k }}">{% endfor %}</datalist>
   <datalist id="dl-brand">{% for k in daftar_brand %}<option value="{{ k }}">{% endfor %}</datalist>
+</form>
+<form method="post" action="{% url 'master:item' item_info.id %}" class="pk-bagian" data-satuan-form>{% csrf_token %}
+  <input type="hidden" name="kembali" value="{{ kembali }}"><input type="hidden" name="aksi" value="satuan">
+  <label>Dijual per</label>
+  <div class="pk-baris">
+    <select name="satuan" aria-label="Satuan" style="flex:1 1 140px;max-width:200px" {% if 'ubah_harga' not in hak %}disabled{% endif %}>{% for k, l in pilihan_satuan.satuan %}<option value="{{ k }}" {% if satuan_kini.satuan == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <select name="kelipatan" aria-label="Kelipatan terkecil" style="flex:1 1 120px;max-width:170px" {% if 'ubah_harga' not in hak %}disabled{% endif %}>{% for k, l in pilihan_satuan.kelipatan %}<option value="{{ k }}" {% if satuan_kini.kelipatan == k %}selected{% endif %}>kelipatan {{ l }}</option>{% endfor %}</select>
+    {% if 'ubah_harga' in hak %}<button class="tombol kecil" type="submit" data-tanya="Ubah satuan jual semua varian barang ini? Stok, harga, dan modal ikut dikonversi otomatis (mis. 50 m jadi 500 × 0,1 m, harga Rp 25.000/m jadi Rp 2.500 per 0,1 m). Nota lama tidak dihitung ulang.">Simpan</button>{% endif %}
+  </div>
+  {% if satuan_kini.satuan and satuan_kini.kelipatan > 1 %}<p class="kecil redup" style="margin:6px 0 0">Kasir menampilkan per {{ satuan_kini.satuan }} (mis. 1,5 {{ satuan_kini.satuan }}). Angka harga dan stok di tabel atas disimpan per {{ satuan_kini.unit }}.</p>{% endif %}
 </form>
 {% if pemasok %}
 <div class="pk-bagian"><label>Diambil dari</label>

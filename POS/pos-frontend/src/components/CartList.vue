@@ -16,6 +16,7 @@ import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../u
 import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, minimalDp } from '../utils/piutang'
 import { groupByOwner } from '../utils/pecahNota'
 import vModalFocus from '../directives/modalFocus'
+import { akhiranSatuan, angkaJumlah, bacaJumlah, hargaPerSatuan, hargaTersimpan, langkahJumlah, pakaiSatuan, teksJumlah } from '../utils/satuan'
 import {
   digitsOnly,
   formatRupiahInput,
@@ -302,7 +303,7 @@ const cashierPinUnknown = computed(
  * terlihat pelanggan (utils/floorCode.js).
  */
 function floorCode(item) {
-  return floorCodeFor(item.floor_price)
+  return floorCodeFor(hargaPerSatuan(item.floor_price, item))
 }
 
 /*
@@ -549,10 +550,14 @@ function decreaseQuantity(item) {
 }
 
 function updateQuantity(item, event) {
-  emit('update-quantity', {
-    item,
-    quantity: event.target.value,
-  })
+  /* Barang meteran/kiloan: ketikan "1,5" (m) jadi jumlah tersimpan 15 (utils/satuan.js). */
+  const quantity = pakaiSatuan(item)
+    ? (bacaJumlah(event.target.value, item) ?? item.quantity)
+    : event.target.value
+  if (pakaiSatuan(item)) {
+    event.target.value = angkaJumlah(quantity, item)
+  }
+  emit('update-quantity', { item, quantity })
 }
 
 /*
@@ -566,9 +571,10 @@ function formatCartPriceInput(event) {
 
 function updatePrice(item, event) {
   const input = event.target
+  /* Harga diketik per satuan (Rp/m untuk barang meteran); disimpan per kelipatan. */
   const price = Number(digitsOnly(input.value))
-  const floorPrice = Number(item.floor_price)
-  const ceilingPrice = Number(item.price)
+  const floorPrice = Number(hargaPerSatuan(item.floor_price, item))
+  const ceilingPrice = Number(hargaPerSatuan(item.price, item))
 
   /*
    * Di bawah floor sekarang boleh diketik (ditandai merah dan butuh
@@ -594,12 +600,12 @@ function updatePrice(item, event) {
         : 'Harga di atas harga pricelist.',
     )
     input.reportValidity()
-    input.value = formatRupiahInput(item.unit_price ?? item.price ?? '')
+    input.value = formatRupiahInput(hargaPerSatuan(item.unit_price ?? item.price ?? '', item))
     return
   }
 
   input.setCustomValidity('')
-  emit('update-price', { item, price })
+  emit('update-price', { item, price: hargaTersimpan(price, item) })
 }
 
 /* ========================================
@@ -617,11 +623,12 @@ function formatPercent(persen) {
 }
 
 function applyDiscount(item, persen) {
-  const harga = discountedPrice(item.price, persen)
+  /* Pembulatan diskon dihitung pada harga per satuan (Rp/m), bukan per 0,1 m. */
+  const harga = discountedPrice(hargaPerSatuan(item.price, item), persen)
   if (harga == null || isEditingLocked.value) {
     return
   }
-  emit('update-price', { item, price: harga })
+  emit('update-price', { item, price: hargaTersimpan(harga, item) })
   discountOpenId.value = null
 }
 
@@ -1129,6 +1136,7 @@ async function completeTransaction() {
             {{ item.item_name }}
             <span v-if="item.variant && item.variant !== 'N/A'" class="cart-item-variant">{{ item.variant }}</span>
             <span v-if="item.pemilik_nama" class="cart-item-owner">{{ item.pemilik_nama }}</span>
+            <span v-if="pakaiSatuan(item)" class="cart-item-satuan">{{ teksJumlah(item.quantity, item) }} × {{ formatPrice(hargaPerSatuan(item.unit_price ?? item.price, item)) }}{{ akhiranSatuan(item) }}</span>
           </h3>
 
           <strong class="cart-item-total">
@@ -1140,7 +1148,7 @@ async function completeTransaction() {
           <div class="qty-stepper">
             <button
               type="button"
-              :disabled="Number(item.quantity) <= 1 || isEditingLocked"
+              :disabled="Number(item.quantity) - langkahJumlah(item) < 1 || isEditingLocked"
               aria-label="Kurangi jumlah"
               @click="decreaseQuantity(item)"
             >
@@ -1148,6 +1156,18 @@ async function completeTransaction() {
             </button>
 
             <input
+              v-if="pakaiSatuan(item)"
+              class="quantity-input"
+              type="text"
+              :value="angkaJumlah(item.quantity, item)"
+              :disabled="isEditingLocked"
+              inputmode="decimal"
+              autocomplete="off"
+              :aria-label="`Jumlah (${item.satuan})`"
+              @change="updateQuantity(item, $event)"
+            />
+            <input
+              v-else
               class="quantity-input"
               type="number"
               :value="item.quantity"
@@ -1180,7 +1200,7 @@ async function completeTransaction() {
               type="text"
               inputmode="numeric"
               autocomplete="off"
-              :value="formatRupiahInput(item.unit_price ?? item.price ?? '')"
+              :value="formatRupiahInput(hargaPerSatuan(item.unit_price ?? item.price ?? '', item))"
               :disabled="isEditingLocked"
               :class="{ 'price-input-invalid': item.floor_price != null && item.price != null && (Number(item.unit_price ?? item.price) < Number(item.floor_price) || Number(item.unit_price ?? item.price) > Number(item.price)) }"
               :aria-label="`Harga satuan ${item.item_name}`"
@@ -1226,7 +1246,7 @@ async function completeTransaction() {
           class="cart-item-meta"
         >
           <span v-if="percentOff(item.price, item.unit_price ?? item.price) > 0" class="discount-note">
-            dari {{ formatPrice(item.price) }}
+            dari {{ formatPrice(hargaPerSatuan(item.price, item)) }}
           </span>
 
           <span
@@ -1430,9 +1450,9 @@ async function completeTransaction() {
                         </strong>
 
                         <span>
-                          {{ item.quantity }}
+                          {{ teksJumlah(item.quantity, item) }}
                           ×
-                          {{ formatPrice(item.unit_price ?? item.price) }}
+                          {{ formatPrice(hargaPerSatuan(item.unit_price ?? item.price, item)) }}{{ akhiranSatuan(item) }}
                         </span>
                       </div>
 
@@ -2244,6 +2264,15 @@ async function completeTransaction() {
   font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
+}
+
+/* Barang meteran/kiloan: "1,5 m × Rp 25.000/m" di bawah nama, supaya jelas arti angka jumlahnya. */
+.cart-item-satuan {
+  display: block;
+  margin-top: 2px;
+  color: var(--pos-text-muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .cart-item-variant {

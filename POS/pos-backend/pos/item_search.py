@@ -80,6 +80,8 @@ SELECT p.item_name,
        p.text_sim,
        p.alias_sim,
        {kolom_rak},
+       {kolom_satuan},
+       {kolom_kelipatan},
        CASE WHEN %(include_count)s THEN total.count ELSE NULL END
 FROM total
 LEFT JOIN page_rows p ON TRUE
@@ -121,6 +123,9 @@ def _item_from_row(row: tuple) -> Item:
     )
     if len(row) > 9:
         item.rak_kode = row[8]
+    if len(row) > 11:
+        item.satuan_kode = row[9]
+        item.kelipatan_angka = row[10]
     item._state.adding = False
     item._state.db = connection.alias
     return item
@@ -156,6 +161,9 @@ def _format_sql(template: str) -> str:
         alias_table=connection.ops.quote_name(ItemAliasPhrase._meta.db_table),
         kecuali_nonaktif=f"EXCEPT {data_master.NONAKTIF_SQL}" if master else "",
         kolom_rak=f"({data_master.RAK_SQL.format(t='p')})" if master else "NULL",
+        # Satuan jual (6 Nov 2026): pencarian lewat jalur alias juga membawa satuan + kelipatan.
+        kolom_satuan=f"({data_master.SATUAN_SQL.format(t='p')})" if master else "NULL",
+        kolom_kelipatan=f"({data_master.KELIPATAN_SQL.format(t='p')})" if master else "NULL",
     )
 
 

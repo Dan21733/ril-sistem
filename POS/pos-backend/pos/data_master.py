@@ -36,17 +36,28 @@ RAK_SQL = (
     "SELECT v.rak_id FROM master_varian_info v "
     "WHERE v.item_name = {t}.item_name AND v.variant = {t}.variant"
 )
+# Satuan jual + kelipatan (6 Nov 2026): kasir menampilkan jumlah/harga per satuan
+# (1,5 m), sedangkan jumlah & harga di nota tetap bilangan bulat per kelipatan.
+SATUAN_SQL = (
+    "SELECT v.satuan FROM master_varian_info v "
+    "WHERE v.item_name = {t}.item_name AND v.variant = {t}.variant"
+)
+KELIPATAN_SQL = (
+    "SELECT v.kelipatan FROM master_varian_info v "
+    "WHERE v.item_name = {t}.item_name AND v.variant = {t}.variant"
+)
 NONAKTIF_SQL = (
     "SELECT v.item_name, v.variant FROM master_varian_info v WHERE NOT v.aktif"
 )
 
 
 def saring(queryset):
-    """Queryset Item: buang varian nonaktif dan tambahkan `rak_kode`."""
+    """Queryset Item: buang varian nonaktif dan tambahkan `rak_kode`, `satuan_kode`, `kelipatan_angka`."""
     if not tersedia():
         return queryset
     return queryset.extra(
-        select={"rak_kode": RAK_SQL.format(t="item")},
+        select={"rak_kode": RAK_SQL.format(t="item"), "satuan_kode": SATUAN_SQL.format(t="item"),
+                "kelipatan_angka": KELIPATAN_SQL.format(t="item")},
         where=[
             "NOT EXISTS (SELECT 1 FROM master_varian_info v2 WHERE v2.item_name = item.item_name "
             "AND v2.variant = item.variant AND NOT v2.aktif)"

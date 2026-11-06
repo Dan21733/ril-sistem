@@ -83,6 +83,7 @@ import PrinterStatusPanel from './components/PrinterStatusPanel.vue'
 import ServerStatusPill from './components/ServerStatusPill.vue'
 import TransactionHistory from './components/TransactionHistory.vue'
 import NumPad from './components/NumPad.vue'
+import { langkahJumlah } from './utils/satuan'
 import { usePrinterStatus } from './composables/usePrinterStatus'
 import { useServerStatus } from './composables/useServerStatus'
 import { useTheme } from './composables/useTheme'
@@ -1231,7 +1232,7 @@ function addToCart(item) {
    */
 
   if (existingItem) {
-    existingItem.quantity += 1
+    existingItem.quantity += langkahJumlah(existingItem)
     return
   }
 
@@ -1244,7 +1245,8 @@ function addToCart(item) {
     ...item,
     unit_price: Number(item.price),
     cartId: getProductKey(item),
-    quantity: 1,
+    /* Barang meteran/kiloan: satu satuan penuh (1 m = 10 x 0,1 m), lihat utils/satuan.js. */
+    quantity: langkahJumlah(item),
   })
 }
 
@@ -1337,7 +1339,7 @@ function updateCartPrice({ item, price }) {
 
 function increaseQuantity(item) {
   if (!isCartLocked()) {
-    item.quantity += 1
+    item.quantity += langkahJumlah(item)
   }
 }
 
@@ -1346,8 +1348,9 @@ function increaseQuantity(item) {
 ======================================== */
 
 function decreaseQuantity(item) {
-  if (!isCartLocked() && Number(item.quantity) > 1) {
-    item.quantity -= 1
+  const langkah = langkahJumlah(item)
+  if (!isCartLocked() && Number(item.quantity) - langkah >= 1) {
+    item.quantity -= langkah
   }
 }
 
@@ -1607,6 +1610,13 @@ function hematDariPricelist(items, cartItems = cart.value) {
   }, 0)
 }
 
+/* Satuan jual ikut ke data cetak (bukan ke server) supaya kertas menulis "x1,5m". */
+function itemsCetak(items, cartItems = cart.value) {
+  const satuan = new Map(cartItems.filter((c) => c.satuan && Number(c.kelipatan) > 1)
+    .map((c) => [`${c.item_name}\u0000${c.variant}`, { satuan: c.satuan, kelipatan: Number(c.kelipatan) }]))
+  return items.map((item) => ({ ...item, ...(satuan.get(`${item.item_name}\u0000${item.variant}`) || {}) }))
+}
+
 function buildReceiptSale(transaction, data) {
   const hemat = hematDariPricelist(transaction.items)
   return {
@@ -1618,7 +1628,7 @@ function buildReceiptSale(transaction, data) {
     cust_name: transaction.cust_name ?? null,
     phone_no: transaction.phone_no ?? null,
     fulfillment: data.deliveryMethod,
-    items: transaction.items,
+    items: itemsCetak(transaction.items),
     item_amount: transaction.item_amount,
     shipping_amount: transaction.shipping_amount,
     discount_amount: transaction.items.reduce(

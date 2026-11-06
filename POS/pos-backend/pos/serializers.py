@@ -38,6 +38,17 @@ class ItemSerializer(serializers.Serializer):
     def get_rak(self, obj):
         return getattr(obj, "rak_kode", None)
 
+    # Satuan jual dari master ("m", "kg", ...; kosong = per buah) dan kelipatannya:
+    # kelipatan 10 berarti jumlah & harga di sini per 0,1 satuan (1,5 m = jumlah 15).
+    satuan = serializers.SerializerMethodField()
+    kelipatan = serializers.SerializerMethodField()
+
+    def get_satuan(self, obj):
+        return getattr(obj, "satuan_kode", None) or ""
+
+    def get_kelipatan(self, obj):
+        return int(getattr(obj, "kelipatan_angka", None) or 1)
+
     # Minimal DP khusus barang ini (persen), null = ikut bawaan toko.
     min_dp = serializers.SerializerMethodField()
 

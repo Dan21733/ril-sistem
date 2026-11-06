@@ -5,6 +5,7 @@ import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 import LoadingSpinner from './LoadingSpinner.vue'
+import { akhiranSatuan, hargaPerSatuan, teksJumlah } from '../utils/satuan'
 
 /* ========================================
    PROPS
@@ -239,7 +240,7 @@ function loadMore() {
 
             <span class="product-details">
               <strong>
-                {{ item.price == null ? 'Harga tidak tersedia' : formatPrice(item.price) }}
+                {{ item.price == null ? 'Harga tidak tersedia' : formatPrice(hargaPerSatuan(item.price, item)) + akhiranSatuan(item) }}
               </strong>
 
               <!-- Stok null: sedang ada tugas hitung stok untuk barang ini (hitung buta). Tetap boleh dijual. -->
@@ -249,7 +250,7 @@ function loadMore() {
                 :title="item.stock === null ? 'Stok sedang dihitung' : undefined"
               >
                 Stok
-                {{ item.stock === null ? '–' : item.stock }}
+                {{ item.stock === null ? '–' : teksJumlah(item.stock, item) }}
               </span>
             </span>
           </button>

@@ -116,6 +116,8 @@ def _lengkapi(barang, hak):
         b["alias_tambahan"] = v.alias_tambahan if v else ""
         b["aktif"] = v.aktif if v else True
         b["modal_rata"] = v.modal_rata if v else None
+        b["satuan"] = v.satuan if v else ""
+        b["kelipatan"] = v.kelipatan if v else 1
         b["alias"] = i.alias if i else ""
         b["item_id"] = i.id if i else None
         b["titipan"] = bool(i and i.toko_id)
@@ -125,6 +127,20 @@ def _lengkapi(barang, hak):
             b["cost_amount"] = None
             b["modal_rata"] = None
     return barang
+
+
+def _satuan_pilihan():
+    from master.layanan import satuan as svc_satuan
+    return {"satuan": svc_satuan.SATUAN, "kelipatan": svc_satuan.KELIPATAN}
+
+
+def _satuan_kini(barang):
+    """Satuan jual barang ini (dari varian pertama; semua varian diatur bersama)."""
+    from master.layanan import satuan as svc_satuan
+    b = barang[0] if barang else {}
+    s, k = b.get("satuan", ""), b.get("kelipatan", 1) or 1
+    return {"satuan": s, "kelipatan": k, "label": svc_satuan.label(s, k),
+            "unit": svc_satuan.format_jumlah(1, s, k) if s and k > 1 else (s or "")}
 
 
 KOLOM_NILAI = ("item_name", "variant", "category", "brand", "sku", "min_price", "max_price",
@@ -491,6 +507,13 @@ def item_detail(request, item_id, panel=False):
                                                        diskon_maks=request.POST.get(f"maks_{info.id}"), berlaku_mulai=mulai)
                     n += int(berubah)
                 messages.success(request, f"Syarat titipan tersimpan ({n} varian berubah)." if n else "Tidak ada yang berubah.")
+            elif aksi == "satuan":
+                from master.layanan import satuan as svc_satuan
+                if "ubah_harga" not in hak or "ubah_stok" not in hak:
+                    raise Tolak("Akun ini tidak boleh mengubah satuan jual (mengubah harga dan stok).")
+                n = svc_satuan.atur(request.user, item_info.item_name, request.POST.get("satuan"),
+                                    request.POST.get("kelipatan"))
+                messages.success(request, f"Satuan jual tersimpan; {n} varian dikonversi." if n else "Tidak ada yang berubah.")
             elif aksi == "min_dp":
                 from master.layanan import piutang as svc_piutang
                 if "ubah_harga" not in hak:
@@ -568,6 +591,7 @@ def item_detail(request, item_id, panel=False):
     return render(request, "master/_item_isi.html" if panel else "master/item.html", {
         "titipan": pemilik, "riwayat_syarat": riwayat_syarat, "hari_ini": timezone.localdate().isoformat(),
         "pembulatan": Pengaturan.ambil().pembulatan_diskon, "dp_bawaan": Pengaturan.ambil().dp_minimal_persen,
+        "pilihan_satuan": _satuan_pilihan(), "satuan_kini": _satuan_kini(barang),
         "menu": "barang",
         "panel": panel,
         "kembali": request.GET.get("kembali", ""),
