@@ -63,13 +63,16 @@ let v = null;
 const kartu = el => el.closest('.varian');
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-ubah-harga]');
-  if (b){ v = kartu(b); document.getElementById('harga-judul').textContent = v.dataset.nama;
+  if (b){ v = kartu(b); document.getElementById('harga-judul').textContent = v.dataset.nama + (v.dataset.satuan ? ' · per ' + v.dataset.satuan : '');
     document.getElementById('h-jual').value = ribuan(v.dataset.jual); document.getElementById('h-floor').value = ribuan(v.dataset.floor);
     const m = document.getElementById('h-modal'); if (m) m.value = ribuan(v.dataset.modal);
     cekHarga(); document.getElementById('lembar-harga').showModal(); }
   const s = e.target.closest('[data-ubah-stok]');
   if (s){ v = kartu(s); document.getElementById('stok-judul').textContent = v.dataset.nama;
-    document.getElementById('stok-kini').textContent = ribuan(v.dataset.stok) || '0'; document.getElementById('stok-angka').value = '';
+    const meteran = Number(v.dataset.k) > 1, isian = document.getElementById('stok-angka');
+    // Barang per meter/kg: stok sudah berupa teks ("12,5 m"); jumlah boleh berkoma.
+    document.getElementById('stok-kini').textContent = meteran ? v.dataset.stok : (ribuan(v.dataset.stok) || '0'); isian.value = '';
+    isian.setAttribute('inputmode', meteran ? 'decimal' : 'numeric'); isian.placeholder = meteran ? '0 ' + v.dataset.satuan : '0';
     document.getElementById('stok-catatan').value = ''; document.getElementById('lembar-stok').showModal(); }
 });
 function cekHarga(){
@@ -100,12 +103,13 @@ document.getElementById('stok-cara').addEventListener('change', e => {
   document.getElementById('stok-lbl').textContent = {tetapkan: 'Stok sebenarnya', tambah: 'Tambah', kurang: 'Kurangi'}[e.target.value];
 });
 document.getElementById('simpan-stok').addEventListener('click', async () => {
-  const cara = document.querySelector('#stok-cara input:checked').value, n = angka(document.getElementById('stok-angka').value);
+  const meteran = Number(v.dataset.k) > 1, mentah = document.getElementById('stok-angka').value.trim();
+  const cara = document.querySelector('#stok-cara input:checked').value, n = meteran ? (mentah || null) : angka(mentah);
   if (n == null){ kabar('Isi jumlahnya.', true); return; }
   try {
     const d = await kirim("{% url 'hp:stok' %}", {id: v.dataset.id, cara, angka: n, jenis: document.getElementById('stok-jenis').value,
                                                    catatan: document.getElementById('stok-catatan').value});
-    v.dataset.stok = d.stok; v.querySelector('[data-n="stok"]').textContent = ribuan(d.stok);
+    v.dataset.stok = d.stok_teks || d.stok; v.querySelector('[data-n="stok"]').textContent = d.stok_teks || ribuan(d.stok);
     document.getElementById('lembar-stok').close(); kabar(d.pesan);
   } catch (e) { kabar(e.message, true); }
 });

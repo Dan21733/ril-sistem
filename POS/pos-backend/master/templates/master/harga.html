@@ -19,7 +19,7 @@
   {% if pratinjau.jumlah %}
   <div class="gulir" style="max-height:340px;overflow:auto"><table>
     <tr><th>Barang</th><th>Varian</th><th class="angka">Sekarang</th><th class="angka">Menjadi</th></tr>
-    {% for r in pratinjau.contoh %}<tr><td>{{ r.item_name }}</td><td>{{ r.variant|varian }}</td><td class="angka redup">{{ r.lama|ribuan }}</td><td class="angka"><b>{{ r.baru|ribuan }}</b>{% if r.terbalik %} <span class="label bahaya">floor di atas jual</span>{% endif %}</td></tr>{% endfor %}
+    {% for r in pratinjau.contoh %}<tr><td>{{ r.item_name }}</td><td>{{ r.variant|varian }}</td><td class="angka redup">{{ r.lama_tampil|ribuan }}{{ r.akhiran }}</td><td class="angka"><b>{{ r.baru_tampil|ribuan }}</b>{{ r.akhiran }}{% if r.terbalik %} <span class="label bahaya">floor di atas jual</span>{% endif %}</td></tr>{% endfor %}
   </table></div>
   {% if pratinjau.jumlah > pratinjau.contoh|length %}<p class="redup kecil">Menampilkan {{ pratinjau.contoh|length }} dari {{ pratinjau.jumlah|ribuan }}.</p>{% endif %}
   <form method="post" class="baris" style="margin-top:16px" data-tanya="Terapkan perubahan ke {{ pratinjau.jumlah }} varian?">{% csrf_token %}
@@ -51,7 +51,7 @@
   {% for b in barang %}
   <tr class="{% if not b.aktif %}nonaktif{% endif %}">
     <td><a href="{% url 'master:barang' %}?buka={{ b.item_id }}&q={{ b.item_name|urlencode }}">{{ b.item_name }}</a></td>
-    <td>{{ b.variant|varian }}<span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
+    <td>{{ b.variant|varian }}{% if b.akhiran %} <span class="label">per {{ b.satuan }}</span>{% endif %}<span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
     {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal terakhir" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}</td>
     <td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="modal_rata" nilai=b.modal_rata label="Modal rata" %}{% else %}{{ b.modal_rata|ribuan }}{% endif %}</td>{% endif %}
     <td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>

@@ -386,8 +386,15 @@ def barang(request):
                 lama = dekat.get(r["item_name"])
                 if lama is None or svc_cari.jarak_py(harga, r["max_price"], r["min_price"]) < svc_cari.jarak_py(harga, lama["max_price"], lama["min_price"]):
                     dekat[r["item_name"]] = r
+        from master.layanan import satuan as svc_satuan
+        satuan = {v.item_name: svc_satuan.varian_satuan(v) for v in
+                  VarianInfo.objects.filter(item_name__in=[d["item_name"] for d in daftar]).exclude(satuan="")}
         for d in daftar:
             d["id"] = ids.get(d["item_name"])
+            sat, k = satuan.get(d["item_name"], ("", 1))
+            if k > 1:
+                # Barang per meter/kg: stok dan harga tampil per satuan (semua varian satu barang sama satuannya).
+                d["stok_teks"] = svc_satuan.format_jumlah(d["stok"], sat, k)
             r = dekat.get(d["item_name"])
             if r:
                 ket = svc_cari.keterangan_harga(harga, r["max_price"], r["min_price"])
@@ -418,6 +425,7 @@ def barang_detail(request, item_id):
         b["toko"] = (b["in_stock"] or 0) - sum(per.values())
         if not lihat_modal:
             b["cost_amount"] = None
+        _per_satuan_hp(b, v)
         b["margin"] = (round((b["max_price"] - b["cost_amount"]) / b["max_price"] * 100, 1)
                        if lihat_modal and b["max_price"] and b["cost_amount"] else None)
     aktif = [b for b in baris if b["aktif"]]
@@ -430,6 +438,23 @@ def barang_detail(request, item_id):
     })
 
 
+def _per_satuan_hp(b, v):
+    """Barang meteran/kiloan: harga per satuan, stok sebagai teks ("12,5 m")."""
+    from master.layanan import satuan as svc_satuan
+    sat, k = svc_satuan.varian_satuan(v) if v else ("", 1)
+    b["k"], b["satuan"] = k, sat if k > 1 else ""
+    if k <= 1:
+        return
+    for kolom in ("min_price", "max_price", "cost_amount"):
+        if b.get(kolom) is not None:
+            b[kolom] = b[kolom] * k
+    b["akhiran"] = f"/{sat}"
+    b["stok_teks"] = svc_satuan.format_jumlah(b["in_stock"] or 0, sat, k)
+    b["toko_teks"] = svc_satuan.format_jumlah(b["toko"], sat, k)
+    for g in b["gudang"]:
+        g["teks"] = svc_satuan.format_jumlah(g["jumlah"], sat, k)
+
+
 @require_POST
 @perlu_hp("ubah_stok")
 def stok(request):
@@ -439,13 +464,23 @@ def stok(request):
     info = VarianInfo.objects.filter(pk=d.get("id") or 0, sampah__isnull=True).first()
     if info is None:
         return _jawab(False, "Barang tidak ditemukan.", 404)
+    from master.layanan import satuan as svc_satuan
+    sat, k = svc_satuan.varian_satuan(info)
+    angka = d.get("angka")
+    if k > 1:
+        # Diketik per satuan (12,5 m) -> jumlah tersimpan (125).
+        angka = svc_satuan.baca_jumlah(angka, k)
+        if angka is None:
+            return _jawab(False, f"Jumlah harus kelipatan {svc_satuan.format_jumlah(1, sat, k)}, misalnya 12,5.", 400)
     try:
-        baru, selisih = layanan.sesuaikan_stok(request.user, info, cara=d.get("cara") or "tetapkan", angka=d.get("angka"),
+        baru, selisih = layanan.sesuaikan_stok(request.user, info, cara=d.get("cara") or "tetapkan", angka=angka,
                                                jenis=d.get("jenis") or "hitung", catatan=d.get("catatan") or "", hak=hak)
     except Tolak as e:
         return _jawab(False, str(e), 400)
-    tanda = f"+{selisih}" if selisih > 0 else str(selisih)
-    return _jawab(pesan=f"Stok jadi {baru} ({tanda})." if selisih else "Stok tidak berubah.", stok=baru)
+    teks = svc_satuan.format_jumlah(baru, sat, k)
+    beda = svc_satuan.format_jumlah(abs(selisih), sat, k)
+    tanda = f"+{beda}" if selisih > 0 else f"-{beda}"
+    return _jawab(pesan=f"Stok jadi {teks} ({tanda})." if selisih else "Stok tidak berubah.", stok=baru, stok_teks=teks)
 
 
 # ---------------------------------------------------------------------------

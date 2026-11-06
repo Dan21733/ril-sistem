@@ -75,3 +75,106 @@ class SatuanTest(Dasar):
             svc.atur(self.admin, "Fiber Pagar", "inci", 10)
         with self.assertRaises(Tolak):
             svc.atur(self.admin, "Fiber Pagar", "m", 7)
+
+
+class SatuanTampilTest(Dasar):
+    """Tahap 2: semua layar master menampilkan dan menerima angka per satuan."""
+
+    def setUp(self):
+        import json
+        self.json = json
+        self.client.force_login(self.admin)
+        buat_item("Fiber Pagar", "1m", floor=22000, jual=25000, modal=20000, stok=50)
+        layanan.sinkron_info()
+        self.v = VarianInfo.objects.get(item_name="Fiber Pagar", variant="1m")
+        svc.atur(self.admin, "Fiber Pagar", "m", 10)
+        self.v.refresh_from_db()
+
+    def _item(self):
+        return Item.objects.get(item_name="Fiber Pagar", variant="1m")
+
+    def _kirim(self, alamat, data):
+        return self.client.post(alamat, self.json.dumps(data), content_type="application/json")
+
+    def test_baca(self):
+        self.assertEqual(svc.baca_jumlah("1,5", 10), 15)
+        self.assertEqual(svc.baca_jumlah("2", 10), 20)
+        self.assertEqual(svc.baca_jumlah("1.5", 10), 15)
+        self.assertIsNone(svc.baca_jumlah("1,55", 10))   # tidak dibulatkan diam-diam
+        self.assertIsNone(svc.baca_jumlah("abc", 10))
+        self.assertEqual(svc.baca_harga("25.000", 10), 2500)
+
+    def test_ubah_harga_sel_diketik_per_meter(self):
+        r = self._kirim("/master/barang/ubah/", {"id": self.v.id, "kolom": "max_price", "nilai": "27.000"})
+        self.assertEqual(r.json()["nilai"], 27000)
+        self.assertEqual(self._item().max_price, 2700)
+
+    def test_stok_diketik_per_meter(self):
+        r = self._kirim("/master/stok/ubah/", {"id": self.v.id, "nilai": "12,5", "jenis": "hitung"})
+        self.assertTrue(r.json()["ok"], r.json())
+        self.assertEqual(self._item().in_stock, 125)
+        r = self._kirim("/master/stok/ubah/", {"id": self.v.id, "nilai": "12,55", "jenis": "hitung"})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self._item().in_stock, 125)
+
+    def test_halaman_menampilkan_per_meter(self):
+        isi = self.client.get("/master/harga/").content.decode()
+        self.assertIn("25.000", isi)
+        self.assertIn("per m", isi)
+        isi = self.client.get("/master/stok/").content.decode()
+        self.assertIn("50 m", isi)
+
+    def test_massal_rupiah_dan_tetapkan_per_meter(self):
+        qs = Item.objects.filter(item_name="Fiber Pagar")
+        param = {"kolom": "max_price", "cara": "rupiah", "angka": 1000, "bulat": 0, "catatan": ""}
+        r = layanan.rencana_massal(qs, param)
+        self.assertEqual((r[0]["lama_tampil"], r[0]["baru_tampil"], r[0]["baru"]), (25000, 26000, 2600))
+        param = {**param, "cara": "tetapkan", "angka": 30000, "bulat": 1000}
+        self.assertEqual(layanan.rencana_massal(qs, param)[0]["baru"], 3000)
+        param = {**param, "cara": "persen", "angka": 10, "bulat": 1000}
+        self.assertEqual(layanan.rencana_massal(qs, param)[0]["baru_tampil"], 28000)  # 27.500 dibulatkan ke atas
+
+    def test_tambah_varian_ikut_satuan(self):
+        from master.models import ItemInfo
+        item_id = ItemInfo.objects.get(item_name="Fiber Pagar").id
+        self.client.post(f"/master/barang/item/{item_id}/", {"aksi": "tambah_varian", "variant": "1,5m",
+                                                             "min_price": "30.000", "max_price": "35.000"})
+        baru = VarianInfo.objects.get(item_name="Fiber Pagar", variant="1,5m")
+        self.assertEqual((baru.satuan, baru.kelipatan), ("m", 10))
+        self.assertEqual(Item.objects.get(item_name="Fiber Pagar", variant="1,5m").max_price, 3500)
+
+    def test_nota_manual_jumlah_berkoma(self):
+        from master.layanan import nota_manual
+        from django.utils import timezone
+        data = {"tanggal": timezone.localdate().isoformat(), "pembeli": "Pak Budi", "cara_bayar": "cash",
+                "baris": self.json.dumps([{"id": self.v.id, "jumlah": 1.5, "harga": 25000}])}
+        n = nota_manual.buat(self.admin, data)
+        b = n.baris.get()
+        self.assertEqual((b.jumlah, b.harga, b.subtotal, n.total_barang), (15, 2500, 37500, 37500))
+        self.assertEqual(self._item().in_stock, 485)
+        isi = self.client.get(f"/master/nota-manual/{n.id}/").content.decode()
+        self.assertIn("1,5 m", isi)
+        self.assertIn("25.000/m", isi)
+        hasil = self.client.get("/master/nota-manual/cari/?q=fiber").json()["hasil"][0]
+        self.assertEqual((hasil["harga"], hasil["satuan"], hasil["k"]), (25000, "m", 10))
+        with self.assertRaises(Tolak):
+            nota_manual.buat(self.admin, {**data, "baris": self.json.dumps([{"id": self.v.id, "jumlah": 1.55, "harga": 25000}])})
+
+    def test_hp_barang_dan_stok_per_meter(self):
+        import time
+        from django.urls import reverse
+        from master.models import ItemInfo
+        sesi = self.client.session
+        sesi["hp_aktif"] = int(time.time())
+        sesi.save()
+        item_id = ItemInfo.objects.get(item_name="Fiber Pagar").id
+        isi = self.client.get(reverse("hp:barang_detail", args=[item_id])).content.decode()
+        self.assertIn("25.000", isi)
+        self.assertIn("Harga jual/m", isi)
+        self.assertIn("50 m", isi)
+        self.assertIn("stok 50 m", self.client.get(reverse("hp:barang") + "?q=fiber").content.decode())
+        r = self._kirim(reverse("hp:stok"), {"id": self.v.id, "cara": "kurang", "angka": "2,5", "jenis": "rusak"})
+        self.assertEqual(r.json()["stok_teks"], "47,5 m", r.json())
+        self.assertEqual(self._item().in_stock, 475)
+        r = self._kirim(reverse("hp:stok"), {"id": self.v.id, "cara": "kurang", "angka": "0,25", "jenis": "rusak"})
+        self.assertEqual(r.status_code, 400)

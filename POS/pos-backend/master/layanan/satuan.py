@@ -35,6 +35,42 @@ def format_jumlah(jumlah, satuan="", kelipatan=1):
     return f"{teks} {satuan}".strip() if satuan else teks
 
 
+def angka_teks(jumlah, kelipatan=1):
+    """Jumlah tersimpan -> angka per satuan tanpa nama satuan: (15, 10) -> "1,5"."""
+    return format_jumlah(jumlah, "", kelipatan)
+
+
+def baca_jumlah(teks, kelipatan=1):
+    """Ketikan per satuan ("1,5", "2") -> jumlah tersimpan bulat (15, 20). Biasa: angka bulat."""
+    k = int(kelipatan or 1)
+    bersih = str(teks if teks is not None else "").strip().replace(" ", "")
+    if k <= 1:
+        return int(bersih.replace(".", "")) if bersih.replace(".", "").lstrip("-").isdigit() else None
+    bersih = bersih.replace(".", "").replace(",", ".") if bersih.count(",") else bersih
+    try:
+        nilai = Decimal(bersih) * k
+    except Exception:
+        return None
+    if not nilai.is_finite() or nilai != nilai.to_integral_value():
+        # 1,55 m pada kelipatan 0,1 m tidak bisa disimpan; jangan dibulatkan diam-diam.
+        return None
+    return int(nilai)
+
+
+def baca_harga(teks, kelipatan=1):
+    """Harga ketikan per satuan ("25.000") -> harga tersimpan per kelipatan (2500)."""
+    digit = "".join(c for c in str(teks or "") if c.isdigit())
+    if digit == "":
+        return None
+    return _bagi(int(digit), int(kelipatan or 1))
+
+
+def varian_satuan(info):
+    """(satuan, kelipatan) efektif satu VarianInfo; kelipatan 1 kalau satuannya biasa."""
+    s = getattr(info, "satuan", "") or ""
+    return s, (int(getattr(info, "kelipatan", 1) or 1) if s else 1)
+
+
 def label(satuan, kelipatan=1):
     """Teks pengaturan: ("m", 10) -> "per m, kelipatan 0,1 m"; ("", 1) -> "per buah"."""
     if not satuan:

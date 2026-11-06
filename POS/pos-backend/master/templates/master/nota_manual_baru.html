@@ -96,10 +96,22 @@ document.addEventListener('DOMContentLoaded', () => {
   let t = null, hasil = [], hargaCari = null;
   const BOLEH_BARU = {% if 'ubah_info' in hak %}true{% else %}false{% endif %};
   const rows = [];
+  // Barang per meter/kg (k > 1): jumlah boleh berkoma ("1,5"), harga per satuan.
+  function jumlahBaris(r){
+    const k = r.data.k || 1;
+    if (k <= 1) return angka(r.q.value);
+    let t = String(r.q.value || '').trim().replace(/\s/g, '');
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    if (t === '' || !/^\d*\.?\d*$/.test(t)) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  const teksJumlah = (n, k) => (n == null || n === '') ? '' : ((k || 1) > 1 ? String(n).replace('.', ',') : String(n));
+  const akhiranBaris = d => d.satuan ? '/' + d.satuan : '';
   function hitung(){
     let total = 0;
     rows.forEach(r => {
-      const q = angka(r.q.value) || 0, h = angka(r.h.value) || 0, sub = q * h;
+      const q = jumlahBaris(r) || 0, h = angka(r.h.value) || 0, sub = Math.round(q * h);
       r.sub.textContent = ribuan(sub); total += sub;
       r.peringatan.textContent = (r.data.floor && h && h < r.data.floor) ? 'di bawah floor ' + ribuan(r.data.floor) : '';
     });
@@ -113,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const DP_BAWAAN = {{ dp_bawaan }}, HARI_TEMPO = {{ jatuh_tempo_hari }};
   const elStatus = document.getElementById('status-barang'), elBayar = document.getElementById('dibayar');
   function hitungDp(totalNota){
-    const minimal = Math.ceil(rows.reduce((j, r) => j + (angka(r.q.value) || 0) * (angka(r.h.value) || 0) * (r.data.min_dp ?? DP_BAWAAN) / 100, 0));
+    const minimal = Math.ceil(rows.reduce((j, r) => j + (jumlahBaris(r) || 0) * (angka(r.h.value) || 0) * (r.data.min_dp ?? DP_BAWAAN) / 100, 0));
     const isi = elBayar.value.trim(), bayar = isi === '' ? totalNota : (angka(isi) || 0);
     const belumLunas = bayar < totalNota, status = elStatus.value;
     const piutang = belumLunas || status === 'ambil' || status === 'pesan';
@@ -152,7 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
       a.textContent = namaBaris; a.addEventListener('click', e => { e.preventDefault(); bukaBarang(d.item); }); tr.cells[0].append(a); }
     else tr.cells[0].textContent = namaBaris;
     const r = {data: d, tr: tr, q: tr.querySelector('input'), h: tr.querySelectorAll('input')[1], sub: tr.querySelector('b'), peringatan: tr.querySelector('.masalah-teks')};
-    r.q.value = qty || ''; r.h.value = harga != null ? ribuan(harga) : (d.harga != null ? ribuan(d.harga) : '');
+    if (d.satuan){
+      r.q.setAttribute('inputmode', 'decimal'); r.q.placeholder = d.satuan;
+      r.q.title = 'Jumlah dalam ' + d.satuan + ', boleh berkoma (1,5)';
+      const s = document.createElement('span'); s.className = 'redup kecil'; s.textContent = ' ' + d.satuan; r.q.after(s);
+      const p = document.createElement('span'); p.className = 'redup kecil'; p.textContent = akhiranBaris(d); r.h.after(p);
+    }
+    r.q.value = teksJumlah(qty, d.k) || ''; r.h.value = harga != null ? ribuan(harga) : (d.harga != null ? ribuan(d.harga) : '');
     tabel.querySelector('tbody').appendChild(tr);
     rows.push(r);
     [r.q, r.h].forEach(i => i.addEventListener('input', hitung));
@@ -198,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!hasil.length && !BOLEH_BARU) wadah.innerHTML = '<div class="redup">Tidak ditemukan.</div>';
     hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
       const n = document.createElement('span'); n.className = 'nama-hasil';
-      n.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga));
+      n.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  ' + (h.harga == null ? '-' : 'Rp' + ribuan(h.harga) + akhiranBaris(h));
       if (h.ket_harga) { const k = document.createElement('span'); k.className = 'ket-harga'; k.textContent = '  ' + h.ket_harga; n.appendChild(k); }
       d.appendChild(n);
       if (h.item){ const u = document.createElement('button'); u.type = 'button'; u.className = 'tombol kecil ubah-hasil'; u.dataset.ubah = h.item;
@@ -412,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const TAB = Math.random().toString(36).slice(2);
   function simpanDraf(){
     if (memulihkan || basi || !berubah) return;
-    const d = {tab: TAB, waktu: Date.now(), isi: {}, baris: rows.map(r => ({...r.data, jumlah: angka(r.q.value), harga: angka(r.h.value)}))};
+    const d = {tab: TAB, waktu: Date.now(), isi: {}, baris: rows.map(r => ({...r.data, jumlah: jumlahBaris(r), harga: angka(r.h.value)}))};
     KOLOM.forEach(k => { const el = formNota.elements[k]; if (el) d.isi[k] = el.value; });
     const ada = d.baris.length || ['nomor_tulisan', 'pembeli', 'ongkir', 'catatan'].some(k => (d.isi[k] || '').trim());
     try { ada ? localStorage.setItem(KUNCI, JSON.stringify(d)) : localStorage.removeItem(KUNCI); } catch (e) {}
@@ -453,8 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dariServer.length){ berubah = true; simpanDraf(); }  // simpan ditolak server: isian tetap jadi draf
   document.getElementById('form-nota').addEventListener('submit', e => {
     if (!rows.length){ e.preventDefault(); kabar('Tambahkan minimal satu barang.', true); kotak.focus(); return; }
-    if (rows.some(r => !(angka(r.q.value) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong.', true); return; }
-    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, item: r.data.item, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, min_dp: r.data.min_dp, jumlah: angka(r.q.value), harga: angka(r.h.value)})));
+    if (rows.some(r => !(jumlahBaris(r) > 0))){ e.preventDefault(); kabar('Ada jumlah yang kosong atau tidak terbaca.', true); return; }
+    document.getElementById('isi-baris').value = JSON.stringify(rows.map(r => ({id: r.data.id, item: r.data.item, nama: r.data.nama, varian: r.data.varian, floor: r.data.floor, min_dp: r.data.min_dp, satuan: r.data.satuan || '', k: r.data.k || 1, jumlah: jumlahBaris(r), harga: angka(r.h.value)})));
     // Draf dihapus saat dikirim. Kalau server menolak, halaman kembali dengan isian yang sama dan draf tersimpan lagi.
     if (!e.defaultPrevented){ memulihkan = true; try { localStorage.removeItem(KUNCI); } catch (er) {} }
   });

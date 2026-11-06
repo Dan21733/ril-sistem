@@ -21,6 +21,7 @@ from pos.models import Item
 
 from master.layanan import ambil
 from master.layanan import inti as layanan
+from master.layanan import satuan as svc_satuan
 from master.layanan.faktur import JENIS_BERKAS, MAKS_UKURAN
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
 from master.models import FotoNota, MutasiStok, NotaManual, NotaManualBaris, VarianInfo
@@ -70,10 +71,20 @@ def _baca_baris(mentah):
         if info.pk in sudah:
             raise Tolak(f"{info.item_name} / {info.variant} dimasukkan dua kali. Gabungkan jumlahnya.")
         sudah.add(info.pk)
-        qty = baca_angka(d.get("jumlah"), boleh_kosong=False)
+        satuan, k = svc_satuan.varian_satuan(info)
+        if k > 1:
+            # Barang per meter/kg: jumlah boleh berkoma (1,5 m) dan harga diketik per satuan.
+            qty = svc_satuan.baca_jumlah(d.get("jumlah"), k)
+            if qty is None:
+                raise Tolak(f"{info.item_name}: jumlah harus kelipatan {svc_satuan.format_jumlah(1, satuan, k)}.")
+            harga = svc_satuan.baca_harga(d.get("harga"), k)
+            if harga is None:
+                raise Tolak(f"{info.item_name}: harga wajib diisi.")
+        else:
+            qty = baca_angka(d.get("jumlah"), boleh_kosong=False)
+            harga = baca_angka(d.get("harga"), boleh_kosong=False)
         if qty <= 0:
             raise Tolak(f"{info.item_name}: jumlah harus lebih dari nol.")
-        harga = baca_angka(d.get("harga"), boleh_kosong=False)
         hasil.append((info, qty, harga))
     return hasil
 

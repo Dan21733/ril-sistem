@@ -317,16 +317,31 @@ def baca_parameter_massal(data, hak):
 
 def rencana_massal(queryset, param):
     """Daftar perubahan untuk queryset Item (belum menyimpan apa pun)."""
+    from master.layanan.satuan import _bagi
     kolom = param["kolom"]
     rencana = []
-    for b in queryset.values("item_name", "variant", "min_price", "max_price", "cost_amount"):
+    daftar = list(queryset.values("item_name", "variant", "min_price", "max_price", "cost_amount"))
+    # Barang per meter (kelipatan 10) menyimpan harga per 0,1 m. "+Rp 1.000" dan "tetapkan 25.000"
+    # berarti per meter, jadi hitungannya dilakukan per satuan lalu dibagi lagi ke kelipatan.
+    satuan = {(v["item_name"], v["variant"]): (v["satuan"], (v["kelipatan"] or 1) if v["satuan"] else 1)
+              for v in VarianInfo.objects.filter(item_name__in={b["item_name"] for b in daftar})
+              .values("item_name", "variant", "satuan", "kelipatan")}
+    for b in daftar:
+        nama_satuan, k = satuan.get((b["item_name"], b["variant"]), ("", 1))
         lama = b[kolom]
-        baru = hitung_massal(lama, param["cara"], param["angka"], param["bulat"])
+        if k > 1:
+            baru_ps = hitung_massal(None if lama is None else lama * k, param["cara"], param["angka"], param["bulat"])
+            baru = None if baru_ps is None else _bagi(baru_ps, k)
+        else:
+            baru = hitung_massal(lama, param["cara"], param["angka"], param["bulat"])
         if baru is None or baru == lama:
             continue
         sesudah = {**b, kolom: baru}
         rencana.append({
             "item_name": b["item_name"], "variant": b["variant"], "lama": lama, "baru": baru,
+            # Tampilan per satuan (Rp/m); `baru` tetap angka tersimpan yang ditulis.
+            "lama_tampil": None if lama is None else lama * k, "baru_tampil": baru * k,
+            "akhiran": f"/{nama_satuan}" if k > 1 else "",
             "terbalik": (sesudah["max_price"] or 0) > 0 and (sesudah["min_price"] or 0) > sesudah["max_price"],
         })
     rencana.sort(key=lambda r: (r["item_name"].casefold(), r["variant"].casefold()))

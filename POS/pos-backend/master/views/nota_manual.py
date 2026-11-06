@@ -12,6 +12,7 @@ from master.layanan.toko import saring as saring_toko, toko_aktif
 from master.layanan import inti as layanan
 from master.layanan import lokasi as svc_lokasi
 from master.layanan import nota_manual as svc
+from master.layanan import satuan as svc_satuan
 from master.akun.akses import perlu
 from master.layanan.inti import Tolak
 from master.models import FotoNota, ItemInfo, NotaManual, Pengaturan, Piutang, VarianInfo
@@ -131,8 +132,12 @@ def cari(request):
         v = info.get((b["item_name"], b["variant"]))
         if v is None or not v.aktif:
             continue
+        # Barang per meter/kg: harga dan floor dikirim per satuan; jumlah diketik per satuan (1,5).
+        satuan, k = svc_satuan.varian_satuan(v)
         hasil.append({"id": v.id, "item": id_item.get(b["item_name"]), "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
-                      "stok": b["in_stock"], "harga": b["max_price"], "floor": b["min_price"],
+                      "stok": b["in_stock"], "harga": svc_satuan.harga_per_satuan(b["max_price"], k),
+                      "floor": svc_satuan.harga_per_satuan(b["min_price"], k),
+                      "satuan": satuan if k > 1 else "", "k": k,
                       "min_dp": min_dp.get(b["item_name"]),
                       "ket_harga": svc_cari.keterangan_harga(harga, b["max_price"], b["min_price"]) if harga else ""})
     return JsonResponse({"hasil": hasil, "harga_cari": harga})
@@ -156,10 +161,14 @@ def detail(request, nota_id):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:nota_manual_detail", nota_id=n.id)
-    baris = list(n.baris.all())
+    baris = list(n.baris.select_related("varian"))
     floor = {(i, v): f for i, v, f in Item.objects.filter(item_name__in={b.item_name for b in baris})
              .values_list("item_name", "variant", "min_price")}
     for b in baris:
+        satuan, k = svc_satuan.varian_satuan(b.varian)
+        b.jumlah_teks = svc_satuan.format_jumlah(b.jumlah, satuan, k)
+        b.harga_tampil = svc_satuan.harga_per_satuan(b.harga, k)
+        b.akhiran = f"/{satuan}" if k > 1 else ""
         b.modal = b.modal_satuan * b.jumlah if b.modal_satuan is not None else None
         b.laba = b.subtotal - b.modal if b.modal is not None else None
         b.di_bawah_floor = floor.get((b.item_name, b.variant)) is not None and b.harga < floor[(b.item_name, b.variant)]

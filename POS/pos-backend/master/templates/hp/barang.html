@@ -8,7 +8,7 @@
   {% if daftar %}
   <div class="grup">
     {% for d in daftar %}<a class="sel" href="{% url 'hp:barang_detail' d.id %}?kembali={{ request.get_full_path|urlencode }}">
-      <div class="utama"><div class="nama">{{ d.item_name }}</div><div class="sub">{{ d.n }} varian · stok {{ d.stok|ribuan }}</div>{% if d.ket_harga %}<div class="sub" style="color:var(--tint)">{{ d.ket_harga }}</div>{% endif %}</div>
+      <div class="utama"><div class="nama">{{ d.item_name }}</div><div class="sub">{{ d.n }} varian · stok {{ d.stok_teks|default:d.stok|ribuan }}</div>{% if d.ket_harga %}<div class="sub" style="color:var(--tint)">{{ d.ket_harga }}</div>{% endif %}</div>
       <span class="nilai">{% if d.hmin == d.hmax %}{{ d.hmin|ribuan|default:"–" }}{% else %}{{ d.hmin|ribuan }}–{{ d.hmax|ribuan }}{% endif %}</span></a>{% endfor %}
   </div>
   {% if daftar|length >= 60 %}<p class="ket-grup">Menampilkan 60 teratas. Ketik lebih spesifik.</p>{% endif %}

@@ -1104,7 +1104,10 @@ async function historyHarness({
     '../services/id': await loadRealModule('../src/services/id.js', context),
     '../services/storage/transactionRepository': repoModule,
     '../services/storage/transactionQueue': queueModule,
+    '../utils/satuan': await loadRealModule('../src/utils/satuan.js', context),
   }
+  /* Katalog perangkat kosong: baris riwayat tampil dalam angka tersimpan. */
+  doubles['../services/storage/itemRepository'] = { getItem: async () => undefined }
   const text = await readFile(new URL('../src/components/TransactionHistory.vue', import.meta.url), 'utf8')
   const script = text.match(/<script setup>([\s\S]*?)<\/script>/)[1]
   const module = new vm.SourceTextModule(

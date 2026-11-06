@@ -64,8 +64,8 @@
       <span class="masalah-teks">{% for m in d.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
     <td class="sempit">{{ d.category }}</td>
     <td class="sempit">{{ d.brand }}</td>
-    <td class="angka" style="white-space:nowrap">{% if d.harga_min == d.harga_max %}{{ d.harga_min|ribuan }}{% else %}{{ d.harga_min|ribuan }} – {{ d.harga_max|ribuan }}{% endif %}{% if d.ket_harga %}<div class="kecil" style="color:var(--aksen);white-space:normal">{{ d.ket_harga }}</div>{% endif %}</td>
-    <td class="angka sempit">{{ d.stok|ribuan }}</td>
+    <td class="angka" style="white-space:nowrap">{% if d.harga_min == d.harga_max %}{{ d.harga_min|ribuan }}{% else %}{{ d.harga_min|ribuan }} – {{ d.harga_max|ribuan }}{% endif %}{% if d.akhiran %}<span class="kecil redup">{{ d.akhiran }}</span>{% endif %}{% if d.ket_harga %}<div class="kecil" style="color:var(--aksen);white-space:normal">{{ d.ket_harga }}</div>{% endif %}</td>
+    <td class="angka sempit">{{ d.stok_teks|default:d.stok|ribuan }}</td>
   </tr>
   {% empty %}
   <tr><td colspan="5" class="redup" style="padding:28px;text-align:center">Tidak ada barang yang cocok dengan filter ini.</td></tr>

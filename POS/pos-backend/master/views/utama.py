@@ -126,7 +126,27 @@ def _lengkapi(barang, hak):
         if "lihat_modal" not in hak:
             b["cost_amount"] = None
             b["modal_rata"] = None
+        _per_satuan(b)
     return barang
+
+
+HARGA_SATUAN = ("min_price", "max_price", "cost_amount", "modal_rata")
+
+
+def _per_satuan(b):
+    """Barang meteran/kiloan: tampilkan harga & stok per satuan (Rp/m, 1,5 m), bukan angka
+    tersimpan per kelipatan. Hanya untuk tampilan; penyimpanan dikonversi di barang_ubah/stok_ubah."""
+    from master.layanan import satuan as svc_satuan
+    k = b.get("kelipatan") or 1
+    if not b.get("satuan") or k <= 1:
+        return b
+    for kolom in HARGA_SATUAN:
+        if b.get(kolom) is not None:
+            b[kolom] = b[kolom] * k
+    b["stok_teks"] = svc_satuan.format_jumlah(b.get("in_stock"), b["satuan"], k)
+    b["stok_alert_teks"] = svc_satuan.angka_teks(b.get("stock_alert"), k) if b.get("stock_alert") is not None else ""
+    b["akhiran"] = f"/{b['satuan']}"
+    return b
 
 
 def _satuan_pilihan():
@@ -140,7 +160,8 @@ def _satuan_kini(barang):
     b = barang[0] if barang else {}
     s, k = b.get("satuan", ""), b.get("kelipatan", 1) or 1
     return {"satuan": s, "kelipatan": k, "label": svc_satuan.label(s, k),
-            "unit": svc_satuan.format_jumlah(1, s, k) if s and k > 1 else (s or "")}
+            "unit": svc_satuan.format_jumlah(1, s, k) if s and k > 1 else (s or ""),
+            "akhiran": f"/{s}" if s and k > 1 else ""}
 
 
 KOLOM_NILAI = ("item_name", "variant", "category", "brand", "sku", "min_price", "max_price",
@@ -274,6 +295,13 @@ def barang_daftar(request):
         d["category"] = " / ".join(sorted({v["category"] or "" for v in semua}, key=kunci_alami))
         d["brand"] = " / ".join(sorted({v["brand"] or "" for v in semua}, key=kunci_alami))
         d["nonaktif"] = sum(1 for v in semua if not v["aktif"])
+        if semua and semua[0].get("akhiran"):
+            from master.layanan import satuan as svc_satuan
+            harga = [v["max_price"] for v in semua if v["max_price"] is not None]
+            d["harga_min"], d["harga_max"] = (min(harga), max(harga)) if harga else (d.get("harga_min"), d.get("harga_max"))
+            d["stok_teks"] = svc_satuan.format_jumlah(sum(v["in_stock"] or 0 for v in semua), semua[0]["satuan"],
+                                                      semua[0]["kelipatan"])
+            d["akhiran"] = semua[0]["akhiran"]
         if harga_cari:
             dekat = min(semua, key=lambda v: svc_cari.jarak_py(harga_cari, v["max_price"], v["min_price"]), default=None)
             if dekat:
@@ -319,11 +347,26 @@ def barang_ubah(request):
         kolom = str(data["kolom"])
     except (ValueError, KeyError, TypeError, VarianInfo.DoesNotExist):
         return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
+    from master.layanan import satuan as svc_satuan
+    k = info.kelipatan if info.satuan and info.kelipatan > 1 else 1
+    masuk = data.get("nilai")
+    # Barang meteran/kiloan: sel diketik per satuan (Rp 25.000/m, batas 2,5 m) -> simpan per kelipatan.
+    if k > 1 and kolom in HARGA_SATUAN:
+        masuk = svc_satuan.baca_harga(masuk, k)
+    elif k > 1 and kolom == "stock_alert" and str(masuk or "").strip():
+        masuk = svc_satuan.baca_jumlah(masuk, k)
+        if masuk is None:
+            return JsonResponse({"ok": False, "pesan": "Batas stok harus kelipatan "
+                                 + svc_satuan.format_jumlah(1, info.satuan, k) + "."}, status=400)
     try:
-        nilai, berubah = layanan.ubah_varian(request.user, info, kolom, data.get("nilai"), hak=hak,
+        nilai, berubah = layanan.ubah_varian(request.user, info, kolom, masuk, hak=hak,
                                              catatan=data.get("catatan") or "")
     except Tolak as tolak:
         return JsonResponse({"ok": False, "pesan": str(tolak)}, status=400)
+    if k > 1 and kolom in HARGA_SATUAN and nilai is not None:
+        nilai = nilai * k
+    elif k > 1 and kolom == "stock_alert" and nilai is not None:
+        nilai = svc_satuan.angka_teks(nilai, k)
 
     baris = Item.objects.filter(item_name=info.item_name, variant=info.variant).values(*KOLOM_NILAI).first()
     _lengkapi([baris], hak)
@@ -480,15 +523,36 @@ def item_detail(request, item_id, panel=False):
                 if layanan.ganti_nama_varian(request.user, info, request.POST.get("varian_baru"), hak=hak):
                     messages.success(request, f"Varian diganti menjadi '{info.variant}'.")
             elif aksi == "tambah_varian":
+                from master.layanan import satuan as svc_satuan
                 contoh = Item.objects.filter(item_name=item_info.item_name).values("category", "brand").first() or {}
-                layanan.tambah_varian(
+                # Varian baru ikut satuan barangnya; harga diketik per satuan (per m), disimpan per kelipatan.
+                saudara = VarianInfo.objects.filter(item_name=item_info.item_name).values("satuan", "kelipatan").first() or {}
+                sat, k = saudara.get("satuan") or "", saudara.get("kelipatan") or 1
+                if not sat:
+                    k = 1
+
+                def _harga(kolom):
+                    teks = request.POST.get(kolom)
+                    if k <= 1 or not (teks or "").strip():
+                        return teks
+                    return str(svc_satuan.baca_harga(teks, k))
+
+                stok_ketik = request.POST.get("in_stock")
+                if k > 1 and (stok_ketik or "").strip():
+                    stok = svc_satuan.baca_jumlah(stok_ketik, k)
+                    if stok is None:
+                        raise Tolak("Stok awal tidak terbaca. Contoh: 12,5")
+                    stok_ketik = str(stok)
+                baru = layanan.tambah_varian(
                     request.user, hak=hak, item_name=item_info.item_name,
                     variant=request.POST.get("variant"),
                     category=contoh.get("category") or "Uncategorized", brand=contoh.get("brand") or "",
-                    min_price=request.POST.get("min_price"), max_price=request.POST.get("max_price"),
-                    cost_amount=request.POST.get("cost_amount"), in_stock=request.POST.get("in_stock"),
+                    min_price=_harga("min_price"), max_price=_harga("max_price"),
+                    cost_amount=_harga("cost_amount"), in_stock=stok_ketik,
                     kode_rak=request.POST.get("kode_rak") or None,
                 )
+                if sat:
+                    VarianInfo.objects.filter(pk=baru.pk).update(satuan=sat, kelipatan=k)
                 messages.success(request, "Varian ditambahkan.")
             elif aksi == "syarat_titipan":
                 from master.layanan import titipan
@@ -712,6 +776,15 @@ def stok_ubah(request):
         info = VarianInfo.objects.get(pk=int(data["id"]))
     except (ValueError, KeyError, TypeError, VarianInfo.DoesNotExist):
         return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
+    from master.layanan import satuan as svc_satuan
+    k = info.kelipatan if info.satuan and info.kelipatan > 1 else 1
+    if k > 1 and str(data.get("nilai") or "").strip():
+        # Hitungan/penyesuaian diketik per satuan (12,5 m) -> jumlah tersimpan (125).
+        hasil = svc_satuan.baca_jumlah(data.get("nilai"), k)
+        if hasil is None:
+            return JsonResponse({"ok": False, "pesan": "Jumlah harus kelipatan "
+                                 + svc_satuan.format_jumlah(1, info.satuan, k) + ", misalnya 12,5."}, status=400)
+        data["nilai"] = str(hasil)
     try:
         if data.get("lokasi"):
             # Hitungan di satu lokasi: yang diterapkan selisih terhadap stok sistem di lokasi itu.
@@ -724,7 +797,8 @@ def stok_ubah(request):
             if beda == 0:
                 stok_baru = Item.objects.filter(item_name=info.item_name, variant=info.variant).values_list(
                     "in_stock", flat=True).first()
-                return JsonResponse({"ok": True, "stok": stok_baru, "selisih": 0})
+                return JsonResponse({"ok": True, "stok": stok_baru, "selisih": 0,
+                                     **_teks_stok(stok_baru, 0, info, k)})
             stok_baru, selisih = layanan.sesuaikan_stok(
                 request.user, info, cara="tambah" if beda > 0 else "kurang", angka=abs(beda),
                 jenis=data.get("jenis"), catatan=data.get("catatan") or "", hak=hak, lokasi=lokasi)
@@ -735,7 +809,16 @@ def stok_ubah(request):
             )
     except Tolak as tolak:
         return JsonResponse({"ok": False, "pesan": str(tolak)}, status=400)
-    return JsonResponse({"ok": True, "stok": stok_baru, "selisih": selisih})
+    return JsonResponse({"ok": True, "stok": stok_baru, "selisih": selisih, **_teks_stok(stok_baru, selisih, info, k)})
+
+
+def _teks_stok(stok, selisih, info, k):
+    """Teks stok per satuan untuk halaman Stok (barang meteran/kiloan)."""
+    if k <= 1:
+        return {}
+    from master.layanan import satuan as svc_satuan
+    return {"stok_teks": svc_satuan.format_jumlah(stok, info.satuan, k),
+            "selisih_teks": svc_satuan.format_jumlah(selisih, info.satuan, k)}
 
 
 @perlu("lihat_stok")

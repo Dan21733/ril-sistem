@@ -3,7 +3,7 @@
   <h2>{% if 'ganti_nama' in hak %}<span data-ganti="item" data-nilai="{{ item_info.item_name }}" data-tanya="{{ baris_nota }} baris nota lama ikut diperbarui." title="Klik dua kali untuk ganti nama">{{ item_info.item_name }}</span>{% else %}{{ item_info.item_name }}{% endif %}</h2>
   {% if panel %}<button type="button" class="tombol kecil" data-tutup-panel title="Tutup (Esc)">Tutup</button>{% endif %}
 </div>
-<p class="sub">{{ kategori }}{% if brand %} · {{ brand }}{% endif %}{% if satuan_kini.satuan %} · <span class="label">dijual {{ satuan_kini.label }}{% if satuan_kini.kelipatan > 1 %}; angka di tabel per {{ satuan_kini.unit }}{% endif %}</span>{% endif %}{% if 'ganti_nama' in hak %} · <span class="kecil">klik dua kali nama untuk menggantinya</span>{% endif %}</p>
+<p class="sub">{{ kategori }}{% if brand %} · {{ brand }}{% endif %}{% if satuan_kini.satuan %} · <span class="label">dijual {{ satuan_kini.label }}</span>{% endif %}{% if 'ganti_nama' in hak %} · <span class="kecil">klik dua kali nama untuk menggantinya</span>{% endif %}</p>
 
 {% if barang|length > 6 %}<div style="margin-bottom:10px;max-width:320px"><input type="search" data-saring-varian placeholder="Cari varian, mis. 011 atau mocha" autocomplete="off"></div>{% endif %}
 {% if boleh_pilih %}
@@ -17,7 +17,7 @@
 </div>
 {% endif %}
 <div class="gulir"><table data-tabel-varian>
-  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
+  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor{{ satuan_kini.akhiran }}</th><th class="angka">Harga jual{{ satuan_kini.akhiran }}</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir{{ satuan_kini.akhiran }}</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
   {% for b in barang_aktif %}{% include "master/_item_varian_baris.html" %}{% empty %}<tr><td colspan="9" class="redup">Semua varian nonaktif.</td></tr>{% endfor %}
   {% if 'ubah_info' in hak and 'ubah_harga' in hak %}
   {# Varian baru langsung di bawah daftar varian, seperti formulir barang baru. Enter = tambah. Harga boleh menyusul. #}
@@ -36,7 +36,7 @@
 {% if barang_nonaktif %}
 <details class="lipat grup-nonaktif"{% if not barang_aktif %} open{% endif %}><summary>Nonaktif ({{ barang_nonaktif|length }}) <span class="kecil redup">· tidak tampil di kasir</span></summary>
 <div class="gulir"><table data-tabel-varian>
-  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor</th><th class="angka">Harga jual</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
+  <tr>{% if boleh_pilih %}<th class="pilih-sel"><input type="checkbox" data-pilih-semua aria-label="Pilih semua"></th>{% endif %}<th>Varian</th><th class="angka">Floor{{ satuan_kini.akhiran }}</th><th class="angka">Harga jual{{ satuan_kini.akhiran }}</th>{% if 'lihat_modal' in hak %}<th class="angka">Modal terakhir{{ satuan_kini.akhiran }}</th>{% endif %}<th class="angka">Stok</th><th>Rak</th><th>Aktif</th>{% if 'hapus_barang' in hak %}<th></th>{% endif %}</tr>
   {% for b in barang_nonaktif %}{% include "master/_item_varian_baris.html" %}{% endfor %}
 </table></div>
 </details>
@@ -97,7 +97,7 @@
     <select name="kelipatan" aria-label="Kelipatan terkecil" style="flex:1 1 120px;max-width:170px" {% if 'ubah_harga' not in hak %}disabled{% endif %}>{% for k, l in pilihan_satuan.kelipatan %}<option value="{{ k }}" {% if satuan_kini.kelipatan == k %}selected{% endif %}>kelipatan {{ l }}</option>{% endfor %}</select>
     {% if 'ubah_harga' in hak %}<button class="tombol kecil" type="submit" data-tanya="Ubah satuan jual semua varian barang ini? Stok, harga, dan modal ikut dikonversi otomatis (mis. 50 m jadi 500 × 0,1 m, harga Rp 25.000/m jadi Rp 2.500 per 0,1 m). Nota lama tidak dihitung ulang.">Simpan</button>{% endif %}
   </div>
-  {% if satuan_kini.satuan and satuan_kini.kelipatan > 1 %}<p class="kecil redup" style="margin:6px 0 0">Kasir menampilkan per {{ satuan_kini.satuan }} (mis. 1,5 {{ satuan_kini.satuan }}). Angka harga dan stok di tabel atas disimpan per {{ satuan_kini.unit }}.</p>{% endif %}
+  {% if satuan_kini.satuan and satuan_kini.kelipatan > 1 %}<p class="kecil redup" style="margin:6px 0 0">Harga dan stok di semua layar tampil per {{ satuan_kini.satuan }}; jumlah boleh berkoma sampai {{ satuan_kini.unit }}.</p>{% endif %}
 </form>
 {% if pemasok %}
 <div class="pk-bagian"><label>Diambil dari</label>

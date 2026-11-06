@@ -22,6 +22,8 @@ import {
   listOutstandingPaymentProofs,
 } from '../services/storage/paymentProofRepository'
 import { getTransaction } from '../services/storage/transactionRepository'
+import { getItem } from '../services/storage/itemRepository'
+import { akhiranSatuan, hargaPerSatuan, kelipatanOf, pakaiSatuan, angkaJumlah, teksJumlah } from '../utils/satuan'
 import { listQueuedTransactions } from '../services/storage/transactionQueue'
 import { getPrintJobsBySyncIds } from '../services/storage/printJobRepository'
 import {
@@ -1016,7 +1018,7 @@ async function openNota(nota) {
         subtotal: Number(item.quantity || 0) * Number(item.unit_price || 0)
           - Number(item.discount || 0),
       }))
-      selectedItems.value = items
+      selectedItems.value = await denganSatuan(items)
 
       /*
        * Baris antrean tidak mewarisi `item_amount` dari server: angkanya
@@ -1050,7 +1052,7 @@ async function openNota(nota) {
       personPin.value,
     )
 
-    selectedItems.value = detail.items || []
+    selectedItems.value = await denganSatuan(detail.items || [])
     selectedRefunds.value = detail.refunds || []
     selectedNota.value = {
       ...nota,
@@ -1117,6 +1119,36 @@ function openRefundForm(mode) {
     quantities[`${item.item_name}||${item.variant}`] = item.quantity
   }
   refundQuantities.value = quantities
+}
+
+/*
+ * Barang meteran/kiloan (2026-11-06): baris nota menyimpan jumlah per kelipatan
+ * (15 = 1,5 m). Server dan antrean tidak membawa satuannya, jadi diambil dari
+ * katalog di perangkat. Barang yang sudah tidak ada di katalog tampil apa adanya.
+ */
+async function denganSatuan(items) {
+  return Promise.all(items.map(async (item) => {
+    if (item.satuan) return item
+    try {
+      const katalog = await getItem(item.item_name, item.variant)
+      if (katalog && pakaiSatuan(katalog)) {
+        return { ...item, satuan: katalog.satuan, kelipatan: katalog.kelipatan }
+      }
+    } catch {
+      // Katalog lokal tidak terbaca: tampil dalam angka tersimpan.
+    }
+    return item
+  }))
+}
+
+/* Ketikan retur "0,5" (m) -> jumlah tersimpan 5; dijepit 0..jumlah di nota. */
+function aturReturSatuan(item, event) {
+  const k = kelipatanOf(item)
+  const teks = String(event.target.value || '').trim().replace(',', '.')
+  const nilai = /^\d*\.?\d*$/.test(teks) && teks !== '' && teks !== '.' ? Math.round(Number(teks) * k) : 0
+  const jumlah = Math.min(Math.max(0, nilai), Number(item.quantity) || 0)
+  refundQuantities.value = { ...refundQuantities.value, [`${item.item_name}||${item.variant}`]: jumlah }
+  event.target.value = angkaJumlah(jumlah, item)
 }
 
 function closeRefundForm() {
@@ -1878,7 +1910,19 @@ watch(queueSignature, async () => {
                 >
                   <span>{{ item.item_name }} - {{ item.variant }}</span>
 
+                  <span v-if="pakaiSatuan(item)" class="refund-qty-satuan">
+                    <input
+                      :value="angkaJumlah(refundQuantities[`${item.item_name}||${item.variant}`], item)"
+                      type="text"
+                      inputmode="decimal"
+                      :aria-label="`Jumlah retur dalam ${item.satuan}`"
+                      @change="aturReturSatuan(item, $event)"
+                    />
+                    {{ item.satuan }}
+                  </span>
+
                   <input
+                    v-else
                     v-model.number="refundQuantities[`${item.item_name}||${item.variant}`]"
                     type="number"
                     min="0"
@@ -2011,7 +2055,7 @@ watch(queueSignature, async () => {
                   </strong>
 
                   <span>
-                    {{ item.quantity }} × {{ formatPrice(item.unit_price) }}
+                    {{ teksJumlah(item.quantity, item) }} × {{ formatPrice(hargaPerSatuan(item.unit_price, item)) }}{{ akhiranSatuan(item) }}
 
                     <template v-if="item.discount > 0">
                       (diskon {{ formatPrice(item.discount) }})
@@ -2547,6 +2591,14 @@ watch(queueSignature, async () => {
   gap: 10px;
 
   font-size: 14px;
+}
+
+.refund-qty-satuan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  color: var(--pos-text-muted);
 }
 
 .refund-item-row input {

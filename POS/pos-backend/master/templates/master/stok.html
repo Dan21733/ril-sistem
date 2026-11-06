@@ -27,11 +27,11 @@
   {% for b in barang %}
   <tr class="{% if not b.aktif %}nonaktif{% endif %}">
     <td>{{ b.item_name }}</td>
-    <td>{{ b.variant|varian }}</td>
+    <td>{{ b.variant|varian }}{% if b.akhiran %} <span class="label">per {{ b.satuan }}</span>{% endif %}</td>
     <td>{{ b.kode_rak|default:"-" }}</td>
-    <td class="angka"><b class="stok-kini{% if b.in_stock <= 0 %} habis{% endif %}">{{ b.in_stock|ribuan }}</b></td>
-    {% if 'ubah_stok' in hak %}<td class="angka"><input class="sel hitung" inputmode="numeric" autocomplete="off" data-id="{{ b.id }}" data-kolom="hitung" placeholder="-" aria-label="Hitungan baru {{ b.item_name }} {{ b.variant|varian }}"></td>{% endif %}
-    <td class="angka">{% if 'ubah_info' in hak %}<input class="sel" style="width:90px" inputmode="numeric" data-jenis="angka" data-id="{{ b.id }}" data-kolom="stock_alert" value="{{ b.stock_alert|ribuan }}" data-awal="{{ b.stock_alert|ribuan }}">{% else %}{{ b.stock_alert|ribuan }}{% endif %}</td>
+    <td class="angka"><b class="stok-kini{% if b.in_stock <= 0 %} habis{% endif %}">{{ b.stok_teks|default:b.in_stock|ribuan }}</b></td>
+    {% if 'ubah_stok' in hak %}<td class="angka"><input class="sel hitung" inputmode="{% if b.akhiran %}decimal{% else %}numeric{% endif %}" autocomplete="off" data-id="{{ b.id }}" data-kolom="hitung" placeholder="-" aria-label="Hitungan baru {{ b.item_name }} {{ b.variant|varian }}"></td>{% endif %}
+    <td class="angka">{% if 'ubah_info' in hak %}<input class="sel" style="width:90px" inputmode="numeric" data-jenis="angka" data-id="{{ b.id }}" data-kolom="stock_alert" value="{% if b.akhiran %}{{ b.stok_alert_teks }}{% else %}{{ b.stock_alert|ribuan }}{% endif %}" data-awal="{% if b.akhiran %}{{ b.stok_alert_teks }}{% else %}{{ b.stock_alert|ribuan }}{% endif %}">{% else %}{{ b.stok_alert_teks|default:b.stock_alert|ribuan }}{% endif %}</td>
   </tr>
   {% empty %}
   <tr><td colspan="6" class="redup" style="padding:28px;text-align:center">Tidak ada varian yang cocok dengan filter ini.</td></tr>
@@ -62,9 +62,9 @@ document.addEventListener('change', async e => {
     const d = await r.json();
     if (!d.ok){ el.classList.add('gagal'); kabar(d.pesan || 'Gagal menyimpan.', true); return; }
     const kini = el.closest('tr').querySelector('.stok-kini');
-    kini.textContent = ribuan(d.stok); kini.classList.toggle('habis', d.stok <= 0);
+    kini.textContent = d.stok_teks || ribuan(d.stok); kini.classList.toggle('habis', d.stok <= 0);
     el.value = ''; el.classList.add('simpan'); setTimeout(() => el.classList.remove('simpan'), 1200);
-    kabar(d.selisih === 0 ? 'Sama dengan stok sekarang.' : 'Stok ' + (d.selisih > 0 ? '+' : '') + d.selisih + ' tercatat.');
+    kabar(d.selisih === 0 ? 'Sama dengan stok sekarang.' : 'Stok ' + (d.selisih > 0 ? '+' : '') + (d.selisih_teks || d.selisih) + ' tercatat.');
   }catch(err){ el.classList.add('gagal'); kabar('Tidak tersambung ke server. Stok belum berubah.', true); }
 }, true);
 </script>

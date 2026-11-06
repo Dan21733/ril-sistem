@@ -13,7 +13,7 @@
 <div class="gulir"><table>
   <tr><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Harga</th><th class="angka">Subtotal</th><th class="angka">Modal</th><th class="angka">Laba</th></tr>
   {% for b in baris %}<tr><td>{{ b.item_name }}{% if b.variant != "N/A" %} <span class="redup">{{ b.variant }}</span>{% endif %}{% if b.di_bawah_floor %}<span class="masalah-teks">di bawah floor</span>{% endif %}</td>
-    <td class="angka">{{ b.jumlah|ribuan }}</td><td class="angka">{{ b.harga|ribuan }}</td><td class="angka"><b>{{ b.subtotal|ribuan }}</b></td>
+    <td class="angka">{{ b.jumlah_teks }}</td><td class="angka">{{ b.harga_tampil|ribuan }}{{ b.akhiran }}</td><td class="angka"><b>{{ b.subtotal|ribuan }}</b></td>
     <td class="angka redup">{{ b.modal|ribuan|default:"kosong" }}</td><td class="angka" style="color:{% if b.laba < 0 %}var(--bahaya){% endif %}">{{ b.laba|ribuan|default:"-" }}</td></tr>{% endfor %}
   <tr><td colspan="3"><b>Barang</b></td><td class="angka"><b>{{ n.total_barang|ribuan }}</b></td><td class="angka redup">{{ modal|ribuan }}</td><td class="angka"><b>{{ laba|ribuan }}</b></td></tr>
   {% if n.ongkir %}<tr><td colspan="3">Ongkir</td><td class="angka">{{ n.ongkir|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
