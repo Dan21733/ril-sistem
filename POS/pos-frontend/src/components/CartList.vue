@@ -90,6 +90,21 @@ const NARROW_CASH_SUGGESTION_COUNT = 3
 const isNarrowCashLayout = ref(false)
 let cashMediaQueryList = null
 
+/*
+ * Tablet tegak (lebar <= 900px, sama dengan ambang di atas): keranjang jadi
+ * panel bawah yang dilipat (permintaan pemilik, 2026-11-06). Terlipat = hanya
+ * judul, jumlah barang, total, dan BAYAR; daftar barang tetap luas untuk
+ * mencari. Ketuk judul "Keranjang" untuk menaikkan panel (barang bisa
+ * digulir di dalamnya), ketuk lagi untuk menurunkan. Layar mendatar tidak
+ * terpengaruh: keranjang tetap kolom kanan penuh.
+ */
+const keranjangTerbuka = ref(false)
+const keranjangTerlipat = computed(() => isNarrowCashLayout.value && !keranjangTerbuka.value)
+
+function toggleKeranjang() {
+  if (isNarrowCashLayout.value) keranjangTerbuka.value = !keranjangTerbuka.value
+}
+
 function syncCashLayout() {
   isNarrowCashLayout.value = Boolean(cashMediaQueryList?.matches)
 }
@@ -320,6 +335,21 @@ let transferProofPreviewUrl = ''
 const totalPrice = computed(() => {
   return props.cartItems.reduce((total, item) => {
     return total + Number(item.unit_price ?? item.price) * Number(item.quantity)
+  }, 0)
+})
+
+/*
+ * Total potongan dari pricelist (permintaan pemilik, 2026-11-06): selisih harga
+ * pricelist (`price`) dengan harga jual (`unit_price`) dikali jumlah, hanya
+ * yang dijual lebih murah. Ditampilkan supaya pembeli melihat hematnya.
+ * Contoh: A pricelist 50.000 dijual 48.000, B 100.000 dijual 80.000 = 22.000.
+ */
+const totalPotongan = computed(() => {
+  return props.cartItems.reduce((total, item) => {
+    const pricelist = Number(item.price)
+    const jual = Number(item.unit_price ?? item.price)
+    if (!Number.isFinite(pricelist) || !Number.isFinite(jual) || jual >= pricelist) return total
+    return total + (pricelist - jual) * Number(item.quantity)
   }, 0)
 })
 
@@ -1050,15 +1080,28 @@ async function completeTransaction() {
 </script>
 
 <template>
-  <aside class="cart">
+  <aside class="cart" :class="{ 'is-collapsed': keranjangTerlipat, 'is-sheet': isNarrowCashLayout }">
     <!-- ==================================
-         CART HEADER
+         CART HEADER (di tablet tegak: tombol naik/turun panel keranjang)
     =================================== -->
 
-    <div class="cart-header">
+    <div
+      class="cart-header"
+      :role="isNarrowCashLayout ? 'button' : undefined"
+      :tabindex="isNarrowCashLayout ? 0 : undefined"
+      :aria-expanded="isNarrowCashLayout ? keranjangTerbuka : undefined"
+      @click="toggleKeranjang"
+      @keydown.enter.prevent="toggleKeranjang"
+      @keydown.space.prevent="toggleKeranjang"
+    >
       <h2>Keranjang</h2>
 
       <span v-if="cartItems.length" class="cart-count">{{ totalQuantity }} barang</span>
+
+      <span v-if="isNarrowCashLayout" class="cart-toggle">
+        {{ keranjangTerbuka ? 'Tutup' : 'Lihat' }}
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" :class="{ 'is-open': keranjangTerbuka }"><path d="m6 15 6-6 6 6" /></svg>
+      </span>
     </div>
 
     <p v-if="hasRoundedFloorCode" class="floor-legend">
@@ -1293,9 +1336,13 @@ async function completeTransaction() {
         <div class="total">
           <span> Total </span>
 
-          <strong>
-            {{ formatPrice(totalPrice) }}
-          </strong>
+          <span class="total-angka">
+            <strong>
+              {{ formatPrice(totalPrice) }}
+            </strong>
+
+            <small v-if="totalPotongan > 0" class="total-hemat">hemat {{ formatPrice(totalPotongan) }}</small>
+          </span>
         </div>
 
         <button
@@ -1404,7 +1451,19 @@ async function completeTransaction() {
                     <strong>{{ cartItems.length }}</strong>
                   </div>
 
-                  <div class="summary-row">
+                  <template v-if="totalPotongan > 0">
+                    <div class="summary-row">
+                      <span>Harga pricelist</span>
+                      <strong>{{ formatPrice(totalPrice + totalPotongan) }}</strong>
+                    </div>
+
+                    <div class="summary-row summary-potongan">
+                      <span>Total potongan</span>
+                      <strong>−{{ formatPrice(totalPotongan) }}</strong>
+                    </div>
+                  </template>
+
+                  <div v-else class="summary-row">
                     <span>Total barang</span>
                     <strong>{{ formatPrice(totalPrice) }}</strong>
                   </div>
@@ -1818,6 +1877,11 @@ async function completeTransaction() {
                   <div v-if="piutangPayload && statusBarang !== 'sekarang'" class="summary-row">
                     <span>Barang</span>
                     <strong>{{ { ambil: 'Ambil nanti', pesan: 'Pesan dulu' }[statusBarang] }}</strong>
+                  </div>
+
+                  <div v-if="totalPotongan > 0" class="summary-row summary-potongan">
+                    <span>Total potongan</span>
+                    <strong>−{{ formatPrice(totalPotongan) }}</strong>
                   </div>
 
                   <div class="summary-row summary-total">
@@ -2981,6 +3045,23 @@ async function completeTransaction() {
    RINGKASAN
 ======================================== */
 
+/* Potongan dari pricelist: warna sukses supaya terbaca sebagai keuntungan pembeli. */
+.summary-row.summary-potongan strong {
+  color: var(--pos-success-text);
+}
+
+.total-angka {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.total-hemat {
+  color: var(--pos-success-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .summary-pane {
   align-self: start;
 
@@ -3710,6 +3791,67 @@ async function completeTransaction() {
     position: static;
   }
 
+  /* Panel bawah: judul keranjang = tombol naik/turun (lihat keranjangTerbuka). */
+  .cart.is-sheet {
+    height: auto;
+    padding-top: 6px;
+  }
+
+  .cart.is-sheet .cart-header {
+    min-height: 48px;
+    align-items: center;
+    padding: 0 0 6px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cart-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--pos-border);
+    border-radius: 999px;
+    color: var(--pos-text);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .cart-count + .cart-toggle {
+    margin-left: 0;
+  }
+
+  .cart-header > h2 + .cart-toggle {
+    margin-left: auto;
+  }
+
+  .cart-toggle svg {
+    transition: transform 0.15s ease;
+  }
+
+  .cart-toggle svg.is-open {
+    transform: rotate(180deg);
+  }
+
+  /*
+   * Terbuka: daftar barang dalam panel setinggi maksimal 58% layar dan
+   * menggulir sendiri; daftar barang di atasnya mengecil (diatur App.vue).
+   */
+  .cart.is-sheet .cart-items {
+    flex: none;
+    max-height: 58dvh;
+  }
+
+  .cart.is-collapsed .cart-items,
+  .cart.is-collapsed .floor-legend {
+    display: none;
+  }
+
+  .cart.is-collapsed .cart-header {
+    border-bottom: none;
+  }
+
   /*
    * Tablet tegak (2026-11-06): keranjang ada di bawah daftar barang dan
    * halaman yang menggulir, jadi begitu ada 2-3 barang tombol BAYAR turun
@@ -3842,6 +3984,19 @@ async function completeTransaction() {
 /* ========================================
    LAYAR SEMPIT: SATU KOLOM
 ======================================== */
+
+/*
+ * Tablet mendatar (2026-11-06): daftar barang 4+ baris membuat badan modal
+ * menggulir dan ringkasan ikut hilang ke atas. Ringkasan sekarang menempel di
+ * atas kolom kanan selama kolom kiri digulir. Hanya dua kolom; di layar tegak
+ * ringkasan ada di bawah daftar dan ikut menggulir seperti biasa.
+ */
+@media (min-width: 901px) {
+  .summary-pane {
+    position: sticky;
+    top: 0;
+  }
+}
 
 @media (max-width: 900px) {
   .checkout-progress {

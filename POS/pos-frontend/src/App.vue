@@ -1512,7 +1512,10 @@ function getResponseMessage(body) {
         const message = Array.isArray(value)
           ? value.map((entry) => typeof entry === 'string' ? entry : JSON.stringify(entry)).join(', ')
           : typeof value === 'string' ? value : JSON.stringify(value)
-        return `${field}: ${message}`
+        // Pesan dari server sudah kalimat lengkap berbahasa Indonesia; nama kolom
+        // ("pin: PIN kasir tidak cocok.") hanya membingungkan kasir (2026-11-06).
+        // Nama kolom tetap ditulis kalau isinya bukan teks (galat bersarang).
+        return typeof value === 'string' || Array.isArray(value) ? message : `${field}: ${message}`
       })
       .join(' ')
   }
@@ -3248,12 +3251,17 @@ onBeforeUnmount(() => {
  * sempit, misalnya tablet posisi tegak (601px).
  */
 
+/*
+ * Tablet tegak (2026-11-06): halaman tidak lagi menggulir. Daftar barang
+ * mengisi sisa layar, keranjang jadi panel bawah (lipat/buka di CartList.vue):
+ * total + BAYAR selalu terlihat, dan kalau keranjang dibuka daftar barang yang
+ * mengecil, bukan keranjang yang terdorong ke luar layar. `dvh` mengikuti
+ * tinggi layar yang benar-benar terlihat (bilah sistem Android).
+ */
 @media (max-width: 900px) {
   .pos-page {
-    height: auto;
-    min-height: 100vh;
-
-    overflow: visible;
+    height: 100vh;
+    height: 100dvh;
   }
 
   .pos-layout {
@@ -3261,20 +3269,24 @@ onBeforeUnmount(() => {
 
     flex-direction: column;
 
-    height: auto;
+    height: 100%;
   }
 
   .product-section {
-    height: 62vh;
-    min-height: 380px;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
   }
 
   .cart-section {
+    flex: none;
     height: auto;
+    max-height: 82%;
 
     border-left: none;
 
     border-top: 1px solid var(--pos-border);
+    box-shadow: var(--pos-shadow-soft);
   }
 }
 

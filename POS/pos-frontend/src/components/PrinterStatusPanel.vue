@@ -164,7 +164,13 @@ onBeforeUnmount(() => {
       aria-controls="printer-status-panel"
       @click="toggle"
     >
-      <span class="printer-dot" aria-hidden="true"></span>
+      <!-- Ikon printer, dicoret saat tidak menjawab (lihat ServerStatusPill.vue). -->
+      <svg class="printer-icon" :class="`is-${tone}`" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M6 9V3h12v6" />
+        <path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+        <path d="M6 14h12v7H6z" />
+        <path v-if="tone === 'offline'" d="M3 3l18 18" />
+      </svg>
 
       <span class="printer-label">{{ label }}</span>
 
@@ -313,6 +319,24 @@ onBeforeUnmount(() => {
 
 .printer-dot.is-offline {
   background: var(--pos-danger);
+}
+
+.printer-icon {
+  flex-shrink: 0;
+
+  color: var(--pos-text-muted);
+}
+
+.printer-icon.is-ok {
+  color: var(--pos-success-text);
+}
+
+.printer-icon.is-offline {
+  color: var(--pos-danger);
+}
+
+.printer-status.is-checking .printer-icon {
+  opacity: 0.4;
 }
 
 .printer-status.is-ok {
