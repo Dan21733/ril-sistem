@@ -33,8 +33,11 @@
     <div class="sub">{% if kas_hari.buka %}<span class="naik">Kas dibuka {{ kas_hari.dibuka_waktu|date:"H.i" }}</span>{% elif kas_hari.terakhir_hari_ini %}Kas sudah ditutup {{ kas_hari.ditutup_waktu|date:"H.i" }}{% else %}<span class="turun">Kas belum dibuka</span>{% endif %}</div></div>
     <span class="nilai" style="color:var(--teks)">{% if kas_hari.buka %}<b>{{ kas_hari.seharusnya|rupiah }}</b>{% else %}–{% endif %}</span></a>
   {% else %}<div class="sel"><div class="utama"><div class="nama">Tunai</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.cash|rupiah }}</b></span></div>{% endif %}
-  <div class="sel"><div class="utama"><div class="nama">Transfer</div>{% if jual.per_metode.jumlah_transfer %}<div class="sub">{{ jual.per_metode.jumlah_transfer }} bukti</div>{% endif %}</div>
-    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></div>
+  {% if jual.per_metode.jumlah_transfer %}<a class="sel panah" href="{% url 'hp:transfer' %}?p={{ p }}{% if p == 'tanggal' %}&dari={{ awal|date:'Y-m-d' }}&sampai={{ akhir|date:'Y-m-d' }}{% endif %}"><div class="utama"><div class="nama">Transfer</div>
+    <div class="sub">{{ jual.per_metode.jumlah_transfer }} nota{% if bukti_ringkas.belum %} · <span class="turun">{{ bukti_ringkas.belum }} bukti belum dicek</span>{% elif bukti_ringkas.bukti %} · <span class="naik">semua bukti dicek</span>{% endif %}{% if bukti_ringkas.tanpa_bukti %} · {{ bukti_ringkas.tanpa_bukti }} tanpa bukti{% endif %}</div></div>
+    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></a>
+  {% else %}<div class="sel"><div class="utama"><div class="nama">Transfer</div></div>
+    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></div>{% endif %}
   <div class="sel"><div class="utama"><div class="nama">EDC</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.edc|rupiah }}</b></span></div>
 </div>
 {% elif kas_hari %}

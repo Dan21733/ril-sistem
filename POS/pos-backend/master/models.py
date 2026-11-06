@@ -1283,3 +1283,17 @@ class PembayaranPiutang(models.Model):
     class Meta:
         db_table = "master_pembayaran_piutang"
         ordering = ["waktu", "id"]
+
+
+class BuktiDicek(models.Model):
+    """Bukti transfer yang sudah dicek pemilik di mutasi rekening (permintaan pemilik, 6 Nov 2026).
+
+    Satu baris per bukti (`pos.PaymentProof.proof_id`). Tabel bukti milik POS tidak diubah;
+    tanda cek disimpan di master. Batal cek = baris dihapus (tercatat di log).
+    """
+    proof_id = models.UUIDField(unique=True)
+    oleh = models.CharField(max_length=150)
+    waktu = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_bukti_dicek"

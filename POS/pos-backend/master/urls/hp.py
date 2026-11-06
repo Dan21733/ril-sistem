@@ -20,6 +20,7 @@ urlpatterns = [
     path("detak/", v.detak, name="detak"),
     path("acc/", v.acc, name="acc"),
     path("transaksi/", v.transaksi, name="transaksi"),
+    path("transfer/", v.transfer, name="transfer"),
     path("barang/", v.barang, name="barang"),
     path("barang/<int:item_id>/", v.barang_detail, name="barang_detail"),
     path("stok/", v.stok, name="stok"),

@@ -864,7 +864,12 @@ async function runAutoRegistration() {
        */
       if (stored?.device_code && stored.device_code !== device.device_code) {
         checkoutMessage.value = `Device terdaftar ulang dengan kode baru ${device.device_code} (renewal tidak memungkinkan). Nota tertunda berkode ${stored.device_code} tetap memakai nota dan PIN aslinya; kirim ulang nota yang sama, jangan membuat pengganti.`
-      } else {
+      } else if (pendingTransaction || queuedNotices.value.length) {
+        /*
+         * Pengingat ini hanya berguna kalau memang ada nota tertunda. Dulu
+         * selalu ditulis saat registrasi/perpanjangan token (tiap aplikasi
+         * dibuka) dan menetap di atas total keranjang (2026-11-06).
+         */
         checkoutMessage.value = 'Device terdaftar. Jika ada nota tertunda, kirim ulang nota yang sama; jangan membuat pengganti.'
       }
       return device
@@ -1586,8 +1591,26 @@ async function flushProofs({ quiet = false } = {}) {
  * dibekukan saat finalisasi, sebab cart dikosongkan begitu server menerima
  * transaksi dan printer bisa menyusul jauh setelah itu.
  */
+/*
+ * Hemat dari pricelist (permintaan pemilik, 2026-11-06): dicetak di nota sebagai
+ * strategi pemasaran. Hanya untuk kertas nota; data nota ke server tidak
+ * berubah. Harga pricelist diambil dari keranjang (`price`), harga jual dari
+ * baris nota (`unit_price`).
+ */
+function hematDariPricelist(items, cartItems = cart.value) {
+  const pricelist = new Map(cartItems.map((c) => [`${c.item_name}\u0000${c.variant}`, Number(c.price)]))
+  return items.reduce((sum, item) => {
+    const harga = pricelist.get(`${item.item_name}\u0000${item.variant}`)
+    const jual = Number(item.unit_price)
+    if (!Number.isFinite(harga) || !Number.isFinite(jual) || jual >= harga) return sum
+    return sum + (harga - jual) * Number(item.quantity)
+  }, 0)
+}
+
 function buildReceiptSale(transaction, data) {
+  const hemat = hematDariPricelist(transaction.items)
   return {
+    ...(hemat > 0 ? { hemat_amount: hemat } : {}),
     sync_id: transaction.sync_id,
     transaction_id: transaction.transaction_id,
     transaction_time: transaction.transaction_time,
@@ -2509,7 +2532,9 @@ async function resendQueuedTransaction(syncId) {
 
 async function handleDeviceRegistered() {
   deviceRegistered.value = true
-  checkoutMessage.value = 'Device terdaftar. Jika ada nota tertunda, kirim ulang nota yang sama; jangan membuat pengganti.'
+  if (pendingTransaction || queuedNotices.value.length) {
+    checkoutMessage.value = 'Device terdaftar. Jika ada nota tertunda, kirim ulang nota yang sama; jangan membuat pengganti.'
+  }
 }
 
 function finishCheckout() {

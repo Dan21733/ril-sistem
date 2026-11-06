@@ -100,3 +100,13 @@ test('surat jalan nota lama kembali ke garis tulis tangan', async () => {
   assert.match(text, /Kepala YTH : _+/, 'nama tulis tangan')
   assert.match(text, /No Hp : _+/, 'No. HP tulis tangan')
 })
+
+test('nota mencetak "Anda hemat" bila ada potongan dari pricelist, tidak ada bila nol', async () => {
+  const { buildReceiptLines, receiptWidthIssues } = (await loadReceipt()).namespace
+  const dengan = buildReceiptLines(sale({ hemat_amount: 22000 }), {})
+  const baris = dengan.map((line) => line.text).find((row) => row.includes('Anda hemat'))
+  assert.ok(baris && baris.includes('22.000'), 'baris hemat ada dengan nilainya')
+  assert.equal(receiptWidthIssues(dengan).length, 0)
+  const tanpa = buildReceiptLines(sale(), {}).map((line) => line.text)
+  assert.ok(!tanpa.some((row) => row.includes('hemat')), 'tanpa potongan tidak dicetak')
+})

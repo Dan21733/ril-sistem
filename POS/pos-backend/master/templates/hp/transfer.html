@@ -1,0 +1,67 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Bukti transfer · DB Toko{% endblock %}
+{% block judul_kecil %}Bukti transfer{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}?p={{ p }}">‹ Beranda</a>{% endblock %}
+{% block gaya %}<style>
+.bt-foto{display:flex;gap:10px;overflow-x:auto;padding:4px 16px 12px}
+.bt-foto figure{margin:0;flex:none;width:132px}
+.bt-foto a{display:block;width:132px;height:176px;border-radius:10px;overflow:hidden;background:var(--isi)}
+.bt-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.bt-foto figcaption{margin-top:6px}
+.bt-foto .tombol{width:100%}
+.bt-dicek{font-size:12px;color:var(--teks2);margin-top:4px;text-align:center}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Bukti transfer</h1>
+<button type="button" class="pil tanggal" data-buka-lembar="lembar-tanggal" style="margin:2px 0 14px" aria-label="Periode: {{ judul_periode }}. Ganti">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+  <span class="pil-nama">{{ judul_periode }}</span><span class="panah-bawah"></span></button>
+{% include "hp/_lembar_tanggal.html" %}
+<p class="anak-judul">{{ ringkas.nota }} nota transfer · {{ ringkas.bukti }} bukti{% if ringkas.belum %} · <span class="turun">{{ ringkas.belum }} belum dicek</span>{% elif ringkas.bukti %} · <span class="naik">semua sudah dicek</span>{% endif %}</p>
+
+{% for n in nota %}
+<div class="grup" style="margin-bottom:12px">
+  <div class="sel"><div class="utama">
+    <div class="nama">{{ n.transaction_id|default:"(nomor belum ada)" }} <span class="redup">· {{ n.transaction_time|date:"d M H.i" }}</span></div>
+    <div class="sub">{{ n.kasir }}</div></div>
+    <span class="nilai" style="color:var(--teks)"><b>{{ n.total_amount|rupiah }}</b></span></div>
+  {% if n.bukti %}
+  <div class="bt-foto">
+    {% for x in n.bukti %}
+    <figure>
+      <a href="{% url 'master:nota_bukti' x.bukti.proof_id %}" target="_blank" rel="noopener">
+        {% if x.bukti.content_type != 'application/pdf' %}<img src="{% url 'master:nota_bukti' x.bukti.proof_id %}" alt="Bukti transfer {{ forloop.counter }}" loading="lazy">{% else %}<span class="kosong">PDF</span>{% endif %}
+      </a>
+      <figcaption>
+        {% if x.dicek %}
+        <button type="button" class="tombol kecil hijau" data-bukti="{{ x.bukti.proof_id }}" data-aksi="batal">✓ Dicek</button>
+        <div class="bt-dicek">{{ x.dicek.oleh }} · {{ x.dicek.waktu|date:"d M H.i" }}</div>
+        {% else %}
+        <button type="button" class="tombol kecil" data-bukti="{{ x.bukti.proof_id }}" data-aksi="cek">Tandai dicek</button>
+        {% endif %}
+      </figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="sel"><div class="utama"><div class="sub turun">Kasir belum mengunggah bukti.</div></div></div>
+  {% endif %}
+</div>
+{% empty %}
+<div class="grup"><div class="kosong">Tidak ada nota transfer di periode ini.</div></div>
+{% endfor %}
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+(() => {
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-bukti]'); if (!b) return;
+    if (b.dataset.aksi === 'batal' && !await tanya('Batalkan tanda sudah dicek untuk bukti ini?', {ya: 'Batalkan', bahaya: true})) return;
+    b.disabled = true;
+    try { const d = await kirim("{% url 'hp:transfer' %}", {proof_id: b.dataset.bukti, aksi: b.dataset.aksi}); kabar(d.pesan); setTimeout(() => location.reload(), 400); }
+    catch (err) { kabar(err.message, true); b.disabled = false; }
+  });
+})();
+</script>
+{% endblock %}

@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -183,6 +184,28 @@ def _uang_toko(toko, hak, awal, akhir, kode):
     return jual, kas
 
 
+@perlu_hp("laporan")
+def transfer(request):
+    """Nota bayar transfer + bukti fotonya; pemilik menandai bukti yang sudah dicek di mutasi rekening."""
+    from master.layanan import bukti as svc
+    from master.layanan import laporan
+    from master.layanan.toko import toko_aktif
+    if request.method == "POST":
+        d = _json_badan(request)
+        try:
+            svc.tandai(request.user, d.get("proof_id"), dicek=d.get("aksi") != "batal")
+        except (Tolak, ValueError, ValidationError) as e:
+            return _jawab(False, str(e) if isinstance(e, Tolak) else "Bukti tidak dikenali.", 400)
+        return _jawab(pesan="Ditandai sudah dicek." if d.get("aksi") != "batal" else "Tanda cek dibatalkan.")
+    kode, awal, akhir, judul = _periode(request)
+    nota = svc.nota_transfer(*laporan.rentang(awal, akhir), toko_aktif(request))
+    return _tampil(request, "hp/transfer.html", {
+        "tab": "beranda", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "judul_pendek": _judul_pendek(kode, awal, akhir), "hari_ini": timezone.localdate(),
+        "nota": nota, "ringkas": svc.ringkas(nota),
+    })
+
+
 @perlu_hp()
 def beranda(request):
     from master.layanan import acc_hp
@@ -210,7 +233,13 @@ def beranda(request):
     if "piutang" in hak:
         from master.layanan import piutang as svc_piutang
         piutang_ringkas = svc_piutang.ringkas()
-    isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas})
+    bukti_ringkas = None
+    if jual and jual["per_metode"]["jumlah_transfer"]:
+        from master.layanan import bukti as svc_bukti
+        from master.layanan import laporan
+        bukti_ringkas = svc_bukti.ringkas(svc_bukti.nota_transfer(*laporan.rentang(awal, akhir), toko))
+    isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas,
+                "bukti_ringkas": bukti_ringkas})
     return _tampil(request, "hp/beranda.html", isi)
 
 

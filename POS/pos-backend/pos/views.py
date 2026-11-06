@@ -94,6 +94,12 @@ from .transaction_request import verifikasi_penyetuju
 from .models import NotaPersetujuan
 
 
+# Celah floor (keputusan pemilik 6 Nov 2026): PIN penyetuju milik kasir nota itu sendiri
+# tidak dihitung sebagai persetujuan. Nota yang memang di bawah floor ditahan untuk ACC
+# pemilik (bukan ditolak), supaya pembeli tidak menunggu dan pemilik tetap memutuskan.
+ALASAN_SETUJU_SENDIRI = "Harga di bawah floor disetujui oleh kasir nota itu sendiri; perlu ACC pemilik."
+
+
 def catat_persetujuan(sync_id, approver_id):
     """Simpan siapa yang menyetujui harga di bawah floor untuk nota ini."""
     if sync_id and approver_id:
@@ -377,6 +383,9 @@ class TransactionCreateAPIView(APIView):
         transaction_data = serializer.validated_data["transaction"]
         worker_id = serializer.validated_data["worker_id"]
         approver_id = serializer.validated_data.get("approver_id")
+        setuju_sendiri = bool(approver_id) and approver_id == worker_id
+        if setuju_sendiri:
+            approver_id = None
         # Produksi selalu terautentikasi (device auth wajib); getattr hanya
         # mengakomodasi jalur uji yang menonaktifkan authentication_classes.
         device_code = getattr(request.user, "device", None)
@@ -403,8 +412,9 @@ class TransactionCreateAPIView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         except TransactionValidationError as exc:
-            if final_lokal and mentah is not None:
-                nota = tahan_nota(mentah, str(exc), device_code, worker_id)
+            if (final_lokal or setuju_sendiri) and mentah is not None:
+                alasan = f"{ALASAN_SETUJU_SENDIRI} {exc}" if setuju_sendiri else str(exc)
+                nota = tahan_nota(mentah, alasan, device_code, worker_id)
                 if nota is not None:
                     return Response(jawaban_tahan(nota), status=status.HTTP_201_CREATED)
             # Domain rejections are client-fixable, so they map to 400
@@ -1026,9 +1036,16 @@ def _sync_per_nota_transactions(members, throttle_identifier, device_code):
                 results.append(tahan_atau_tolak(_flatten_error_message(exc.detail), value))
                 continue
 
+        setuju_sendiri = bool(approver_id) and approver_id == value
+        if setuju_sendiri:
+            approver_id = None
         hasil = _sync_queued_transaction(queued, value, device_code, lewati_floor=bool(approver_id))
         if approver_id and hasil.get("status") == "new":
             catat_persetujuan(hasil.get("sync_id"), approver_id)
+        if hasil.get("status") == "rejected" and setuju_sendiri:
+            nota = tahan_nota(queued, f"{ALASAN_SETUJU_SENDIRI} {hasil.get('detail') or ''}".strip(), device_code, value)
+            if nota is not None:
+                hasil = jawaban_tahan(nota)
         if hasil.get("status") == "rejected" and final_lokal:
             hasil = tahan_atau_tolak(hasil.get("detail") or "Ditolak server.", value)
         results.append(hasil)

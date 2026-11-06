@@ -374,6 +374,52 @@ class PenyetujuFloorTests(NotaDitahanTests):
         self.assertTrue(NotaPersetujuan.objects.filter(sync_id=nota["sync_id"]).exists())
 
 
+class SetujuSendiriTests(PenyetujuFloorTests):
+    """Celah floor (6 Nov 2026): penyetuju = kasir nota sendiri tidak dihitung sebagai persetujuan."""
+
+    def test_online_di_bawah_floor_ditahan_untuk_acc_pemilik(self):
+        from .models import NotaPersetujuan, NotaTinjau
+        from .transaction_service import TransactionValidationError
+
+        nota = _nota()
+        with patch("pos.views.persist_transaction",
+                   side_effect=TransactionValidationError("Harga barang di bawah harga floor.")) as persist:
+            r = self.klien.post("/api/transactions/", {"pin": "730264", "approver_pin": "730264",
+                                                       "transaction": nota}, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(r.data["ditahan"])
+        self.assertFalse(persist.call_args.kwargs.get("lewati_floor", False))
+        tinjau = NotaTinjau.objects.get(sync_id=nota["sync_id"])
+        self.assertIn("kasir nota itu sendiri", tinjau.alasan)
+        self.assertEqual(tinjau.worker_id, "ID002")
+        self.assertFalse(NotaPersetujuan.objects.filter(sync_id=nota["sync_id"]).exists())
+
+    def test_online_tanpa_harga_di_bawah_floor_tetap_masuk(self):
+        from .models import NotaPersetujuan
+
+        nota = _nota()
+        with self._persist_palsu():
+            r = self.klien.post("/api/transactions/", {"pin": "730264", "approver_pin": "730264",
+                                                       "transaction": nota}, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(self.dipanggil, {"worker": "ID002", "lewati_floor": False})
+        self.assertFalse(NotaPersetujuan.objects.filter(sync_id=nota["sync_id"]).exists())
+
+    def test_batch_ditahan(self):
+        from .models import NotaPersetujuan, NotaTinjau
+
+        nota = _nota()
+        with patch("pos.views._sync_queued_transaction", return_value={
+                "sync_id": nota["sync_id"], "transaction_id": nota["transaction_id"], "status": "rejected",
+                "detail": "Harga barang di bawah harga floor."}) as kirim:
+            r = self.klien.post("/api/transactions/sync/", {"transactions": [
+                {**nota, "pin": "730264", "approver_pin": "730264"}]}, format="json")
+        self.assertTrue(r.data["results"][0]["ditahan"], r.data)
+        self.assertFalse(kirim.call_args.kwargs["lewati_floor"])
+        self.assertIn("kasir nota itu sendiri", NotaTinjau.objects.get(sync_id=nota["sync_id"]).alasan)
+        self.assertFalse(NotaPersetujuan.objects.filter(sync_id=nota["sync_id"]).exists())
+
+
 class LewatiFloorTests(TestCase):
     def test_hanya_floor_yang_dilewati_atas_tetap_dicek(self):
         from types import SimpleNamespace

@@ -119,7 +119,17 @@ def daftar_ddl(koneksi=None):
             PRIMARY KEY (frasa, item_name)
         )""",
         "CREATE INDEX IF NOT EXISTS item_alias_name_idx ON item_alias (item_name)",
+        *INDEKS_LAPORAN,
     ]
+
+
+# Laporan, beranda, dan HP selalu menyaring nota menurut waktu; riwayat barang mencari
+# baris nota menurut barang. Tanpa index keduanya membaca seluruh tabel, makin lambat
+# seiring nota bertambah. Disetujui pemilik 6 Nov 2026 (migrasi master 0040).
+INDEKS_LAPORAN = [
+    "CREATE INDEX IF NOT EXISTS transactions_waktu_idx ON transactions (transaction_time)",
+    "CREATE INDEX IF NOT EXISTS transaction_detail_barang_idx ON transaction_detail (item_name, variant)",
+]
 
 
 # Hanya PostgreSQL: pencarian kasir memakai fungsi trigram (TrigramSimilarity),

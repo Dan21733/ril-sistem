@@ -548,6 +548,12 @@ export function buildReceiptLines(sale, store = {}) {
 
   pushMoney(lines, 'TOTAL', total)
 
+  /* Hemat dari pricelist (2026-11-06): ditulis setelah TOTAL supaya terbaca pembeli. */
+  const hemat = Number(sale.hemat_amount || 0)
+  if (hemat > 0) {
+    pushMoney(lines, 'Anda hemat', hemat)
+  }
+
   const paymentLabel = PAYMENT_LABELS[sale.payment_method] || String(sale.payment_method || '').toUpperCase()
 
   /*
