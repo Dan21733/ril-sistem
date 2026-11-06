@@ -286,7 +286,7 @@ def barang_daftar(request):
         "daftar_kategori": sorted(set(milik.values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(milik.values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
-        "daftar_rak": Rak.objects.all(),
+        "daftar_rak": Rak.objects.select_related("tempat"),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "toko_titipan": toko_kini if titipan.adalah_titipan(toko_kini) else None,
     })
@@ -356,7 +356,7 @@ def barang_baru(request):
     return render(request, "master/_barang_baru.html", {
         "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True).distinct() if k}, key=kunci_alami),
-        "daftar_rak": Rak.objects.all(),
+        "daftar_rak": Rak.objects.select_related("tempat"),
     })
 
 
@@ -585,7 +585,7 @@ def item_detail(request, item_id, panel=False):
         "ada_terjual": any(b["terjual"] for b in barang),
         "daftar_kategori": sorted(set(milik_item.values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(milik_item.values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.all(),
+        "daftar_rak": Rak.objects.select_related("tempat"),
         "log_item": Log.objects.filter(item_name=item_info.item_name)[:15] if "lihat_log" in hak else [],
         "pemasok": pemasok.untuk_barang(item_info, hak) if pemasok.boleh_lihat(hak) else None,
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
@@ -641,7 +641,7 @@ def harga(request):
         "param": param or request.POST,
         "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.all(),
+        "daftar_rak": Rak.objects.select_related("tempat"),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "kolom_massal": [(k, layanan.KOLOM_VARIAN[k][0]) for k in layanan.KOLOM_HARGA
                          if layanan.KOLOM_VARIAN[k][2] in hak],
@@ -673,7 +673,7 @@ def stok(request):
         "jumlah_menipis": semua.filter(stock_alert__isnull=False, in_stock__lte=F("stock_alert"), in_stock__gt=0).count(),
         "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.all(),
+        "daftar_rak": Rak.objects.select_related("tempat"),
         "daftar_jenis": layanan.JENIS_MUTASI.items(),
         "pilihan_lokasi": svc_lokasi.pilihan() if Lokasi.objects.filter(jenis="gudang", aktif=True).exists() else [],
     })

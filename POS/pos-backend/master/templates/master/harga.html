@@ -6,8 +6,8 @@
 
 <form method="get" class="kartu baris" style="margin-bottom:18px">
   <div style="flex:2;min-width:220px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}"></div>
-  <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
-  <div style="flex:1;min-width:160px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}{% if k %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endif %}{% endfor %}</select></div>
+  <div style="flex:1;min-width:160px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}{% if k %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endif %}{% endfor %}</select></div>
   <div style="min-width:200px"><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
   <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:harga' %}">Reset</a></div>
 </form>

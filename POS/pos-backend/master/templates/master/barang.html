@@ -9,17 +9,43 @@
   </div>
 </div>
 
-<form method="get" class="kartu baris" style="margin-bottom:14px">
-  <div style="flex:2;min-width:200px"><label>Cari nama, varian, brand, atau alias <span class="redup" style="font-weight:400" title="Tambahkan @harga untuk mencari barang dengan harga itu atau yang paling dekat">· bisa pakai harga: keran @2000</span></label><input type="search" name="q" value="{{ g.q }}" autofocus></div>
-  <div style="flex:1;min-width:150px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
-  <div style="flex:1;min-width:150px"><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
-  {% if daftar_supplier %}<div style="flex:1;min-width:150px"><label>Diambil dari</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>{% endif %}
-  <div style="min-width:120px"><label>Rak</label><select name="rak"><option value="">Semua</option><option value="-" {% if g.rak == "-" %}selected{% endif %}>Belum ada</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}</option>{% endfor %}</select></div>
-  <div style="min-width:170px"><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
-  <div style="min-width:110px"><label>Status</label><select name="aktif"><option value="">Semua</option><option value="ya" {% if g.aktif == "ya" %}selected{% endif %}>Aktif</option><option value="tidak" {% if g.aktif == "tidak" %}selected{% endif %}>Nonaktif</option></select></div>
-  <div style="min-width:130px"><label>Urut</label><select name="urut"><option value="nama">Nama</option><option value="harga" {% if g.urut == "harga" %}selected{% endif %}>Harga tertinggi</option><option value="harga_naik" {% if g.urut == "harga_naik" %}selected{% endif %}>Harga terendah</option><option value="stok" {% if g.urut == "stok" %}selected{% endif %}>Stok terkecil</option></select></div>
-  <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:barang' %}?reset=1">Reset</a></div>
+<form method="get" class="br-cari" id="form-cari">
+  <div class="br-atas">
+    <input type="search" name="q" value="{{ g.q }}" autofocus placeholder="Cari nama, varian, brand, atau alias · bisa pakai harga: keran @2000" aria-label="Cari barang">
+    <button class="tombol utama" type="submit">Cari</button>
+    <button class="tombol" type="button" id="tombol-saring" aria-expanded="false" aria-controls="br-saring">Saring<span class="lencana-saring" id="jumlah-saring" hidden></span></button>
+    <a class="tombol" href="{% url 'master:barang' %}?reset=1" id="tombol-reset" hidden>Reset</a>
+  </div>
+  <div class="br-saring" id="br-saring" hidden>
+  <div><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}{% if k %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endif %}{% endfor %}</select></div>
+  <div><label>Brand</label><select name="brand"><option value="">Semua</option>{% for k in daftar_brand %}{% if k %}<option {% if g.brand == k %}selected{% endif %}>{{ k }}</option>{% endif %}{% endfor %}</select></div>
+  {% if daftar_supplier %}<div><label>Diambil dari</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>{% endif %}
+  <div><label>Rak</label><select name="rak"><option value="">Semua</option><option value="-" {% if g.rak == "-" %}selected{% endif %}>Belum ada</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+  <div><label>Perlu diperbaiki</label><select name="masalah"><option value="">Semua</option>{% for m in daftar_masalah %}<option value="{{ m.kunci }}" {% if g.masalah == m.kunci %}selected{% endif %}>{{ m.label }}</option>{% endfor %}</select></div>
+  <div><label>Status</label><select name="aktif"><option value="">Semua</option><option value="ya" {% if g.aktif == "ya" %}selected{% endif %}>Aktif</option><option value="tidak" {% if g.aktif == "tidak" %}selected{% endif %}>Nonaktif</option></select></div>
+  <div><label>Urut</label><select name="urut"><option value="nama">Nama</option><option value="harga" {% if g.urut == "harga" %}selected{% endif %}>Harga tertinggi</option><option value="harga_naik" {% if g.urut == "harga_naik" %}selected{% endif %}>Harga terendah</option><option value="stok" {% if g.urut == "stok" %}selected{% endif %}>Stok terkecil</option></select></div>
+  </div>
 </form>
+<style>
+.br-cari{margin-bottom:14px}.br-atas{display:flex;gap:8px;align-items:center}.br-atas input[type=search]{flex:1;width:auto;max-width:720px}
+.br-saring{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 12px;margin-top:10px;padding:12px 14px;
+  background:var(--kartu);border:1px solid var(--garis);border-radius:12px;max-width:1400px}
+.br-saring label{font-size:13px}
+.lencana-saring{margin-left:6px;background:var(--aksen);color:#fff;border-radius:999px;padding:0 7px;font-size:12px;font-weight:700}
+</style>
+<script>
+(() => {
+  // Saringan jarang dipakai: disembunyikan di balik tombol Saring, terbuka sendiri kalau ada yang aktif.
+  const panel = document.getElementById('br-saring'), tombol = document.getElementById('tombol-saring');
+  const pilih = [...panel.querySelectorAll('select')];
+  const aktif = pilih.filter(s => s.value && !(s.name === 'urut' && s.value === 'nama')).length;
+  const atur = buka => { panel.hidden = !buka; tombol.setAttribute('aria-expanded', buka); };
+  if (aktif) { const j = document.getElementById('jumlah-saring'); j.textContent = aktif; j.hidden = false; document.getElementById('tombol-reset').hidden = false; }
+  atur(aktif > 0);
+  tombol.addEventListener('click', () => atur(panel.hidden));
+  pilih.forEach(s => s.addEventListener('change', () => s.form.submit()));
+})();
+</script>
 
 <div class="belah" id="belah">
 <div class="kiri">
