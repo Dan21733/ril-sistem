@@ -82,6 +82,7 @@ import DeviceRegistrationModal from './components/DeviceRegistrationModal.vue'
 import PrinterStatusPanel from './components/PrinterStatusPanel.vue'
 import ServerStatusPill from './components/ServerStatusPill.vue'
 import TransactionHistory from './components/TransactionHistory.vue'
+import NumPad from './components/NumPad.vue'
 import { usePrinterStatus } from './composables/usePrinterStatus'
 import { useServerStatus } from './composables/useServerStatus'
 import { useTheme } from './composables/useTheme'
@@ -2761,6 +2762,9 @@ onBeforeUnmount(() => {
       @registered="handleDeviceRegistered"
       @dismiss="handleRegistrationDismissed"
     />
+
+    <!-- Papan angka pengganti keyboard Samsung untuk isian angka (tablet). -->
+    <NumPad />
   </main>
 </template>
 

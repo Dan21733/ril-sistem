@@ -2866,6 +2866,13 @@ async function completeTransaction() {
  * membuat pengambilan dan pembayaran bisa dibaca bersamaan.
  */
 
+/*
+ * Tinggi kolom = setinggi isinya, minimal setinggi badan modal (2026-11-06).
+ * Dulu `height: 100%` + `min-height: 0` di kolom: begitu layar memendek
+ * (keyboard Samsung terbuka di tablet tegak, tinggi tinggal ~600px) baris grid
+ * diperas di bawah tinggi isinya dan bagian Pembayaran menimpa Nama Pelanggan.
+ * Sekarang yang menggulir adalah `.modal-body`, isi tidak pernah bertumpuk.
+ */
 .checkout-columns {
   display: grid;
 
@@ -2873,9 +2880,7 @@ async function completeTransaction() {
 
   gap: 22px;
 
-  height: 100%;
-
-  min-height: 0;
+  min-height: 100%;
 }
 
 .checkout-pane {
@@ -2884,8 +2889,6 @@ async function completeTransaction() {
   flex-direction: column;
 
   min-width: 0;
-
-  min-height: 0;
 }
 
 .pane-title {
@@ -3705,6 +3708,55 @@ async function completeTransaction() {
 @media (max-width: 900px) {
   .cart {
     position: static;
+  }
+
+  /*
+   * Tablet tegak (2026-11-06): keranjang ada di bawah daftar barang dan
+   * halaman yang menggulir, jadi begitu ada 2-3 barang tombol BAYAR turun
+   * keluar layar (diukur 601x1007: BAYAR di y=1066). Total + BAYAR sekarang
+   * menempel di dasar layar dan selalu terlihat, tanpa perlu menggeser.
+   * Satu baris: total di kiri, BAYAR di kanan (hemat tinggi ~60px).
+   */
+  .cart-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -16px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--pos-surface);
+    box-shadow: var(--pos-shadow-soft);
+  }
+
+  .cart-footer .total-row {
+    margin-bottom: 0;
+  }
+
+  .cart-footer:has(.total-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 45%);
+    align-items: center;
+    column-gap: 12px;
+  }
+
+  .cart-footer > .checkout-feedback {
+    grid-column: 1 / -1;
+    margin-bottom: 8px;
+  }
+
+  .cart-footer .pay-button {
+    margin: 0;
+  }
+}
+
+/*
+ * Jendela tersempit (365px): total "Rp 106.000" (26px tebal, ~150px) + tombol
+ * hapus 48px tidak muat di samping BAYAR 160px; total terpotong. Di sini
+ * kembali bertumpuk: baris total di atas, BAYAR selebar layar di bawahnya.
+ */
+@media (max-width: 480px) {
+  .cart-footer:has(.total-row) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
   }
 }
 
