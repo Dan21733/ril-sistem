@@ -32,7 +32,7 @@ def daftar(request):
     cari = rapikan_teks(request.GET.get("q"))
     for kata in cari.split(" ") if cari else []:
         qs = qs.filter(Q(nomor_faktur__icontains=kata) | Q(keterangan__icontains=kata)
-                       | Q(supplier__nama__icontains=kata) | Q(catatan__icontains=kata))
+                       | Q(supplier__nama__icontains=kata) | Q(supplier__alias__icontains=kata) | Q(catatan__icontains=kata))
     halaman = Paginator(qs, 50).get_page(request.GET.get("hal"))
     return render(request, "master/faktur.html", {
         "menu": "faktur", "halaman": halaman, "g": request.GET, "qs_halaman": _qs_tanpa(request, "hal"),

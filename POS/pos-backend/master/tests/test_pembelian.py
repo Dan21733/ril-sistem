@@ -28,6 +28,35 @@ class SupplierTest(Dasar):
         self.assertEqual((s.nama, s.pkp), ("PT Sumber Jaya Abadi", False))
         self.assertEqual(self.client.get(reverse("master:supplier") + "?buka=%d" % s.id).status_code, 200)
 
+    def test_nama_lain(self):
+        from master.layanan import pemasok, supplier as svc
+        from master.models import ItemInfo, Supplier
+        self.client.force_login(self.admin)
+        url = reverse("master:supplier")
+        self.client.post(url, {"aksi": "tambah", "nama": "CV Sumber Jaya", "alias": "Ko Ahong ; SJ, sj,  Pak Budi sales"})
+        s = Supplier.objects.get()
+        self.assertEqual(s.alias, "Ko Ahong, SJ, Pak Budi sales")
+        self.assertEqual(s.nama_lengkap, "CV Sumber Jaya (Ko Ahong, SJ, Pak Budi sales)")
+        # Cari pakai nama lain.
+        self.assertContains(self.client.get(url + "?q=ahong"), "CV Sumber Jaya")
+        self.assertNotContains(self.client.get(url + "?q=tidakada"), "juga: Ko Ahong")
+        # Nama lain tidak boleh dipakai dua supplier.
+        self.client.post(url, {"aksi": "tambah", "nama": "Toko Lain", "alias": "sj"})
+        self.assertFalse(Supplier.objects.filter(nama="Toko Lain").exists())
+        self.client.post(url, {"aksi": "tambah", "nama": "ko ahong"})
+        self.assertEqual(Supplier.objects.count(), 1)
+        # Mengetik nama lain di panel barang memakai supplier yang sama, bukan membuat baru.
+        self.assertEqual(svc.cari_persis("ko AHONG"), s)
+        palu = ItemInfo.objects.get(item_name="Palu")
+        self.client.post(reverse("master:item", args=[palu.id]), {"aksi": "pemasok_tambah", "supplier": "SJ", "catatan": ""})
+        self.assertEqual(Supplier.objects.count(), 1)
+        self.assertEqual(palu.pemasok.get().supplier, s)
+        self.assertContains(self.client.get(reverse("master:item_panel", args=[palu.id])), 'label="= CV Sumber Jaya"')
+        # Simpan ulang dengan alias sendiri tidak dianggap bentrok.
+        self.client.post(url, {"aksi": "simpan", "id": s.id, "nama": "CV Sumber Jaya", "alias": "Ko Ahong, SJ"})
+        s.refresh_from_db()
+        self.assertEqual(s.alias, "Ko Ahong, SJ")
+
 
 class PembelianTest(Dasar):
     @classmethod

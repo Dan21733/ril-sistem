@@ -7,6 +7,7 @@ from django.db.models import Count, Max
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak
+from master.layanan import supplier as svc_supplier
 from master.models import PembelianBaris, PemasokBarang, Supplier
 
 HAK_LIHAT = ("pembelian", "kelola_supplier")
@@ -46,7 +47,7 @@ def tambah(pengguna, item_info, *, nama_supplier, catatan, hak):
     nama = layanan.rapikan_teks(nama_supplier)
     if not nama:
         raise Tolak("Isi nama supplier atau distributornya.")
-    supplier = Supplier.objects.filter(nama__iexact=nama).first()
+    supplier = svc_supplier.cari_persis(nama)
     if supplier is None:
         if "kelola_supplier" not in hak:
             raise Tolak(f"Supplier '{nama}' belum ada. Tambahkan dulu di menu Supplier.")

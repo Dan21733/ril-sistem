@@ -7,7 +7,7 @@
 {% if not daftar_supplier %}<div class="pesan warning">Belum ada supplier. <a href="{% url 'master:supplier' %}">Tambah supplier dulu.</a></div>{% endif %}
 <form method="post" class="kartu">{% csrf_token %}
   <div class="kisi">
-    <div><label>Supplier</label><select name="supplier" required><option value="">Pilih</option>{% for s in daftar_supplier %}<option value="{{ s.id }}">{{ s.nama }}{% if s.pkp %} (PKP){% endif %}</option>{% endfor %}</select></div>
+    <div><label>Supplier</label><select name="supplier" required><option value="">Pilih</option>{% for s in daftar_supplier %}<option value="{{ s.id }}">{{ s.nama_lengkap }}{% if s.pkp %} · PKP{% endif %}</option>{% endfor %}</select></div>
   <div><label>Toko</label><div style="padding:10px 0;font-weight:600">{{ toko_aktif.nama }}</div><input type="hidden" name="toko" value="{{ toko_aktif.id }}"></div>
     <div><label>Tanggal pesan</label><input type="date" name="tanggal_pesan" value="{{ hari_ini|date:'Y-m-d' }}" required style="font:inherit;padding:10px 12px;border:1px solid var(--garis-kuat);border-radius:8px;width:100%"></div>
   </div>

@@ -17,6 +17,7 @@ from django.views.decorators.http import require_POST
 from pos.models import Item, Transactions
 
 from master.layanan import excel
+from master.layanan import supplier as svc_supplier
 from master.layanan import inti as layanan
 from master.layanan import masalah
 from master.layanan import pemasok
@@ -927,11 +928,13 @@ def supplier(request):
             "catatan": layanan.rapikan_teks(request.POST.get("catatan")),
         }
         try:
+            data["alias"] = svc_supplier.rapikan_alias(request.POST.get("alias"), nama)
             if aksi == "tambah":
                 if not nama:
                     raise Tolak("Nama supplier wajib diisi.")
                 if Supplier.objects.filter(nama__iexact=nama).exists():
                     raise Tolak("Supplier dengan nama itu sudah ada.")
+                svc_supplier.cek_bentrok(nama, data["alias"])
                 Supplier.objects.create(nama=nama, **data)
                 layanan.catat(request.user, aksi="tambah", objek="supplier", kolom="supplier", baru=nama)
                 messages.success(request, f"Supplier {nama} ditambahkan.")
@@ -942,6 +945,7 @@ def supplier(request):
                         raise Tolak("Nama supplier wajib diisi.")
                     if Supplier.objects.filter(nama__iexact=nama).exclude(pk=objek.pk).exists():
                         raise Tolak("Supplier dengan nama itu sudah ada.")
+                    svc_supplier.cek_bentrok(nama, data["alias"], kecuali=objek)
                     lama = objek.nama
                     objek.nama = nama
                     for k, v in data.items():
@@ -959,8 +963,12 @@ def supplier(request):
             messages.error(request, str(tolak))
         return redirect("master:supplier")
     buka = request.GET.get("buka")
+    daftar = Supplier.objects.all()
+    cari = layanan.rapikan_teks(request.GET.get("q"))
+    if cari:
+        daftar = daftar.filter(svc_supplier.q_cari(cari) | Q(kontak__icontains=cari) | Q(telepon__icontains=cari))
     return render(request, "master/supplier.html", {
-        "menu": "supplier", "daftar": Supplier.objects.all(),
+        "menu": "supplier", "daftar": daftar, "cari": cari, "jumlah_semua": Supplier.objects.count(),
         "dibuka": Supplier.objects.filter(pk=buka).first() if buka and buka.isdigit() else None,
     })
 

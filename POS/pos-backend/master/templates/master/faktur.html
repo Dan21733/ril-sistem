@@ -11,7 +11,7 @@
     <option value="belum" {% if g.status == "belum" %}selected{% endif %}>Belum lunas</option>
     <option value="lewat" {% if g.status == "lewat" %}selected{% endif %}>Lewat jatuh tempo</option>
     <option value="lunas" {% if g.status == "lunas" %}selected{% endif %}>Lunas</option></select></div>
-  <div style="min-width:190px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>
+  <div style="min-width:190px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama_lengkap }}</option>{% endfor %}</select></div>
   <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:faktur' %}">Reset</a></div>
 </form>
 <div class="gulir"><table>

@@ -197,6 +197,9 @@ class Impor(models.Model):
 
 class Supplier(models.Model):
     nama = models.CharField(max_length=150, unique=True)
+    # Nama lain yang dipakai sehari-hari (pemilik, sales, singkatan), dipisah koma.
+    # Dipakai saat mencari dan saat nama supplier diketik (tidak membuat supplier dobel).
+    alias = models.CharField(max_length=500, blank=True, default="")
     kontak = models.CharField(max_length=150, blank=True, default="")
     telepon = models.CharField(max_length=50, blank=True, default="")
     alamat = models.TextField(blank=True, default="")
@@ -212,6 +215,15 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.nama
+
+    @property
+    def daftar_alias(self):
+        return [a for a in (x.strip() for x in (self.alias or "").split(",")) if a]
+
+    @property
+    def nama_lengkap(self):
+        """Nama untuk pilihan dropdown: "CV Sumber Jaya (Ko Ahong, SJ)"."""
+        return f"{self.nama} ({', '.join(self.daftar_alias)})" if self.alias else self.nama
 
 
 class MutasiStok(models.Model):

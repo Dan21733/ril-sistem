@@ -15,7 +15,7 @@
 <form method="get" class="kartu baris" style="margin-bottom:18px">
   <div style="flex:2;min-width:220px"><label>Cari nomor, faktur, supplier, atau barang</label><input type="search" name="q" value="{{ g.q }}"></div>
   <div style="min-width:200px"><label>Status</label><select name="status"><option value="">Semua</option><option value="dibuat" {% if g.status == "dibuat" %}selected{% endif %}>Dipesan</option><option value="menunggu" {% if g.status == "menunggu" %}selected{% endif %}>Menunggu ACC</option><option value="diterima" {% if g.status == "diterima" %}selected{% endif %}>Diterima</option><option value="hutang" {% if g.status == "hutang" %}selected{% endif %}>Belum lunas</option><option value="batal" {% if g.status == "batal" %}selected{% endif %}>Batal</option></select></div>
-  <div style="min-width:200px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama }}</option>{% endfor %}</select></div>
+  <div style="min-width:200px"><label>Supplier</label><select name="supplier"><option value="">Semua</option>{% for s in daftar_supplier %}<option value="{{ s.id }}" {% if g.supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.nama_lengkap }}</option>{% endfor %}</select></div>
   <div><button class="tombol utama" type="submit">Terapkan</button> <a class="tombol" href="{% url 'master:pembelian' %}">Reset</a></div>
 </form>
 

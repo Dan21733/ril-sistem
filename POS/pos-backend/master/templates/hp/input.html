@@ -28,7 +28,7 @@
 <form id="f-beli" data-cari="{% url 'master:pembelian_cari' %}" data-kirim="{% url 'hp:input_beli' %}">
   <input type="hidden" name="mode" value="datang">
   <div class="grup">
-    <label class="isian"><span>Distributor</span><select name="supplier" required><option value="">Pilih</option>{% for s in supplier %}<option value="{{ s.id }}" data-pkp="{{ s.pkp|yesno:'1,' }}">{{ s.nama }}</option>{% endfor %}</select></label>
+    <label class="isian"><span>Distributor</span><select name="supplier" required><option value="">Pilih</option>{% for s in supplier %}<option value="{{ s.id }}" data-pkp="{{ s.pkp|yesno:'1,' }}">{{ s.nama_lengkap }}</option>{% endfor %}</select></label>
     <label class="isian"><span>Tanggal</span><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></label>
     <label class="isian" data-datang><span>No. nota</span><input name="nomor_faktur" placeholder="opsional"></label>
     <label class="isian" data-datang><span>Jatuh tempo</span><input type="date" name="jatuh_tempo"></label>

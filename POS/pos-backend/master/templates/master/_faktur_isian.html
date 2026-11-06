@@ -6,7 +6,7 @@
   <div><label>Jatuh tempo (boleh kosong)</label><input type="date" name="jatuh_tempo" value="{{ isi.jatuh_tempo }}"></div>
   <div><label>Total di faktur</label><input type="text" name="total" value="{{ isi.total }}" required inputmode="numeric" autocomplete="off"></div>
 </div>
-<datalist id="daftar-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% endfor %}</datalist>
+<datalist id="daftar-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% for a in s.daftar_alias %}<option value="{{ a }}" label="= {{ s.nama }}">{% endfor %}{% endfor %}</datalist>
 <div style="margin-top:16px"><label>Barang di faktur (satu baris satu barang)</label><textarea name="keterangan" rows="6" required placeholder="Semen Padang 50 kg x 20 sak&#10;Paku 5 cm x 2 dus">{{ isi.keterangan }}</textarea></div>
 <div style="margin-top:16px"><label>Catatan (boleh kosong)</label><input type="text" name="catatan" value="{{ isi.catatan }}" placeholder="mis. dipesan ibu lewat telepon, faktur lama dari buku"></div>
 <p class="redup kecil" style="margin:8px 0 0">Nama supplier yang belum ada akan dibuat otomatis.</p>

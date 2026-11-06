@@ -45,7 +45,7 @@ def daftar(request):
     cari = layanan.rapikan_teks(request.GET.get("q"))
     if cari:
         qs = qs.filter(Q(nomor__icontains=cari) | Q(nomor_faktur__icontains=cari)
-                       | Q(supplier__nama__icontains=cari) | Q(baris__item_name__icontains=cari)).distinct()
+                       | Q(supplier__nama__icontains=cari) | Q(supplier__alias__icontains=cari) | Q(baris__item_name__icontains=cari)).distinct()
     if saring == "hutang":
         qs = qs.order_by(F("jatuh_tempo").asc(nulls_last=True), "id")
     halaman = Paginator(qs, 50).get_page(request.GET.get("hal"))

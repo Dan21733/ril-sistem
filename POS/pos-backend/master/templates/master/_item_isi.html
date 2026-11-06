@@ -124,7 +124,7 @@
     <input type="text" name="supplier" list="dl-supplier" required placeholder="Supplier (ketik/pilih)" aria-label="Supplier" style="flex:1 1 150px;width:auto">
     <input type="text" name="catatan" maxlength="300" placeholder="Catatan, mis. sales Pak Budi" aria-label="Catatan" style="flex:2 1 180px;width:auto">
     <button class="tombol kecil" type="submit">Tambah</button>
-    <datalist id="dl-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% endfor %}</datalist>
+    <datalist id="dl-supplier">{% for s in daftar_supplier %}<option value="{{ s.nama }}">{% for a in s.daftar_alias %}<option value="{{ a }}" label="= {{ s.nama }}">{% endfor %}{% endfor %}</datalist>
   </form>
 </div>
 {% endif %}

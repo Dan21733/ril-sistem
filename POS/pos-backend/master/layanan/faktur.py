@@ -24,7 +24,8 @@ def _supplier(nama):
     nama = rapikan_teks(nama)[:150]
     if not nama:
         raise Tolak("Isi nama supplier.")
-    s = Supplier.objects.filter(nama__iexact=nama).first()
+    from master.layanan.supplier import cari_persis
+    s = cari_persis(nama)
     return s or Supplier(nama=nama)
 
 
