@@ -556,8 +556,10 @@ Lalu salah satu:
 
 Terakhir: `docker compose up -d`. Kontainer menyala lagi sendiri setelah server restart.
 
-Memperbarui kode: `git pull`, `docker compose build`, jalankan `migrate` seperti di atas kalau
-ada migrasi baru, lalu `docker compose up -d`. Migrasi tidak pernah dijalankan otomatis.
+Memperbarui kode: `git pull`, `docker compose build`, lalu `docker compose up -d`. Sejak
+7 Nov 2026 layanan `migrasi` menjalankan `migrate` sendiri setiap `up`, sebelum master, gudang,
+jadwal, dan kasir dinyalakan. Kalau migrasi gagal, aplikasi tidak menyala: lihat
+`docker compose logs migrasi`.
 
 ### Kasir di server rumah (satu database)
 

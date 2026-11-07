@@ -19,9 +19,12 @@ x-aplikasi: &aplikasi
     dockerfile: master/server/Dockerfile
   image: master-dbrl:lokal
   restart: unless-stopped
+  # Aplikasi baru jalan setelah migrasi selesai (6 Nov 2026: migrasi yang terlewat membuat master 500).
   depends_on:
     db:
       condition: service_healthy
+    migrasi:
+      condition: service_completed_successfully
   environment: &env
     DATABASE_URL: postgresql://master:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@db:5432/master
     SECRET_KEY: ${SECRET_KEY:?isi SECRET_KEY di .env}
@@ -62,6 +65,16 @@ services:
       retries: 20
     # Postgres sempat menulis ke disk sebelum berhenti saat server dimatikan.
     stop_grace_period: 60s
+
+  # Sekali jalan setiap `docker compose up`: menerapkan migrasi master + kasir (satu database),
+  # lalu berhenti. Kalau gagal, master/gudang/kasir tidak dinyalakan: cek `docker compose logs migrasi`.
+  migrasi:
+    <<: *aplikasi
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "manage.py", "migrate", "--noinput", "--settings=master.settings"]
 
   master:
     <<: *aplikasi
