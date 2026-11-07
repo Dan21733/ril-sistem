@@ -186,11 +186,13 @@ onBeforeUnmount(() => {
  * Ukuran: tombol 72x54 (sasaran sentuh >=44px), jarak 8, padding 10:
  * lebar 3*72 + 2*8 + 20 = 252px, tinggi 5*54 + 4*8 + 20 = 322px. Muat di sisi
  * kiri kolom bayar tablet mendatar (1007x601) dan di atas/bawah isian di
- * tablet tegak (601x1007). z-index di atas modal checkout (1000).
+ * tablet tegak (601x1007). z-index di atas SEMUA lapisan (checkout 1000, menu
+ * Transaksi 1500, kunci/daftar perangkat 2000): kalau tertutup, isian PIN tidak
+ * bisa diisi sama sekali karena keyboard sistem dimatikan (bug 2026-11-07).
  */
 .numpad {
   position: fixed;
-  z-index: 1200;
+  z-index: 3000;
   display: grid;
   grid-template-columns: repeat(3, 72px);
   grid-auto-rows: 54px;

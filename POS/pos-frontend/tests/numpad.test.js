@@ -64,3 +64,28 @@ test('lepas fokus karena ketukan di papan tidak menutup papan (tablet Android)',
   assert.equal(lepasKarenaPapan({ msSejakTekan: 5000 }), false)
   assert.equal(lepasKarenaPapan({}), false)
 })
+
+test('papan angka selalu di atas lapisan lain (menu Transaksi menutupinya, 2026-11-07)', async () => {
+  const { readdir, readFile } = await import('node:fs/promises')
+  const akar = new URL('../src/', import.meta.url)
+  const berkas = []
+  const jelajah = async (url) => {
+    for (const e of await readdir(url, { withFileTypes: true })) {
+      const anak = new URL(e.name + (e.isDirectory() ? '/' : ''), url)
+      if (e.isDirectory()) await jelajah(anak)
+      else if (/\.(vue|css)$/.test(e.name)) berkas.push(anak)
+    }
+  }
+  await jelajah(akar)
+  let papan = 0
+  let lainTertinggi = 0
+  for (const url of berkas) {
+    const isi = await readFile(url, 'utf8')
+    for (const m of isi.matchAll(/z-index:\s*(\d+)/g)) {
+      const n = Number(m[1])
+      if (url.pathname.endsWith('/NumPad.vue')) papan = Math.max(papan, n)
+      else lainTertinggi = Math.max(lainTertinggi, n)
+    }
+  }
+  assert.ok(papan > lainTertinggi, `papan ${papan} harus di atas ${lainTertinggi}`)
+})
