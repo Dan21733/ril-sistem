@@ -475,7 +475,7 @@ def ambil(request):
             messages.error(request, str(tolak))
         return redirect("gudang:ambil")
     return render(request, "gudang/ambil.html", {
-        "menu": "ambil",
+        "menu": "tiket",
         "kelompok": _kelompok_ambil(PermintaanAmbil.objects.filter(status="menunggu")),
         "gudang": [l for l in svc_lokasi.pilihan() if l.jenis == "gudang"],
         "riwayat": PermintaanAmbil.objects.filter(status="diambil", diambil_oleh=request.user.username)

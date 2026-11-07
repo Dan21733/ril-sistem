@@ -37,8 +37,8 @@
   <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
     <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if lihat_stok %} · Toko {{ v.toko }}{% for nama, n in v.per %}{% if n %} · {{ nama }} {{ n }}{% endif %}{% endfor %}{% endif %}</span></div>
     {% if boleh_pindah %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="pindah"><input type="hidden" name="varian_id" value="{{ v.id }}">
-      <select name="dari" style="flex:1;min-width:110px">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">dari {{ l.nama }}</option>{% endfor %}</select>
-      <select name="ke" style="flex:1;min-width:110px">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if forloop.counter == 2 %}selected{% endif %}>ke {{ l.nama }}</option>{% endfor %}</select>
+      <select name="dari" style="flex:1 1 140px;min-width:0">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">dari {{ l.nama }}</option>{% endfor %}</select>
+      <select name="ke" style="flex:1 1 140px;min-width:0">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if forloop.counter == 2 %}selected{% endif %}>ke {{ l.nama }}</option>{% endfor %}</select>
       <input type="text" name="jumlah" inputmode="numeric" placeholder="jumlah" style="width:90px" required>
       <button class="tombol kecil" type="submit">Usulkan pindah</button></form>{% endif %}
     {% if boleh_rak %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="rak"><input type="hidden" name="varian_id" value="{{ v.id }}">
