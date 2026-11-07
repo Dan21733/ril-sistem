@@ -1,0 +1,121 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Biaya toko{% endblock %}
+{% block isi %}
+<h2>Biaya toko · {{ toko.nama }}</h2>
+<p class="sub">Pengeluaran toko. Uang keluar dari laci kasir ikut masuk ke sini otomatis; yang dicatat kasir menunggu ACC.
+  Biaya usaha dan yang bukan biaya (mis. diambil pemilik, bayar supplier) dipisah menurut kategori.</p>
+
+{% if menunggu and bisa_acc %}
+<h3>Menunggu ACC <span class="label">{{ menunggu|length }}</span></h3>
+<div class="gulir"><table>
+  <tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th class="angka">Jumlah</th><th>Dicatat</th><th></th></tr>
+  {% for b in menunggu %}<tr>
+    <td>{{ b.dicatat_waktu|date:"d M H:i" }}</td><td>{{ b.kategori }}</td><td>{{ b.keterangan }}</td>
+    <td class="angka"><b>{{ b.jumlah|ribuan }}</b></td>
+    <td class="kecil">{{ b.dicatat_oleh }}{% if b.sumber == 'laci' %} <span class="redup">· dari laci</span>{% endif %}</td>
+    <td><div class="baris" style="flex-wrap:nowrap;gap:4px">
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="terima"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil utama" type="submit">Setujui</button></form>
+      <form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="tolak"><input type="hidden" name="id" value="{{ b.id }}">
+        <input type="text" name="alasan" placeholder="alasan tolak" required style="width:140px"><button class="tombol kecil bahaya" type="submit">Tolak</button></form>
+    </div></td></tr>{% endfor %}
+</table></div>
+<p class="kecil redup">Ditolak: uangnya sudah keluar dari laci, jadi tidak dihitung sebagai biaya toko dan menjadi tanggungan yang mencatat sampai diganti.</p>
+{% endif %}
+
+{% if perlu_diganti %}
+<div class="pesan warning">
+  <b>Uang laci yang ditolak, belum diganti:</b>
+  {% for b in perlu_diganti %}
+  <div class="baris" style="margin-top:6px;gap:8px;align-items:center">
+    <span>{{ b.dicatat_oleh }} · {{ b.tanggal|date:"d M" }} · {{ b.kategori }} · <b>{{ b.jumlah|ribuan }}</b>{% if b.alasan %} <span class="redup">({{ b.alasan }})</span>{% endif %}</span>
+    {% if bisa_catat %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="diganti"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil" type="submit">Sudah diganti</button></form>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="baris" style="justify-content:space-between;align-items:center;margin-top:8px">
+  <div class="baris" style="gap:6px;align-items:center">
+    <a class="tombol kecil" href="?bulan={{ bulan_lalu }}" aria-label="Bulan sebelumnya">‹</a>
+    <b style="font-size:18px;min-width:130px;text-align:center">{{ awal|date:"F Y" }}</b>
+    {% if bulan_depan %}<a class="tombol kecil" href="?bulan={{ bulan_depan }}" aria-label="Bulan berikutnya">›</a>{% else %}<span class="tombol kecil" aria-disabled="true" style="opacity:.35">›</span>{% endif %}
+  </div>
+</div>
+
+<div class="kisi" style="align-items:start;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));margin-top:12px">
+  <div class="kartu">
+    <div class="redup kecil">Biaya usaha (disetujui)</div>
+    <div style="font-size:30px;font-weight:700">{{ r.total_usaha|ribuan }}</div>
+    <table style="margin-top:8px">
+      {% for p in r.usaha %}<tr><td><a href="?bulan={{ bulan }}&kategori={{ p.kategori|urlencode }}">{{ p.kategori }}</a> <span class="kecil redup">{{ p.n }}×</span></td><td class="angka">{{ p.total|ribuan }}</td></tr>
+      {% empty %}<tr><td class="redup">Belum ada biaya bulan ini.</td></tr>{% endfor %}
+    </table>
+    {% if r.lain %}
+    <div class="redup kecil" style="margin-top:12px">Bukan biaya usaha</div>
+    <table>{% for p in r.lain %}<tr><td><a href="?bulan={{ bulan }}&kategori={{ p.kategori|urlencode }}">{{ p.kategori }}</a> <span class="kecil redup">{{ p.n }}×</span></td><td class="angka">{{ p.total|ribuan }}</td></tr>{% endfor %}</table>
+    {% endif %}
+    {% if r.menunggu %}<div class="kecil" style="margin-top:10px">Belum dihitung: {{ r.menunggu }} menunggu ACC ({{ r.menunggu_rp|ribuan }}).</div>{% endif %}
+  </div>
+
+  {% if bisa_catat %}
+  <form method="post" enctype="multipart/form-data" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="catat">
+    <h3 style="margin-top:0">Catat pengeluaran</h3>
+    <div class="kisi">
+      <div><label>Tanggal</label><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" max="{{ hari_ini|date:'Y-m-d' }}"></div>
+      <div><label>Jumlah</label><input type="text" name="jumlah" inputmode="numeric" required placeholder="Rp 0"></div>
+    </div>
+    <label style="margin-top:10px">Kategori</label>
+    <select name="kategori" required><option value="">Pilih…</option>{% for k in kategori_aktif %}<option>{{ k.nama }}</option>{% endfor %}</select>
+    <label style="margin-top:10px">Uangnya dari</label>
+    <select name="sumber">
+      <option value="luar_laci">Tunai luar laci</option>
+      {% if boleh_laci %}<option value="laci">Laci kasir (ikut mengurangi kas hari ini)</option>{% endif %}
+    </select>
+    <label style="margin-top:10px">Keterangan</label><input type="text" name="keterangan" maxlength="300" placeholder="mis. bayar listrik November">
+    <label style="margin-top:10px">Foto nota <span class="redup">(boleh kosong)</span></label><input type="file" name="foto" accept="image/*,application/pdf">
+    <p class="kecil redup">Tanggal hanya dipakai untuk tunai luar laci; uang dari laci tercatat hari ini di kas.</p>
+    <button class="tombol utama" type="submit" style="margin-top:6px">Simpan</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="baris" style="margin-top:18px;gap:6px;align-items:center;flex-wrap:wrap">
+  <h3 style="margin:0 8px 0 0">Catatan {{ awal|date:"F" }}</h3>
+  <a class="tombol kecil {% if not saring %}utama{% endif %}" href="?bulan={{ bulan }}{% if kategori_saring %}&kategori={{ kategori_saring|urlencode }}{% endif %}">Semua</a>
+  {% for kode, label in status_pilihan %}<a class="tombol kecil {% if saring == kode %}utama{% endif %}" href="?bulan={{ bulan }}&status={{ kode }}{% if kategori_saring %}&kategori={{ kategori_saring|urlencode }}{% endif %}">{{ label }}</a>{% endfor %}
+  {% if kategori_saring %}<span class="label">{{ kategori_saring }} <a href="?bulan={{ bulan }}{% if saring %}&status={{ saring }}{% endif %}" aria-label="Hapus saringan kategori">×</a></span>{% endif %}
+</div>
+<div class="gulir" style="margin-top:8px"><table>
+  <tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Dari</th><th class="angka">Jumlah</th><th>Status</th><th>Dicatat</th><th></th></tr>
+  {% for b in daftar %}<tr class="{% if b.status == 'batal' %}nonaktif{% endif %}">
+    <td>{{ b.tanggal|date:"d M" }}</td><td>{{ b.kategori }}</td>
+    <td>{{ b.keterangan }}{% if b.foto_key %} <a href="{% url 'master:biaya_foto' b.id %}" target="_blank" rel="noopener" class="kecil">foto</a>{% endif %}
+      {% if b.alasan %}<div class="kecil redup">{{ b.alasan }}</div>{% endif %}</td>
+    <td class="kecil">{{ b.get_sumber_display }}</td>
+    <td class="angka">{{ b.jumlah|ribuan }}</td>
+    <td>{% if b.status == 'menunggu' %}<span class="label">menunggu</span>{% elif b.status == 'disetujui' %}<span class="label baik">disetujui</span>{% elif b.status == 'ditolak' %}<span class="label bahaya">ditolak</span>{% if b.sumber == 'laci' %} <span class="kecil">{% if b.diganti %}sudah diganti{% else %}belum diganti{% endif %}</span>{% endif %}{% else %}<span class="label">batal</span>{% endif %}</td>
+    <td class="kecil redup">{{ b.dicatat_oleh }}{% if b.acc_oleh and b.acc_oleh != b.dicatat_oleh %} · ACC {{ b.acc_oleh }}{% endif %}</td>
+    <td>{% if bisa_catat and b.status != 'batal' and b.status != 'ditolak' %}<form method="post" class="baris" style="flex-wrap:nowrap;gap:4px">{% csrf_token %}<input type="hidden" name="aksi" value="batal"><input type="hidden" name="id" value="{{ b.id }}"><input type="text" name="alasan" placeholder="alasan batal" style="width:120px" required><button class="tombol kecil bahaya" type="submit" title="{% if b.sumber == 'laci' %}Uang keluar di kas ikut dibatalkan{% endif %}">Batal</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="redup" style="padding:20px;text-align:center">Belum ada catatan.</td></tr>{% endfor %}
+</table></div>
+{% if jumlah_daftar > 300 %}<p class="kecil redup">Menampilkan 300 dari {{ jumlah_daftar }} catatan. Saring per kategori untuk melihat sisanya.</p>{% endif %}
+
+{% if bisa_catat %}
+<h3>Kategori</h3>
+<p class="kecil redup">Diisi sendiri. Kategori yang aktif juga menjadi pilihan uang keluar di tablet. "Biaya usaha" = dihitung sebagai biaya; matikan untuk yang bukan biaya, misalnya uang diambil pemilik atau bayar supplier (modal barang sudah dihitung lewat pembelian).</p>
+{% for k in kategori %}<form method="post" id="kat-{{ k.id }}">{% csrf_token %}<input type="hidden" name="aksi" value="kategori"><input type="hidden" name="id" value="{{ k.id }}"><input type="hidden" name="aktif" value="0"></form>{% endfor %}
+<form method="post" id="kat-baru">{% csrf_token %}<input type="hidden" name="aksi" value="kategori"></form>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Biaya usaha</th><th>Aktif</th><th></th></tr>
+  {% for k in kategori %}<tr class="{% if not k.aktif %}nonaktif{% endif %}">
+    <td><input form="kat-{{ k.id }}" type="text" name="nama" value="{{ k.nama }}" maxlength="40" required aria-label="Nama kategori" style="min-width:180px"></td>
+    <td><input form="kat-{{ k.id }}" type="checkbox" name="biaya_usaha" value="1" {% if k.biaya_usaha %}checked{% endif %} style="width:auto" aria-label="Biaya usaha"></td>
+    <td><input form="kat-{{ k.id }}" type="checkbox" name="aktif" value="1" {% if k.aktif %}checked{% endif %} style="width:auto" aria-label="Aktif"></td>
+    <td><button form="kat-{{ k.id }}" class="tombol kecil" type="submit">Simpan</button></td></tr>{% endfor %}
+  <tr>
+    <td><input form="kat-baru" type="text" name="nama" maxlength="40" required placeholder="+ Kategori baru, mis. Listrik" aria-label="Kategori baru" style="min-width:180px"></td>
+    <td><input form="kat-baru" type="checkbox" name="biaya_usaha" value="1" checked style="width:auto" aria-label="Biaya usaha"></td>
+    <td></td><td><button form="kat-baru" class="tombol kecil utama" type="submit">Tambah</button></td></tr>
+</table></div>
+{% endif %}
+{% endblock %}

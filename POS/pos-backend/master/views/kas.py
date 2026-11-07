@@ -35,7 +35,7 @@ def halaman(request):
         return redirect("master:kas")
     return render(request, "master/kas.html", {
         "menu": "kas", "toko": toko, "k": svc.ringkas(toko), "riwayat": svc.riwayat(toko),
-        "kategori": svc.KATEGORI_KELUAR, "gerak_baru": uuid.uuid4(),
+        "kategori": svc.kategori_keluar(), "gerak_baru": uuid.uuid4(),
     })
 
 

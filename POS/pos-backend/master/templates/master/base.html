@@ -191,13 +191,14 @@ html[data-ukuran="110"] body{zoom:1.1}
       {% if 'opname' in hak %}<a href="{% url 'master:laporan_selisih' %}" class="{% if menu == 'laporan_selisih' %}aktif{% endif %}">Selisih stok</a>{% endif %}
     </div></details>
     {% endif %}
-    {% if 'laporan' in hak or 'kelola_kasir' in hak or 'piutang' in hak or 'kas' in hak %}
-    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau titipan piutang pelanggan kas" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
+    {% if 'laporan' in hak or 'kelola_kasir' in hak or 'piutang' in hak or 'kas' in hak or 'biaya' in hak or 'acc_biaya' in hak %}
+    <details{% if menu|dalam:"nota nota_manual retur nota_tinjau titipan piutang pelanggan kas biaya" %} open{% endif %}><summary>Penjualan{% if jumlah_penjualan != "0" %}<span class="angka-menu">{{ jumlah_penjualan }}</span>{% endif %}</summary><div class="isi-grup">
       {% if 'laporan' in hak %}
       <a href="{% url 'master:nota' %}" class="{% if menu == 'nota' %}aktif{% endif %}">Nota kasir</a>
       <a href="{% url 'master:nota_manual' %}" class="{% if menu == 'nota_manual' %}aktif{% endif %}">Nota tulis tangan</a>
       {% endif %}
       {% if 'kas' in hak %}<a href="{% url 'master:kas' %}" class="{% if menu == 'kas' %}aktif{% endif %}">Kas laci{% if jumlah_kas_acc %}<span class="angka-menu">{{ jumlah_kas_acc }}</span>{% endif %}</a>{% endif %}
+      {% if 'biaya' in hak or 'acc_biaya' in hak %}<a href="{% url 'master:biaya' %}" class="{% if menu == 'biaya' %}aktif{% endif %}">Biaya toko{% if jumlah_biaya_acc %}<span class="angka-menu">{{ jumlah_biaya_acc }}</span>{% endif %}</a>{% endif %}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:nota_tinjau' %}" class="{% if menu == 'nota_tinjau' %}aktif{% endif %}">Nota perlu ACC{% if jumlah_tinjau %}<span class="angka-menu">{{ jumlah_tinjau }}</span>{% endif %}</a>{% endif %}
       {% if 'laporan' in hak %}<a href="{% url 'master:retur' %}" class="{% if menu == 'retur' %}aktif{% endif %}">Retur barang{% if jumlah_retur %}<span class="angka-menu">{{ jumlah_retur }}</span>{% endif %}</a>{% endif %}
       {% if 'piutang' in hak %}<a href="{% url 'master:piutang' %}" class="{% if menu == 'piutang' %}aktif{% endif %}">Piutang &amp; pesanan{% if jumlah_piutang_acc %}<span class="angka-menu">{{ jumlah_piutang_acc }}</span>{% endif %}</a>

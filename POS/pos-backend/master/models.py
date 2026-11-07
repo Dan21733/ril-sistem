@@ -12,6 +12,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Toko(models.Model):
@@ -1314,3 +1315,67 @@ class BuktiDicek(models.Model):
 
     class Meta:
         db_table = "master_bukti_dicek"
+
+
+class KategoriBiaya(models.Model):
+    """Kategori pengeluaran toko, diisi sendiri oleh pemilik (rancangan pembukuan 7 Nov 2026).
+
+    Juga dipakai sebagai pilihan "uang keluar" di tablet. `biaya_usaha` = dihitung
+    sebagai biaya di laporan; yang bukan (diambil pemilik, bayar supplier) tetap
+    dicatat tapi dipisah.
+    """
+    nama = models.CharField(max_length=40, unique=True)
+    biaya_usaha = models.BooleanField(default=True)
+    aktif = models.BooleanField(default=True)
+    urutan = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "master_kategori_biaya"
+        ordering = ["urutan", "nama"]
+
+    def __str__(self):
+        return self.nama
+
+
+class Biaya(models.Model):
+    """Satu pengeluaran toko.
+
+    Uang keluar dari laci di tablet ikut tercatat di sini (ditautkan lewat
+    `gerak_id` ke `kas_gerak`, tabel POS tidak diubah). Yang dicatat kasir wajib
+    ACC; yang dicatat pemilik (master/HP) langsung disetujui. Uang laci yang
+    ditolak tetap keluar dari kas, dan menjadi tanggungan pencatatnya sampai
+    diganti.
+    """
+    SUMBER = [("laci", "Laci kasir"), ("luar_laci", "Tunai luar laci")]
+    STATUS = [("menunggu", "Menunggu ACC"), ("disetujui", "Disetujui"), ("ditolak", "Ditolak"),
+              ("batal", "Dibatalkan")]
+
+    toko = models.ForeignKey(Toko, on_delete=models.PROTECT, related_name="biaya", null=True)
+    tanggal = models.DateField(db_index=True)
+    kategori = models.CharField(max_length=40)
+    jumlah = models.BigIntegerField()
+    sumber = models.CharField(max_length=20, choices=SUMBER, default="luar_laci")
+    keterangan = models.CharField(max_length=300, blank=True, default="")
+    status = models.CharField(max_length=10, choices=STATUS, default="menunggu", db_index=True)
+    gerak_id = models.UUIDField(null=True, blank=True, unique=True)
+    dicatat_oleh = models.CharField(max_length=150, blank=True, default="")
+    worker_id = models.CharField(max_length=5, blank=True, default="")
+    dicatat_waktu = models.DateTimeField(default=timezone.now)
+    acc_oleh = models.CharField(max_length=150, blank=True, default="")
+    acc_waktu = models.DateTimeField(null=True, blank=True)
+    alasan = models.CharField(max_length=300, blank=True, default="")
+    # Uang laci yang ditolak: sudah diganti oleh pencatatnya?
+    diganti = models.BooleanField(default=False)
+    diganti_waktu = models.DateTimeField(null=True, blank=True)
+    diganti_oleh = models.CharField(max_length=150, blank=True, default="")
+    # Foto nota (opsional). KEY di storage, bukan URL (sama seperti foto faktur).
+    foto_key = models.CharField(max_length=300, blank=True, default="")
+    foto_type = models.CharField(max_length=60, blank=True, default="")
+
+    class Meta:
+        db_table = "master_biaya"
+        ordering = ["-tanggal", "-dicatat_waktu"]
+
+    @property
+    def perlu_diganti(self):
+        return self.status == "ditolak" and self.sumber == "laci" and not self.diganti

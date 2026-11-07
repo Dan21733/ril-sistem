@@ -14,7 +14,7 @@ from master.layanan import inti as layanan
 from master.layanan.inti import Tolak
 
 rp = inti.rp
-KATEGORI_KELUAR = inti.KATEGORI_KELUAR
+kategori_keluar = inti.kategori_keluar
 
 BARIS_RINCIAN = [
     ("modal_awal", "Modal saat buka", 1),

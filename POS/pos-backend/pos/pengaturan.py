@@ -31,6 +31,9 @@ BAWAAN = {
     "bukan_kasir": "",
     # Diskon persen di kasir dibulatkan KE ATAS ke kelipatan ini (diatur di master, menu Toko).
     "pembulatan_diskon": "100",
+    # "1" = kasir boleh mencatat uang keluar dari laci di tablet (masuk antrean ACC biaya);
+    # "0" = hanya pemilik (master/HP) yang mencatat.
+    "kasir_uang_keluar": "1",
 }
 
 

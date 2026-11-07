@@ -1,0 +1,75 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Biaya toko · DB Toko{% endblock %}
+{% block judul_kecil %}Biaya toko{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Biaya toko</h1>
+<p class="anak-judul">{{ toko.nama }} · {{ awal|date:"F Y" }}</p>
+
+<div class="ubin">
+  <div><div class="lbl">Biaya usaha</div><div class="angka">{{ r.total_usaha|rupiah }}</div><div class="ket">disetujui bulan ini</div></div>
+  <div><div class="lbl">Bukan biaya</div><div class="angka">{{ r.total_lain|rupiah }}</div><div class="ket">mis. diambil pemilik</div></div>
+</div>
+{% if r.menunggu %}<p class="ket-grup">{{ r.menunggu }} catatan menunggu ACC ({{ r.menunggu_rp|rupiah }}), belum dihitung.</p>{% endif %}
+{% if r.perlu_diganti %}<p class="ket-grup turun">{{ r.perlu_diganti }} uang laci ditolak belum diganti ({{ r.perlu_diganti_rp|rupiah }}).</p>{% endif %}
+
+<button class="tombol penuh" data-buka-lembar="lembar-biaya" style="margin-top:12px">Catat pengeluaran</button>
+
+{% if r.usaha or r.lain %}
+<div class="kepala-grup"><h2>Per kategori</h2></div>
+<div class="grup">
+  {% for p in r.usaha %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ p.kategori }}</div><div class="sub">{{ p.n }} catatan</div></div><span class="nilai">{{ p.total|rupiah }}</span></div>{% endfor %}
+  {% for p in r.lain %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ p.kategori }} <span class="redup">· bukan biaya</span></div><div class="sub">{{ p.n }} catatan</div></div><span class="nilai">{{ p.total|rupiah }}</span></div>{% endfor %}
+</div>
+{% endif %}
+
+<div class="kepala-grup"><h2>Catatan</h2></div>
+<div class="grup">{% for b in daftar %}
+  <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ b.kategori }}{% if b.status == 'menunggu' %} <span class="lencana">menunggu ACC</span>{% elif b.status == 'ditolak' %} <span class="lencana merah">ditolak</span>{% endif %}</div>
+    <div class="sub" style="white-space:normal">{{ b.tanggal|date:"d M" }} · {{ b.dicatat_oleh }} · {{ b.get_sumber_display|lower }}{% if b.keterangan %} · {{ b.keterangan }}{% endif %}</div></div>
+    <span class="nilai">{{ b.jumlah|rupiah }}</span></div>
+  {% empty %}<div class="kosong">Belum ada catatan bulan ini.</div>{% endfor %}</div>
+<p class="ket-grup">Kategori, ACC, dan bulan lain ada di master, menu Biaya toko.</p>
+
+<dialog class="lembar" id="lembar-biaya" aria-label="Catat pengeluaran">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup type="button">Batal</button><b>Catat pengeluaran</b><button class="kanan" id="tombol-biaya" type="button">Simpan</button></div>
+  <div class="badan">
+    <form id="f-biaya">
+    <div class="seg"><label><input type="radio" name="sumber" value="luar_laci" checked><span>Tunai luar laci</span></label>{% if boleh_laci %}<label><input type="radio" name="sumber" value="laci"><span>Dari laci kasir</span></label>{% endif %}</div>
+    <div class="grup">
+      <label class="isian"><span>Jumlah</span><input name="jumlah" inputmode="numeric" placeholder="0" data-uang></label>
+      <label class="isian"><span>Untuk</span><select name="kategori"><option value="">Pilih…</option>{% for k in kategori %}<option>{{ k.nama }}</option>{% endfor %}</select></label>
+      <label class="isian"><span>Keterangan</span><input name="keterangan" placeholder="opsional"></label>
+      <label class="isian" id="baris-tanggal"><span>Tanggal</span><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" max="{{ hari_ini|date:'Y-m-d' }}"></label>
+      <label class="isian"><span>Foto nota</span><input type="file" name="foto" accept="image/*,application/pdf" capture="environment"></label>
+    </div>
+    <p class="ket-grup" id="ket-laci" hidden>Dari laci: ikut mengurangi uang di kas hari ini.</p>
+    </form>
+  </div>
+</dialog>
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+(() => {
+  const f = document.getElementById('f-biaya');
+  const pakaiSumber = () => {
+    const laci = f.sumber.value === 'laci';
+    document.getElementById('baris-tanggal').hidden = laci; document.getElementById('ket-laci').hidden = !laci;
+  };
+  f.addEventListener('change', e => { if (e.target.name === 'sumber') pakaiSumber(); });
+  document.getElementById('tombol-biaya').addEventListener('click', async e => {
+    const data = new FormData(f);
+    if (!angka(data.get('jumlah'))) { kabar('Isi jumlahnya.', true); return; }
+    if (!data.get('kategori')) { kabar('Pilih untuk apa.', true); return; }
+    data.set('jumlah', angka(data.get('jumlah')));
+    if (!f.foto.files.length) data.delete('foto');
+    e.target.disabled = true;
+    try { const d = await kirim("{% url 'hp:biaya' %}", data, true); kabar(d.pesan); setTimeout(() => location.reload(), 500); }
+    catch (err) { kabar(err.message, true); e.target.disabled = false; }
+  });
+  pakaiSumber();
+})();
+</script>
+{% endblock %}

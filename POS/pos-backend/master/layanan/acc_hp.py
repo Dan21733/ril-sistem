@@ -66,6 +66,23 @@ def daftar(user):
                 "waktu": s.ditutup_waktu, "putus": True, "url": reverse("hp:kas_detail", args=[s.pk]),
             })
 
+    if "acc_biaya" in hak:
+        from master.layanan import biaya as svc_biaya
+        from master.models import Biaya
+        svc_biaya.tarik_dari_kas()
+        for b in Biaya.objects.filter(status="menunggu").select_related("toko").order_by("dicatat_waktu")[:30]:
+            hasil.append({
+                "kunci": f"biaya:{b.id}", "jenis": "biaya", "id": b.id, "toko": b.toko or kasir,
+                "label": "Uang keluar" if b.sumber == "laci" else "Biaya toko",
+                "judul": b.kategori + (f" · {b.keterangan}" if b.keterangan else ""),
+                "sub": f"dicatat {b.dicatat_oleh}" + (" dari laci kasir" if b.sumber == "laci" else ""),
+                "nilai": b.jumlah,
+                "arti": "Terima: dihitung sebagai pengeluaran toko. Tolak: uangnya sudah keluar dari laci, "
+                        "jadi menjadi tanggungan pencatatnya sampai diganti." if b.sumber == "laci" else
+                        "Terima: dihitung sebagai pengeluaran toko.",
+                "waktu": b.dicatat_waktu, "putus": True, "url": "",
+            })
+
     if "ubah_stok" in hak:
         from master.models import BukaDus
         for b in BukaDus.objects.filter(status="menunggu").select_related("konversi__dari", "konversi__ke")[:30]:

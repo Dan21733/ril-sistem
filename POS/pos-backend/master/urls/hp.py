@@ -32,6 +32,7 @@ urlpatterns = [
     path("toko/", v.pilih_toko, name="pilih_toko"),
     path("opname/<int:opname_id>/", v.opname, name="opname"),
     path("kas/", v.kas, name="kas"),
+    path("biaya/", v.biaya, name="biaya"),
     path("kas/<uuid:sesi_id>/", v.kas_detail, name="kas_detail"),
     path("piutang/", v.piutang, name="piutang"),
     path("piutang/<int:piutang_id>/", v.piutang_detail, name="piutang_detail"),

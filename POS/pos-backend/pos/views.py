@@ -1532,6 +1532,11 @@ class KasGerakAPIView(APIView):
         data = request.data if isinstance(request.data, dict) else {}
         device_id, kode = _device_id(request)
         boleh = ("keluar", "tambah_modal") if _boleh_kas(device_id) else ("keluar",)
+        if not kas.boleh_keluar_tablet():
+            boleh = tuple(j for j in boleh if j != "keluar")
+            if (data.get("jenis") or "keluar") == "keluar":
+                return Response({"detail": "Uang keluar dicatat oleh pemilik, tidak dari tablet."},
+                                status=status.HTTP_400_BAD_REQUEST)
         worker_id, tolak = _pin_badan(request, data)
         if tolak is not None:
             return tolak

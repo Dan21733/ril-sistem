@@ -46,6 +46,11 @@
 
 {% include "hp/_acc.html" with semua=False %}
 
+{% if 'biaya' in hak %}
+<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:biaya' %}"><div class="utama"><div class="nama">Biaya toko</div>
+  <div class="sub">Catat pengeluaran, lihat bulan ini</div></div></a></div>
+{% endif %}
+
 {% if piutang_ringkas and piutang_ringkas.jumlah %}
 <div class="grup" style="margin-top:12px"><a class="sel" href="{% url 'hp:piutang' %}"><div class="utama"><div class="nama">Piutang pelanggan</div>
   <div class="sub">{{ piutang_ringkas.jumlah }} nota belum lunas{% if piutang_ringkas.lewat %} · <span class="turun">{{ piutang_ringkas.lewat }} lewat jatuh tempo</span>{% endif %}</div></div>

@@ -147,7 +147,7 @@ def kirim_ke(langganan_qs, data):
 
 # Hak yang dibutuhkan untuk tiap jenis permintaan ACC.
 HAK_JENIS = {"nota": "kelola_kasir", "tugas": "kelola_lokasi", "dus": "ubah_stok", "po": "pembelian",
-             "piutang": "acc_piutang", "tempo": "piutang", "kas": "kas"}
+             "piutang": "acc_piutang", "tempo": "piutang", "kas": "kas", "biaya": "acc_biaya"}
 
 
 def menunggu():
@@ -180,6 +180,12 @@ def menunggu():
     for s in KasSesi.objects.filter(status="ditutup", acc_status="menunggu").order_by("ditutup_waktu")[:50]:
         hasil.append((f"kas:{s.pk}", "kas", "Tutup kas menunggu ACC",
                       f"{s.ditutup_oleh} · selisih {svc_piutang.rp(s.selisih)}", reverse("hp:kas_detail", args=[s.pk])))
+    from master.layanan import biaya as svc_biaya
+    from master.models import Biaya
+    svc_biaya.tarik_dari_kas()
+    for b in Biaya.objects.filter(status="menunggu").order_by("dicatat_waktu")[:50]:
+        hasil.append((f"biaya:{b.id}", "biaya", "Uang keluar menunggu ACC",
+                      f"{b.dicatat_oleh} · {b.kategori} {svc_biaya.rp(b.jumlah)}", reverse("hp:beranda")))
     for p in svc_piutang.lewat_tempo()[:50]:
         hasil.append((f"tempo:{p.id}:{p.jatuh_tempo:%Y%m%d}", "tempo", "Piutang lewat jatuh tempo",
                       f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))

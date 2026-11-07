@@ -34,6 +34,10 @@
   </div>
   <p class="kecil redup">100 = pembeli bisa menerima kembali seluruh uang yang dibayarnya. Misalnya 90 = paling banyak 90% dari total nota, dihitung kumulatif untuk semua void, retur, dan refund pada nota yang sama.</p>
 
+  <h3>Uang keluar dari laci</h3>
+  <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="kasir_uang_keluar" value="1" {% if a.kasir_uang_keluar != "0" %}checked{% endif %} style="width:auto"> Kasir boleh mencatat uang keluar dari tablet</label>
+  <p class="kecil redup">Kalau dicentang, kasir bisa mencatat uang keluar (bensin, belanja keperluan toko, dll.) dengan PIN-nya, dan catatan itu menunggu ACC di <a href="{% url 'master:biaya' %}">Biaya toko</a> / HP. Kalau ditolak, uangnya tetap sudah keluar dari laci dan menjadi tanggungan kasir yang mencatat. Kalau tidak dicentang, uang keluar hanya dicatat pemilik dari master atau HP.</p>
+
   <div style="margin-top:16px"><button class="tombol utama" type="submit">Simpan</button></div>
 </form>
 {% endblock %}

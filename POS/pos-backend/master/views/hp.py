@@ -292,6 +292,13 @@ def acc(request):
             from master.layanan import kas as svc_kas
             svc_kas.acc(request.user, d.get("id"), aksi == "terima", d.get("alasan") or "")
             return _jawab(pesan="Tutup kas diterima." if aksi == "terima" else "Tutup kas ditolak.")
+        if jenis == "biaya":
+            if "acc_biaya" not in hak:
+                raise Tolak("Akun ini tidak boleh memberi ACC biaya.")
+            from master.layanan import biaya as svc_biaya
+            b = svc_biaya.acc(request.user, d.get("id"), aksi == "terima", d.get("alasan") or "")
+            return _jawab(pesan="Uang keluar disetujui." if aksi == "terima" else
+                          f"Ditolak. {b.dicatat_oleh} perlu mengganti {svc_biaya.rp(b.jumlah)}." if b.sumber == "laci" else "Ditolak.")
         if jenis == "dus":
             if "ubah_stok" not in hak:
                 raise Tolak("Akun ini tidak boleh mengubah stok.")
@@ -687,7 +694,8 @@ def setelan(request):
                                               ("dus", "Buka dus dari gudang"), ("po", "Barang datang, PO menunggu ACC"),
                                               ("piutang", "Invoice / titip barang menunggu ACC"),
                                               ("tempo", "Piutang pelanggan lewat jatuh tempo"),
-                                              ("kas", "Tutup kas menunggu ACC"))
+                                              ("kas", "Tutup kas menunggu ACC"),
+                                              ("biaya", "Uang keluar dari kasir menunggu ACC"))
                   if svc_push.HAK_JENIS[jenis] in hak],
     })
 
@@ -998,7 +1006,32 @@ def kas(request):
         return _jawab(False, "Permintaan tidak dikenali.", 400)
     return _tampil(request, "hp/kas.html", {
         "tab": "", "toko": toko, "k": svc.ringkas(toko), "riwayat": svc.riwayat(toko, 14),
-        "kategori": svc.KATEGORI_KELUAR, "gerak_baru": _uuid.uuid4()})
+        "kategori": svc.kategori_keluar(), "gerak_baru": _uuid.uuid4()})
+
+
+@perlu_hp("biaya")
+def biaya(request):
+    """Catat pengeluaran toko dari HP + daftar bulan ini (rancangan pembukuan 7 Nov 2026)."""
+    from master.layanan import biaya as svc
+    from master.layanan import kas as svc_kas
+    from master.layanan.toko import toko_aktif
+    toko = toko_aktif(request)
+    if request.method == "POST":
+        try:
+            if request.POST.get("aksi") == "batal":
+                svc.batal(request.user, request.POST.get("id"), request.POST.get("alasan"))
+                return _jawab(pesan="Catatan dibatalkan.")
+            b = svc.catat(request.user, toko, request.POST, request.FILES.get("foto"), dari="hp")
+            return _jawab(pesan=f"{b.kategori} {svc.rp(b.jumlah)} tercatat.")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+    svc.tarik_dari_kas()
+    awal, akhir = svc.rentang_bulan(request.GET.get("bulan") or "")
+    return _tampil(request, "hp/biaya.html", {
+        "tab": "", "toko": toko, "awal": awal, "r": svc.ringkas(toko, awal, akhir),
+        "daftar": svc.daftar(toko, awal, akhir).exclude(status="batal")[:100],
+        "kategori": svc.kategori_aktif(), "boleh_laci": svc_kas.punya_kas(toko), "hari_ini": timezone.localdate(),
+    })
 
 
 @perlu_hp("kas")

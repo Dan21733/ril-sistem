@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { fetchKasStatus, postKasBuka, postKasTutup } from '../services/api/kasApi'
 import { createUuid } from '../services/id'
@@ -57,6 +57,11 @@ const sesi = computed(() => status.value?.sesi || null)
 const sudahTutup = computed(() => tutupHariIni(status.value))
 const actionPane = ref(null)
 const bolehKas = computed(() => Boolean(status.value?.boleh_kas))
+/* Saklar pemilik (Aturan kasir): kasir boleh mencatat uang keluar. Status lama tanpa kolom ini = boleh. */
+const bolehKeluar = computed(() => status.value?.boleh_keluar !== false)
+watch(bolehKeluar, (boleh) => {
+  if (!boleh && jenis.value === 'keluar') jenis.value = 'tambah_modal'
+}, { immediate: true })
 const gerak = computed(() => mergeGerak(sesi.value?.gerak || [], localRows.value))
 const totalKeluar = computed(() => gerak.value.filter((g) => g.jenis === 'keluar').reduce((n, g) => n + Number(g.jumlah || 0), 0))
 const totalDihitung = computed(() => Number(digitsOnly(diambil.value) || 0) + Number(digitsOnly(uangSisa.value) || 0))
@@ -279,9 +284,10 @@ defineExpose({ load })
         <p v-if="!online" class="kas-muted">Buka kas butuh koneksi ke server.</p>
       </div>
 
-      <div class="kas-action">
+      <div v-if="bolehKeluar || bolehKas" class="kas-action">
         <p class="kas-action-title">Catat {{ jenis === 'tambah_modal' ? 'tambah modal' : 'uang keluar' }}</p>
-        <div v-if="bolehKas" class="kas-chips">
+        <p v-if="jenis === 'keluar'" class="kas-muted">Uang keluar menunggu ACC pemilik.</p>
+        <div v-if="bolehKas && bolehKeluar" class="kas-chips">
           <button type="button" class="kas-chip" :class="{ selected: jenis === 'keluar' }" @click="jenis = 'keluar'">Uang keluar</button>
           <button type="button" class="kas-chip" :class="{ selected: jenis === 'tambah_modal' }" @click="jenis = 'tambah_modal'">Tambah modal</button>
         </div>

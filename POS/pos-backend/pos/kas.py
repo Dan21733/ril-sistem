@@ -27,6 +27,8 @@ from .models import (AksiPiutang, DeviceStatus, KasGerak, KasSesi, NotaTinjau, R
                      Worker)
 
 CADANGAN_BAWAAN = 400000
+# Cadangan kalau daftar kategori master belum ada (database lama / uji POS saja).
+# Daftar yang dipakai diisi pemilik di master (menu Biaya toko → Kategori).
 KATEGORI_KELUAR = [
     "Diambil pemilik",
     "Belanja keperluan toko",
@@ -36,6 +38,22 @@ KATEGORI_KELUAR = [
     "Lainnya",
 ]
 JENIS_TABLET = ("keluar", "tambah_modal")
+
+
+def kategori_keluar():
+    """Kategori uang keluar yang aktif, urut seperti di master. Tabel milik master dibaca langsung."""
+    try:
+        with transaction.atomic(), connection.cursor() as c:
+            c.execute("SELECT nama FROM master_kategori_biaya WHERE aktif ORDER BY urutan, nama")
+            daftar = [r[0] for r in c.fetchall()]
+    except DatabaseError:
+        return list(KATEGORI_KELUAR)
+    return daftar or list(KATEGORI_KELUAR)
+
+
+def boleh_keluar_tablet():
+    """Saklar pemilik: kasir boleh mencatat uang keluar dari tablet (Aturan kasir)."""
+    return str(pengaturan.baca("kasir_uang_keluar")) != "0"
 # Laporan antrean tablet lebih tua dari ini dianggap basi: tablet itu mungkin
 # sudah lama mati. Tetap ditampilkan, tetapi pemilik bisa memaksa tutup.
 ANTREAN_BASI = datetime.timedelta(hours=12)
@@ -373,7 +391,7 @@ def catat_gerak(data, *, toko_id, oleh, dari, worker_id="", jenis_boleh=None):
     kategori = str(data.get("kategori") or "").strip()[:40]
     keterangan = str(data.get("keterangan") or "").strip()[:300]
     if jenis == "keluar":
-        if kategori not in KATEGORI_KELUAR:
+        if kategori not in kategori_keluar():
             raise KasDitolak("Pilih kategori uang keluar.")
         if kategori == "Lainnya" and not keterangan:
             raise KasDitolak("Tulis keterangan untuk uang keluar lainnya.")
@@ -437,7 +455,8 @@ def status_tablet(device_id):
         "kunci_alasan": st.kunci_alasan if st and st.dikunci else "",
         "boleh_kas": bool(st and st.boleh_kas),
         "mode_pemilik": not ada_tablet_kas(),
-        "kategori": KATEGORI_KELUAR,
+        "kategori": kategori_keluar(),
+        "boleh_keluar": boleh_keluar_tablet(),
         "sisa_minimal": sisa_minimal(toko_id),
         "cadangan": cadangan_nominal(),
         "cadangan_terpakai": cadangan_terpakai(toko_id) if toko_id is not None else 0,
