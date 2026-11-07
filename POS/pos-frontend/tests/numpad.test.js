@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { letakPapan, papanAktif, tekanTombol } from '../src/utils/numpad.js'
+import { lepasKarenaPapan, letakPapan, papanAktif, tekanTombol } from '../src/utils/numpad.js'
 
 test('angka pertama mengganti isi lama, berikutnya menambah', () => {
   assert.equal(tekanTombol('Rp 86.000', '9', { segar: true }), '9')
@@ -55,4 +55,12 @@ test('papan aktif di layar sentuh atau dipaksa lewat localStorage', () => {
   assert.equal(papanAktif(win(false, null)), false)
   assert.equal(papanAktif(win(false, '1')), true)
   assert.equal(papanAktif(win(true, '0')), false)
+})
+
+test('lepas fokus karena ketukan di papan tidak menutup papan (tablet Android)', () => {
+  assert.equal(lepasKarenaPapan({ fokusBaruDiPapan: true }), true)
+  assert.equal(lepasKarenaPapan({ msSejakTekan: 80 }), true)
+  // Pindah ke tempat lain (tekan papan sudah lama / tidak pernah): papan ditutup.
+  assert.equal(lepasKarenaPapan({ msSejakTekan: 5000 }), false)
+  assert.equal(lepasKarenaPapan({}), false)
 })

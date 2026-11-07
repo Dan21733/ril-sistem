@@ -10,7 +10,7 @@
  * memvalidasi; papan ini tidak tahu arti angkanya.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { letakPapan, papanAktif, PEMILIH_ISIAN_ANGKA, PEMILIH_ISIAN_TERTANDA, tekanTombol } from '../utils/numpad'
+import { lepasKarenaPapan, letakPapan, papanAktif, PEMILIH_ISIAN_ANGKA, PEMILIH_ISIAN_TERTANDA, tekanTombol } from '../utils/numpad'
 
 const papan = ref(null)
 const target = ref(null)
@@ -19,6 +19,7 @@ let segar = false
 let berubah = false
 let pengamat = null
 let aktif = false
+let tekanPapan = -Infinity
 
 const desimal = computed(() => target.value?.dataset.numpadMode === 'decimal')
 const tombolKiriBawah = computed(() => {
@@ -49,6 +50,8 @@ function aturLetak() {
 }
 
 async function buka(isian) {
+  // Fokus kembali ke isian yang sama (setelah ketukan papan): lanjutkan ketikan, jangan mulai "segar".
+  if (target.value === isian) return
   if (target.value && target.value !== isian) selesai(false)
   target.value = isian
   segar = true
@@ -98,10 +101,24 @@ function saatFokus(e) {
 }
 
 function saatLepasFokus(e) {
-  if (e.target !== target.value) return
+  const isian = target.value
+  if (e.target !== isian) return
   // Fokus pindah ke isian angka lain: `saatFokus` yang mengurus.
   if (e.relatedTarget instanceof HTMLInputElement && e.relatedTarget.matches(PEMILIH_ISIAN_TERTANDA)) return
+  // Jari mengetuk papan sendiri: kembalikan fokus ke isian, papan tetap terbuka.
+  const keadaan = {
+    fokusBaruDiPapan: Boolean(e.relatedTarget && papan.value?.contains(e.relatedTarget)),
+    msSejakTekan: performance.now() - tekanPapan,
+  }
+  if (lepasKarenaPapan(keadaan)) {
+    requestAnimationFrame(() => { if (target.value === isian) isian.focus({ preventScroll: true }) })
+    return
+  }
   selesai(false)
+}
+
+function catatTekan() {
+  tekanPapan = performance.now()
 }
 
 function saatTekanLuar(e) {
@@ -145,18 +162,21 @@ onBeforeUnmount(() => {
       role="group"
       aria-label="Papan angka"
       :style="{ left: `${posisi.left}px`, top: `${posisi.top}px` }"
+      @pointerdown.capture="catatTekan"
       @pointerdown.prevent
+      @mousedown.prevent
+      @touchstart.prevent
     >
       <template v-for="(isi, i) in baris" :key="i">
         <template v-for="(t, j) in isi" :key="`${i}-${j}`">
-          <button v-if="t === 'hapus'" type="button" class="numpad-key is-muted" aria-label="Hapus satu angka" @pointerdown.prevent="tekan('hapus')">
+          <button v-if="t === 'hapus'" type="button" tabindex="-1" class="numpad-key is-muted" aria-label="Hapus satu angka" @pointerdown.prevent="tekan('hapus')">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5h11v14H9l-6-7z" /><path d="m12 9 5 6m0-6-5 6" /></svg>
           </button>
-          <button v-else-if="t" type="button" class="numpad-key" @pointerdown.prevent="tekan(t)">{{ t }}</button>
+          <button v-else-if="t" type="button" tabindex="-1" class="numpad-key" @pointerdown.prevent="tekan(t)">{{ t }}</button>
           <span v-else aria-hidden="true" />
         </template>
       </template>
-      <button type="button" class="numpad-key is-ok" @pointerdown.prevent="tekan('ok')">OK</button>
+      <button type="button" tabindex="-1" class="numpad-key is-ok" @pointerdown.prevent="tekan('ok')">OK</button>
     </div>
   </Teleport>
 </template>

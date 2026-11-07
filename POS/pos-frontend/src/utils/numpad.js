@@ -75,6 +75,20 @@ export function letakPapan(kotak, ukuran, layar, { jarak = 12, tepi = 8 } = {}) 
 }
 
 /**
+ * Apakah lepas fokus isian disebabkan ketukan di papan sendiri (bug tablet 2026-11-07).
+ *
+ * Di Android, ketukan jari bisa memindah fokus ke tombol papan walau
+ * `pointerdown` sudah dicegah; dulu itu dianggap "pindah ke tempat lain", papan
+ * tertutup setiap satu angka, dan angka berikutnya (isian dibuka ulang = segar)
+ * menimpa angka sebelumnya. PIN 6 digit jadi tidak pernah bisa diketik.
+ * `fokusBaru`: elemen tujuan fokus ada di dalam papan; `msSejakTekan`: jarak
+ * waktu sejak papan terakhir disentuh.
+ */
+export function lepasKarenaPapan({ fokusBaruDiPapan = false, msSejakTekan = Infinity } = {}, batasMs = 600) {
+  return Boolean(fokusBaruDiPapan) || msSejakTekan < batasMs
+}
+
+/**
  * Papan angka dipakai di layar sentuh, atau dipaksa lewat localStorage
  * `pos.numpad` = '1' (pengujian) / '0' (matikan).
  */
