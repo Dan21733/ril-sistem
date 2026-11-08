@@ -11,13 +11,20 @@
   <button class="tombol" type="submit">Cari</button>
 </form>
 
+{% if t.bisa_diisi %}
+<div id="draf-hitung" class="pesan warning" hidden>{% csrf_token %}
+  <b><span data-n></span> hitungan belum tersimpan</b> <span class="kecil" data-daftar></span>
+  <div class="kecil" style="margin-top:4px">Tersimpan di tablet ini. Tekan simpan saat sinyal ada.</div>
+  <button type="button" class="tombol kecil utama" data-simpan-draf style="margin-top:6px">Simpan sekarang</button>
+</div>
+{% endif %}
 {% if mencari %}
-<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
+<form method="post" id="form-hitung">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
 <div class="daftar">
   {% for v in hasil %}
   <div class="brs {% if v.terisi %}terisi{% endif %}"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
     <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if v.terisi %} · sudah dihitung: {{ v.terisi.hitung }}{% endif %}</span></div>
-    <input class="angka" type="text" name="hitung_{{ v.id }}" inputmode="numeric" placeholder="{% if v.terisi %}ubah{% else %}jumlah{% endif %}" autocomplete="off"></div>
+    <input class="angka" type="text" name="hitung_{{ v.id }}" data-nama="{{ v.item_name }}{% if v.variant != 'N/A' %} / {{ v.variant }}{% endif %}" inputmode="numeric" placeholder="{% if v.terisi %}ubah{% else %}jumlah{% endif %}" autocomplete="off"></div>
   {% empty %}<div class="brs redup">Tidak ada barang yang cocok di lingkup tugas ini.</div>
   {% endfor %}
 </div>
@@ -30,7 +37,7 @@
 {% if sudah %}
 <div class="daftar">
   {% for b in sudah %}
-  <div class="brs"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
+  <div class="brs" data-sudah="{{ b.varian_id }}" data-hitung="{{ b.hitung }}"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
     <span class="redup kecil">{% if b.varian.rak_id %}rak {{ b.varian.rak_id }} · {% endif %}{{ b.waktu_hitung|date:"d M H:i" }}</span></div>
     <b style="font-size:17px">{{ b.hitung }}</b>
     <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form></div>
@@ -44,5 +51,67 @@
 {% else %}<p class="redup kecil">Belum ada.</p>{% endif %}
 {% else %}
 <div class="pesan info">{% if t.status == 'terbuka' %}Batas waktu tugas ini sudah lewat.{% else %}Tugas ini {{ t.get_status_display|lower }}.{% endif %}{% if t.catatan_putusan %} Catatan pemilik: {{ t.catatan_putusan }}{% endif %}</div>
+{% endif %}
+{% if t.bisa_diisi %}
+<script>
+/*
+ * Hitungan tahan putus sinyal (2026-11-09). Setiap angka yang diketik langsung
+ * disimpan di tablet (localStorage) per tugas. Simpan dikirim lewat fetch: kalau
+ * sinyal putus, angka tetap ada dan bisa dikirim ulang. Draf hilang sendiri
+ * setelah angkanya muncul di "Sudah dihitung" (jadi hitungan yang ditolak server
+ * tidak ikut hilang). Draf dari pencarian lain ikut terkirim.
+ */
+(() => {
+  const KUNCI = 'hitung-draf-{{ t.id }}', kotak = document.getElementById('draf-hitung');
+  const digit = v => String(v ?? '').replace(/\D/g, '');
+  const baca = () => { try { return JSON.parse(localStorage.getItem(KUNCI) || '{}') || {}; } catch (e) { return {}; } };
+  const tulis = d => { try { Object.keys(d).length ? localStorage.setItem(KUNCI, JSON.stringify(d)) : localStorage.removeItem(KUNCI); } catch (e) {} };
+  let draf = baca();
+  // Yang sudah tersimpan di server dengan angka sama: draf selesai.
+  document.querySelectorAll('[data-sudah]').forEach(b => {
+    const d = draf[b.dataset.sudah]; if (d && digit(d.v) === digit(b.dataset.hitung)) delete draf[b.dataset.sudah];
+  });
+  tulis(draf);
+  document.querySelectorAll('#form-hitung input[name^="hitung_"]').forEach(i => { const d = draf[i.name.slice(7)]; if (d && !i.value) i.value = d.v; });
+  function tampil(){
+    const n = Object.keys(draf).length; kotak.hidden = !n; if (!n) return;
+    kotak.querySelector('[data-n]').textContent = n;
+    kotak.querySelector('[data-daftar]').textContent = '· ' + Object.values(draf).slice(0, 4).map(d => d.n + ' = ' + d.v).join(', ') + (n > 4 ? ', …' : '');
+  }
+  document.addEventListener('input', e => {
+    const i = e.target; if (!i.matches('#form-hitung input[name^="hitung_"]')) return;
+    const id = i.name.slice(7);
+    if (i.value.trim()) draf[id] = {v: i.value.trim(), n: i.dataset.nama || ''}; else delete draf[id];
+    tulis(draf); tampil();
+  });
+  async function kirim(tombol){
+    if (!Object.keys(draf).length){ kabar('Belum ada hitungan yang diisi.', true); return; }
+    const data = new FormData();
+    data.set('csrfmiddlewaretoken', document.querySelector('input[name=csrfmiddlewaretoken]').value);
+    data.set('aksi', 'simpan');
+    Object.entries(draf).forEach(([id, d]) => data.set('hitung_' + id, d.v));
+    if (tombol) tombol.disabled = true;
+    try {
+      const r = await fetch(location.href, {method: 'POST', body: data, redirect: 'manual', credentials: 'same-origin'});
+      if (r.type !== 'opaqueredirect' && !r.ok) throw new Error('server ' + r.status);
+      location.replace(location.href);   // pesan & daftar "Sudah dihitung" dari server
+    } catch (err) {
+      if (tombol) tombol.disabled = false;
+      kabar('Belum terkirim: sinyal putus atau server tidak terjangkau. Angkanya aman di tablet, tekan simpan lagi saat sinyal ada.', true);
+    }
+  }
+  const form = document.getElementById('form-hitung');
+  if (form) form.addEventListener('submit', e => { e.preventDefault(); kirim(form.querySelector('button[type=submit]')); });
+  kotak.querySelector('[data-simpan-draf]').addEventListener('click', e => kirim(e.target));
+  // Jangan kirim ke pemilik selagi masih ada hitungan yang belum tersimpan.
+  document.addEventListener('submit', e => {
+    if (e.target.querySelector('input[name=aksi][value=kirim]') && Object.keys(draf).length){
+      e.preventDefault(); e.stopImmediatePropagation();
+      kabar(Object.keys(draf).length + ' hitungan belum tersimpan. Simpan dulu sebelum mengirim ke pemilik.', true);
+    }
+  }, true);
+  tampil();
+})();
+</script>
 {% endif %}
 {% endblock %}
