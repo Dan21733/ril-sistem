@@ -27,8 +27,8 @@
     <td>{{ b.u.item_name }}{% if b.u.variant != '*' %} <span class="redup">/ {{ b.u.variant|varian }}</span>{% endif %}</td>
     <td>{{ b.label }}</td>
     <td class="angka">{% if b.angka %}{{ b.sekarang|ribuan }}{% else %}{{ b.sekarang|default:"(kosong)" }}{% endif %}</td>
-    <td class="angka">{% if b.angka and t.bisa_diputus %}<input type="text" name="nilai_{{ b.u.id }}" value="{{ b.u.baru|ribuan }}" inputmode="numeric" style="width:110px;text-align:right">
-      {% elif b.angka %}<b>{{ b.u.baru|ribuan }}</b>{% else %}<b>{{ b.u.baru|default:"(kosong)" }}</b>{% endif %}</td>
+    <td class="angka">{% if b.angka and t.bisa_diputus %}<input type="text" name="nilai_{{ b.u.id }}" value="{{ b.baru|ribuan }}" inputmode="numeric" style="width:110px;text-align:right">
+      {% elif b.angka %}<b>{{ b.baru|ribuan }}</b>{% else %}<b>{{ b.u.baru|default:"(kosong)" }}</b>{% endif %}</td>
     {% if lihat_modal %}<td class="angka kecil">{% if b.angka %}{{ b.modal|ribuan|default:"-" }}{% endif %}</td>{% endif %}
     <td>{% for kode, teks in b.tanda %}<span class="label {% if kode == 'rugi' or kode == 'terbalik' or kode == 'hilang' %}bahaya{% else %}awas{% endif %}" style="margin:1px">{{ teks }}</span>{% endfor %}</td>
     {% if not t.bisa_diputus %}<td class="kecil">{% if b.u.diterapkan %}<span class="label baik">Diterapkan</span>{% else %}{{ b.u.hasil }}{% endif %}</td>{% endif %}

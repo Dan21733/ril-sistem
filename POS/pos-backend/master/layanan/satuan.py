@@ -173,6 +173,12 @@ def atur(pengguna, item_name, satuan, kelipatan):
                                   lama=lama[kolom], baru=baru[kolom], catatan="konversi satuan")
                 for s in lokasi:
                     StokLokasi.objects.filter(pk=s.pk).update(jumlah=s.jumlah * kali // bagi)
+                # Isi buka dus yang HASIL-nya barang ini (mis. 1 sak -> 50 kg) ikut satuan baru.
+                from master.models import Konversi
+                for kv in Konversi.objects.select_for_update().filter(ke=v):
+                    if bagi > 1 and kv.isi % bagi:
+                        raise Tolak(f"Isi buka dus {kv.dari.item_name} -> {v.item_name} tidak pas ke kelipatan baru.")
+                    Konversi.objects.filter(pk=kv.pk).update(isi=kv.isi * kali // bagi)
                 if v.modal_rata is not None:
                     v.modal_rata = _bagi(v.modal_rata, kali) * bagi
             catat(pengguna, objek="varian", item_name=v.item_name, variant=v.variant, kolom="satuan",
@@ -181,3 +187,50 @@ def atur(pengguna, item_name, satuan, kelipatan):
             v.save(update_fields=["satuan", "kelipatan", "modal_rata"])
             berubah += 1
     return berubah
+
+
+# ---------------------------------------------------------------------------
+# Tahap 3 (9 Nov 2026): baca/tampil jumlah & harga per varian di semua layar
+# gudang, PO, transfer. `x` boleh VarianInfo, baris yang punya `.varian`, atau dict.
+# ---------------------------------------------------------------------------
+
+def satuan_dari(x):
+    """(satuan, kelipatan efektif) dari varian / baris ber-varian / dict; (\"\", 1) kalau tidak ada."""
+    if x is None:
+        return "", 1
+    if isinstance(x, dict):
+        s = x.get("satuan") or ""
+        return s, (int(x.get("kelipatan") or 1) if s else 1)
+    if hasattr(x, "satuan"):
+        return varian_satuan(x)
+    v = getattr(x, "varian", None)
+    return varian_satuan(v) if v is not None else ("", 1)
+
+
+def baca_qty(nilai, x, nama="", boleh_kosong=False):
+    """Jumlah yang diketik orang (per satuan: "12,5") -> jumlah tersimpan (125). Tolak kalau bukan kelipatan."""
+    from master.layanan.inti import baca_angka
+    s, k = satuan_dari(x)
+    if k <= 1:
+        return baca_angka(nilai, boleh_kosong=boleh_kosong)
+    if nilai is None or not str(nilai).strip():
+        if boleh_kosong:
+            return None
+        raise Tolak(f"{nama + ': ' if nama else ''}jumlah wajib diisi.")
+    hasil = baca_jumlah(nilai, k)
+    if hasil is None:
+        raise Tolak(f"{nama + ': ' if nama else ''}jumlah harus kelipatan {format_jumlah(1, s, k)} (mis. 12,5).")
+    return hasil
+
+
+def baca_harga_qty(nilai, x, boleh_kosong=False):
+    """Harga per satuan yang diketik (Rp 25.000/m) -> harga tersimpan per kelipatan (2.500)."""
+    from master.layanan.inti import baca_angka
+    s, k = satuan_dari(x)
+    if k <= 1:
+        return baca_angka(nilai, boleh_kosong=boleh_kosong)
+    if nilai is None or not str(nilai).strip():
+        if boleh_kosong:
+            return None
+        raise Tolak("Harga wajib diisi.")
+    return baca_harga(nilai, k)

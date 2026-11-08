@@ -25,6 +25,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
+from master.layanan.satuan import baca_harga_qty, baca_qty
 from master.models import (
     MutasiStok,
     Pembayaran,
@@ -175,14 +176,14 @@ def tambah_baris(po, *, varian_id, jumlah, harga):
     info = VarianInfo.objects.filter(pk=varian_id).first()
     if info is None:
         raise Tolak("Pilih barang dari hasil pencarian.")
-    qty = baca_angka(jumlah, boleh_kosong=False)
+    qty = baca_qty(jumlah, info)
     if qty <= 0:
         raise Tolak("Jumlah harus lebih dari nol.")
     if po.baris.filter(varian=info).exists():
         raise Tolak("Barang itu sudah ada di PO ini. Ubah jumlahnya di tabel.")
     return PembelianBaris.objects.create(
         pembelian=po, varian=info, item_name=info.item_name, variant=info.variant,
-        jumlah_pesan=qty, harga=baca_angka(harga, boleh_kosong=False),
+        jumlah_pesan=qty, harga=baca_harga_qty(harga, info),
     )
 
 
@@ -190,15 +191,15 @@ def simpan_baris(po, data):
     """Simpan jumlah pesan dan harga semua baris dari form (qty_<id>, harga_<id>)."""
     _harus(po, "dibuat")
     with transaction.atomic():
-        for b in po.baris.all():
+        for b in po.baris.select_related("varian"):
             if f"hapus_{b.id}" in data:
                 b.delete()
                 continue
-            qty = baca_angka(data.get(f"qty_{b.id}"), boleh_kosong=False)
+            qty = baca_qty(data.get(f"qty_{b.id}"), b, nama=b.item_name)
             if qty <= 0:
                 raise Tolak(f"{b.item_name}: jumlah harus lebih dari nol.")
             b.jumlah_pesan = qty
-            b.harga = baca_angka(data.get(f"harga_{b.id}"), boleh_kosong=False)
+            b.harga = baca_harga_qty(data.get(f"harga_{b.id}"), b)
             b.save(update_fields=["jumlah_pesan", "harga"])
 
 
@@ -221,10 +222,10 @@ def catat_datang(pengguna, po, data):
     with transaction.atomic():
         ada_beda = False
         ada_isi = False
-        for b in po.baris.all():
-            terima = baca_angka(data.get(f"terima_{b.id}"), boleh_kosong=False)
+        for b in po.baris.select_related("varian"):
+            terima = baca_qty(data.get(f"terima_{b.id}"), b, nama=b.item_name)
             b.jumlah_terima = terima
-            b.harga = baca_angka(data.get(f"harga_{b.id}"), boleh_kosong=False)
+            b.harga = baca_harga_qty(data.get(f"harga_{b.id}"), b)
             b.save(update_fields=["jumlah_terima", "harga"])
             _isi_lokasi(po, b, data)
             ada_beda = ada_beda or terima != b.jumlah_pesan
@@ -257,7 +258,7 @@ def tambah_di_luar_pesanan(pengguna, po, *, varian_id, jumlah):
     info = VarianInfo.objects.filter(pk=varian_id or 0, sampah__isnull=True).first()
     if info is None:
         raise Tolak("Pilih barang dari hasil pencarian.")
-    qty = baca_angka(jumlah, boleh_kosong=False)
+    qty = baca_qty(jumlah, info)
     if qty <= 0:
         raise Tolak("Jumlah harus lebih dari nol.")
     if po.baris.filter(varian=info).exists():
@@ -292,12 +293,12 @@ def catat_datang_gudang(pengguna, po, data):
     with transaction.atomic():
         po = Pembelian.objects.select_for_update().get(pk=po.pk)
         if ulang:
-            baris = list(po.baris.filter(pk__in=ulang))
+            baris = list(po.baris.filter(pk__in=ulang).select_related("varian"))
             for b in baris:
                 mentah = data.get(f"terima_{b.id}")
                 if mentah is None or not str(mentah).strip():
                     raise Tolak(f"{b.item_name} / {b.variant}: hitungan ulang belum diisi.")
-                b.jumlah_terima = baca_angka(mentah, boleh_kosong=False)
+                b.jumlah_terima = baca_qty(mentah, b, nama=f"{b.item_name} / {b.variant}")
                 if b.jumlah_terima < 0:
                     raise Tolak("Jumlah tidak boleh minus.")
                 b.save(update_fields=["jumlah_terima"])
@@ -305,11 +306,11 @@ def catat_datang_gudang(pengguna, po, data):
                 raise Tolak("Isi catatan untuk pemilik, mis. ada yang rusak, sobek, atau memang kurang.")
         else:
             ada_isi = False
-            for b in po.baris.all():
+            for b in po.baris.select_related("varian"):
                 mentah = data.get(f"terima_{b.id}")
                 if mentah is None or not str(mentah).strip():
                     raise Tolak(f"{b.item_name} / {b.variant}: jumlah yang datang belum diisi. Isi 0 kalau tidak datang.")
-                terima = baca_angka(mentah, boleh_kosong=False)
+                terima = baca_qty(mentah, b, nama=f"{b.item_name} / {b.variant}")
                 if terima < 0:
                     raise Tolak("Jumlah tidak boleh minus.")
                 b.jumlah_terima = b.jumlah_hitung1 = terima
@@ -369,8 +370,8 @@ def lengkapi_faktur(pengguna, po, data):
     if mode != "tanpa" and tarif_pada(tanggal_faktur or po.tanggal_terima) is None:
         raise Tolak("Tarif PPN untuk tanggal itu belum diisi di Pengaturan.")
     with transaction.atomic():
-        for b in po.baris.all():
-            b.harga = baca_angka(data.get(f"harga_{b.id}"), boleh_kosong=False)
+        for b in po.baris.select_related("varian"):
+            b.harga = baca_harga_qty(data.get(f"harga_{b.id}"), b)
             b.save(update_fields=["harga"])
             if f"lokasi_{b.id}" in data:
                 _isi_lokasi(po, b, data)
@@ -517,8 +518,8 @@ def retur(pengguna, po, data):
         boleh = sisa_retur(po)
         dok = Retur.objects.create(pembelian=po, tanggal=tanggal, alasan=alasan, oleh=pengguna.username)
         nilai_total = 0
-        for b in po.baris.all():
-            qty = baca_angka(data.get(f"retur_{b.id}"), boleh_kosong=True) or 0
+        for b in po.baris.select_related("varian"):
+            qty = baca_qty(data.get(f"retur_{b.id}"), b, boleh_kosong=True) or 0
             if qty == 0:
                 continue
             if qty < 0:

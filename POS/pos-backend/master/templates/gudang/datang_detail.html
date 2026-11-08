@@ -9,7 +9,7 @@
   {% for b in baris %}
   <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
     <span class="redup kecil">{% if b.di_luar_pesanan %}<span class="label awas">tidak ada di pesanan</span> {% endif %}{% if b.varian.rak_id %}rak {{ b.varian.rak_id }}{% endif %}</span></div>
-    <input class="angka wajib" type="text" name="terima_{{ b.id }}" value="{{ b.isi }}" inputmode="numeric" placeholder="jumlah" autocomplete="off">
+    <input class="angka wajib" type="text" name="terima_{{ b.id }}" value="{{ b.isi }}" inputmode="{% if b|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="jumlah" autocomplete="off">
     {% if b.di_luar_pesanan and not ulang %}<button class="tombol kecil bahaya" type="submit" form="hapus-{{ b.id }}">Hapus</button>{% endif %}
     {% if pilihan_lokasi and not ulang %}<select name="lokasi_{{ b.id }}" class="pilih-lokasi" style="flex:0 1 230px;min-width:170px" aria-label="Ditaruh di">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.usul == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>{% endif %}</div>
   {% endfor %}
@@ -34,7 +34,7 @@
   {% if hasil_cari %}<div class="daftar">{% for v in hasil_cari %}
     <form method="post" class="brs">{% csrf_token %}<input type="hidden" name="aksi" value="tambah_lain"><input type="hidden" name="varian_id" value="{{ v.id }}">
       <div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b></div>
-      <input class="angka" type="text" name="jumlah" inputmode="numeric" placeholder="jumlah" required autocomplete="off"><button class="tombol kecil" type="submit">Tambah</button></form>
+      <input class="angka" type="text" name="jumlah" inputmode="decimal" placeholder="jumlah" required autocomplete="off"><button class="tombol kecil" type="submit">Tambah</button></form>
   {% endfor %}</div>{% elif cari %}<p class="redup kecil">Tidak ditemukan.</p>{% endif %}
 </details>
 {% endif %}

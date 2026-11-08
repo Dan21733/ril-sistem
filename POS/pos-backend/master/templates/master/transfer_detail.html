@@ -23,7 +23,7 @@
 <div class="gulir"><table>
   <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Jumlah</th>{% if tr.dari.stok_di_kasir and pilihan_lokasi %}<th>Diambil dari</th>{% endif %}<th></th></tr>
   {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
-    <td class="angka"><input class="kotak" name="qty_{{ b.id }}" value="{{ b.jumlah_kirim }}" inputmode="numeric"></td>
+    <td class="angka"><input class="kotak" name="qty_{{ b.id }}" value="{{ b.jumlah_kirim|qty_isi:b }}" inputmode="{% if b|berkoma %}decimal{% else %}numeric{% endif %}"></td>
     {% if tr.dari.stok_di_kasir and pilihan_lokasi %}<td><select name="lokasi_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.lokasi_id == l.id or not b.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}
     <td><button class="tombol kecil bahaya" type="submit" name="hapus_{{ b.id }}" value="1">Hapus</button></td></tr>
   {% empty %}<tr><td colspan="5" class="redup" style="padding:24px;text-align:center">Belum ada barang. Tambahkan di bawah.</td></tr>{% endfor %}
@@ -34,7 +34,7 @@
 <form method="post" class="kartu" id="form-tambah">{% csrf_token %}<input type="hidden" name="aksi" value="tambah_baris"><input type="hidden" name="varian_id" id="varian-id">
   <div class="baris">
     <div style="flex:3;min-width:260px"><label>Cari barang (nama, varian, brand, atau alias)</label><input type="text" id="cari-barang" autocomplete="off" placeholder="ketik minimal 2 huruf" autofocus><div id="hasil-cari"></div></div>
-    <div style="width:120px"><label>Jumlah</label><input type="text" name="jumlah" id="tambah-jumlah" inputmode="numeric" required></div>
+    <div style="width:120px"><label>Jumlah</label><input type="text" name="jumlah" id="tambah-jumlah" inputmode="decimal" required></div>
     <div><button class="tombol utama" type="submit">Tambah</button></div>
   </div>
 </form>
@@ -76,8 +76,8 @@
   <p style="margin-top:0">Dikirim {{ tr.dikirim_waktu|date:"d M Y H:i" }} oleh {{ tr.dikirim_oleh }}. Isi jumlah yang sampai di {{ tr.ke.nama }}.</p>
   <div class="gulir" style="margin-bottom:14px"><table>
     <tr><th>Barang</th><th>Varian</th><th class="angka">Dikirim</th><th class="angka">Sampai</th>{% if tr.ke.stok_di_kasir and pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
-    {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim }}</td>
-      <td class="angka"><input class="kotak" name="terima_{{ b.id }}" data-kirim="{{ b.jumlah_kirim }}" inputmode="numeric" placeholder="sampai"></td>
+    {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim|qty:b }}</td>
+      <td class="angka"><input class="kotak" name="terima_{{ b.id }}" data-kirim="{{ b.jumlah_kirim|qty_isi:b }}" inputmode="{% if b|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="sampai"></td>
       {% if tr.ke.stok_di_kasir and pilihan_lokasi %}<td><select name="lokasi_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.varian.rak.tempat_id == l.id or not b.varian.rak.tempat_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>{% endfor %}
   </table></div>
   <p style="margin:0 0 12px"><button type="button" class="tombol kecil" id="isi-semua">Semua sampai sesuai kiriman</button></p>
@@ -98,8 +98,8 @@ document.getElementById('form-terima').addEventListener('submit', e => {
 {% if tr.status == "diterima" %}
 <div class="gulir"><table>
   <tr><th>Barang</th><th>Varian</th><th class="angka">Dikirim</th><th class="angka">Sampai</th><th class="angka">Modal</th><th class="angka">Nilai</th></tr>
-  {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim }}</td>
-    <td class="angka">{% if b.jumlah_terima != b.jumlah_kirim %}<b style="color:var(--bahaya)">{{ b.jumlah_terima }}</b>{% else %}{{ b.jumlah_terima }}{% endif %}</td>
+  {% for b in baris %}<tr><td>{{ b.item_name }}</td><td>{{ b.variant|varian }}</td><td class="angka redup">{{ b.jumlah_kirim|qty:b }}</td>
+    <td class="angka">{% if b.jumlah_terima != b.jumlah_kirim %}<b style="color:var(--bahaya)">{{ b.jumlah_terima|qty:b }}</b>{% else %}{{ b.jumlah_terima|qty:b }}{% endif %}</td>
     <td class="angka">{{ b.modal_satuan|ribuan }}</td><td class="angka">{{ b.nilai|ribuan }}</td></tr>{% endfor %}
   <tr><td colspan="5"><b>Nilai masuk saldo</b> <span class="redup kecil">· {{ tr.ke.nama }} berhutang ke {{ tr.dari.nama }}</span></td><td class="angka"><b>{{ tr.nilai|ribuan }}</b></td></tr>
 </table></div>

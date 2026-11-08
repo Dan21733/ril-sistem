@@ -35,10 +35,10 @@
     <input type="hidden" name="v" value="{{ v.id }}">
     <div class="nm">{{ v.variant|varian }}{% if not v.aktif %} <span class="label">nonaktif</span>{% endif %}</div>
     {% if boleh_harga %}
-    <div><label for="h_{{ v.id }}">Harga jual</label><input class="harga" id="h_{{ v.id }}" name="h_{{ v.id }}" inputmode="numeric"
+    <div><label for="h_{{ v.id }}">Harga jual{{ v.akhiran }}</label><input class="harga" id="h_{{ v.id }}" name="h_{{ v.id }}" inputmode="numeric"
       value="{% if v.harga_usul is not None %}{{ v.harga_usul|ribuan }}{% else %}{{ v.harga|ribuan }}{% endif %}" data-awal="{{ v.harga|ribuan }}">
       {% if v.harga_usul is not None %}<div class="lama">sekarang {{ v.harga|ribuan }}</div>{% endif %}</div>
-    <div><label for="f_{{ v.id }}">Floor</label><input class="harga" id="f_{{ v.id }}" name="f_{{ v.id }}" inputmode="numeric"
+    <div><label for="f_{{ v.id }}">Floor{{ v.akhiran }}</label><input class="harga" id="f_{{ v.id }}" name="f_{{ v.id }}" inputmode="numeric"
       value="{% if v.floor_usul is not None %}{{ v.floor_usul|ribuan }}{% else %}{{ v.floor|ribuan }}{% endif %}" data-awal="{{ v.floor|ribuan }}">
       {% if v.floor_usul is not None %}<div class="lama">sekarang {{ v.floor|ribuan }}</div>{% endif %}</div>
     {% else %}

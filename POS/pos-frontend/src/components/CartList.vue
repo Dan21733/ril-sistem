@@ -16,7 +16,7 @@ import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../u
 import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, minimalDp } from '../utils/piutang'
 import { groupByOwner } from '../utils/pecahNota'
 import vModalFocus from '../directives/modalFocus'
-import { akhiranSatuan, angkaJumlah, bacaJumlah, hargaPerSatuan, hargaTersimpan, langkahJumlah, pakaiSatuan, teksJumlah } from '../utils/satuan'
+import { akhiranSatuan, angkaJumlah, bacaJumlah, hargaPerSatuan, hargaTersimpan, jualPerRupiah, langkahJumlah, pakaiSatuan, teksJumlah, totalPas } from '../utils/satuan'
 import {
   digitsOnly,
   formatRupiahInput,
@@ -645,6 +645,32 @@ function applyCustomDiscount(item, event) {
   }
   input.setCustomValidity('')
   applyDiscount(item, persen)
+}
+
+/*
+ * Isian rupiah di panel diskon (9 Nov 2026). Barang meteran/kiloan: "Beli Rp 5.000" ->
+ * jumlah dihitung, harga satuan turun sedikit supaya total pas. Barang biasa: "Total Rp"
+ * untuk tawar total pas, jumlah tetap. Harga di bawah floor tetap butuh persetujuan.
+ */
+function applyRupiah(item, event) {
+  const input = event.target
+  if (input.value.trim() === '' || isEditingLocked.value) {
+    return
+  }
+  const rupiah = Number(digitsOnly(input.value))
+  const hasil = pakaiSatuan(item) ? jualPerRupiah(rupiah, item) : totalPas(rupiah, item)
+  if (!hasil) {
+    input.setCustomValidity(pakaiSatuan(item) ? 'Isi rupiah yang dibeli.' : 'Total di atas harga pricelist.')
+    input.reportValidity()
+    return
+  }
+  input.setCustomValidity('')
+  if (hasil.quantity !== Number(item.quantity)) {
+    emit('update-quantity', { item, quantity: hasil.quantity })
+  }
+  emit('update-price', { item, price: hasil.unit_price })
+  input.value = ''
+  discountOpenId.value = null
 }
 
 function openRetryCheckout() {
@@ -1283,6 +1309,18 @@ async function completeTransaction() {
             aria-label="Diskon persen lain"
             @keydown.enter.prevent="applyCustomDiscount(item, $event)"
             @change="applyCustomDiscount(item, $event)"
+          />
+
+          <input
+            class="discount-custom discount-rupiah"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            :placeholder="pakaiSatuan(item) ? 'beli Rp' : 'total Rp'"
+            :aria-label="pakaiSatuan(item) ? `Beli ${item.item_name} senilai rupiah` : `Total ${item.item_name} pas rupiah`"
+            @input="formatCartPriceInput"
+            @keydown.enter.prevent="applyRupiah(item, $event)"
+            @change="applyRupiah(item, $event)"
           />
 
           <button type="button" class="discount-chip is-reset" @click="applyDiscount(item, 0)">
@@ -2522,6 +2560,10 @@ async function completeTransaction() {
   color: var(--pos-text);
   font-size: 15px;
   text-align: center;
+}
+
+.discount-rupiah {
+  width: 104px;
 }
 
 .discount-custom:focus {

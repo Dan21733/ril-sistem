@@ -17,7 +17,7 @@
 <div class="gulir"><table>
   <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Hitungan</th><th class="angka">Nilai</th><th>Catatan</th></tr>
   {% for b in baris %}<tr><td>{{ b.varian.item_name }}<input type="hidden" name="pilih" value="{{ b.id }}"></td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
-    <td class="angka"><b>{{ b.hitung }}</b></td><td class="angka">{% if b.nilai_hitung is None %}<span class="redup">modal kosong</span>{% else %}{{ b.nilai_hitung|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>{% endfor %}
+    <td class="angka"><b>{{ b.hitung|qty:b.varian }}</b></td><td class="angka">{% if b.nilai_hitung is None %}<span class="redup">modal kosong</span>{% else %}{{ b.nilai_hitung|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>{% endfor %}
 </table></div>
 {% if op.status == "diajukan" %}<div style="margin-top:14px"><button class="tombol utama" type="submit">Catat sebagai stok awal</button></div>{% endif %}
 </form>
@@ -36,8 +36,8 @@
   {% for b in baris %}
   <tr>{% if op.status == "diajukan" %}<td><input type="checkbox" name="pilih" value="{{ b.id }}" checked style="width:20px;height:20px;accent-color:var(--aksen)"></td>{% endif %}
     <td>{{ b.varian.item_name }}</td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
-    <td class="angka redup">{{ b.stok_saat_hitung }}</td><td class="angka"><b>{{ b.hitung }}</b></td>
-    <td class="angka" style="color:{% if b.selisih < 0 %}var(--bahaya){% elif b.selisih > 0 %}var(--baik){% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih }}</td>
+    <td class="angka redup">{{ b.stok_saat_hitung|qty:b.varian }}</td><td class="angka"><b>{{ b.hitung|qty:b.varian }}</b></td>
+    <td class="angka" style="color:{% if b.selisih < 0 %}var(--bahaya){% elif b.selisih > 0 %}var(--baik){% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih|qty:b.varian }}</td>
     {% if op.status == "diajukan" %}<td class="angka redup">{{ b.stok_sekarang }}</td><td class="angka"><b>{{ b.stok_jadi }}</b></td>
     {% else %}<td>{% if b.diterapkan %}<span class="label baik">ya</span>{% else %}<span class="label netral">tidak</span>{% endif %}</td>{% endif %}
     <td class="angka">{% if b.nilai_selisih is None %}<span class="redup">modal kosong</span>{% elif b.nilai_selisih < 0 %}-{{ b.nilai_selisih|cut:"-"|ribuan }}{% else %}{{ b.nilai_selisih|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>

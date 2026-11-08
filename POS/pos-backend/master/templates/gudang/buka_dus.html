@@ -1,12 +1,12 @@
-{% extends "gudang/base.html" %}
+{% extends "gudang/base.html" %}{% load master_tags %}
 {% block judul %}Buka dus{% endblock %}
 {% block isi %}
 {% if tanpa_stok %}<div class="kartu redup">{{ toko.nama }} belum punya kasir, jadi buka dus belum dicatat di sini.</div>{% else %}
 <div class="alat"><input type="search" id="saring" placeholder="Cari kemasan" autocomplete="off" aria-label="Cari kemasan"></div>
 {% for k in daftar %}
-<form method="post" class="kartu pasangan" data-isi="{{ k.isi }}" data-tanya="Catat buka dus ini? Stok berubah setelah pemilik ACC.">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
+<form method="post" class="kartu pasangan" data-isi="{{ k.isi|qty_isi:k.ke }}" data-koma="{% if k.ke|berkoma %}1{% endif %}" data-tanya="Catat buka dus ini? Stok berubah setelah pemilik ACC.">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
   <b>{{ k.dari.item_name }}{% if k.dari.variant != "N/A" %} / {{ k.dari.variant }}{% endif %}</b><br>
-  <span class="redup">menjadi {{ k.ke.item_name }}{% if k.ke.variant != "N/A" %} / {{ k.ke.variant }}{% endif %} · isi {{ k.isi }}{% if k.isi_tidak_tetap %} (bisa beda){% endif %}</span>
+  <span class="redup">menjadi {{ k.ke.item_name }}{% if k.ke.variant != "N/A" %} / {{ k.ke.variant }}{% endif %} · isi {{ k.isi|qty:k.ke }}{% if k.isi_tidak_tetap %} (bisa beda){% endif %}</span>
   <div class="dua" style="margin-top:8px">
     <div><label>Dibuka berapa</label><input class="jumlah" type="text" name="jumlah" inputmode="numeric" required autocomplete="off"></div>
     {% if k.isi_tidak_tetap %}<div><label>Isi sebenarnya (total)</label><input class="isi" type="text" name="isi_total" inputmode="numeric" autocomplete="off"></div>
@@ -22,14 +22,18 @@
 {% endfor %}
 {% if riwayat %}
 <h3>Terakhir kamu buka</h3>
-<div class="daftar">{% for r in riwayat %}<div class="brs"><div class="nama"><b>{{ r.jumlah }} {{ r.konversi.dari.item_name }}</b><span class="redup kecil">jadi {{ r.isi_total }} {{ r.konversi.ke.item_name }} · {{ r.waktu|date:"d M H:i" }}{% if r.alasan %} · {{ r.alasan }}{% endif %}</span></div>
+<div class="daftar">{% for r in riwayat %}<div class="brs"><div class="nama"><b>{{ r.jumlah|qty:r.konversi.dari }} {{ r.konversi.dari.item_name }}</b><span class="redup kecil">jadi {{ r.isi_total|qty:r.konversi.ke }} {{ r.konversi.ke.item_name }} · {{ r.waktu|date:"d M H:i" }}{% if r.alasan %} · {{ r.alasan }}{% endif %}</span></div>
   <span class="label {% if r.status == 'diterapkan' %}baik{% elif r.status == 'ditolak' %}bahaya{% else %}awas{% endif %}">{{ r.get_status_display }}</span></div>{% endfor %}</div>
 {% endif %}
 {% endif %}
 <script>
 document.querySelectorAll('.pasangan').forEach(f => {
   const j = f.querySelector('.jumlah'), i = f.querySelector('.isi');
-  j.addEventListener('input', () => { const n = parseInt(j.value, 10); i.value = n > 0 ? n * f.dataset.isi : ''; });
+  j.addEventListener('input', () => {
+    const n = parseInt(j.value, 10), isi = Number(String(f.dataset.isi).replace(',', '.'));
+    const t = n > 0 ? Math.round(n * isi * 100) / 100 : '';
+    i.value = t === '' ? '' : (f.dataset.koma ? String(t).replace('.', ',') : t);
+  });
 });
 const saring = document.getElementById('saring'); if (saring) saring.addEventListener('input', e => {
   const q = e.target.value.toLowerCase();

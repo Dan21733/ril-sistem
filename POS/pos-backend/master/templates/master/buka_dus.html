@@ -20,7 +20,7 @@
     <tr><th>Waktu</th><th>Oleh</th><th>Dibuka</th><th>Menjadi</th><th>Catatan</th><th></th></tr>
     {% for b in menunggu %}<tr>
       <td class="kecil" style="white-space:nowrap">{{ b.waktu|date:"d M H:i" }}</td><td>{{ b.oleh }}</td>
-      <td><b>{{ b.jumlah|ribuan }}</b> {{ b.konversi.dari.item_name }} <span class="redup">{{ b.konversi.dari.variant|varian }}</span>
+      <td><b>{{ b.jumlah|qty:b.konversi.dari }}</b> {{ b.konversi.dari.item_name }} <span class="redup">{{ b.konversi.dari.variant|varian }}</span>
         <div class="kecil redup">stok sekarang {{ b.stok_dari|ribuan|default:"-" }}{% if b.lokasi_dari %} · dari {{ b.lokasi_dari.nama }}{% endif %}</div></td>
       <td><b>{{ b.isi_total|ribuan }}</b> {{ b.konversi.ke.item_name }} <span class="redup">{{ b.konversi.ke.variant|varian }}</span>
         <div class="kecil redup">stok sekarang {{ b.stok_ke|ribuan|default:"-" }}{% if b.lokasi_ke %} · ke {{ b.lokasi_ke.nama }}{% endif %}{% if b.isi_total != b.standar %} · <b style="color:var(--aksen)">isi standar {{ b.standar|ribuan }}</b>{% endif %}</div></td>
@@ -40,12 +40,12 @@
       <b>{{ k.dari.item_name }}</b> <span class="redup">{{ k.dari.variant|varian }}</span>
       <span class="panah">→</span>
       <b>{{ k.ke.item_name }}</b> <span class="redup">{{ k.ke.variant|varian }}</span>
-      <div class="kecil redup" style="margin-top:4px">1 kemasan = {{ k.isi|ribuan }}{% if k.isi_tidak_tetap %} (isi tidak tetap, diisi saat dibuka){% endif %} · stok kemasan <b style="color:{% if k.stok_dari <= 0 %}var(--bahaya){% else %}var(--teks){% endif %}">{{ k.stok_dari|ribuan|default:"-" }}</b> · stok eceran <b style="color:var(--teks)">{{ k.stok_ke|ribuan|default:"-" }}</b>{% if k.catatan %} · {{ k.catatan }}{% endif %}</div>
+      <div class="kecil redup" style="margin-top:4px">1 kemasan = {{ k.isi|qty:k.ke }}{% if k.isi_tidak_tetap %} (isi tidak tetap, diisi saat dibuka){% endif %} · stok kemasan <b style="color:{% if k.stok_dari <= 0 %}var(--bahaya){% else %}var(--teks){% endif %}">{{ k.stok_dari|ribuan|default:"-" }}</b> · stok eceran <b style="color:var(--teks)">{{ k.stok_ke|ribuan|default:"-" }}</b>{% if k.catatan %} · {{ k.catatan }}{% endif %}</div>
     </div>
     {% if k.aktif %}
-    <form method="post" class="baris" style="flex-wrap:nowrap" data-isi="{{ k.isi }}">{% csrf_token %}<input type="hidden" name="aksi" value="buka"><input type="hidden" name="id" value="{{ k.id }}">
+    <form method="post" class="baris" style="flex-wrap:nowrap" data-isi="{{ k.isi|qty_isi:k.ke }}">{% csrf_token %}<input type="hidden" name="aksi" value="buka"><input type="hidden" name="id" value="{{ k.id }}">
       <div style="width:110px"><label>Dibuka</label><input type="text" name="jumlah" inputmode="numeric" value="1" required class="jumlah-buka"></div>
-      {% if k.isi_tidak_tetap %}<div style="width:150px"><label>Isi sebenarnya</label><input type="text" name="isi_total" inputmode="numeric" value="{{ k.isi }}" required class="isi-buka"></div>{% endif %}
+      {% if k.isi_tidak_tetap %}<div style="width:150px"><label>Isi sebenarnya</label><input type="text" name="isi_total" inputmode="{% if k.ke|berkoma %}decimal{% else %}numeric{% endif %}" value="{{ k.isi|qty_isi:k.ke }}" required class="isi-buka"></div>{% endif %}
       {% if pilihan_lokasi|length > 1 %}<div style="width:150px"><label>Dus dari</label><select name="lokasi_dari">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.dari.rak.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
       <div style="width:150px"><label>Isi ke</label><select name="lokasi_ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if k.ke.rak.tempat_id == l.id or not k.ke.rak.tempat_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>{% endif %}
       <div><button class="tombol utama" type="submit">Buka</button></div>
@@ -54,7 +54,7 @@
   </div>
   <details style="margin-top:10px"><summary class="kecil redup" style="cursor:pointer">Ubah pasangan ini</summary>
   <form method="post" class="baris" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="ubah"><input type="hidden" name="id" value="{{ k.id }}">
-    <div style="width:130px"><label>Isi per kemasan</label><input type="text" name="isi" value="{{ k.isi }}" inputmode="numeric" required></div>
+    <div style="width:130px"><label>Isi per kemasan</label><input type="text" name="isi" value="{{ k.isi|qty_isi:k.ke }}" inputmode="{% if k.ke|berkoma %}decimal{% else %}numeric{% endif %}" required></div>
     <div style="min-width:220px"><label>Isi</label><select name="isi_tidak_tetap"><option value="0">Selalu sama</option><option value="1" {% if k.isi_tidak_tetap %}selected{% endif %}>Tidak tetap, diisi saat dibuka</option></select></div>
     <div style="min-width:130px"><label>Status</label><select name="aktif"><option value="1">Aktif</option><option value="0" {% if not k.aktif %}selected{% endif %}>Nonaktif</option></select></div>
     <div style="flex:1;min-width:180px"><label>Catatan</label><input type="text" name="catatan" value="{{ k.catatan }}"></div>
@@ -73,7 +73,7 @@
     <div class="cari-wadah"><label>Satuan eceran (hasilnya)</label><input type="text" class="cari" data-target="ke-id" autocomplete="off" placeholder="mis. semen per kg"><div class="hasil-cari"></div></div>
   </div>
   <div class="baris" style="margin-top:16px">
-    <div style="width:150px"><label>Isi per kemasan</label><input type="text" name="isi" inputmode="numeric" placeholder="mis. 50" required></div>
+    <div style="width:150px"><label>Isi per kemasan</label><input type="text" name="isi" inputmode="decimal" placeholder="mis. 50" required></div>
     <div style="min-width:260px"><label>Isi</label><select name="isi_tidak_tetap"><option value="0">Selalu sama</option><option value="1">Tidak tetap, diisi saat dibuka</option></select></div>
     <div style="flex:1;min-width:200px"><label>Catatan</label><input type="text" name="catatan"></div>
     <div><button class="tombol utama" type="submit">Tambah pasangan</button></div>
@@ -89,7 +89,7 @@
   {% for r in riwayat %}<tr><td class="kecil" style="white-space:nowrap">{{ r.waktu|date:"d M Y H:i" }}</td><td>{{ r.oleh }}</td>
     <td>{{ r.konversi.dari.item_name }} <span class="redup">{{ r.konversi.dari.variant|varian }}</span></td>
     <td>{{ r.konversi.ke.item_name }} <span class="redup">{{ r.konversi.ke.variant|varian }}</span></td>
-    <td class="angka">{{ r.jumlah|ribuan }}</td><td class="angka">{{ r.isi_total|ribuan }}</td><td class="angka">{{ r.modal_satuan|ribuan|default:"-" }}</td><td class="kecil redup">{{ r.catatan }}{% if r.alasan %} · ditolak: {{ r.alasan }}{% endif %}</td>
+    <td class="angka">{{ r.jumlah|qty:r.konversi.dari }}</td><td class="angka">{{ r.isi_total|qty:r.konversi.ke }}</td><td class="angka">{{ r.modal_satuan|ribuan|default:"-" }}</td><td class="kecil redup">{{ r.catatan }}{% if r.alasan %} · ditolak: {{ r.alasan }}{% endif %}</td>
     <td><span class="label {% if r.status == 'diterapkan' %}baik{% else %}bahaya{% endif %}">{{ r.get_status_display }}</span>{% if r.diputus_oleh and r.diputus_oleh != r.oleh %} <span class="kecil redup">{{ r.diputus_oleh }}</span>{% endif %}</td></tr>{% endfor %}
 </table></div>
 {% endif %}
@@ -100,7 +100,7 @@
   document.querySelectorAll('form[data-isi]').forEach(f => {
     const j = f.querySelector('.jumlah-buka'), i = f.querySelector('.isi-buka'); if (!i) return;
     let disentuh = false; i.addEventListener('input', () => disentuh = true);
-    j.addEventListener('input', () => { if (!disentuh){ const n = parseInt(j.value.replace(/\D/g,''), 10); i.value = n ? n * parseInt(f.dataset.isi, 10) : ''; } });
+    j.addEventListener('input', () => { if (!disentuh){ const n = parseInt(j.value.replace(/\D/g,''), 10); const isi = Number(String(f.dataset.isi).replace(',', '.')); i.value = n ? String(Math.round(n * isi * 100) / 100).replace('.', ',') : ''; } });
   });
   document.querySelectorAll('.cari').forEach(kotak => {
     const wadah = kotak.parentElement.querySelector('.hasil-cari'), target = document.getElementById(kotak.dataset.target);

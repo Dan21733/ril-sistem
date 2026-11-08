@@ -16,7 +16,7 @@ table{border-collapse:collapse;width:100%;margin-top:10px}th,td{border:1px solid
   <div><b>Kepada</b><br>{{ tr.ke.nama }}{% if tr.ke.alamat %}<br>{{ tr.ke.alamat }}{% endif %}{% if tr.ke.telepon %}<br>{{ tr.ke.telepon }}{% endif %}</div>
 </div>
 <table><tr><th style="width:28px">No</th><th>Barang</th><th class="angka">Jumlah</th><th class="angka">Diterima</th></tr>
-{% for b in baris %}<tr><td>{{ forloop.counter }}</td><td>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</td><td class="angka">{{ b.jumlah_kirim }}</td><td class="angka">{% if b.jumlah_terima is not None %}{{ b.jumlah_terima }}{% endif %}</td></tr>{% endfor %}
+{% for b in baris %}<tr><td>{{ forloop.counter }}</td><td>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</td><td class="angka">{{ b.jumlah_kirim|qty:b }}</td><td class="angka">{% if b.jumlah_terima is not None %}{{ b.jumlah_terima }}{% endif %}</td></tr>{% endfor %}
 </table>
 {% if tr.catatan %}<p>Catatan: {{ tr.catatan }}</p>{% endif %}
 <div class="ttd"><div>Pengirim</div><div>Sopir</div><div>Penerima</div></div>

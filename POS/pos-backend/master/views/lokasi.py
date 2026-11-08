@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from pos.models import Item
 
+from master.layanan.satuan import baca_qty
 from master.layanan import inti as layanan
 from master.layanan import lokasi as svc
 from master.layanan import stok_excel
@@ -139,6 +140,7 @@ def stok(request):
         v = info.get((b["item_name"], b["variant"]))
         b["id"] = v.id if v else None
         b["rak"] = v.rak if v else None
+        b["v"] = v   # satuan meter/kg: angka tampil per satuan
         jumlah = per_varian.get(v.id, {}) if v else {}
         b["kolom"] = [jumlah.get(l.id, 0) for l in gudang]
         b["toko"] = (b["in_stock"] or 0) - b["di_gudang"]
@@ -162,7 +164,7 @@ def pindah(request, varian_id):
             svc.pindah(request.user, info, hak=hak,
                        dari=get_object_or_404(Lokasi, pk=request.POST.get("dari")),
                        ke=get_object_or_404(Lokasi, pk=request.POST.get("ke")),
-                       jumlah=request.POST.get("jumlah"), catatan=request.POST.get("catatan", ""))
+                       jumlah=baca_qty(request.POST.get("jumlah"), info), catatan=request.POST.get("catatan", ""))
             messages.success(request, "Stok dipindah.")
             kembali = request.POST.get("kembali") or ""
             if kembali.startswith("/") and not kembali.startswith("//"):
@@ -441,7 +443,7 @@ def ambil(request):
             except Tolak as tolak:
                 messages.error(request, str(tolak))
         return redirect("master:ambil")
-    riwayat = PermintaanAmbil.objects.exclude(status="menunggu").select_related("lokasi", "diambil_lokasi")
+    riwayat = PermintaanAmbil.objects.exclude(status="menunggu").select_related("lokasi", "diambil_lokasi", "varian")
     if request.GET.get("beda") == "1":
         riwayat = riwayat.filter(status="diambil").exclude(diambil_jumlah=F_("jumlah"))
     return render(request, "master/ambil.html", {

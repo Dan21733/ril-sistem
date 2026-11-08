@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
+from master.layanan.satuan import baca_qty
 from master.models import MutasiLokasi, PermintaanAmbil
 
 HAK = "gudang_ambil"
@@ -38,7 +39,7 @@ def konfirmasi(pengguna, p, *, jumlah=None, lokasi=None, catatan="", oleh_pemili
         p = PermintaanAmbil.objects.select_for_update().select_related("varian", "lokasi").get(pk=p.pk)
         if p.status != "menunggu":
             raise Tolak("Permintaan ini sudah diproses.")
-        qty = p.jumlah if jumlah in (None, "") else baca_angka(jumlah, boleh_kosong=False)
+        qty = p.jumlah if jumlah in (None, "") else baca_qty(jumlah, p.varian, nama=p.item_name)
         if qty < 0:
             raise Tolak("Jumlah tidak boleh minus.")
         lokasi = lokasi or p.lokasi

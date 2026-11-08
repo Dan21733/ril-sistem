@@ -168,9 +168,13 @@ def cari_barang(request):
         if v is None:
             continue
         hb = svc.harga_beli_terakhir(v)
+        from master.layanan.satuan import format_jumlah, satuan_dari
+        sat, k = satuan_dari(v)
         hasil.append({
             "id": v.id, "nama": b["item_name"], "varian": "" if b["variant"] == "N/A" else b["variant"],
-            "stok": b["in_stock"], "harga": hb, "t": b["t"],
+            # Barang per meter/kg: stok & harga beli per satuan (isian PO juga per satuan).
+            "stok": b["in_stock"] if k <= 1 else format_jumlah(b["in_stock"] or 0, sat, k),
+            "harga": hb if (hb is None or k <= 1) else hb * k, "satuan": sat if k > 1 else "", "t": b["t"],
             "ket_harga": svc_cari.keterangan_harga(harga, hb) if harga else "",
         })
     if harga:

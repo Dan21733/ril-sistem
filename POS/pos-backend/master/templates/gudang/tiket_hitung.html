@@ -1,4 +1,4 @@
-{% extends "gudang/base.html" %}
+{% extends "gudang/base.html" %}{% load master_tags %}
 {% block judul %}Tugas #{{ t.id }}{% endblock %}
 {% block isi %}
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
@@ -23,8 +23,8 @@
 <div class="daftar">
   {% for v in hasil %}
   <div class="brs {% if v.terisi %}terisi{% endif %}"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
-    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if v.terisi %} · sudah dihitung: {{ v.terisi.hitung }}{% endif %}</span></div>
-    <input class="angka" type="text" name="hitung_{{ v.id }}" data-nama="{{ v.item_name }}{% if v.variant != 'N/A' %} / {{ v.variant }}{% endif %}" inputmode="numeric" placeholder="{% if v.terisi %}ubah{% else %}jumlah{% endif %}" autocomplete="off"></div>
+    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if v.terisi %} · sudah dihitung: {{ v.terisi.hitung|qty:v }}{% endif %}</span></div>
+    <input class="angka" type="text" name="hitung_{{ v.id }}" data-nama="{{ v.item_name }}{% if v.variant != 'N/A' %} / {{ v.variant }}{% endif %}" inputmode="{% if v|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="{% if v.terisi %}ubah{% else %}jumlah{% endif %}{% if v|berkoma %} ({{ v|nama_satuan }}){% endif %}" autocomplete="off"></div>
   {% empty %}<div class="brs redup">Tidak ada barang yang cocok di lingkup tugas ini.</div>
   {% endfor %}
 </div>
@@ -37,9 +37,9 @@
 {% if sudah %}
 <div class="daftar">
   {% for b in sudah %}
-  <div class="brs" data-sudah="{{ b.varian_id }}" data-hitung="{{ b.hitung }}"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
+  <div class="brs" data-sudah="{{ b.varian_id }}" data-hitung="{{ b.hitung|qty_isi:b.varian }}"><div class="nama"><b>{{ b.item_name }}{% if b.variant != "N/A" %} / {{ b.variant }}{% endif %}</b>
     <span class="redup kecil">{% if b.varian.rak_id %}rak {{ b.varian.rak_id }} · {% endif %}{{ b.waktu_hitung|date:"d M H:i" }}</span></div>
-    <b style="font-size:17px">{{ b.hitung }}</b>
+    <b style="font-size:17px">{{ b.hitung|qty:b.varian }}</b>
     <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form></div>
   {% endfor %}
 </div>

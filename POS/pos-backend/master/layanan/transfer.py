@@ -20,6 +20,7 @@ from pos.models import Item
 from master.layanan import ambil
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
+from master.layanan.satuan import baca_qty
 from master.models import MutasiStok, Pembayaran, PelunasanSaldo, Toko, Transfer, TransferBaris, VarianInfo
 from master.layanan.pembelian import baca_tanggal
 
@@ -55,7 +56,7 @@ def tambah_baris(tr, *, varian_id, jumlah):
     info = VarianInfo.objects.filter(pk=varian_id or 0).first()
     if info is None:
         raise Tolak("Pilih barang dari hasil pencarian.")
-    qty = baca_angka(jumlah, boleh_kosong=False)
+    qty = baca_qty(jumlah, info)
     if qty <= 0:
         raise Tolak("Jumlah harus lebih dari nol.")
     if tr.baris.filter(varian=info).exists():
@@ -67,11 +68,11 @@ def tambah_baris(tr, *, varian_id, jumlah):
 def simpan_baris(tr, data):
     _harus(tr, "draf")
     with transaction.atomic():
-        for b in tr.baris.all():
+        for b in tr.baris.select_related("varian"):
             if f"hapus_{b.id}" in data:
                 b.delete()
                 continue
-            qty = baca_angka(data.get(f"qty_{b.id}"), boleh_kosong=False)
+            qty = baca_qty(data.get(f"qty_{b.id}"), b, nama=b.item_name)
             if qty <= 0:
                 raise Tolak(f"{b.item_name}: jumlah harus lebih dari nol.")
             b.jumlah_kirim = qty
@@ -140,7 +141,7 @@ def terima(pengguna, tr, data):
             mentah = data.get(f"terima_{b.id}")
             if mentah is None or not str(mentah).strip():
                 raise Tolak(f"{b.item_name}: jumlah yang sampai belum diisi. Isi 0 kalau tidak sampai.")
-            qty = baca_angka(mentah, boleh_kosong=False)
+            qty = baca_qty(mentah, b, nama=b.item_name)
             b.jumlah_terima = qty
             b.save(update_fields=["jumlah_terima"])
             beda = beda or qty != b.jumlah_kirim

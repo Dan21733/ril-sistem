@@ -11,8 +11,8 @@
   <b>{{ k.referensi }}</b> <span class="redup kecil">{{ k.sumber }} · {{ k.dibuat|date:"d M Y H:i" }}</span>
   <div class="gulir" style="margin-top:8px"><table>
     <tr><th>Barang</th><th class="angka">Diminta</th><th class="angka">Diambil</th><th>Dari</th><th>Catatan</th></tr>
-    {% for p in k.baris %}<tr><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah }}</td>
-      <td class="angka"><input type="text" name="diambil_{{ p.id }}" value="{{ p.jumlah }}" inputmode="numeric" style="width:80px"></td>
+    {% for p in k.baris %}<tr><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah|qty:p.varian }}</td>
+      <td class="angka"><input type="text" name="diambil_{{ p.id }}" value="{{ p.jumlah|qty_isi:p.varian }}" inputmode="{% if p.varian|berkoma %}decimal{% else %}numeric{% endif %}" style="width:80px"></td>
       <td><select name="lokasi_{{ p.id }}">{% for l in gudang %}<option value="{{ l.id }}" {% if l.id == p.lokasi_id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
       <td><input type="text" name="catatan_{{ p.id }}"></td></tr>{% endfor %}
   </table></div>
@@ -25,8 +25,8 @@
 <div class="gulir"><table>
   <tr><th>Nota / transfer</th><th>Barang</th><th class="angka">Diminta</th><th class="angka">Diambil</th><th>Dari</th><th>Oleh</th><th>Waktu</th><th>Catatan</th></tr>
   {% for p in riwayat %}<tr class="{% if p.status == 'batal' %}nonaktif{% endif %}">
-    <td>{{ p.referensi }}</td><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah }}</td>
-    <td class="angka">{% if p.status == 'batal' %}<span class="redup">batal</span>{% elif p.selisih %}<b style="color:var(--bahaya)">{{ p.diambil_jumlah }}</b>{% else %}{{ p.diambil_jumlah }}{% endif %}</td>
+    <td>{{ p.referensi }}</td><td>{{ p.item_name }} / {{ p.variant|varian }}</td><td class="angka">{{ p.jumlah|qty:p.varian }}</td>
+    <td class="angka">{% if p.status == 'batal' %}<span class="redup">batal</span>{% elif p.selisih %}<b style="color:var(--bahaya)">{{ p.diambil_jumlah|qty:p.varian }}</b>{% else %}{{ p.diambil_jumlah|qty:p.varian }}{% endif %}</td>
     <td>{{ p.diambil_lokasi.nama|default:p.lokasi.nama }}</td><td>{{ p.diambil_oleh }}{% if p.oleh_pemilik %} <span class="label awas">pemilik</span>{% endif %}</td>
     <td class="kecil">{{ p.diambil_waktu|date:"d M Y H:i" }}</td><td class="kecil">{{ p.catatan }}</td></tr>
   {% empty %}<tr><td colspan="8" class="redup" style="padding:22px;text-align:center">Belum ada.</td></tr>{% endfor %}

@@ -16,6 +16,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
+from master.layanan.satuan import baca_qty
 from master.layanan.lokasi import baca, jumlah_gudang, lokasi_toko, pindah, stok_di
 from master.models import Rak, Tiket, TiketBaris, VarianInfo
 
@@ -155,7 +156,7 @@ def _terapkan_baris(pengguna, t, b, data, hak):
     catatan = f"Tiket #{t.id}" + (f": {b.catatan}" if b.catatan else "")
     if b.jenis == "pindah":
         if f"jumlah_{b.id}" in data:
-            b.jumlah = baca_angka(data.get(f"jumlah_{b.id}"), boleh_kosong=False)
+            b.jumlah = baca_qty(data.get(f"jumlah_{b.id}"), b.varian, nama=b.varian.item_name)
         if data.get(f"ke_{b.id}"):
             b.ke = baca(data.get(f"ke_{b.id}"))
         pindah(pengguna, b.varian, dari=b.dari, ke=b.ke, jumlah=b.jumlah, catatan=catatan, hak=hak | {"kelola_lokasi"})
@@ -207,7 +208,7 @@ def tambah_pindah(pengguna, t, *, varian_id, dari, ke, jumlah, catatan=""):
         raise Tolak("Pilih barang dari hasil pencarian.")
     dari, ke = baca(dari), baca(ke)
     _lokasi_beda(dari, ke)
-    qty = baca_angka(jumlah, boleh_kosong=False)
+    qty = baca_qty(jumlah, info)
     if qty <= 0:
         raise Tolak("Jumlah harus lebih dari nol.")
     return TiketBaris.objects.create(tiket=t, jenis="pindah", varian=info, dari=dari, ke=ke, jumlah=qty,

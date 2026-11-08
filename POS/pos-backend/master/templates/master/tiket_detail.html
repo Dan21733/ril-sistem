@@ -21,7 +21,7 @@
     <td>{% if b.jenis == 'pindah' %}{{ b.dari.nama }}{% if t.bisa_diputus %}<div class="kecil redup">ada {{ b.stok_asal|ribuan }}</div>{% endif %}{% elif b.jenis == 'rak_lokasi' %}{{ b.rak.tempat.nama|default:"-" }}{% else %}-{% endif %}</td>
     <td>{% if b.jenis == 'pindah' and t.bisa_diputus %}<select name="ke_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.ke_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>
       {% elif b.jenis == 'rak' %}rak {{ b.rak.kode|default:"(kosong)" }}{% else %}{{ b.ke.nama }}{% endif %}</td>
-    <td class="angka">{% if b.jenis == 'pindah' %}{% if t.bisa_diputus %}<input type="text" name="jumlah_{{ b.id }}" value="{{ b.jumlah }}" inputmode="numeric" style="width:90px">{% else %}{{ b.jumlah|ribuan }}{% endif %}{% endif %}</td>
+    <td class="angka">{% if b.jenis == 'pindah' %}{% if t.bisa_diputus %}<input type="text" name="jumlah_{{ b.id }}" value="{{ b.jumlah|qty_isi:b.varian }}" inputmode="{% if b.varian|berkoma %}decimal{% else %}numeric{% endif %}" style="width:90px">{% else %}{{ b.jumlah|ribuan }}{% endif %}{% endif %}</td>
     <td class="kecil">{{ b.catatan }}</td>
     {% if not t.bisa_diputus %}<td class="kecil">{% if b.diterapkan %}<span class="label baik">Diterapkan</span>{% else %}{{ b.hasil }}{% endif %}</td>{% endif %}
   </tr>

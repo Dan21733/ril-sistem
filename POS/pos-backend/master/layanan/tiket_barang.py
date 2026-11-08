@@ -18,6 +18,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_alias, rapikan_teks, urut_alami
+from master.layanan.satuan import baca_harga_qty, satuan_dari
 from master.models import ItemInfo, Tiket, TiketUsulan, VarianInfo
 
 IZIN = {"harga": ("max_price", "min_price"), "alias": ("alias",), "aktif": ("aktif",)}
@@ -155,9 +156,18 @@ def halaman(t, cari="", nomor=1, izin=None, kategori="", brand="", status=""):
         v = info[(b["item_name"], b["variant"])]
         u = lambda k: usul.get((b["item_name"], b["variant"], k))
         aktif_usul = u("aktif")
+        # Barang per meter/kg: harga tampil & diketik per satuan (disimpan per kelipatan).
+        _, kl = satuan_dari(v)
+
+        def per_satuan(n):
+            try:
+                return None if n is None else int(n) * kl
+            except (TypeError, ValueError):
+                return n
         kelompok[-1]["varian"].append({
-            "id": v.id, "variant": b["variant"], "harga": b["max_price"], "floor": b["min_price"], "aktif": v.aktif,
-            "harga_usul": u("max_price"), "floor_usul": u("min_price"),
+            "id": v.id, "variant": b["variant"], "harga": per_satuan(b["max_price"]), "floor": per_satuan(b["min_price"]),
+            "aktif": v.aktif, "akhiran": f"/{v.satuan}" if kl > 1 else "",
+            "harga_usul": per_satuan(u("max_price")), "floor_usul": per_satuan(u("min_price")),
             "aktif_usul": None if aktif_usul is None else aktif_usul == "ya",
         })
     return kelompok, nomor, jumlah_halaman, total
@@ -204,8 +214,8 @@ def simpan(pengguna, t, data):
             nama = f"{v.item_name} / {v.variant}"
             if "harga" in izin:
                 try:
-                    harga = baca_angka(data.get(f"h_{vid}"), boleh_kosong=False)
-                    floor = baca_angka(data.get(f"f_{vid}"), boleh_kosong=False)
+                    harga = baca_harga_qty(data.get(f"h_{vid}"), v)
+                    floor = baca_harga_qty(data.get(f"f_{vid}"), v)
                 except Tolak as e:
                     galat.append(f"{nama}: {e}")
                     continue
@@ -298,8 +308,13 @@ def rincian(t, *, lihat_modal, batas_persen=BATAS_PERSEN):
                 tanda.append(("terbalik", "Floor di atas harga jual"))
             if lihat_modal and modal and baru is not None and baru < modal:
                 tanda.append(("rugi", "Di bawah modal"))
-        hasil.append({"u": u, "label": LABEL.get(u.kolom, u.kolom), "sekarang": sekarang, "modal": modal,
-                      "tanda": tanda, "angka": u.kolom in ("max_price", "min_price")})
+        # Barang per meter/kg: angka harga tampil per satuan (disimpan per kelipatan).
+        kl = satuan_dari(u.varian)[1] if u.varian else 1
+        kali = (lambda n: n if kl <= 1 or _angka(n) is None else _angka(n) * kl)
+        angka = u.kolom in ("max_price", "min_price")
+        hasil.append({"u": u, "label": LABEL.get(u.kolom, u.kolom) + (f" /{u.varian.satuan}" if angka and kl > 1 else ""),
+                      "sekarang": kali(sekarang) if angka else sekarang, "baru": kali(u.baru) if angka else u.baru,
+                      "modal": kali(modal) if modal is not None else modal, "tanda": tanda, "angka": angka})
     return hasil
 
 
@@ -332,6 +347,8 @@ def terapkan(pengguna, t, data, *, hak):
                         if u.varian is None:
                             raise Tolak("Barang sudah tidak ada.")
                         nilai = data.get(f"nilai_{u.id}", u.baru) if u.kolom != "aktif" else u.baru
+                        if u.kolom in ("max_price", "min_price") and f"nilai_{u.id}" in data:
+                            nilai = str(baca_harga_qty(nilai, u.varian))   # diketik per satuan
                         baru, _ = layanan.ubah_varian(pengguna, u.varian, u.kolom, nilai, hak=hak, catatan=catatan)
                         u.baru = layanan.teks_log(baru)
                 u.diterapkan, u.hasil = True, "Diterapkan"

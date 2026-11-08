@@ -178,3 +178,60 @@ class SatuanTampilTest(Dasar):
         self.assertEqual(self._item().in_stock, 475)
         r = self._kirim(reverse("hp:stok"), {"id": self.v.id, "cara": "kurang", "angka": "0,25", "jenis": "rusak"})
         self.assertEqual(r.status_code, 400)
+
+
+class SatuanGudangTest(Dasar):
+    """Tahap 3: gudang, PO, buka dus diketik per satuan (9 Nov 2026)."""
+
+    def setUp(self):
+        buat_item("Fiber Pagar", "1m", floor=22000, jual=25000, modal=20000, stok=50)
+        buat_item("Semen", "50kg", floor=60000, jual=65000, modal=58000, stok=10)
+        buat_item("Semen", "eceran", floor=1300, jual=1500, modal=1160, stok=0)
+        layanan.sinkron_info()
+        svc.atur(self.admin, "Fiber Pagar", "m", 100)
+        self.v = VarianInfo.objects.get(item_name="Fiber Pagar", variant="1m")
+
+    def test_baca_qty(self):
+        self.assertEqual(svc.baca_qty("0,86", self.v), 86)
+        self.assertEqual(svc.baca_qty("12", self.v), 1200)
+        with self.assertRaises(Tolak):
+            svc.baca_qty("0,865", self.v)
+        biasa = VarianInfo.objects.get(item_name="Semen", variant="50kg")
+        self.assertEqual(svc.baca_qty("1.000", biasa), 1000)
+        self.assertEqual(svc.baca_harga_qty("25.000", self.v), 250)
+
+    def test_opname_hitung_per_meter(self):
+        from master.layanan import opname
+        opname.simpan_hitungan(self.admin, {f"hitung_{self.v.id}": "47,35"})
+        from master.models import OpnameBaris
+        self.assertEqual(OpnameBaris.objects.get(varian=self.v).hitung, 4735)
+        with self.assertRaises(Tolak):
+            opname.simpan_hitungan(self.admin, {f"hitung_{self.v.id}": "1,234"})
+
+    def test_po_jumlah_dan_harga_beli_per_meter(self):
+        from master.layanan import pembelian
+        from master.models import Supplier
+        s = Supplier.objects.create(nama="Distributor Fiber")
+        po = pembelian.buat(self.admin, supplier_id=s.id, tanggal_pesan="2026-11-09")
+        b = pembelian.tambah_baris(po, varian_id=self.v.id, jumlah="30", harga="18.000")
+        self.assertEqual((b.jumlah_pesan, b.harga, b.jumlah_pesan * b.harga), (3000, 180, 540000))  # 30 m x Rp 18.000
+
+    def test_buka_dus_sak_jadi_kg(self):
+        from master.layanan import bukadus
+        svc.atur(self.admin, "Semen", "kg", 100)     # semen eceran per kg, sak tetap per buah? (satu barang: semua varian)
+        sak = VarianInfo.objects.get(item_name="Semen", variant="50kg")
+        ecer = VarianInfo.objects.get(item_name="Semen", variant="eceran")
+        k = bukadus.buat_konversi(self.admin, dari_id=sak.id, ke_id=ecer.id, isi="50")
+        self.assertEqual(k.isi, 5000)
+        # Satuan berubah lagi: isi ikut dikonversi.
+        svc.atur(self.admin, "Semen", "kg", 10)
+        k.refresh_from_db()
+        self.assertEqual(k.isi, 500)
+
+    def test_halaman_gudang_tampil_per_meter(self):
+        from master.layanan import opname
+        opname.simpan_hitungan(self.admin, {f"hitung_{self.v.id}": "47,35"})
+        op = opname.ajukan(self.admin)
+        self.client.force_login(self.admin)
+        isi = self.client.get(f"/master/opname/{op.id}/").content.decode()
+        self.assertIn("47,35 m", isi)

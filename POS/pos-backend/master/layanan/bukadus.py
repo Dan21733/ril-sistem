@@ -13,6 +13,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
+from master.layanan.satuan import baca_qty
 from master.models import BukaDus, Konversi, MutasiStok, VarianInfo
 
 
@@ -23,7 +24,8 @@ def buat_konversi(pengguna, *, dari_id, ke_id, isi, isi_tidak_tetap=False, catat
         raise Tolak("Pilih kedua barang dari hasil pencarian.")
     if dari.pk == ke.pk:
         raise Tolak("Barang asal dan hasil tidak boleh sama.")
-    nilai = baca_angka(isi, boleh_kosong=False)
+    # Isi diketik dalam satuan barang hasil (mis. 50 kg), disimpan per kelipatannya.
+    nilai = baca_qty(isi, ke)
     if nilai < 2:
         raise Tolak("Isi per kemasan minimal 2.")
     if Konversi.objects.filter(dari=dari, ke=ke).exists():
@@ -38,7 +40,7 @@ def buat_konversi(pengguna, *, dari_id, ke_id, isi, isi_tidak_tetap=False, catat
 
 
 def ubah_konversi(pengguna, k, *, isi, isi_tidak_tetap, aktif, catatan=""):
-    nilai = baca_angka(isi, boleh_kosong=False)
+    nilai = baca_qty(isi, k.ke)
     if nilai < 2:
         raise Tolak("Isi per kemasan minimal 2.")
     lama = f"isi {k.isi}, {'tidak tetap' if k.isi_tidak_tetap else 'tetap'}, {'aktif' if k.aktif else 'nonaktif'}"
@@ -54,12 +56,15 @@ def _periksa(k, jumlah, isi_total):
     """(jumlah dus, isi total) setelah diperiksa. Tidak mengubah apa pun."""
     if not k.aktif:
         raise Tolak("Pasangan ini nonaktif.")
-    qty = baca_angka(jumlah, boleh_kosong=False)
+    qty = baca_qty(jumlah, k.dari)
     if qty <= 0:
         raise Tolak("Jumlah yang dibuka harus lebih dari nol.")
-    standar = qty * k.isi
+    # Jumlah dus dalam satuan barang asal; isi dalam satuan barang hasil (mis. sak -> kg).
+    from master.layanan.satuan import satuan_dari
+    k_dari = satuan_dari(k.dari)[1]
+    standar = qty * k.isi // k_dari
     if k.isi_tidak_tetap:
-        total = baca_angka(isi_total, boleh_kosong=True)
+        total = baca_qty(isi_total, k.ke, boleh_kosong=True)
         if total is None:
             total = standar
         if total <= 0:

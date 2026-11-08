@@ -66,3 +66,31 @@ export function hargaTersimpan(hargaSatuan, item) {
 export function langkahJumlah(item) {
   return kelipatanOf(item)
 }
+
+/*
+ * Jual per rupiah (keputusan pemilik 9 Nov 2026): pembeli bilang "paku 5 ribu".
+ * Kasir mengetik rupiahnya; jumlah = rupiah : harga pricelist, DIBULATKAN KE ATAS ke
+ * kelipatan (pembeli tidak pernah dapat kurang dari yang dibayar), lalu harga satuan
+ * diturunkan supaya total pas. Total bisa kurang beberapa rupiah dari ketikan (tidak
+ * pernah lebih) karena harga tersimpan bilangan bulat. Turunnya harga ikut aturan floor.
+ * Hasil null: rupiah tidak sah / pricelist tidak ada.
+ */
+export function jualPerRupiah(rupiah, item) {
+  const r = Number(rupiah)
+  const p = Number(item?.price)
+  if (!Number.isSafeInteger(r) || r <= 0 || !Number.isSafeInteger(p) || p <= 0) return null
+  const quantity = Math.max(1, Math.ceil(r / p))
+  const unit_price = Math.floor(r / quantity)
+  return { quantity, unit_price, total: unit_price * quantity }
+}
+
+/* Tawar total pas: jumlah tetap, harga satuan = rupiah : jumlah (dibulatkan ke bawah). */
+export function totalPas(rupiah, item) {
+  const r = Number(rupiah)
+  const q = Number(item?.quantity)
+  const p = Number(item?.price)
+  if (!Number.isSafeInteger(r) || r <= 0 || !Number.isSafeInteger(q) || q < 1) return null
+  const unit_price = Math.floor(r / q)
+  if (Number.isSafeInteger(p) && unit_price > p) return null
+  return { quantity: q, unit_price, total: unit_price * q }
+}

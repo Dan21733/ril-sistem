@@ -52,10 +52,14 @@ def draf(pengguna, buat=True, toko=None, lokasi=None, tiket=None):
 
 def simpan_hitungan(pengguna, data, toko=None, lokasi=None, tiket=None, boleh=None):
     """Simpan isian hitung_<id varian> (yang kosong dilewati). Mengembalikan jumlah baris tersimpan."""
+    from master.layanan.satuan import baca_qty
+    mentah = {k[7:]: v for k, v in data.items() if k.startswith("hitung_") and str(v).strip() and k[7:].isdigit()}
+    # Barang per meter/kg: hitungan diketik per satuan ("12,5"), disimpan per kelipatan.
+    info_isian = {str(v.pk): v for v in VarianInfo.objects.filter(pk__in=list(mentah))}
     isian = {}
-    for kunci, nilai in data.items():
-        if kunci.startswith("hitung_") and str(nilai).strip():
-            isian[kunci[7:]] = baca_angka(nilai, boleh_kosong=False)
+    for kunci, nilai in mentah.items():
+        v = info_isian.get(kunci)
+        isian[kunci] = baca_qty(nilai, v, nama=f"{v.item_name} / {v.variant}" if v else "")
     if not isian:
         raise Tolak("Belum ada hitungan yang diisi.")
     if boleh is not None:

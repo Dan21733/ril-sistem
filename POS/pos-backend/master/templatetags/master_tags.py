@@ -68,3 +68,51 @@ def kurang(a, b):
         return int(a) - int(b)
     except (TypeError, ValueError):
         return ""
+
+
+# Satuan (meter/kg) di layar gudang, PO, transfer: `{{ jumlah|qty:varian }}` -> "12,5 m".
+@register.filter
+def qty(jumlah, x):
+    from master.layanan.satuan import format_jumlah, satuan_dari
+    s, k = satuan_dari(x)
+    if k <= 1 or jumlah in (None, ""):
+        return ribuan(jumlah)
+    return format_jumlah(jumlah, s, k)
+
+
+@register.filter
+def qty_isi(jumlah, x):
+    """Nilai awal isian jumlah (tanpa satuan, koma desimal): 125 -> "12,5"."""
+    from master.layanan.satuan import angka_teks, satuan_dari
+    s, k = satuan_dari(x)
+    if jumlah in (None, ""):
+        return ""
+    return angka_teks(jumlah, k) if k > 1 else jumlah
+
+
+@register.filter
+def harga_qty(harga, x):
+    """Harga tersimpan per kelipatan -> harga per satuan (2.500 -> 25.000)."""
+    from master.layanan.satuan import satuan_dari
+    s, k = satuan_dari(x)
+    return harga * k if (k > 1 and harga is not None) else harga
+
+
+@register.filter
+def akhiran(x):
+    from master.layanan.satuan import satuan_dari
+    s, k = satuan_dari(x)
+    return f"/{s}" if k > 1 else ""
+
+
+@register.filter
+def berkoma(x):
+    from master.layanan.satuan import satuan_dari
+    return satuan_dari(x)[1] > 1
+
+
+@register.filter
+def nama_satuan(x):
+    from master.layanan.satuan import satuan_dari
+    s, k = satuan_dari(x)
+    return s if k > 1 else ""
