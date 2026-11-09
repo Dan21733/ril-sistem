@@ -44,7 +44,7 @@ def izin_barang_untuk(hak):
 
 
 def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izin=None, kategori=(), brand=(),
-         lokasi=None, rak=()):
+         lokasi=None, rak=(), sesi=None, varian=()):
     """Buka tiket. Jenis "lokasi" (pindah stok/rak) atau "barang" (usul harga, alias, aktif)."""
     from master.akun.akses import hak_pengguna
     from master.layanan import tiket_barang
@@ -76,6 +76,14 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
         rak_ada = set(Rak.objects.values_list("kode", flat=True))
         saring = {"lokasi": l.pk, "rak": sorted({r for r in rak or [] if r in rak_ada}),
                   "kategori": tiket_barang.bersihkan_saring(kategori, ())["kategori"]}
+        if varian:
+            # Hitung ulang barang tertentu (dari daftar "belum dihitung" sesi opname).
+            saring["varian"] = sorted(set(VarianInfo.objects.filter(pk__in=[int(x) for x in varian if str(x).isdigit()])
+                                          .values_list("pk", flat=True)))
+        if sesi is not None and sesi.status != "buka":
+            raise Tolak("Sesi opname itu sudah ditutup.")
+    elif sesi is not None:
+        raise Tolak("Sesi opname hanya untuk tugas hitung stok.")
     if isinstance(batas, str):
         try:
             batas = datetime.fromisoformat(batas.strip())
@@ -88,7 +96,8 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
     if batas <= timezone.now():
         raise Tolak("Batas waktu harus di masa depan.")
     t = Tiket.objects.create(untuk=untuk, tujuan=tujuan, lingkup=rapikan_teks(lingkup)[:300],
-                             dibuka_oleh=pengguna.username, batas=batas, jenis=jenis, izin=izin_bersih, saring=saring)
+                             dibuka_oleh=pengguna.username, batas=batas, jenis=jenis, izin=izin_bersih, saring=saring,
+                             sesi=sesi)
     layanan.catat(pengguna, aksi="tambah", objek="tiket", kolom="tiket",
                   baru=f"Tiket #{t.id} untuk {untuk.username} sampai {timezone.localtime(batas):%d-%m %H:%M}: {tujuan}")
     return t

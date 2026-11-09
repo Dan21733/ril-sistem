@@ -266,8 +266,11 @@ def tiket_daftar(request, baru=False):
                                lingkup=request.POST.get("lingkup"), batas=request.POST.get("batas"), hak=hak,
                                jenis=request.POST.get("jenis") or "lokasi", izin=request.POST.getlist("izin"),
                                kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"),
-                               lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"))
+                               lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"),
+                               sesi=_sesi_dari(request.POST.get("sesi"), request.POST.get("jenis")))
             messages.success(request, f"Tugas #{t.id} dibuka untuk {t.untuk.first_name or t.untuk.username}.")
+            if t.sesi_id:
+                return redirect("master:opname_sesi", sesi_id=t.sesi_id)
         except Tolak as tolak:
             messages.error(request, str(tolak))
             if baru:
@@ -288,10 +291,11 @@ def tiket_daftar(request, baru=False):
             "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True).distinct() if b}, key=kunci_alami),
             "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
             "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
+            "sesi_buka": _sesi_dari("buka"), "sesi_pilih": request.GET.get("sesi", ""),
         })
     daftar = list(Tiket.objects.select_related("untuk").prefetch_related("baris", "usulan")[:120])
     for t in daftar:
-        t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else
+        t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else t.hitungan.count() if t.sesi_id else
                            (t.opname.baris.count() if t.jenis == "hitung" and hasattr(t, "opname") else len(t.baris.all())))
     acc = [t for t in daftar if t.status == "dikirim"]
     jalan = [t for t in daftar if t.status == "terbuka" and not t.lewat_batas]
@@ -303,6 +307,15 @@ def tiket_daftar(request, baru=False):
         kelompok.append(("Lewat batas waktu", lewat, ""))
     kelompok.append(("Sudah selesai", selesai, "Belum ada."))
     return render(request, "master/tiket.html", {"menu": "tiket", "admin": admin, "kelompok": kelompok})
+
+
+def _sesi_dari(nilai, jenis="hitung"):
+    """Sesi opname yang sedang buka, kalau formulir memilihnya (tugas hitung saja)."""
+    from master.layanan.sesi_opname import sesi_buka
+    if jenis != "hitung" or not nilai:
+        return None
+    s = sesi_buka()
+    return s if s is not None and (nilai == "buka" or str(s.pk) == str(nilai)) else None
 
 
 @perlu("kelola_lokasi")
@@ -366,6 +379,8 @@ def _tiket_hitung_detail(request, t, hak):
     from master.layanan import opname as svc_opname
     from master.layanan import tiket as svc_tiket
     from master.models import Opname
+    if t.sesi_id:
+        return redirect("master:opname_sesi", sesi_id=t.sesi_id)
     op = Opname.objects.filter(tiket=t).first()
     if request.method == "POST":
         aksi = request.POST.get("aksi")

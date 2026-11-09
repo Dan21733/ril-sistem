@@ -198,6 +198,8 @@ def lingkup_tugas(t):
         syarat |= Q(rak_id__in=s["rak"])
     if s.get("kategori"):
         syarat |= Q(item_name__in=Item.objects.filter(category__in=s["kategori"]).values("item_name"))
+    if s.get("varian"):
+        syarat |= Q(pk__in=s["varian"])
     return qs.filter(syarat) if syarat else qs
 
 
@@ -209,7 +211,9 @@ def lingkup_teks(t):
         bagian.append("rak " + ", ".join(s["rak"]))
     if s.get("kategori"):
         bagian.append("kategori " + ", ".join(s["kategori"]))
-    if not s.get("rak") and not s.get("kategori"):
+    if s.get("varian"):
+        bagian.append(f"hitung ulang {len(s['varian'])} barang")
+    if not s.get("rak") and not s.get("kategori") and not s.get("varian"):
         bagian.append("semua barang")
     return " · ".join(x for x in bagian if x)
 

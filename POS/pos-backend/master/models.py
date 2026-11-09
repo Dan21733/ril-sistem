@@ -883,6 +883,8 @@ class Tiket(models.Model):
     diputus_oleh = models.CharField(max_length=150, blank=True, default="")
     diputus_waktu = models.DateTimeField(null=True, blank=True)
     catatan_putusan = models.CharField(max_length=300, blank=True, default="")
+    # Tugas hitung yang menjadi bagian sesi opname besar (mis. Opname Desember 2026).
+    sesi = models.ForeignKey("SesiOpname", null=True, blank=True, on_delete=models.PROTECT, related_name="tugas")
 
     class Meta:
         db_table = "master_tiket"
@@ -1379,3 +1381,73 @@ class Biaya(models.Model):
     @property
     def perlu_diganti(self):
         return self.status == "ditolak" and self.sumber == "laci" and not self.diganti
+
+
+class SesiOpname(models.Model):
+    """Opname besar (keputusan pemilik 9 Nov 2026): banyak tugas hitung paralel, satu ACC.
+
+    Hitungan dicatat per tempat (lokasi + rak) dan DIJUMLAH per barang per lokasi di seluruh
+    sesi; selisih dihitung sekali saat ACC. Jadi barang yang sama di rak berbeda, atau
+    dihitung dua orang di tempat berbeda, tidak saling menimpa.
+    """
+    STATUS = [("buka", "Sedang dihitung"), ("disetujui", "Disetujui"), ("batal", "Dibatalkan")]
+
+    nama = models.CharField(max_length=100)
+    status = models.CharField(max_length=10, choices=STATUS, default="buka", db_index=True)
+    dibuka_oleh = models.CharField(max_length=150)
+    dibuka_waktu = models.DateTimeField(auto_now_add=True)
+    diputus_oleh = models.CharField(max_length=150, blank=True, default="")
+    diputus_waktu = models.DateTimeField(null=True, blank=True)
+    # Varian yang dinonaktifkan saat ACC (dipilih pemilik di daftar "belum dihitung").
+    nonaktifkan = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "master_sesi_opname"
+        ordering = ["-id"]
+
+    def __str__(self):
+        return self.nama
+
+
+class HitungTempat(models.Model):
+    """Satu hitungan: barang X di lokasi L, rak R, jumlah N. Tiket kosong = ditetapkan pemilik (mis. dianggap 0)."""
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="hitungan")
+    tiket = models.ForeignKey(Tiket, null=True, blank=True, on_delete=models.CASCADE, related_name="hitungan")
+    varian = models.ForeignKey(VarianInfo, on_delete=models.PROTECT, related_name="hitung_tempat")
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.PROTECT, related_name="+")
+    rak = models.ForeignKey(Rak, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    jumlah = models.IntegerField()
+    oleh = models.CharField(max_length=150)
+    waktu = models.DateTimeField()
+    catatan = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        db_table = "master_hitung_tempat"
+        ordering = ["id"]
+        indexes = [models.Index(fields=["sesi", "varian"], name="master_hitung_tempat_sv")]
+
+
+class SesiHasil(models.Model):
+    """Hasil ACC per barang per lokasi: dasar nilai stok sesudah opname."""
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="hasil")
+    varian = models.ForeignKey(VarianInfo, on_delete=models.PROTECT, related_name="+")
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.PROTECT, related_name="+")
+    sistem = models.IntegerField()
+    hitung = models.IntegerField()
+    modal = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "master_sesi_hasil"
+        ordering = ["id"]
+
+
+class VarianRak(models.Model):
+    """Rak TAMBAHAN satu barang (selain rak utama `VarianInfo.rak`), diisi dari opname sesi:
+    barang yang sama ada di rak pajangan toko dan rak gudang, atau terpaksa di rak lain.
+    Rak utama tetap dipakai ambil barang, cari, dan lingkup tugas."""
+    varian = models.ForeignKey(VarianInfo, on_delete=models.CASCADE, related_name="tempat_rak")
+    rak = models.ForeignKey(Rak, on_delete=models.CASCADE, related_name="isi_varian")
+
+    class Meta:
+        db_table = "master_varian_rak"
+        constraints = [models.UniqueConstraint(fields=["varian", "rak"], name="master_varian_rak_unik")]

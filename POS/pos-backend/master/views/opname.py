@@ -15,9 +15,11 @@ def daftar(request):
     saring = request.GET.get("status", "")
     if saring in dict(Opname.STATUS):
         qs = qs.filter(status=saring)
+    from master.models import SesiOpname
     return render(request, "master/opname.html", {
         "menu": "opname", "daftar": qs[:100], "saring": saring, "status": [s for s in Opname.STATUS if s[0] != "draf"],
         "sedang": Opname.objects.filter(status="draf").annotate(n=Count("baris")).filter(n__gt=0),
+        "sesi": SesiOpname.objects.all()[:10],
     })
 
 
@@ -43,3 +45,86 @@ def detail(request, opname_id):
         "nilai_hitung": sum(b.nilai_hitung or 0 for b in baris),
         "nilai_selisih": sum(b.nilai_selisih or 0 for b in beda),
     })
+
+
+# ---------------------------------------------------------------------------
+# Sesi opname (opname besar, banyak tablet; 9 Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+@perlu("opname")
+def sesi_buka(request):
+    from master.layanan import sesi_opname as svc_sesi
+    if request.method == "POST":
+        try:
+            s = svc_sesi.buka(request.user, request.POST.get("nama"), hak=hak_pengguna(request.user))
+            messages.success(request, f"Sesi {s.nama} dibuka. Sekarang buka tugas hitung untuk tiap orang.")
+            return redirect("master:opname_sesi", sesi_id=s.id)
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+    return redirect("master:opname")
+
+
+@perlu("opname")
+def sesi_detail(request, sesi_id):
+    from datetime import timedelta
+
+    from django.contrib.auth import get_user_model
+    from django.utils import timezone
+
+    from master.layanan import sesi_opname as svc_sesi
+    from master.layanan import tiket as svc_tiket
+    from master.models import SesiOpname, Tiket
+    sesi = get_object_or_404(SesiOpname, pk=sesi_id)
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        p = request.POST
+        aksi = p.get("aksi")
+        try:
+            if aksi in ("kembalikan", "batal_tugas"):
+                t = get_object_or_404(Tiket, pk=p.get("tiket"), sesi=sesi)
+                if aksi == "kembalikan":
+                    svc_sesi.kembalikan(request.user, t, hak=hak)
+                    messages.success(request, f"Tugas #{t.id} dibuka lagi 4 jam.")
+                else:
+                    svc_tiket.batalkan(request.user, t, hak=hak)
+                    messages.info(request, f"Tugas #{t.id} dibatalkan; hitungannya tidak dipakai.")
+            elif aksi == "hapus_hitungan":
+                svc_sesi.hapus_hitungan(request.user, sesi, p.get("id"), hak=hak)
+                messages.info(request, "Hitungan dibuang.")
+            elif aksi == "anggap_nol":
+                n = svc_sesi.anggap_nol(request.user, sesi, p.getlist("pilih"), hak=hak)
+                messages.success(request, f"{n} barang dicatat 0.")
+            elif aksi == "tugas_ulang":
+                untuk = get_user_model().objects.filter(pk=p.get("untuk") or 0, is_active=True).first()
+                tugas = svc_sesi.tugas_ulang(request.user, sesi, p.getlist("pilih"), untuk=untuk, hak=hak)
+                messages.success(request, f"{len(tugas)} tugas hitung ulang dibuka untuk {untuk.first_name or untuk.username}.")
+            elif aksi in ("nonaktif", "batal_nonaktif"):
+                n = svc_sesi.tandai_nonaktif(request.user, sesi, p.getlist("pilih"), aksi == "nonaktif", hak=hak)
+                messages.success(request, f"{n} barang " + ("akan dinonaktifkan saat ACC." if aksi == "nonaktif" else "tidak jadi dinonaktifkan."))
+            elif aksi == "acc":
+                svc_sesi.acc(request.user, sesi, hak=hak)
+                messages.success(request, f"{sesi.nama} di-ACC. Stok semua lokasi sudah disesuaikan.")
+            elif aksi == "batal":
+                svc_sesi.batal(request.user, sesi, hak=hak)
+                messages.info(request, "Sesi dibatalkan. Stok tidak berubah.")
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+        tab = p.get("tab") or request.GET.get("tab") or ""
+        return redirect(f"{request.path}?tab={tab}" if tab else request.path)
+    tugas = list(Tiket.objects.filter(sesi=sesi).select_related("untuk").annotate(n=Count("hitungan")))
+    from master.layanan.opname import lingkup_teks, lokasi_tugas
+    for t in tugas:
+        t.lingkup_teks, t.lokasi = lingkup_teks(t), lokasi_tugas(t)
+    konteks = {"menu": "opname", "sesi": sesi, "tugas": tugas, "tab": request.GET.get("tab", "")}
+    if sesi.status == "buka":
+        r = svc_sesi.rekap(sesi)
+        admin = []
+        for u in get_user_model().objects.filter(is_active=True).order_by("first_name", "username"):
+            h = hak_pengguna(u)
+            if "gudang" in h and "hitung" in svc_tiket.jenis_untuk(h) and not u.is_superuser:
+                admin.append(u)
+        konteks.update(r=r, admin=admin, jalan=sum(1 for t in tugas if t.bisa_diisi))
+    else:
+        konteks.update(h=svc_sesi.hasil_ringkas(sesi))
+    return render(request, "master/opname_sesi.html", konteks)

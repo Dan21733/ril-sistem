@@ -10,8 +10,8 @@
   <div class="tb-langkah"><div class="tb-no">1</div><div class="tb-isi">
     <div class="tb-tanya">Tugas apa?</div>
     <div class="tb-pilihan tb-jenis">
-      <label class="tb-kartu"><input type="radio" name="jenis" value="barang" checked><b>Ubah data barang</b><span>Usul harga jual, floor, alias, aktif/nonaktif</span></label>
-      <label class="tb-kartu"><input type="radio" name="jenis" value="hitung"><b>Hitung stok</b><span>Hitung barang di satu tempat, tanpa melihat stok sistem</span></label>
+      <label class="tb-kartu"><input type="radio" name="jenis" value="barang" {% if not sesi_pilih %}checked{% endif %}><b>Ubah data barang</b><span>Usul harga jual, floor, alias, aktif/nonaktif</span></label>
+      <label class="tb-kartu"><input type="radio" name="jenis" value="hitung" {% if sesi_pilih %}checked{% endif %}><b>Hitung stok</b><span>Hitung barang di satu tempat, tanpa melihat stok sistem</span></label>
       <label class="tb-kartu"><input type="radio" name="jenis" value="lokasi"><b>Pindah barang / rak</b><span>Usul pindah stok antar gudang dan ganti rak</span></label>
     </div>
   </div></div>
@@ -37,6 +37,8 @@
     </div>
 
     <div data-bagian="hitung" hidden>
+      {% if sesi_buka %}<label class="tb-chip tb-cek" style="margin-bottom:10px"><input type="checkbox" name="sesi" value="{{ sesi_buka.id }}" checked>Bagian dari <b>&nbsp;{{ sesi_buka.nama }}</b></label>
+      <p class="kecil redup" style="margin:0 0 8px">Dalam sesi: karyawan memilih rak saat menghitung, bisa tanpa sinyal, dan hasilnya dijumlah dengan tugas lain lalu di-ACC sekali di halaman sesi.</p>{% endif %}
       <div class="tb-sub">Di mana?</div>
       <div class="tb-pilihan">{% for l in pilihan_lokasi %}<label class="tb-chip"><input type="radio" name="lokasi" value="{{ l.id }}" {% if forloop.first %}checked{% endif %}>{{ l.nama }}</label>{% endfor %}</div>
       <div class="tb-sub">Rak</div>

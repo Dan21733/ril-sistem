@@ -3,6 +3,15 @@
 {% block isi %}
 <h2>Stok opname</h2>
 <p class="sub">Hitungan stok dari kepala gudang. Stok baru berubah setelah di-ACC di sini.</p>
+<div class="kartu" style="margin-bottom:16px">
+  <b>Opname besar (banyak tablet sekaligus)</b>
+  <p class="kecil redup" style="margin:4px 0 10px">Satu sesi, banyak tugas paralel per orang. Hitungan dicatat per rak dan dijumlah per barang per lokasi, lalu di-ACC sekali. Dipakai untuk opname menyeluruh (mis. Desember, toko tutup).</p>
+  {% for s in sesi %}<div style="margin:4px 0"><a href="{% url 'master:opname_sesi' s.id %}"><b>{{ s.nama }}</b></a> <span class="label {% if s.status == 'disetujui' %}baik{% elif s.status == 'batal' %}bahaya{% else %}awas{% endif %}">{{ s.get_status_display }}</span> <span class="redup kecil">{{ s.dibuka_waktu|date:"d M Y" }}</span></div>{% endfor %}
+  <form method="post" action="{% url 'master:opname_sesi_buka' %}" class="baris" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">{% csrf_token %}
+    <input type="text" name="nama" placeholder="Nama sesi, mis. Opname Desember 2026" style="max-width:340px" required>
+    <button class="tombol" type="submit">Buka sesi</button>
+  </form>
+</div>
 <p><a class="tombol kecil {% if not saring %}utama{% endif %}" href="?">Semua</a>
 {% for k, l in status %} <a class="tombol kecil {% if saring == k %}utama{% endif %}" href="?status={{ k }}">{{ l }}</a>{% endfor %}</p>
 <div class="gulir"><table>

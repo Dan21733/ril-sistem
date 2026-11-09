@@ -1,0 +1,218 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Tugas #{{ t.id }}{% endblock %}
+{% block isi %}
+<style>
+.sh-kepala{position:sticky;top:0;z-index:5;background:var(--latar);padding:8px 0 6px;margin:-4px 0 6px;border-bottom:1px solid var(--garis)}
+.sh-baris{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sh-rak{flex:1 1 220px;font-size:17px;font-weight:600;min-height:46px}
+.sh-cari{flex:3 1 240px;font-size:16px;min-height:46px}
+.sh-status{font-size:13px;padding:4px 10px;border-radius:999px;background:var(--baik-lembut);color:var(--baik);white-space:nowrap}
+.sh-status.antri{background:var(--awas-lembut);color:var(--awas)}.sh-status.mati{background:var(--bahaya-lembut);color:var(--bahaya)}
+.sh-lain{font-size:12px;color:var(--redup)}
+.sh-gagal{color:var(--bahaya);font-size:12px}
+.daftar .brs input.angka{width:110px;min-height:46px}
+.sh-filter{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}
+.sh-filter button.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+</style>
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
+  <span class="redup kecil">{{ t.sesi.nama }} · <b>{{ lingkup_teks }}</b> · sampai {{ t.batas|date:"d M H:i" }}</span></div>
+
+{% if t.bisa_diisi %}
+<div class="sh-kepala">
+  <div class="sh-baris">
+    <select class="sh-rak" id="rak" aria-label="Rak tempat menghitung">
+      <option value="">Tanpa rak / tidak tahu</option>
+      {% for r in daftar_rak %}<option value="{{ r.kode }}">Rak {{ r.kode }}{% if r.nama %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+    </select>
+    <span class="sh-status" id="status">Tersimpan</span>
+  </div>
+  <div class="sh-baris" style="margin-top:8px">
+    <input class="sh-cari" type="search" id="cari" placeholder="Cari barang: nama, varian, merek" autocomplete="off" aria-label="Cari barang">
+  </div>
+  <div class="sh-filter">
+    <button type="button" class="tombol kecil" data-saring="belum">Lingkupku belum dihitung (<span id="n-belum">0</span>)</button>
+    <button type="button" class="tombol kecil" data-saring="rak">Sudah dihitung di rak ini (<span id="n-rak">0</span>)</button>
+  </div>
+</div>
+<p class="redup kecil" style="margin:4px 0 8px">Pilih rak tempat kamu berdiri, lalu ketik jumlah barang di rak itu. Barang yang sama di rak lain diketik lagi setelah ganti rak; semuanya dijumlah. Sinyal hilang tidak apa-apa: angka tersimpan di tablet dan terkirim sendiri.</p>
+<div id="gagal" class="pesan error" hidden></div>
+<div class="daftar" id="hasil"></div>
+<p class="redup kecil" id="ket-hasil"></p>
+
+<h3>Sudah dihitung (<span id="n-semua">0</span>)</h3>
+<div class="daftar" id="sudah"></div>
+
+<form method="post" class="alat" id="form-kirim" style="margin-top:14px" data-tanya="Kirim hitungan tugas ini ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
+  <input type="text" name="dihitung_oleh" required maxlength="200" placeholder="Dihitung oleh (mis. Andi, Budi)" aria-label="Dihitung oleh" value="{{ request.user.first_name|default:'' }}">
+  <button class="tombol utama" type="submit" id="tombol-kirim">Kirim ke pemilik</button>
+</form>
+{{ barang|json_script:"data-barang" }}
+{{ hitungan|json_script:"data-hitungan" }}
+<script>
+(() => {
+  const TIKET = {{ t.id }}, KUNCI = 'sesi-hitung-' + TIKET, KUNCI_RAK = KUNCI + '-rak';
+  const barang = JSON.parse(document.getElementById('data-barang').textContent);
+  const perId = new Map(barang.map(b => [b.i, b]));
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const $ = id => document.getElementById(id);
+  const simpanLokal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const bacaLokal = (k, awal) => { try { return JSON.parse(localStorage.getItem(k)) ?? awal; } catch (e) { return awal; } };
+
+  // hitung: "varian|rak" -> teks per satuan ("12,5"). Dari server, lalu ditimpa antrian yang belum terkirim.
+  const kunci = (v, r) => v + '|' + (r || '');
+  const teks = (jumlah, b) => {
+    const k = b && b.k > 1 ? b.k : 1;
+    if (k === 1) return String(jumlah);
+    return (jumlah / k).toFixed(String(k).length - 1).replace(/\.?0+$/, '').replace('.', ',');
+  };
+  const hitung = new Map();
+  JSON.parse(document.getElementById('data-hitungan').textContent).forEach(h => hitung.set(kunci(h.varian, h.rak), teks(h.jumlah, perId.get(h.varian))));
+  let antri = bacaLokal(KUNCI, {});           // kunci -> {kunci, varian, rak, jumlah | hapus}
+  const gagal = {};
+  Object.values(antri).forEach(e => e.hapus ? hitung.delete(e.kunci) : hitung.set(e.kunci, e.jumlah));
+
+  const rakSel = $('rak');
+  rakSel.value = bacaLokal(KUNCI_RAK, '');
+  if (rakSel.value !== bacaLokal(KUNCI_RAK, '')) rakSel.value = '';
+  let saring = '';
+
+  const normal = s => (s || '').toLowerCase();
+  const nama = b => b.n + (b.v ? ' / ' + b.v : '');
+  barang.forEach(b => { b.cari = normal([b.n, b.v, b.b, b.c, b.a, b.r].join(' ')); b.nama = normal(b.n); });
+
+  function rakDi(id){ return [...hitung.keys()].filter(k => k.startsWith(id + '|')).map(k => [k.split('|')[1], hitung.get(k)]); }
+
+  function baris(b, sudahSaja){
+    const r = rakSel.value, nilai = hitung.get(kunci(b.i, r)) ?? '';
+    const lain = rakDi(b.i).filter(([x]) => x !== r).map(([x, n]) => (x ? 'rak ' + x : 'tanpa rak') + ': ' + n);
+    const d = document.createElement('div'); d.className = 'brs' + (nilai !== '' ? ' terisi' : '');
+    const nm = document.createElement('div'); nm.className = 'nama';
+    const bb = document.createElement('b'); bb.textContent = nama(b); nm.append(bb);
+    const sub = document.createElement('span'); sub.className = 'redup kecil';
+    sub.textContent = [b.b, b.r ? 'biasa di rak ' + b.r : '', b.s ? 'per ' + b.s : ''].filter(Boolean).join(' · ');
+    nm.append(sub);
+    if (lain.length){ const l = document.createElement('div'); l.className = 'sh-lain'; l.textContent = 'Juga dihitung di ' + lain.join(', '); nm.append(l); }
+    const g = gagal[kunci(b.i, r)]; if (g){ const x = document.createElement('div'); x.className = 'sh-gagal'; x.textContent = g; nm.append(x); }
+    const inp = document.createElement('input'); inp.className = 'angka'; inp.type = 'text';
+    inp.inputMode = b.k > 1 ? 'decimal' : 'numeric'; inp.value = nilai; inp.placeholder = b.s || '';
+    inp.setAttribute('aria-label', 'Jumlah ' + nama(b)); inp.dataset.varian = b.i;
+    inp.addEventListener('change', () => ubah(b, inp.value.trim()));
+    d.append(nm, inp);
+    return d;
+  }
+
+  function cocok(){
+    const q = normal($('cari').value).split(/\s+/).filter(Boolean);
+    let daftar;
+    if (saring === 'belum') daftar = barang.filter(b => b.l && !rakDi(b.i).length);
+    else if (saring === 'rak') daftar = barang.filter(b => hitung.has(kunci(b.i, rakSel.value)));
+    else if (!q.length) daftar = [];
+    else daftar = barang;
+    if (q.length) daftar = daftar.filter(b => q.every(w => b.cari.includes(w)));
+    if (q.length) daftar = daftar.slice().sort((a, b) => (b.nama.startsWith(q[0]) - a.nama.startsWith(q[0])) || a.nama.localeCompare(b.nama));
+    return daftar;
+  }
+
+  function tampil(){
+    const daftar = cocok(), wadah = $('hasil');
+    wadah.replaceChildren(...daftar.slice(0, 60).map(b => baris(b)));
+    wadah.hidden = !daftar.length;
+    $('ket-hasil').textContent = daftar.length > 60 ? `${daftar.length} barang cocok, 60 pertama tampil. Persempit pencariannya.`
+      : (!daftar.length && ($('cari').value.trim() || saring) ? 'Tidak ada barang yang cocok.' : '');
+    angka();
+    tampilSudah();
+  }
+
+  function angka(){
+    $('n-belum').textContent = barang.filter(b => b.l && !rakDi(b.i).length).length;
+    $('n-rak').textContent = barang.filter(b => hitung.has(kunci(b.i, rakSel.value))).length;
+  }
+
+  function tampilSudah(){
+    const per = new Map();
+    for (const [k, n] of hitung){ const [v, r] = k.split('|'); if (!per.has(r)) per.set(r, []); per.get(r).push([perId.get(+v), n]); }
+    const isi = [];
+    [...per.keys()].sort().forEach(r => {
+      const kepala = document.createElement('div'); kepala.className = 'brs'; kepala.style.background = '#f1efe9';
+      kepala.innerHTML = '<b></b>'; kepala.firstChild.textContent = r ? 'Rak ' + r : 'Tanpa rak'; isi.push(kepala);
+      per.get(r).filter(([b]) => b).sort((a, b) => a[0].nama.localeCompare(b[0].nama)).forEach(([b, n]) => {
+        const d = document.createElement('div'); d.className = 'brs';
+        const nm = document.createElement('div'); nm.className = 'nama'; nm.textContent = nama(b);
+        const j = document.createElement('b'); j.textContent = n + (b.s ? ' ' + b.s : '');
+        d.append(nm, j); isi.push(d);
+      });
+    });
+    $('sudah').replaceChildren(...isi);
+    $('n-semua').textContent = hitung.size;
+  }
+
+  function ubah(b, nilai){
+    const r = rakSel.value, k = kunci(b.i, r);
+    if (nilai !== '' && !(b.k > 1 ? /^\d+([.,]\d+)?$/ : /^\d+$/).test(nilai)){ kabar('Isi angka saja' + (b.k > 1 ? ', mis. 12,5.' : '.'), true); return; }
+    delete gagal[k];
+    if (nilai === ''){
+      if (!hitung.has(k)) return;
+      hitung.delete(k); antri[k] = {kunci: k, varian: b.i, rak: r, hapus: true};
+    } else {
+      hitung.set(k, nilai); antri[k] = {kunci: k, varian: b.i, rak: r, jumlah: nilai};
+    }
+    simpanLokal(KUNCI, antri);
+    tandai(); tampilSudah(); angka();
+    const brs = document.querySelector(`#hasil input[data-varian="${b.i}"]`);
+    if (brs) brs.closest('.brs').classList.toggle('terisi', nilai !== '');
+    clearTimeout(ubah.t); ubah.t = setTimeout(kirim, 700);
+  }
+
+  function tandai(teks){
+    const n = Object.keys(antri).length, s = $('status');
+    s.className = 'sh-status' + (teks === 'mati' ? ' mati' : n ? ' antri' : '');
+    s.textContent = teks === 'mati' ? `Tanpa sinyal · ${n} menunggu` : n ? `${n} menunggu terkirim` : 'Semua tersimpan';
+    $('tombol-kirim').disabled = n > 0;
+    const g = Object.values(gagal);
+    $('gagal').hidden = !g.length;
+    $('gagal').textContent = g.length ? `${g.length} hitungan ditolak server: ` + g.slice(0, 3).join('; ') : '';
+  }
+
+  let mengirim = false;
+  async function kirim(){
+    const entri = Object.values(antri).slice(0, 400);
+    if (!entri.length || mengirim) { tandai(); return; }
+    mengirim = true;
+    try {
+      const r = await fetch(location.pathname, {method: 'POST', redirect: 'manual', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({entri})});
+      if (r.type === 'opaqueredirect' || r.status === 302){ kabar('Sesi login habis. Masuk lagi; hitungan tetap tersimpan di tablet ini.', true); tandai('mati'); return; }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok){ kabar(d.pesan || 'Gagal menyimpan.', true); tandai(); return; }
+      const terkirim = new Set(d.ok || []);
+      (d.gagal || []).forEach(g => { gagal[g.kunci] = g.pesan; terkirim.add(g.kunci); });
+      entri.forEach(e => { if (terkirim.has(e.kunci) && antri[e.kunci] === e) delete antri[e.kunci]; });
+      simpanLokal(KUNCI, antri);
+      tandai();
+      if ((d.gagal || []).length) tampil();
+      if (Object.keys(antri).length) setTimeout(kirim, 300);
+    } catch (e) {
+      tandai('mati');
+    } finally { mengirim = false; }
+  }
+
+  $('cari').addEventListener('input', () => { clearTimeout(tampil.t); tampil.t = setTimeout(tampil, 150); });
+  rakSel.addEventListener('change', () => { simpanLokal(KUNCI_RAK, rakSel.value); tampil(); });
+  document.querySelectorAll('[data-saring]').forEach(t => t.addEventListener('click', () => {
+    saring = saring === t.dataset.saring ? '' : t.dataset.saring;
+    document.querySelectorAll('[data-saring]').forEach(x => x.classList.toggle('aktif', x.dataset.saring === saring));
+    tampil();
+  }));
+  $('form-kirim').addEventListener('submit', e => {
+    if (Object.keys(antri).length){ e.preventDefault(); e.stopImmediatePropagation(); kabar('Masih ada hitungan yang belum terkirim. Cari sinyal dulu.', true); }
+  }, true);
+  window.addEventListener('online', kirim);
+  setInterval(kirim, 20000);
+  tandai(); tampil(); kirim();
+})();
+</script>
+{% else %}
+<div class="pesan info">{% if t.status == 'terbuka' %}Batas waktu tugas ini sudah lewat. Minta pemilik membuka lagi.{% else %}Tugas ini {{ t.get_status_display|lower }}.{% endif %}</div>
+<h3>Hitungan tugas ini ({{ hitungan|length }})</h3>
+{% endif %}
+{% endblock %}

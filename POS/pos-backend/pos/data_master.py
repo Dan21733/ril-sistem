@@ -136,13 +136,19 @@ def stok_ditutup(sekarang=None):
             tugas = [_json(r[0]) for r in cursor.fetchall()]
             if not tugas:
                 return False, set()
-            rak, kategori = set(), set()
+            rak, kategori, varian = set(), set(), set()
             for s in tugas:
-                if not s.get("rak") and not s.get("kategori"):
+                if not s.get("rak") and not s.get("kategori") and not s.get("varian"):
                     return True, set()
                 rak.update(s.get("rak") or [])
                 kategori.update(s.get("kategori") or [])
+                varian.update(int(x) for x in s.get("varian") or [])
             kunci = set()
+            if varian:
+                # Hitung ulang barang tertentu (sesi opname).
+                tanda = ", ".join(["%s"] * len(varian))
+                cursor.execute(f"SELECT item_name, variant FROM {TABEL} WHERE id IN ({tanda})", sorted(varian))
+                kunci.update((n, v) for n, v in cursor.fetchall())
             if rak:
                 tanda = ", ".join(["%s"] * len(rak))
                 cursor.execute(f"SELECT item_name, variant FROM {TABEL} WHERE rak_id IN ({tanda})", list(rak))
