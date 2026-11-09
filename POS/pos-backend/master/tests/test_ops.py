@@ -182,12 +182,12 @@ class MasukPinTest(Dasar):
         self.client.post(reverse("master:karyawan"), {"aksi": "hak", "id": self.wid2,
                                                       "hak": ["gudang_ambil", "ops_tiket_rak", "penyetuju"]})
         user = get_user_model().objects.get(username=f"ops-{self.wid2.lower()}")
-        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang", "gudang_ambil", "ops_tiket_rak"})
+        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang"})
         self.assertIn(self.wid2, pengaturan.bukan_kasir())          # "Jualan di kasir" tidak dicentang
         self.assertIn(self.wid2, pengaturan.penyetuju_floor())
         r = self.client.get(reverse("master:karyawan"))
         self.assertContains(r, "Penyetuju")
-        self.assertContains(r, "2 hak operasional")
+        self.assertContains(r, ">Gudang</span>")
         self.client.post(reverse("master:karyawan"), {"aksi": "hak", "id": self.wid2, "hak": ["pos_jual"]})
         self.assertNotIn(self.wid2, pengaturan.bukan_kasir())
         self.assertNotIn(self.wid2, pengaturan.penyetuju_floor())
@@ -200,10 +200,12 @@ class MasukPinTest(Dasar):
         r = self.client.get("/gudang/")
         self.assertContains(r, "Budi")
         self.assertContains(r, "Belum ada tugas")
-        for teks in ("Buka dus", "Hitung stok", "Terima barang datang"):
-            self.assertNotContains(r, teks)
-        for url in ("/gudang/datang/", "/gudang/hitung/", "/gudang/buka-dus/"):
-            self.assertEqual(self.client.get(url).status_code, 403, url)
+        # Satu centang gudang: buka dus terbuka; datang/hitung hanya lewat penugasan (dialihkan ke Tugas).
+        self.assertContains(r, "Buka dus")
+        self.assertNotContains(r, "Terima barang datang")
+        for url in ("/gudang/datang/", "/gudang/hitung/"):
+            self.assertRedirects(self.client.get(url), "/gudang/", fetch_redirect_response=False)
+        self.assertEqual(self.client.get("/gudang/buka-dus/").status_code, 200)
         self.assertEqual(self.client.get("/gudang/stok/").status_code, 404)        # menu Stok dihapus
         self.assertEqual(self.client.get("/gudang/masuk/sandi/").status_code, 404)  # masuk hanya dengan PIN
         self.assertEqual(self.client.get("/gudang/ambil/").status_code, 200)
@@ -289,24 +291,16 @@ class TiketBarangTest(Dasar):
         t.saring = {"kategori": ["A", "B", "C", "D", "E"], "brand": []}
         self.assertEqual(tiket_barang.lingkup_teks(t), "kategori A, B, C +2 lagi")
 
-    def test_izin_tiket_dibatasi_hak_admin(self):
-        akun_karyawan.atur_hak_ops(self.admin, self.wid, ["ops_barang_alias"])
-        self.sari = get_user_model().objects.get(pk=self.sari.pk)   # hak di-cache per objek user
-        with self.assertRaises(Tolak):
-            svc_tiket.buka(self.admin, untuk=self.sari, tujuan="x", hak=PEMILIK, jenis="barang", izin=["harga"],
-                           batas=timezone.now() + timedelta(hours=1))
-        # tiket lama berizin harga+alias+aktif: kini hanya alias yang bisa diisi
+    def test_izin_tiket_menentukan_isian(self):
+        t = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="Alias saja", hak=PEMILIK, jenis="barang", izin=["alias"],
+                           kategori=["Cat"], batas=timezone.now() + timedelta(hours=1))
         self.client.force_login(self.sari)
-        r = self.client.get(reverse("gudang:tiket_barang", args=[self.t.id]))
+        r = self.client.get(reverse("gudang:tiket_barang", args=[t.id]))
         self.assertContains(r, 'name="al_')
         self.assertNotContains(r, 'name="h_')
         self.assertNotContains(r, 'name="ak_')
-        self._isi(**{f"h_{self.putih.id}": "99000", "al_Cat Avian": "avian"})
-        self.assertEqual({u.kolom for u in self.t.usulan.all()}, {"alias"})
-        self.client.force_login(self.admin)
-        self.assertContains(self.client.get(reverse("master:tiket_baru")), 'data-izin="alias"')
 
-    def test_tiket_lokasi_per_hak(self):
+    def test_tiket_lokasi_pindah_dan_rak(self):
         from master.layanan import lokasi
         akun_karyawan.atur_hak_ops(self.admin, self.wid, ["ops_tiket_rak"])
         self.sari = get_user_model().objects.get(pk=self.sari.pk)
@@ -318,18 +312,17 @@ class TiketBarangTest(Dasar):
         self.client.force_login(self.sari)
         r = self.client.get(reverse("gudang:tiket_isi", args=[t.id]) + "?q=avian")
         self.assertContains(r, "Usulkan ganti rak")
-        self.assertNotContains(r, "Usulkan pindah")
-        self.assertNotContains(r, "Pindah sekaligus")
+        self.assertContains(r, "Usulkan pindah")        # tugas lokasi: pindah & rak, hasilnya tetap ACC
 
-    def test_buka_hanya_untuk_admin_barang(self):
-        with self.assertRaises(Tolak):
-            svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="x", hak=PEMILIK, jenis="barang", izin=["harga"],
-                           batas=timezone.now() + timedelta(hours=1))
+    def test_buka_hanya_untuk_akun_gudang(self):
+        """Sejak 9 Nov 2026 semua akun gudang bisa diberi tugas apa pun; izinnya dipilih di tugas."""
+        svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="x", hak=PEMILIK, jenis="barang", izin=["harga"],
+                       batas=timezone.now() + timedelta(hours=1))
         with self.assertRaises(Tolak):
             svc_tiket.buka(self.admin, untuk=self.sari, tujuan="x", hak=PEMILIK, jenis="barang", izin=[],
                            batas=timezone.now() + timedelta(hours=1))
-        with self.assertRaises(Tolak):  # admin barang tidak bisa diberi tiket pindah lokasi
-            svc_tiket.buka(self.admin, untuk=self.sari, tujuan="x", hak=PEMILIK, batas=timezone.now() + timedelta(hours=1))
+        with self.assertRaises(Tolak):  # akun master tanpa aplikasi gudang
+            svc_tiket.buka(self.admin, untuk=self.finance, tujuan="x", hak=PEMILIK, batas=timezone.now() + timedelta(hours=1))
 
     def test_riwayat_tugas_di_tab_sendiri(self):
         lama = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="Alias lama", hak=PEMILIK, jenis="barang",
@@ -357,8 +350,8 @@ class TiketBarangTest(Dasar):
         self.assertNotContains(r, "Modal")
         self.assertNotContains(r, "Stok")
         self.assertNotContains(r, "Palu")      # kategori lain
-        # menu kepala gudang tidak ada
-        self.assertEqual(self.client.get(reverse("gudang:hitung")).status_code, 403)
+        # hitung hanya lewat tugas
+        self.assertRedirects(self.client.get(reverse("gudang:hitung")), reverse("gudang:tiket"))
 
     def test_simpan_usulan_tidak_mengubah_barang(self):
         self.client.force_login(self.sari)
@@ -388,8 +381,8 @@ class TiketBarangTest(Dasar):
         self.client.force_login(self.sari)
         self._isi(**{f"h_{self.putih.id}": "50000"})
         self.assertEqual(self.t.usulan.count(), 0)
-        self.client.force_login(self.gudang)
-        self.assertEqual(self.client.get(reverse("gudang:tiket_barang", args=[self.t.id])).status_code, 403)
+        self.client.force_login(self.gudang)   # tugas milik orang lain
+        self.assertEqual(self.client.get(reverse("gudang:tiket_barang", args=[self.t.id])).status_code, 404)
 
     def test_acc_per_baris_dengan_tanda(self):
         self.client.force_login(self.sari)
@@ -444,7 +437,7 @@ class TiketBarangTest(Dasar):
         self.client.force_login(self.admin)
         r = self.client.get(reverse("master:tiket_baru"))
         self.assertContains(r, "Data barang")
-        self.assertContains(r, 'data-jenis="barang"')
+        self.assertContains(r, 'data-jenis="lokasi barang hitung"')
         r = self.client.post(reverse("master:tiket"), {
             "jenis": "barang", "untuk": self.sari.id, "tujuan": "Alias paku", "izin": ["alias"], "kategori": ["Paku"],
             "batas": (timezone.localtime() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")})
@@ -464,21 +457,22 @@ class TiketBarangTest(Dasar):
 class HakBentrokTest(Dasar):
     """Yang menghitung stok (hitung buta) tidak boleh bisa melihat jumlah stok sistem."""
 
-    def test_hitung_dan_lihat_stok_ditolak_tanpa_mengubah_apa_pun(self):
-        from pos import pengaturan
+    def test_satu_centang_gudang_dan_lihat_stok_dihapus(self):
+        """9 Nov 2026: hak operasional cukup "gudang"; centang lama dianggap gudang; lihat stok tidak ada lagi."""
+        from master.akun.akses import HAK_GUDANG_ISI, hak_pengguna
         wid, _ = svc_karyawan.tambah(self.admin, "Eva")
-        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "gudang_hitung"])
-        with self.assertRaises(Tolak):
-            akun_karyawan.atur_semua(self.admin, wid, ["gudang_hitung", "ops_lihat_stok"])
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "gudang_hitung", "ops_lihat_stok"])
         user = get_user_model().objects.get(username=f"ops-{wid.lower()}")
-        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang", "gudang_hitung"})
-        self.assertNotIn(wid, pengaturan.bukan_kasir())   # jualan kasir juga tidak ikut berubah
+        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang"})
+        self.assertEqual(hak_pengguna(user), {"gudang"} | HAK_GUDANG_ISI)
+        self.assertNotIn("ops_lihat_stok", hak_pengguna(self.admin))
         self.client.force_login(self.admin)
-        r = self.client.post(reverse("master:karyawan"), {"aksi": "hak", "id": wid, "hak": ["gudang_hitung", "ops_lihat_stok"]},
-                             follow=True)
-        self.assertContains(r, "tidak boleh untuk orang yang sama")
-        akun_karyawan.atur_semua(self.admin, wid, ["ops_lihat_stok"])
-        self.assertEqual(set(HakAkun.objects.get(user=user).hak), {"gudang", "ops_lihat_stok"})
+        r = self.client.get(reverse("master:karyawan"))
+        self.assertContains(r, "Pakai aplikasi gudang")
+        self.assertNotContains(r, "Lihat jumlah stok")
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual"])
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
 
     def test_migrasi_mencabut_lihat_stok_dari_penghitung(self):
         from importlib import import_module

@@ -44,9 +44,9 @@
         {% for judul, isi in grup_hak %}<div class="kecil redup" style="margin:8px 0 2px;font-weight:600">{{ judul }}</div>
           {% for k, label in isi %}<label style="display:flex;gap:6px;align-items:center;font-size:14px;color:inherit;margin:2px 0"><input type="checkbox" name="hak" value="{{ k }}" style="width:auto" {% if k in d.hak %}checked{% endif %}> {{ label }}</label>{% endfor %}
         {% endfor %}
-        <div class="kecil redup" style="margin:10px 0 4px">Isi cepat (menambah centang):</div>
+        {% if paket_ops %}<div class="kecil redup" style="margin:10px 0 4px">Isi cepat (menambah centang):</div>
         <div class="baris" style="gap:4px">{% for k, label, hak in paket_ops %}<button type="button" class="tombol kecil isi-paket" data-hak="{{ hak }}">{{ label }}</button>{% endfor %}
-          <button type="button" class="tombol kecil kosongkan-ops">Kosongkan gudang &amp; tugas</button></div>
+          <button type="button" class="tombol kecil kosongkan-ops">Kosongkan gudang &amp; tugas</button></div>{% endif %}
         <button class="tombol kecil utama" type="submit" style="margin-top:10px">Simpan hak</button></form></details></td>
     <td><div class="baris" style="flex-wrap:nowrap;gap:6px">
       {% if d.aktif %}
@@ -72,7 +72,7 @@
 document.querySelectorAll('.panel-hak form').forEach(f => {
   f.querySelectorAll('.isi-paket').forEach(b => b.addEventListener('click', () =>
     b.dataset.hak.split(' ').forEach(h => { const c = f.querySelector(`input[value="${h}"]`); if (c) c.checked = true; })));
-  f.querySelector('.kosongkan-ops').addEventListener('click', () =>
+  f.querySelector('.kosongkan-ops')?.addEventListener('click', () =>
     f.querySelectorAll('input[name=hak]').forEach(c => { if (!['pos_jual', 'penyetuju'].includes(c.value)) c.checked = false; }));
 });
 </script>

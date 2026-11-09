@@ -62,7 +62,7 @@ def karyawan(request):
         ringkas = (["Kasir"] if d["jual"] else []) + (["Penyetuju"] if d["penyetuju"] else [])
         o = ops.get(d["id"], [])
         if o:
-            ringkas.append(f"{len(o)} hak operasional")
+            ringkas.append("Gudang")
         d["hak_ringkas"] = ringkas
         d["hak_ops_label"] = [LABEL_HAK_OPS[h] for h in o]
     orang = {d["id"]: d for d in daftar}

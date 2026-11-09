@@ -132,7 +132,7 @@ def pindah(pengguna, info, *, dari, ke, jumlah, catatan="", hak):
 # ---------------------------------------------------------------------------
 
 
-def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0):
+def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0, pic=None):
     if HAK not in hak:
         raise Tolak("Akun ini tidak boleh mengelola lokasi.")
     kode = rapikan_teks(kode).upper()
@@ -147,15 +147,27 @@ def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0
     if lain.exists():
         raise Tolak(f"Kode {kode} sudah dipakai.")
     urutan = baca_angka(urutan, boleh_kosong=True) or 0
+    # PIC: karyawan aplikasi gudang (lihat pembelian.penerima_boleh).
+    from master.layanan.pembelian import penerima_boleh
+    pic_user = None
+    if str(pic or "").isdigit():
+        pic_user = {u.pk: u for u in penerima_boleh()}.get(int(pic))
+        if pic_user is None:
+            raise Tolak("PIC harus karyawan yang memakai aplikasi gudang.")
     if id:
         lokasi = Lokasi.objects.get(pk=id)
         lama = f"{lokasi.kode} - {lokasi.nama}"
+        lama_pic = lokasi.pic
         lokasi.kode, lokasi.nama, lokasi.keterangan, lokasi.urutan = kode, nama, rapikan_teks(keterangan), urutan
+        lokasi.pic = pic_user
         lokasi.save()
         catat(pengguna, objek="lokasi", kolom="lokasi", lama=lama, baru=f"{kode} - {nama}")
+        if lama_pic != pic_user:
+            nm = lambda u: (u.first_name or u.username) if u else "-"
+            catat(pengguna, objek="lokasi", kolom="pic", lama=f"{kode}: {nm(lama_pic)}", baru=f"{kode}: {nm(pic_user)}")
     else:
         lokasi = Lokasi.objects.create(kode=kode, nama=nama, jenis="gudang", keterangan=rapikan_teks(keterangan),
-                                       urutan=urutan)
+                                       urutan=urutan, pic=pic_user)
         catat(pengguna, aksi="tambah", objek="lokasi", kolom="lokasi", baru=f"{kode} - {nama}")
     return lokasi
 

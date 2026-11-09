@@ -133,6 +133,11 @@ class LokasiAlurTest(Dasar):
         svc.tambah_baris(po, varian_id=self.info("Palu", "Besar").id, jumlah=2, harga=2000)
         kecil, besar = po.baris.order_by("id")
         self.client.force_login(self.gudang)
+        # Belum ditugaskan: tidak muncul dan tidak bisa dibuka (9 Nov 2026).
+        self.assertEqual(self.client.get(reverse("gudang:datang_detail", args=[po.id])).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("gudang:tiket")), po.nomor)
+        svc.atur_penerima(self.admin, po, lokasi=self.ga.id, penerima=self.gudang.id)
+        self.assertContains(self.client.get(reverse("gudang:tiket")), po.nomor)
         r = self.client.get(reverse("gudang:datang_detail", args=[po.id]))
         self.assertContains(r, ">Gudang A</option>")
         self.client.post(reverse("gudang:datang_detail", args=[po.id]), {
@@ -414,7 +419,7 @@ class TiketTest(Dasar):
         self.assertContains(r, t.tujuan)
         r = self.client.get(reverse("gudang:tiket_isi", args=[t.id]) + "?q=palu")
         self.assertContains(r, "Usulkan pindah")
-        self.assertContains(r, "Gudang A 6")  # admin boleh lihat stok per lokasi
+        self.assertNotContains(r, "Gudang A 6")  # 9 Nov 2026: jumlah stok tidak pernah tampil di aplikasi gudang
         for angka in ("765.432", "800", "1.500"):
             self.assertNotContains(r, f">{angka}<")
         self.client.post(reverse("gudang:tiket_isi", args=[t.id]), {

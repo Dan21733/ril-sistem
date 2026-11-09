@@ -72,6 +72,9 @@ class Lokasi(models.Model):
     jenis = models.CharField(max_length=10, choices=JENIS, default="gudang")
     keterangan = models.CharField(max_length=200, blank=True, default="")
     aktif = models.BooleanField(default=True)
+    # Penanggung jawab lokasi (karyawan cewek pemegang tablet, keputusan pemilik 9 Nov 2026): menerima barang
+    # datang ke lokasi ini, menjaga rak rapi & berlabel, menjelaskan selisih. Tidak menghitung lokasinya sendiri.
+    pic = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="pic_lokasi")
     urutan = models.IntegerField(default=0)
 
     class Meta:
@@ -346,6 +349,10 @@ class Pembelian(models.Model):
     # diminta dihitung ulang (gudang tidak tahu angka pesanannya).
     hitung_ulang = models.JSONField(default=list, blank=True)
     # Kiriman sebagian: PO lanjutan berisi sisa yang belum datang.
+    # Penugasan terima barang (9 Nov 2026): PO hanya muncul di tablet penerima. Bawaan = PIC lokasi tujuan.
+    lokasi = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    penerima = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="terima_pembelian")
     lanjutan_dari = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="lanjutan")
 
     # Dibekukan saat ACC

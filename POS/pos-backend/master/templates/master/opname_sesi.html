@@ -38,7 +38,7 @@
 <p><a class="tombol utama" href="{% url 'master:tiket_baru' %}?sesi={{ sesi.id }}">+ Tugas hitung untuk sesi ini</a> <span class="redup kecil">Satu tugas per orang/tablet: lokasi + kategori atau rak (boleh semua barang). Mereka tidak melihat stok sistem.</span></p>
 <div class="gulir"><table>
   <tr><th>Tugas</th><th>Untuk</th><th>Lokasi · lingkup</th><th class="angka">Hitungan</th><th>Status</th><th></th></tr>
-  {% for t in tugas %}<tr><td><b>#{{ t.id }}</b> {{ t.tujuan }}</td><td>{{ t.untuk.first_name|default:t.untuk.username }}</td><td>{{ t.lingkup_teks }}</td><td class="angka">{{ t.n }}</td>
+  {% for t in tugas %}<tr><td><b>#{{ t.id }}</b> {{ t.tujuan }}</td><td>{{ t.untuk.first_name|default:t.untuk.username }}{% if t.pic_sendiri %} <span class="label bahaya" title="Menghitung lokasi yang ia pegang sendiri">PIC lokasi ini</span>{% endif %}</td><td>{{ t.lingkup_teks }}</td><td class="angka">{{ t.n }}</td>
     <td>{% if t.bisa_diisi %}<span class="label awas">dihitung · s/d {{ t.batas|date:"H:i" }}</span>{% elif t.status == 'terbuka' %}<span class="label">lewat batas</span>{% else %}<span class="label {% if t.status == 'dikirim' %}baik{% elif t.status == 'batal' %}bahaya{% endif %}">{{ t.get_status_display }}</span>{% endif %}</td>
     <td style="white-space:nowrap">{% if t.status == 'dikirim' or t.status == 'terbuka' %}
       <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="kembalikan"><input type="hidden" name="tiket" value="{{ t.id }}"><button class="tombol kecil" type="submit">Buka lagi 4 jam</button></form>

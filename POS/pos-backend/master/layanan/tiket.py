@@ -38,6 +38,19 @@ def izin_barang_untuk(hak):
     return [i for i, h in HAK_IZIN_BARANG.items() if h in hak]
 
 
+def peringatan_pic(t):
+    """Penghitung tidak menghitung lokasinya sendiri (rancangan tanggung jawab barang, 9 Nov 2026)."""
+    if t.jenis != "hitung":
+        return ""
+    from master.models import Lokasi
+    l = Lokasi.objects.filter(pk=(t.saring or {}).get("lokasi") or 0).first()
+    if l is not None and l.pic_id and l.pic_id == t.untuk_id:
+        nama = t.untuk.first_name or t.untuk.username
+        return (f"{nama} adalah PIC {l.nama}. Sebaiknya lokasi ini dihitung orang lain; "
+                "batalkan tugas ini kalau tidak disengaja.")
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Pemilik
 # ---------------------------------------------------------------------------

@@ -395,6 +395,7 @@ class GudangTest(Dasar):
         po = svc.buat(self.admin, supplier_id=self.supplier.id, tanggal_pesan="2026-10-01")
         svc.tambah_baris(po, varian_id=self.info("Palu", "Kecil").id, jumlah=10, harga=654321)
         svc.tambah_baris(po, varian_id=self.info("Palu", "Besar").id, jumlah=5, harga=2000)
+        svc.atur_penerima(self.admin, po, penerima=self.gudang.id)   # PO hanya muncul di tablet penerima
         return po
 
     def _bersih(self, respons):

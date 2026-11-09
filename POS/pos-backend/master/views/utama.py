@@ -1191,9 +1191,7 @@ def log(request):
 
 TEMPLAT_HAK = {
     "pemilik": ("Pemilik (semua hak)", None),
-    "kepala_gudang": ("Kepala gudang", ["gudang", "gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil"]),
-    "admin_gudang": ("Admin gudang", ["gudang", "ops_lihat_stok", "ops_tiket_pindah", "ops_tiket_rak"]),
-    "admin_barang": ("Admin barang", ["gudang", "ops_barang_harga", "ops_barang_alias", "ops_barang_aktif"]),
+    "gudang": ("Aplikasi gudang", ["gudang"]),
     "kosong": ("Kosong (centang sendiri)", []),
 }
 

@@ -197,6 +197,9 @@ def detail(request, po_id):
             elif aksi == "simpan_baris":
                 svc.simpan_baris(po, request.POST)
                 messages.success(request, "Tersimpan.")
+            elif aksi == "penerima":
+                svc.atur_penerima(request.user, po, lokasi=request.POST.get("lokasi"), penerima=request.POST.get("penerima"))
+                messages.success(request, "Penerima tersimpan." if po.penerima else "Tersimpan, tapi PO belum punya penerima.")
             elif aksi == "datang":
                 svc.catat_datang(request.user, po, request.POST)
                 messages.success(request, "Barang datang dicatat. Menunggu ACC.")
@@ -253,6 +256,8 @@ def detail(request, po_id):
         "pilihan_lokasi": svc_lokasi.pilihan() if svc.stok_ikut(po) else [],
         "kurang": svc.sisa_belum_datang(po) if po.status == "menunggu" else [],
         "lanjutan": list(po.lanjutan.all()),
+        "lokasi_gudang": svc_lokasi.pilihan() if po.status == "dibuat" else [],
+        "penerima_boleh": svc.penerima_boleh() if po.status == "dibuat" else [],
         "tanpa_harga": [b for b in po.baris.all() if b.di_luar_pesanan and not b.harga] if po.status == "menunggu" else [],
     })
 

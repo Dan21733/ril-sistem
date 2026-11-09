@@ -116,6 +116,7 @@ def sesi_detail(request, sesi_id):
     from master.layanan.opname import lingkup_teks, lokasi_tugas
     for t in tugas:
         t.lingkup_teks, t.lokasi = lingkup_teks(t), lokasi_tugas(t)
+        t.pic_sendiri = bool(svc_tiket.peringatan_pic(t))
     konteks = {"menu": "opname", "sesi": sesi, "tugas": tugas, "tab": request.GET.get("tab", "")}
     if sesi.status == "buka":
         r = svc_sesi.rekap(sesi)

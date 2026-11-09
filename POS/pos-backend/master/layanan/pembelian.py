@@ -155,15 +155,51 @@ def buat(pengguna, *, supplier_id, tanggal_pesan, catatan="", toko=None):
         raise Tolak("Pilih supplier.")
     toko = toko if isinstance(toko, Toko) else svc_toko.ambil(toko)
     tanggal = baca_tanggal(tanggal_pesan, wajib=True, label="Tanggal pesan")
+    # Penugasan terima: lokasi tujuan ikut PO terakhir dari supplier yang sama, penerima = PIC lokasi itu.
+    lalu = Pembelian.objects.filter(supplier=supplier, toko=toko).exclude(lokasi=None).order_by("-id").first()
+    lokasi = lalu.lokasi if lalu and lalu.lokasi.aktif else None
     with transaction.atomic():
         po = Pembelian.objects.create(
             nomor=_nomor_baru(tanggal), toko=toko, supplier=supplier, tanggal_pesan=tanggal,
             catatan=rapikan_teks(catatan), dibuat_oleh=pengguna.username,
             mode_ppn="termasuk" if supplier.pkp else "tanpa",
+            lokasi=lokasi, penerima=lokasi.pic if lokasi and lokasi.pic and lokasi.pic.is_active else None,
         )
         layanan.catat(pengguna, aksi="tambah", sumber="pembelian", objek="pembelian", kolom="pembelian",
                       baru=f"{po.nomor} - {supplier.nama}")
     return po
+
+
+def penerima_boleh():
+    """Akun yang bisa ditugaskan menerima barang: karyawan aktif dengan aplikasi gudang."""
+    from django.contrib.auth import get_user_model
+
+    from master.akun.akses import hak_pengguna
+    return [u for u in get_user_model().objects.filter(is_active=True, is_superuser=False).order_by("first_name", "username")
+            if "gudang_datang" in hak_pengguna(u)]
+
+
+def atur_penerima(pengguna, po, *, lokasi=None, penerima=None):
+    """Pemilik mengatur lokasi tujuan dan penerima PO. Ganti lokasi tanpa memilih penerima = PIC lokasi itu."""
+    from master.models import Lokasi
+    _harus(po, "dibuat")
+    l = Lokasi.objects.filter(pk=lokasi, aktif=True).first() if str(lokasi or "").isdigit() else None
+    boleh = {u.pk: u for u in penerima_boleh()}
+    u = boleh.get(int(penerima)) if str(penerima or "").isdigit() else None
+    if str(penerima or "").isdigit() and u is None:
+        raise Tolak("Penerima harus karyawan yang memakai aplikasi gudang.")
+    if u is None and l is not None and l.pic_id in boleh and l.pk != po.lokasi_id:
+        u = boleh[l.pic_id]
+    lama = f"{po.lokasi.nama if po.lokasi else '-'} / {_nama(po.penerima)}"
+    po.lokasi, po.penerima = l, u
+    po.save(update_fields=["lokasi", "penerima"])
+    layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="penerima", lama=lama,
+                  baru=f"{l.nama if l else '-'} / {_nama(u)}", catatan=po.nomor)
+    return po
+
+
+def _nama(u):
+    return (u.first_name or u.username) if u else "belum ditugaskan"
 
 
 def _harus(po, *status):
@@ -351,7 +387,8 @@ def _buat_lanjutan(pengguna, po, sisa):
     hari_ini = timezone.localdate()
     baru = Pembelian.objects.create(
         nomor=_nomor_baru(hari_ini), toko=po.toko, supplier=po.supplier, tanggal_pesan=hari_ini,
-        catatan=f"Sisa dari {po.nomor}", dibuat_oleh=pengguna.username, mode_ppn=po.mode_ppn, lanjutan_dari=po)
+        catatan=f"Sisa dari {po.nomor}", dibuat_oleh=pengguna.username, mode_ppn=po.mode_ppn, lanjutan_dari=po,
+        lokasi=po.lokasi, penerima=po.penerima)
     for b, n in sisa:
         PembelianBaris.objects.create(pembelian=baru, varian=b.varian, item_name=b.item_name, variant=b.variant,
                                       jumlah_pesan=n, harga=b.harga)

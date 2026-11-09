@@ -49,7 +49,6 @@ SEMUA_HAK = {
     "gudang_hitung",
     "gudang_buka_dus",
     "gudang_ambil",
-    "ops_lihat_stok",
     "ops_tiket_pindah",
     "ops_tiket_rak",
     "ops_barang_harga",
@@ -59,7 +58,7 @@ SEMUA_HAK = {
 
 # Hak yang hanya berlaku di aplikasi operasional, bukan di master.
 HAK_OPERASIONAL = {"gudang", "gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil",
-                   "ops_lihat_stok", "ops_tiket_pindah", "ops_tiket_rak", "ops_barang_harga", "ops_barang_alias",
+                   "ops_tiket_pindah", "ops_tiket_rak", "ops_barang_harga", "ops_barang_alias",
                    "ops_barang_aktif"}
 # Tugas (tiket) di aplikasi operasional. Satu hak = satu jenis usulan.
 HAK_TIKET_LOKASI = {"ops_tiket_pindah", "ops_tiket_rak"}
@@ -68,9 +67,12 @@ HAK_IZIN_BARANG = {"harga": "ops_barang_harga", "alias": "ops_barang_alias", "ak
 HAK_TIKET_BARANG = set(HAK_IZIN_BARANG.values())
 # Semua yang membuka halaman Tugas (beranda aplikasi operasional).
 HAK_TUGAS = HAK_TIKET_LOKASI | HAK_TIKET_BARANG | {"gudang_hitung", "gudang_datang", "gudang_ambil", "gudang_buka_dus"}
-# Hitung buta: yang menghitung tidak boleh bisa melihat stok sistem.
-HAK_BENTROK = [({"gudang_hitung", "ops_lihat_stok"},
-                "Hitung stok dan lihat jumlah stok tidak boleh untuk orang yang sama: hitungannya bisa disalin dari angka sistem.")]
+# Penyederhanaan 9 Nov 2026 (keputusan pemilik): karyawan cukup satu centang "aplikasi gudang".
+# Semua isinya menunggu ACC, dan pekerjaan baru muncul kalau DITUGASKAN (tugas dari pemilik, barang
+# datang ke penerima PO). Jadi akun "gudang" otomatis memegang semua hak operasional di bawah.
+# Melihat jumlah stok di aplikasi gudang dihapus sama sekali (hitung buta).
+HAK_GUDANG_ISI = {"gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil"} | HAK_TIKET_LOKASI | HAK_TIKET_BARANG
+HAK_BENTROK = []
 
 # Label untuk halaman Pengguna, dikelompokkan. Urutan = urutan tampil.
 LABEL_HAK = [
@@ -104,17 +106,7 @@ LABEL_HAK = [
         ("kelola_pengguna", "Kelola pengguna dan hak"),
     ]),
     ("Aplikasi operasional (/gudang/)", [
-        ("gudang", "Membuka aplikasi operasional"),
-        ("gudang_datang", "Catat barang datang"),
-        ("gudang_hitung", "Hitung stok lewat tugas (opname buta)"),
-        ("gudang_buka_dus", "Buka dus"),
-        ("gudang_ambil", "Konfirmasi barang diambil dari gudang"),
-        ("ops_lihat_stok", "Lihat jumlah stok di tugas pindah (tanpa harga)"),
-        ("ops_tiket_pindah", "Tugas: usul pindah stok antar lokasi"),
-        ("ops_tiket_rak", "Tugas: usul ganti/pindah rak"),
-        ("ops_barang_harga", "Tugas: usul harga jual dan floor"),
-        ("ops_barang_alias", "Tugas: usul alias"),
-        ("ops_barang_aktif", "Tugas: usul aktif/nonaktif barang"),
+        ("gudang", "Pakai aplikasi gudang (ambil, barang datang yang ditugaskan, buka dus, tugas dari pemilik)"),
     ]),
 ]
 
@@ -131,30 +123,14 @@ PERAN = {
 # Karyawan > Karyawan & hak akses. "gudang" (boleh membuka aplikasinya) ikut otomatis kalau ada satu saja.
 HAK_KARYAWAN_OPS = [
     ("Gudang", [
-        ("gudang_ambil", "Ambil barang"),
-        ("gudang_datang", "Barang datang"),
-        ("gudang_hitung", "Hitung stok (lewat tugas)"),
-        ("gudang_buka_dus", "Buka dus"),
-    ]),
-    ("Tugas lokasi", [
-        ("ops_tiket_pindah", "Usul pindah stok antar lokasi"),
-        ("ops_tiket_rak", "Usul ganti/pindah rak"),
-        ("ops_lihat_stok", "Lihat jumlah stok di tugas pindah"),
-    ]),
-    ("Tugas data barang", [
-        ("ops_barang_harga", "Usul harga jual dan floor"),
-        ("ops_barang_alias", "Usul alias"),
-        ("ops_barang_aktif", "Usul aktif/nonaktif"),
+        ("gudang", "Pakai aplikasi gudang: ambil barang, barang datang yang ditugaskan ke dia, buka dus, "
+                   "dan tugas dari pemilik. Semua hasilnya menunggu ACC; jumlah stok tidak pernah terlihat."),
     ]),
 ]
 LABEL_HAK_OPS = {k: label for _, isi in HAK_KARYAWAN_OPS for k, label in isi}
 
 # Tombol isi cepat (hanya mencentang; tetap bisa dibuang satu-satu).
-PAKET_OPS = {
-    "kepala_gudang": ("Kepala gudang", {"gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil"}),
-    "admin_gudang": ("Admin gudang", {"ops_tiket_pindah", "ops_tiket_rak", "ops_lihat_stok"}),
-    "admin_barang": ("Admin barang", set(HAK_TIKET_BARANG)),
-}
+PAKET_OPS = {}
 
 
 def hak_pengguna(user):
@@ -175,6 +151,8 @@ def hak_pengguna(user):
         hasil = set()
         for nama in user.groups.values_list("name", flat=True):
             hasil |= PERAN.get(nama, set())
+    if "gudang" in hasil:
+        hasil |= HAK_GUDANG_ISI
     user._hak_master = frozenset(hasil)
     return hasil
 

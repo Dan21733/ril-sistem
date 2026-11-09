@@ -10,20 +10,17 @@ class HakAkunTest(Dasar):
     def test_hak_dicentang_per_akun(self):
         from master.akun.akses import hak_pengguna
         self.client.force_login(self.admin)
+        from master.akun.akses import HAK_GUDANG_ISI
         self.client.post(reverse("master:pengguna"), {"aksi": "tambah", "username": "budi", "password": "kata-sandi-1",
-                                                      "templat": "kepala_gudang"})
+                                                      "templat": "gudang"})
         budi = get_user_model().objects.get(username="budi")
-        self.assertEqual(hak_pengguna(budi), {"gudang", "gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil"})
-        self.client.post(reverse("master:pengguna"), {"aksi": "hak", "id": budi.id, "hak": ["gudang", "gudang_hitung"]})
-        budi = get_user_model().objects.get(username="budi")
-        self.assertEqual(hak_pengguna(budi), {"gudang", "gudang_hitung"})
+        # Satu centang "gudang" = semua menu operasional; pekerjaannya muncul hanya kalau ditugaskan.
+        self.assertEqual(hak_pengguna(budi), {"gudang"} | HAK_GUDANG_ISI)
         self.client.force_login(budi)
-        # hitung stok hanya lewat tugas dari pemilik
         self.assertRedirects(self.client.get(reverse("gudang:hitung")), reverse("gudang:tiket"))
-        self.assertEqual(self.client.get(reverse("gudang:buka_dus")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("gudang:buka_dus")).status_code, 200)
         r = self.client.get(reverse("gudang:beranda"))
         self.assertContains(r, "Belum ada tugas")
-        self.assertNotContains(r, "Buka dus")
         self.assertRedirects(self.client.get(reverse("master:dashboard")), reverse("gudang:beranda"),
                              fetch_redirect_response=False)
 

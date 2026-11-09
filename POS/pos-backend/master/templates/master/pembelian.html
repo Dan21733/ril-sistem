@@ -26,7 +26,7 @@
     <td><a href="{% url 'master:pembelian_detail' p.id %}"><b>{{ p.nomor }}</b></a>{% if p.nomor_faktur %}<span class="masalah-teks" style="color:var(--redup)">Faktur {{ p.nomor_faktur }}</span>{% endif %}</td>
     {% if banyak_toko %}<td>{{ p.toko.kode }}</td>{% endif %}<td>{{ p.supplier.nama }}</td>
     <td>{{ p.tanggal_pesan|date:"d M Y" }}</td>
-    <td>{% if p.status == "diterima" %}{% if p.lunas %}<span class="label baik">Lunas</span>{% else %}<span class="label">Belum lunas</span>{% endif %}{% elif p.status == "menunggu" %}<span class="label bahaya">Menunggu ACC</span>{% elif p.status == "batal" %}<span class="label netral">Batal</span>{% else %}<span class="label netral">Dipesan</span>{% endif %}</td>
+    <td>{% if p.status == "diterima" %}{% if p.lunas %}<span class="label baik">Lunas</span>{% else %}<span class="label">Belum lunas</span>{% endif %}{% elif p.status == "menunggu" %}<span class="label bahaya">Menunggu ACC</span>{% elif p.status == "batal" %}<span class="label netral">Batal</span>{% else %}<span class="label netral">Dipesan</span>{% if not p.penerima_id %} <span class="label bahaya" title="Tidak muncul di tablet siapa pun">belum ditugaskan</span>{% endif %}{% endif %}</td>
     <td class="angka">{% if p.status == "diterima" %}{{ p.total|ribuan }}{% else %}<span class="redup">-</span>{% endif %}</td>
     <td class="angka">{% if p.status == "diterima" and p.sisa > 0 %}<b>{{ p.sisa|ribuan }}</b>{% else %}<span class="redup">-</span>{% endif %}</td>
     <td>{% if p.jatuh_tempo %}<span style="color:{% if p.status == "diterima" and p.sisa > 0 and p.jatuh_tempo < hari_ini %}var(--bahaya){% else %}inherit{% endif %}">{{ p.jatuh_tempo|date:"d M Y" }}</span>{% else %}<span class="redup">-</span>{% endif %}</td>

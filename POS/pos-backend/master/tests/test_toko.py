@@ -160,6 +160,7 @@ class TokoTest(Dasar):
         svc.buat(self.admin, supplier_id=self.supplier.id, tanggal_pesan="2026-10-01", toko=self.t2.id)
         po = Pembelian.objects.get()
         svc.tambah_baris(po, varian_id=self.info("Palu", "Kecil").id, jumlah=1, harga=1)
+        svc.atur_penerima(self.admin, po, penerima=self.gudang.id)
         self.client.force_login(self.gudang)
         self.assertNotContains(self.client.get(reverse("gudang:beranda")), po.nomor)
         self.assertContains(self.client.get(reverse("gudang:beranda") + f"?toko={self.t2.id}"), po.nomor)

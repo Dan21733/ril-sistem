@@ -72,8 +72,9 @@ def datang(request):
     return redirect("gudang:tiket")
 
 
-def _pesanan_ditunggu(toko):
-    pesanan = list(Pembelian.objects.filter(status="dibuat", toko=toko).prefetch_related("baris")
+def _pesanan_ditunggu(toko, user):
+    """PO yang ditugaskan ke akun ini untuk diterima (penerima = PIC lokasi tujuan atau pilihan pemilik)."""
+    pesanan = list(Pembelian.objects.filter(status="dibuat", toko=toko, penerima=user).prefetch_related("baris")
                    .annotate(n=Count("baris")).filter(n__gt=0).order_by("tanggal_pesan", "id"))
     for p in pesanan:
         # Nama supplier dirahasiakan dari gudang: pesanan dikenali dari nomor dan isinya.
@@ -85,7 +86,7 @@ def _pesanan_ditunggu(toko):
 @perlu("gudang_datang")
 def datang_detail(request, po_id):
     """Terima barang tanpa melihat jumlah pesanan (terima buta), lalu hitung ulang yang beda."""
-    po = get_object_or_404(Pembelian, pk=po_id, status="dibuat")
+    po = get_object_or_404(Pembelian, pk=po_id, status="dibuat", penerima=request.user)
     if request.method == "POST":
         aksi = request.POST.get("aksi") or "catat"
         try:
@@ -120,7 +121,8 @@ def datang_detail(request, po_id):
             b.isi = b.jumlah_terima if (b.di_luar_pesanan and not ulang) else ""
         rak = b.varian.rak
         b.usul = request.POST.get(f"lokasi_{b.id}") or (str(b.lokasi_id) if b.lokasi_id else
-                                                        (str(rak.tempat_id) if rak and rak.tempat_id else ""))
+                                                        (str(rak.tempat_id) if rak and rak.tempat_id else
+                                                         (str(po.lokasi_id) if po.lokasi_id else "")))
     cari = layanan.rapikan_teks(request.GET.get("q"))
     hasil_cari = _cari_varian(cari, "")[0][:20] if (len(cari) >= 2 and not ulang) else []
     return render(request, "gudang/datang_detail.html", {
@@ -316,7 +318,7 @@ def tiket(request):
     di_toko_stok = toko is not None and toko_stok is not None and toko.pk == toko_stok.pk
     jumlah_ambil = PermintaanAmbil.objects.filter(status="menunggu").count() if (
         "gudang_ambil" in hak and di_toko_stok) else 0
-    pesanan = _pesanan_ditunggu(toko) if ("gudang_datang" in hak and toko) else []
+    pesanan = _pesanan_ditunggu(toko, request.user) if ("gudang_datang" in hak and toko) else []
     semua = _tiket_saya(request.user, 40)
     return render(request, "gudang/tiket.html", {
         "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
@@ -458,8 +460,9 @@ def tiket_isi(request, tiket_id):
     hasil, terpotong = ([], False)
     if t.bisa_diisi and len(cari) >= 2:
         hasil, terpotong = _cari_varian(cari, "")
-    lihat_stok = "ops_lihat_stok" in hak_pengguna(request.user)
-    gudang = _baris_stok(hasil) if lihat_stok else []
+    # Jumlah stok tidak pernah ditampilkan di aplikasi gudang (keputusan pemilik 9 Nov 2026).
+    lihat_stok = False
+    gudang = []
     return render(request, "gudang/tiket_isi.html", {
         "menu": "tiket", "t": t, "cari": cari, "hasil": hasil, "terpotong": terpotong,
         "lihat_stok": lihat_stok, "gudang": gudang,

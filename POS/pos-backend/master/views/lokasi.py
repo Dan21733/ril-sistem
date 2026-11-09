@@ -82,7 +82,8 @@ def daftar(request):
             if aksi == "simpan":
                 svc.simpan_lokasi(request.user, hak=hak, id=request.POST.get("id") or None,
                                   kode=request.POST.get("kode"), nama=request.POST.get("nama"),
-                                  keterangan=request.POST.get("keterangan"), urutan=request.POST.get("urutan"))
+                                  keterangan=request.POST.get("keterangan"), urutan=request.POST.get("urutan"),
+                                  pic=request.POST.get("pic"))
                 messages.success(request, "Lokasi tersimpan.")
             elif aksi == "aktif":
                 svc.ubah_aktif(request.user, get_object_or_404(Lokasi, pk=request.POST.get("id")), hak=hak)
@@ -90,7 +91,9 @@ def daftar(request):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:lokasi")
-    return render(request, "master/lokasi.html", {"menu": "lokasi", "daftar": svc.ringkasan_lokasi()})
+    from master.layanan.pembelian import penerima_boleh
+    return render(request, "master/lokasi.html", {"menu": "lokasi", "daftar": svc.ringkasan_lokasi(),
+                                                  "daftar_pic": penerima_boleh()})
 
 
 def _total_gudang():
@@ -269,6 +272,9 @@ def tiket_daftar(request, baru=False):
                                lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"),
                                sesi=_sesi_dari(request.POST.get("sesi"), request.POST.get("jenis")))
             messages.success(request, f"Tugas #{t.id} dibuka untuk {t.untuk.first_name or t.untuk.username}.")
+            peringatan = svc_tiket.peringatan_pic(t)
+            if peringatan:
+                messages.warning(request, peringatan)
             if t.sesi_id:
                 return redirect("master:opname_sesi", sesi_id=t.sesi_id)
         except Tolak as tolak:
