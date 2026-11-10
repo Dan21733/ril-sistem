@@ -3,6 +3,7 @@
 {% block judul_kecil %}Barang{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">Barang</h1>
+{% if boleh_tambah %}<button class="tombol penuh" type="button" id="buka-baru" style="margin:0 0 12px">+ Barang baru</button>{% endif %}
 <form method="get" class="cari" role="search"><input type="search" name="q" value="{{ q }}" placeholder="Cari nama, atau keran @2000" enterkeyhint="search" autocomplete="off"></form>
 {% if q %}
   {% if daftar %}
@@ -16,4 +17,70 @@
 {% else %}
 <div class="grup"><div class="kosong">Ketik nama barang untuk melihat harga, modal, dan stok.<br>Bisa juga alias, mis. “martil”.<br>Tahu harganya saja? Tambahkan @harga, mis. “keran @2000”.</div></div>
 {% endif %}
+{% if boleh_tambah %}
+<dialog class="lembar" id="lembar-baru" aria-label="Barang baru">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup type="button">Batal</button><b>Barang baru</b><button class="kanan" id="simpan-baru" type="button">Simpan</button></div>
+  <div class="badan">
+    <div class="grup">
+      <label class="isian"><span>Nama</span><input id="b-nama" placeholder="mis. Kunci Pintu" autocomplete="off" style="text-align:right"></label>
+      <label class="isian"><span>Kategori</span><input id="b-kategori" list="dl-kategori" placeholder="pilih / ketik" autocomplete="off" style="text-align:right"></label>
+      <label class="isian"><span>Brand</span><input id="b-brand" list="dl-brand" placeholder="boleh kosong" autocomplete="off" style="text-align:right"></label>
+      <label class="isian"><span>Alias</span><input id="b-alias" placeholder="pisahkan koma, boleh kosong" autocomplete="off" style="text-align:right"></label>
+    </div>
+    <datalist id="dl-kategori">{% for k in daftar_kategori %}<option value="{{ k }}">{% endfor %}</datalist>
+    <datalist id="dl-brand">{% for k in daftar_brand %}<option value="{{ k }}">{% endfor %}</datalist>
+    <div id="b-varian"></div>
+    <button class="tombol penuh" type="button" id="b-tambah-varian" style="margin-top:8px">+ Varian lagi</button>
+    <p class="ket-grup">Satu varian saja? Kosongkan nama variannya. Harga boleh menyusul; kasir belum bisa menjualnya sampai harga diisi. Satuan meter/kg diatur di master setelah barang dibuat.</p>
+  </div>
+</dialog>
+<template id="t-varian">
+  <div class="kepala-grup"><h2>Varian <span class="no"></span></h2><button type="button" class="aksi hapus-v" style="background:none;border:0;color:var(--merah,#c33)">Hapus</button></div>
+  <div class="grup v-baris">
+    <label class="isian"><span>Nama varian</span><input name="variant" placeholder="mis. 16 S, Merah" autocomplete="off" style="text-align:right"></label>
+    <label class="isian"><span>Harga jual</span><input name="max_price" data-uang inputmode="numeric"></label>
+    <label class="isian"><span>Floor</span><input name="min_price" data-uang inputmode="numeric"></label>
+    {% if lihat_modal %}<label class="isian"><span>Modal</span><input name="cost_amount" data-uang inputmode="numeric"></label>{% endif %}
+    <label class="isian"><span>Stok awal</span><input name="in_stock" inputmode="numeric" placeholder="0"></label>
+  </div>
+</template>
+{% endif %}
 {% endblock %}
+{% block skrip %}{% if boleh_tambah %}
+<script>
+(() => {
+  const lembar = document.getElementById('lembar-baru'), wadah = document.getElementById('b-varian');
+  const nomori = () => wadah.querySelectorAll('.no').forEach((n, i) => n.textContent = i + 1);
+  const tambah = () => {
+    const isi = document.getElementById('t-varian').content.cloneNode(true);
+    const blok = document.createElement('div'); blok.className = 'blok-v'; blok.append(isi); wadah.append(blok);
+    blok.querySelector('.hapus-v').addEventListener('click', () => { if (wadah.children.length > 1) { blok.remove(); nomori(); } });
+    nomori(); return blok;
+  };
+  document.getElementById('buka-baru').addEventListener('click', () => {
+    if (!wadah.children.length) tambah();
+    const q = new URLSearchParams(location.search).get('q') || '';
+    if (!document.getElementById('b-nama').value && !q.includes('@')) document.getElementById('b-nama').value = q;
+    lembar.showModal();
+  });
+  document.getElementById('b-tambah-varian').addEventListener('click', () => tambah().querySelector('input').focus());
+  document.getElementById('simpan-baru').addEventListener('click', async e => {
+    const nilai = id => document.getElementById(id).value.trim();
+    const varian = [...wadah.querySelectorAll('.v-baris')].map(b => {
+      const v = {};
+      b.querySelectorAll('input').forEach(i => { v[i.name] = i.dataset.uang !== undefined ? (angka(i.value) ?? '') : i.value.trim(); });
+      return v;
+    });
+    if (!nilai('b-nama')) { kabar('Isi nama barang.', true); return; }
+    if (!nilai('b-kategori')) { kabar('Isi kategori.', true); return; }
+    e.target.disabled = true;
+    try {
+      const d = await kirim("{% url 'hp:barang_tambah' %}", {item_name: nilai('b-nama'), category: nilai('b-kategori'),
+                                                            brand: nilai('b-brand'), alias: nilai('b-alias'), varian});
+      kabar(d.pesan); location.href = d.url;
+    } catch (err) { kabar(err.message, true); e.target.disabled = false; }
+  });
+})();
+</script>
+{% endif %}{% endblock %}

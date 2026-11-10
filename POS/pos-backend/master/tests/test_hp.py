@@ -40,6 +40,44 @@ class HpTest(Dasar):
     def post_json(self, nama, data, *args):
         return self.client.post(reverse(nama, args=args), json.dumps(data), content_type="application/json")
 
+    def test_tambah_barang_dan_varian_dari_hp(self):
+        """10 Nov 2026: barang dadakan dan varian baru bisa ditambah dari HP."""
+        from master.models import ItemInfo
+        self.assertContains(self.client.get(reverse("hp:barang")), "+ Barang baru")
+        r = self.post_json("hp:barang_tambah", {"item_name": "Engsel Pintu", "category": "Kunci", "brand": "Dekkson",
+                                                "varian": [{"variant": "3 inch", "max_price": 15000, "min_price": 13000,
+                                                            "cost_amount": 9000, "in_stock": "12"},
+                                                           {"variant": "4 inch", "max_price": 18000}]})
+        self.assertTrue(r.json()["ok"], r.json())
+        info = ItemInfo.objects.get(item_name="Engsel Pintu")
+        self.assertEqual(r.json()["url"], reverse("hp:barang_detail", args=[info.pk]))
+        self.assertEqual(Item.objects.get(item_name="Engsel Pintu", variant="3 inch").in_stock, 12)
+        # Nama sudah ada: ditolak dengan pesan jelas.
+        r = self.post_json("hp:barang_tambah", {"item_name": "engsel pintu", "category": "Kunci", "varian": [{"variant": "x"}]})
+        self.assertFalse(r.json()["ok"])
+        # Varian baru ikut kategori/brand.
+        self.assertContains(self.client.get(reverse("hp:barang_detail", args=[info.pk])), "+ Varian baru")
+        r = self.post_json("hp:varian_tambah", {"variant": "5 inch", "max_price": "21000", "min_price": "19000"}, info.pk)
+        self.assertTrue(r.json()["ok"], r.json())
+        baru = Item.objects.get(item_name="Engsel Pintu", variant="5 inch")
+        self.assertEqual((baru.category, baru.brand, baru.max_price), ("Kunci", "Dekkson", 21000))
+        r = self.post_json("hp:varian_tambah", {"variant": "5 inch"}, info.pk)
+        self.assertFalse(r.json()["ok"])
+
+    def test_varian_baru_dari_hp_ikut_satuan(self):
+        from master.layanan import satuan
+        from master.models import ItemInfo
+        buat_item("Fiber Pagar", "Hijau", jual=2500, floor=2400, stok=500)
+        layanan.sinkron_info()
+        satuan.atur(self.admin, "Fiber Pagar", "m", 10)
+        info = ItemInfo.objects.get(item_name="Fiber Pagar")
+        r = self.post_json("hp:varian_tambah", {"variant": "Biru", "max_price": "25000", "in_stock": "12,5"}, info.pk)
+        self.assertTrue(r.json()["ok"], r.json())
+        v = VarianInfo.objects.get(item_name="Fiber Pagar", variant="Biru")
+        self.assertEqual((v.satuan, v.kelipatan), ("m", 10))
+        self.assertEqual(Item.objects.get(item_name="Fiber Pagar", variant="Biru").max_price, 2500)
+        self.assertEqual(Item.objects.get(item_name="Fiber Pagar", variant="Biru").in_stock, 125)
+
     def test_semua_halaman_tampil(self):
         cat = VarianInfo.objects.get(item_name="Cat Avian", variant="Putih 1kg")
         from master.models import ItemInfo

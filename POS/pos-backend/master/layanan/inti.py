@@ -616,6 +616,39 @@ def tambah_varian(pengguna, *, item_name, variant, category, brand="", min_price
     return info
 
 
+def tambah_varian_ke(pengguna, item_info, data, *, hak):
+    """Varian baru untuk barang yang sudah ada (master dan HP). Ikut kategori/brand dan satuan barangnya;
+    harga diketik per satuan (per m) lalu disimpan per kelipatan, stok awal boleh berkoma."""
+    from master.layanan import satuan as svc_satuan
+    contoh = Item.objects.filter(item_name=item_info.item_name).values("category", "brand").first() or {}
+    saudara = VarianInfo.objects.filter(item_name=item_info.item_name).values("satuan", "kelipatan").first() or {}
+    sat, k = saudara.get("satuan") or "", saudara.get("kelipatan") or 1
+    if not sat:
+        k = 1
+
+    def _harga(kolom):
+        teks = data.get(kolom)
+        if k <= 1 or not str(teks or "").strip():
+            return teks
+        return str(svc_satuan.baca_harga(teks, k))
+
+    stok_ketik = data.get("in_stock")
+    if k > 1 and str(stok_ketik or "").strip():
+        stok = svc_satuan.baca_jumlah(stok_ketik, k)
+        if stok is None:
+            raise Tolak("Stok awal tidak terbaca. Contoh: 12,5")
+        stok_ketik = str(stok)
+    baru = tambah_varian(
+        pengguna, hak=hak, item_name=item_info.item_name, variant=data.get("variant"),
+        category=contoh.get("category") or "Uncategorized", brand=contoh.get("brand") or "",
+        min_price=_harga("min_price"), max_price=_harga("max_price"),
+        cost_amount=_harga("cost_amount"), in_stock=stok_ketik, kode_rak=data.get("kode_rak") or None,
+    )
+    if sat:
+        VarianInfo.objects.filter(pk=baru.pk).update(satuan=sat, kelipatan=k)
+    return baru
+
+
 class TolakBaris(Tolak):
     """Penolakan yang menunjuk satu baris varian di formulir barang baru (urutan mulai 0)."""
 

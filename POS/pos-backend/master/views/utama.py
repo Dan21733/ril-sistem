@@ -524,36 +524,7 @@ def item_detail(request, item_id, panel=False):
                 if layanan.ganti_nama_varian(request.user, info, request.POST.get("varian_baru"), hak=hak):
                     messages.success(request, f"Varian diganti menjadi '{info.variant}'.")
             elif aksi == "tambah_varian":
-                from master.layanan import satuan as svc_satuan
-                contoh = Item.objects.filter(item_name=item_info.item_name).values("category", "brand").first() or {}
-                # Varian baru ikut satuan barangnya; harga diketik per satuan (per m), disimpan per kelipatan.
-                saudara = VarianInfo.objects.filter(item_name=item_info.item_name).values("satuan", "kelipatan").first() or {}
-                sat, k = saudara.get("satuan") or "", saudara.get("kelipatan") or 1
-                if not sat:
-                    k = 1
-
-                def _harga(kolom):
-                    teks = request.POST.get(kolom)
-                    if k <= 1 or not (teks or "").strip():
-                        return teks
-                    return str(svc_satuan.baca_harga(teks, k))
-
-                stok_ketik = request.POST.get("in_stock")
-                if k > 1 and (stok_ketik or "").strip():
-                    stok = svc_satuan.baca_jumlah(stok_ketik, k)
-                    if stok is None:
-                        raise Tolak("Stok awal tidak terbaca. Contoh: 12,5")
-                    stok_ketik = str(stok)
-                baru = layanan.tambah_varian(
-                    request.user, hak=hak, item_name=item_info.item_name,
-                    variant=request.POST.get("variant"),
-                    category=contoh.get("category") or "Uncategorized", brand=contoh.get("brand") or "",
-                    min_price=_harga("min_price"), max_price=_harga("max_price"),
-                    cost_amount=_harga("cost_amount"), in_stock=stok_ketik,
-                    kode_rak=request.POST.get("kode_rak") or None,
-                )
-                if sat:
-                    VarianInfo.objects.filter(pk=baru.pk).update(satuan=sat, kelipatan=k)
+                layanan.tambah_varian_ke(request.user, item_info, request.POST, hak=hak)
                 messages.success(request, "Varian ditambahkan.")
             elif aksi == "syarat_titipan":
                 from master.layanan import titipan

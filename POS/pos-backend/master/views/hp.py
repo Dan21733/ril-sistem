@@ -406,7 +406,15 @@ def barang(request):
             if r:
                 ket = svc_cari.keterangan_harga(harga, r["max_price"], r["min_price"])
                 d["ket_harga"] = f"{r['variant']}: {ket}" if r["variant"] != "N/A" else ket
-    return _tampil(request, "hp/barang.html", {"tab": "barang", "q": q, "daftar": daftar, "harga_cari": harga})
+    hak = hak_pengguna(request.user)
+    return _tampil(request, "hp/barang.html", {
+        "tab": "barang", "q": q, "daftar": daftar, "harga_cari": harga,
+        "boleh_tambah": {"ubah_info", "ubah_harga"} <= hak, "lihat_modal": "lihat_modal" in hak,
+        "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami)
+        if {"ubah_info", "ubah_harga"} <= hak else [],
+        "daftar_brand": sorted({k for k in Item.objects.values_list("brand", flat=True).distinct() if k}, key=kunci_alami)
+        if {"ubah_info", "ubah_harga"} <= hak else [],
+    })
 
 
 @perlu_hp()
@@ -442,6 +450,8 @@ def barang_detail(request, item_id):
         "kategori": baris[0]["category"] if baris else "", "brand": baris[0]["brand"] if baris else "",
         "lihat_modal": lihat_modal, "jenis_stok": list(layanan.JENIS_MUTASI.items()),
         "kembali": _kembali(request, "hp:barang"),
+        "boleh_tambah": {"ubah_info", "ubah_harga"} <= hak,
+        "satuan_barang": next((b["satuan"] for b in baris if b.get("satuan")), ""),
     })
 
 
@@ -488,6 +498,36 @@ def stok(request):
     beda = svc_satuan.format_jumlah(abs(selisih), sat, k)
     tanda = f"+{beda}" if selisih > 0 else f"-{beda}"
     return _jawab(pesan=f"Stok jadi {teks} ({tanda})." if selisih else "Stok tidak berubah.", stok=baru, stok_teks=teks)
+
+
+@require_POST
+@perlu_hp("ubah_info")
+def barang_tambah(request):
+    """Barang baru dari HP (JSON): nama, kategori, brand, satu atau beberapa varian (10 Nov 2026)."""
+    from django.urls import reverse
+
+    from master.layanan.toko import toko_aktif
+    d = _json_badan(request)
+    varian = [v for v in d.get("varian") or [] if isinstance(v, dict)]
+    try:
+        info = layanan.tambah_barang(request.user, hak=hak_pengguna(request.user), item_name=d.get("item_name"),
+                                     category=d.get("category"), brand=d.get("brand"), alias=d.get("alias"),
+                                     varian=varian, toko=toko_aktif(request))
+    except Tolak as e:
+        return _jawab(False, str(e), 400, baris=getattr(e, "baris", None))
+    return _jawab(pesan=f"'{info.item_name}' ditambahkan.", url=reverse("hp:barang_detail", args=[info.pk]))
+
+
+@require_POST
+@perlu_hp("ubah_info")
+def varian_tambah(request, item_id):
+    """Satu varian baru untuk barang yang sudah ada, dari HP (JSON). Ikut satuan barangnya."""
+    info_item = get_object_or_404(ItemInfo, pk=item_id)
+    try:
+        layanan.tambah_varian_ke(request.user, info_item, _json_badan(request), hak=hak_pengguna(request.user))
+    except Tolak as e:
+        return _jawab(False, str(e), 400)
+    return _jawab(pesan="Varian ditambahkan.")
 
 
 # ---------------------------------------------------------------------------
