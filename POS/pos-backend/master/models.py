@@ -58,6 +58,26 @@ class Toko(models.Model):
         return bool(self.pkp and (self.pkp_mulai is None or tanggal >= self.pkp_mulai))
 
 
+class KaryawanLapangan(models.Model):
+    """Karyawan tanpa aplikasi (angkat, ambil, antar; keputusan pemilik 9-11 Nov 2026).
+
+    Tidak punya akun, PIN, atau sidik jari. Tercatat lewat penugasan: pelayan mengetuk namanya saat
+    menyiapkan barang. Masuk tim lokasi (Lokasi.tim) supaya sistem bisa merekomendasikan siapa yang
+    mengambil, dan pembagiannya terhitung rata.
+    """
+    nama = models.CharField(max_length=60, unique=True)
+    aktif = models.BooleanField(default=True)
+    catatan = models.CharField(max_length=200, blank=True, default="")
+    dibuat = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_karyawan_lapangan"
+        ordering = ["nama"]
+
+    def __str__(self):
+        return self.nama
+
+
 class Lokasi(models.Model):
     """Tempat stok disimpan di toko yang memegang stok kasir.
 
@@ -75,6 +95,8 @@ class Lokasi(models.Model):
     # Penanggung jawab lokasi (karyawan cewek pemegang tablet, keputusan pemilik 9 Nov 2026): menerima barang
     # datang ke lokasi ini, menjaga rak rapi & berlabel, menjelaskan selisih. Tidak menghitung lokasinya sendiri.
     pic = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="pic_lokasi")
+    # Tim lokasi: karyawan lapangan yang biasa menyusun & mengambil di sini (didahulukan rekomendasi).
+    tim = models.ManyToManyField(KaryawanLapangan, blank=True, related_name="lokasi_tim", db_table="master_lokasi_tim")
     urutan = models.IntegerField(default=0)
 
     class Meta:
@@ -1458,3 +1480,82 @@ class VarianRak(models.Model):
     class Meta:
         db_table = "master_varian_rak"
         constraints = [models.UniqueConstraint(fields=["varian", "rak"], name="master_varian_rak_unik")]
+
+
+class Siapkan(models.Model):
+    """Nota kasir yang barangnya sedang disiapkan (transaksi berlangsung, keputusan pemilik 11 Nov 2026).
+
+    Dibuat otomatis untuk setiap nota kasir (pelayan wajib menyiapkan barang yang ia jual). Barang
+    dikelompokkan per lokasi (SiapkanTugas); tiap kelompok ditugaskan ke satu karyawan lapangan atau
+    disiapkan pelayan sendiri, lalu dicentang diserahkan. Belum mengurangi stok per lokasi: itu baru
+    setelah opname (stok per lokasi sudah benar).
+    """
+    STATUS = [("menunggu", "Disiapkan"), ("selesai", "Diserahkan"), ("batal", "Batal")]
+
+    sync_id = models.UUIDField(unique=True)
+    nomor = models.CharField(max_length=20, blank=True, default="")
+    waktu_nota = models.DateTimeField(db_index=True)
+    kasir_id = models.CharField(max_length=10, blank=True, default="")
+    kasir_nama = models.CharField(max_length=100, blank=True, default="")
+    pelanggan = models.CharField(max_length=150, blank=True, default="")
+    cara = models.CharField(max_length=10, blank=True, default="bawa")   # bawa / antar (status barang nota)
+    status = models.CharField(max_length=10, choices=STATUS, default="menunggu", db_index=True)
+    selesai_waktu = models.DateTimeField(null=True, blank=True)
+    selesai_oleh = models.CharField(max_length=150, blank=True, default="")
+
+    class Meta:
+        db_table = "master_siapkan"
+        ordering = ["-waktu_nota"]
+
+
+class SiapkanTugas(models.Model):
+    """Satu kelompok barang satu lokasi dalam satu nota: siapa yang mengambil dan sudah diserahkan atau belum.
+
+    `lokasi` kosong = lokasi barang belum diketahui (rak belum diatur). `rekomendasi` = pilihan sistem saat
+    ditugaskan; `ikut_rekomendasi` False berarti pelayan memilih orang lain (tercatat).
+    """
+    STATUS = [("menunggu", "Belum ditugaskan"), ("diambil", "Sedang diambil"), ("selesai", "Diserahkan"), ("batal", "Batal")]
+
+    siapkan = models.ForeignKey(Siapkan, on_delete=models.CASCADE, related_name="tugas")
+    lokasi = models.ForeignKey(Lokasi, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    pengambil = models.ForeignKey(KaryawanLapangan, null=True, blank=True, on_delete=models.PROTECT, related_name="tugas_siapkan")
+    sendiri = models.BooleanField(default=False)   # disiapkan pelayan sendiri, tanpa karyawan lapangan
+    rekomendasi = models.ForeignKey(KaryawanLapangan, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    ikut_rekomendasi = models.BooleanField(default=True)
+    status = models.CharField(max_length=10, choices=STATUS, default="menunggu", db_index=True)
+    ditugaskan_waktu = models.DateTimeField(null=True, blank=True, db_index=True)
+    ditugaskan_oleh = models.CharField(max_length=150, blank=True, default="")
+    selesai_waktu = models.DateTimeField(null=True, blank=True)
+    selesai_oleh = models.CharField(max_length=150, blank=True, default="")
+
+    class Meta:
+        db_table = "master_siapkan_tugas"
+        ordering = ["id"]
+
+
+class SiapkanBaris(models.Model):
+    tugas = models.ForeignKey(SiapkanTugas, on_delete=models.CASCADE, related_name="baris")
+    varian = models.ForeignKey(VarianInfo, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    item_name = models.CharField(max_length=255)
+    variant = models.CharField(max_length=255)
+    jumlah = models.IntegerField()
+
+    class Meta:
+        db_table = "master_siapkan_baris"
+        ordering = ["id"]
+
+
+class SiapkanLewat(models.Model):
+    """Karyawan lapangan yang dilewati saat menugaskan (tidak ada / sedang tugas lain / menolak).
+    Bahan evaluasi pemilik; dibaca sebagai pola (per pencatat), bukan satu kejadian."""
+    ALASAN = [("tidak_ada", "Tidak ada di tempat"), ("sibuk", "Sedang tugas lain"), ("menolak", "Menolak")]
+
+    tugas = models.ForeignKey(SiapkanTugas, on_delete=models.CASCADE, related_name="lewat")
+    karyawan = models.ForeignKey(KaryawanLapangan, on_delete=models.CASCADE, related_name="dilewati")
+    alasan = models.CharField(max_length=10, choices=ALASAN)
+    waktu = models.DateTimeField(auto_now_add=True)
+    oleh = models.CharField(max_length=150)
+
+    class Meta:
+        db_table = "master_siapkan_lewat"
+        ordering = ["id"]

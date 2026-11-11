@@ -28,6 +28,7 @@ urlpatterns = [
     path("tampilan/", views.tema, name="tema"),
     path("kasir/karyawan/", views_kasir.karyawan, name="karyawan"),
     path("kasir/karyawan/slip/", views_kasir.karyawan_slip, name="karyawan_slip"),
+    path("kasir/lapangan/", views_kasir.lapangan, name="lapangan"),
     path("kasir/perangkat-ops/", views_kasir.perangkat_ops, name="perangkat_ops"),
     path("kasir/tablet/", views_kasir.tablet, name="tablet"),
     path("kasir/aturan/", views_kasir.aturan_kasir, name="aturan_kasir"),

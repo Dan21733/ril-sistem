@@ -70,6 +70,7 @@ input.harga{width:130px;text-align:right;font-variant-numeric:tabular-nums;paddi
 <header>
   <div class="atas"><b class="judul">{% if toko_gudang %}{{ toko_gudang.nama }}{% else %}Gudang{% endif %}</b>
   <nav>
+    {% if toko_gudang.stok_di_kasir %}<a href="{% url 'gudang:siapkan' %}" class="{% if menu == 'siapkan' %}aktif{% endif %}">Siapkan</a>{% endif %}
     <a href="{% url 'gudang:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas</a>
     {% if hak_tugas %}<a href="{% url 'gudang:riwayat' %}" class="{% if menu == 'riwayat' %}aktif{% endif %}">Riwayat</a>{% endif %}
     {% if 'gudang_buka_dus' in hak %}<a href="{% url 'gudang:buka_dus' %}" class="{% if menu == 'buka_dus' %}aktif{% endif %}">Buka dus</a>{% endif %}

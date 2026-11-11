@@ -525,3 +525,50 @@ def ambil(request):
         "riwayat": PermintaanAmbil.objects.filter(status="diambil", diambil_oleh=request.user.username)
                                           .select_related("diambil_lokasi").order_by("-diambil_waktu")[:15],
     })
+
+
+@perlu("gudang")
+def siapkan(request):
+    """Siapkan barang (transaksi berlangsung): nota kasir yang barangnya sedang disiapkan.
+
+    Setiap nota kasir otomatis masuk. Pelayan menugaskan karyawan lapangan (rekomendasi sistem), atau
+    menyiapkan sendiri, lalu mencentang diserahkan. Lihat master/layanan/siapkan.py.
+    """
+    from master.layanan import siapkan as svc_siapkan
+    kosong = _hanya_toko_stok(request)
+    if kosong:
+        return kosong
+    if request.method == "POST":
+        p = request.POST
+        aksi = p.get("aksi")
+        try:
+            if aksi == "tugaskan":
+                t = svc_siapkan.tugaskan(request.user, p.get("tugas"), p.get("karyawan"))
+                messages.success(request, f"{t.pengambil.nama} mengambil barang nota {t.siapkan.nomor}.")
+            elif aksi == "lewati":
+                svc_siapkan.lewati(request.user, p.get("tugas"), p.get("karyawan"), p.get("alasan"))
+            elif aksi == "sendiri":
+                svc_siapkan.sendiri(request.user, p.get("tugas"))
+            elif aksi == "ulang":
+                svc_siapkan.ulang(request.user, p.get("tugas"))
+            elif aksi == "serahkan":
+                svc_siapkan.serahkan(request.user, p.get("tugas"))
+            elif aksi == "serahkan_semua":
+                s = svc_siapkan.serahkan_semua(request.user, p.get("siapkan"))
+                messages.success(request, f"Nota {s.nomor} selesai diserahkan.")
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+        tujuan = request.path + ("?semua=1" if p.get("semua") else "")
+        return redirect(tujuan + (f"#n{p.get('siapkan_id') or p.get('siapkan') or ''}"))
+    svc_siapkan.tarik_nota()
+    daftar = svc_siapkan.daftar_buka()
+    saya = request.user.username.removeprefix("ops-").upper()
+    for s in daftar:
+        s.punyaku = s.kasir_id.upper() == saya
+    punyaku = [s for s in daftar if s.punyaku]
+    semua = request.GET.get("semua") == "1" or not punyaku
+    return render(request, "gudang/siapkan.html", {
+        "menu": "siapkan", "daftar": daftar if semua else punyaku, "semua": semua,
+        "n_semua": len(daftar), "n_punyaku": len(punyaku), "selesai": svc_siapkan.selesai_hari_ini(),
+        "alasan_lewat": [("tidak_ada", "Tidak ada"), ("sibuk", "Sibuk"), ("menolak", "Menolak")],
+    })

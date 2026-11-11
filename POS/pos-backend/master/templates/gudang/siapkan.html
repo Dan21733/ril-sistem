@@ -1,0 +1,83 @@
+{% extends "gudang/base.html" %}{% load master_tags %}
+{% block judul %}Siapkan barang{% endblock %}
+{% block isi %}
+<style>
+.nota{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.nota.punyaku{border-color:var(--aksen)}
+.nota>.kepala{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--garis)}
+.nota>.kepala b{font-size:16px}
+.klp{border-bottom:1px solid var(--garis)}.klp:last-child{border-bottom:0}
+.klp .judul-klp{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 12px 4px;font-weight:600}
+.klp .brg{display:flex;gap:10px;justify-content:space-between;padding:4px 12px;font-size:14px}
+.klp .brg .rak{color:var(--redup);font-size:13px;white-space:nowrap}
+.klp .aksi{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px 12px}
+.klp .aksi form{margin:0;display:flex;gap:6px;align-items:center}
+.klp .aksi select{width:auto;min-width:170px}
+.tombol.rek{background:var(--aksen);border-color:var(--aksen);color:#fff;font-weight:600}
+.status-klp{padding:8px 12px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg-saring{display:flex;gap:6px;margin-bottom:10px}.seg-saring a{flex:1;text-align:center}
+.seg-saring a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+</style>
+<div class="judul-hal"><h2>Siapkan barang</h2><span class="redup kecil">diperbarui {% now "H:i" %}</span></div>
+{% if n_punyaku %}<div class="seg-saring">
+  <a class="tombol kecil {% if not semua %}aktif{% endif %}" href="?">Nota saya ({{ n_punyaku }})</a>
+  <a class="tombol kecil {% if semua %}aktif{% endif %}" href="?semua=1">Semua ({{ n_semua }})</a>
+</div>{% endif %}
+
+{% for s in daftar %}
+<div class="nota{% if s.punyaku %} punyaku{% endif %}" id="n{{ s.id }}">
+  <div class="kepala">
+    <div><b>{{ s.nomor|default:"Nota" }}</b> <span class="redup kecil">{{ s.waktu_nota|date:"H:i" }} · {{ s.kasir_nama|default:s.kasir_id }}{% if s.pelanggan %} · {{ s.pelanggan }}{% endif %}</span>
+      {% if s.cara == 'antar' %}<span class="label awas">Diantar</span>{% endif %}</div>
+    <form method="post" data-tanya="Semua barang nota {{ s.nomor }} sudah diserahkan?">{% csrf_token %}<input type="hidden" name="aksi" value="serahkan_semua"><input type="hidden" name="siapkan" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}<button class="tombol kecil" type="submit">Semua diserahkan</button></form>
+  </div>
+  {% for t in s.daftar_tugas %}
+  <div class="klp">
+    <div class="judul-klp">{% if t.lokasi %}{{ t.lokasi.nama }}{% else %}<span class="redup">Lokasi belum diatur</span>{% endif %}
+      {% if t.lokasi.pic %}<span class="label">PIC {{ t.lokasi.pic.first_name|default:t.lokasi.pic.username }}</span>{% endif %}
+      {% if t.status == 'selesai' %}<span class="label baik">Diserahkan</span>{% elif t.status == 'diambil' %}<span class="label awas">{% if t.sendiri %}Disiapkan sendiri{% else %}Diambil {{ t.pengambil.nama }}{% endif %} · {{ t.ditugaskan_waktu|date:"H:i" }}</span>{% elif t.status == 'batal' %}<span class="label bahaya">Batal</span>{% endif %}</div>
+    {% for b in t.daftar_baris %}<div class="brg"><span><b>{{ b.jumlah|qty:b.varian }}</b> × {{ b.item_name }}{% if b.variant != 'N/A' %} / {{ b.variant }}{% endif %}</span><span class="rak">{% if b.rak_teks %}rak {{ b.rak_teks }}{% else %}rak ?{% endif %}</span></div>{% endfor %}
+    {% if t.status == 'menunggu' %}
+    <div class="aksi">
+      {% with rek=t.pilihan.0 %}{% if rek and rek.alasan %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tugaskan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}
+        <button class="tombol rek" type="submit">Ambil: {{ rek.k.nama }}</button></form>
+      <span class="redup kecil">{{ rek.alasan }} · {{ rek.beban }} tugas hari ini</span>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="lewati"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}
+        <span class="kecil redup">Lewati {{ rek.k.nama }}:</span>{% for kode, label in alasan_lewat %}<button class="tombol kecil{% if kode == 'menolak' %} bahaya{% endif %}" type="submit" name="alasan" value="{{ kode }}">{{ label }}</button>{% endfor %}</form>
+      {% else %}<span class="redup kecil">{% if t.pilihan %}Semua karyawan sedang mengambil.{% else %}Belum ada karyawan lapangan aktif.{% endif %}</span>{% endif %}{% endwith %}
+    </div>
+    <div class="aksi" style="padding-top:0">
+      {% if t.pilihan %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tugaskan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}
+        <select name="karyawan" aria-label="Orang lain" required><option value="">Orang lain…</option>{% for p in t.pilihan %}{% if not forloop.first or not p.alasan %}<option value="{{ p.k.id }}">{{ p.k.nama }}{% if p.tim %} · tim{% endif %} · {{ p.beban }} tugas{% if p.sibuk %} · sedang mengambil{% endif %}</option>{% endif %}{% endfor %}</select>
+        <button class="tombol kecil" type="submit">Tugaskan</button></form>{% endif %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="sendiri"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}<button class="tombol kecil" type="submit">Saya sendiri</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="serahkan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}<button class="tombol kecil" type="submit">Diserahkan</button></form>
+    </div>
+    {% elif t.status == 'diambil' %}
+    <div class="status-klp">
+      <form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="aksi" value="serahkan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}<button class="tombol utama" type="submit">Diserahkan</button></form>
+      <form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="aksi" value="ulang"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="siapkan_id" value="{{ s.id }}">{% if semua %}<input type="hidden" name="semua" value="1">{% endif %}<button class="tombol kecil" type="submit">Ganti orang</button></form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="kartu redup" style="text-align:center;padding:28px">Tidak ada barang yang sedang disiapkan.</div>
+{% endfor %}
+
+{% if selesai %}
+<details style="margin-top:14px"><summary class="redup">Selesai hari ini ({{ selesai|length }})</summary>
+<div class="daftar" style="margin-top:8px">{% for s in selesai %}<div class="brs"><div class="nama"><b>{{ s.nomor|default:"Nota" }}</b><span class="redup kecil">{{ s.kasir_nama }}{% if s.pelanggan %} · {{ s.pelanggan }}{% endif %}</span></div><span class="redup kecil">{{ s.selesai_waktu|date:"H:i" }} · {{ s.selesai_oleh }}</span></div>{% endfor %}</div>
+</details>
+{% endif %}
+<script>
+// Nota baru masuk sendiri: muat ulang tiap 30 detik selama tidak sedang memilih.
+let disentuh = Date.now();
+['pointerdown', 'keydown', 'focusin'].forEach(e => document.addEventListener(e, () => disentuh = Date.now()));
+setInterval(() => {
+  if (Date.now() - disentuh > 25000 && !document.querySelector('dialog[open]') && document.activeElement.tagName !== 'SELECT') location.reload();
+}, 30000);
+</script>
+{% endblock %}

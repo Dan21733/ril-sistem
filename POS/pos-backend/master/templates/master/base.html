@@ -248,8 +248,9 @@ html[data-ukuran="110"] body{zoom:1.1}
     </div></details>
     {% endif %}
     {% if 'kelola_kasir' in hak or 'kelola_lokasi' in hak %}
-    <details{% if menu|dalam:"karyawan tiket perangkat" %} open{% endif %}><summary>Karyawan{% if jumlah_tugas_acc %}<span class="angka-menu">{{ jumlah_tugas_acc }}</span>{% endif %}</summary><div class="isi-grup">
+    <details{% if menu|dalam:"karyawan tiket perangkat lapangan" %} open{% endif %}><summary>Karyawan{% if jumlah_tugas_acc %}<span class="angka-menu">{{ jumlah_tugas_acc }}</span>{% endif %}</summary><div class="isi-grup">
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:karyawan' %}" class="{% if menu == 'karyawan' %}aktif{% endif %}">Karyawan &amp; hak akses</a>{% endif %}
+      {% if 'kelola_lokasi' in hak %}<a href="{% url 'master:lapangan' %}" class="{% if menu == 'lapangan' %}aktif{% endif %}">Karyawan lapangan &amp; siapkan</a>{% endif %}
       {% if 'kelola_lokasi' in hak %}<a href="{% url 'master:tiket' %}" class="{% if menu == 'tiket' %}aktif{% endif %}">Tugas karyawan{% if jumlah_tugas_acc %}<span class="angka-menu">{{ jumlah_tugas_acc }}</span>{% endif %}</a>{% endif %}
       {% if 'kelola_kasir' in hak %}<a href="{% url 'master:tablet' %}" class="{% if menu == 'perangkat' %}aktif{% endif %}">Perangkat</a>{% endif %}
     </div></details>

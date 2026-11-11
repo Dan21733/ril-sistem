@@ -2,7 +2,7 @@
 import datetime
 
 from django.contrib import messages
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from pos import pengaturan as aturan
@@ -191,4 +191,58 @@ def nota_tinjau(request):
     return render(request, "master/kasir_tinjau.html", {
         "menu": "nota_tinjau", "status": status, "daftar": svc_tinjau.daftar(status),
         "pekerja": list(Worker.objects.order_by("name").values_list("id", "name")),
+    })
+
+
+@perlu("kelola_lokasi")
+def lapangan(request):
+    """Karyawan lapangan (tanpa aplikasi), tim per lokasi, dan rekap Siapkan barang (11 Nov 2026)."""
+    from datetime import date
+
+    from master.layanan import lokasi as svc_lokasi
+    from master.layanan import siapkan as svc_siapkan
+    from master.models import KaryawanLapangan, Lokasi
+    if request.method == "POST":
+        p = request.POST
+        aksi = p.get("aksi")
+        try:
+            if aksi == "tambah":
+                k = svc_siapkan.simpan_karyawan(request.user, nama=p.get("nama"), catatan=p.get("catatan"))
+                messages.success(request, f"{k.nama} ditambahkan. Masukkan ke tim lokasinya di tabel Tim.")
+            elif aksi in ("ubah", "nonaktif", "aktif"):
+                k = get_object_or_404(KaryawanLapangan, pk=p.get("id"))
+                aktif = {"nonaktif": False, "aktif": True}.get(aksi, k.aktif)
+                svc_siapkan.simpan_karyawan(request.user, id=k.id, nama=p.get("nama") or k.nama, aktif=aktif,
+                                            catatan=p.get("catatan", k.catatan))
+                messages.success(request, "Tersimpan.")
+            elif aksi == "tim":
+                for l in Lokasi.objects.filter(aktif=True):
+                    svc_siapkan.atur_tim(l, p.getlist(f"tim_{l.id}"))
+                messages.success(request, "Tim lokasi tersimpan.")
+            elif aksi == "tutup":
+                svc_siapkan.tutup(request.user, p.get("siapkan"), p.get("catatan", ""))
+                messages.success(request, "Nota ditutup dari daftar Siapkan.")
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+        return redirect(request.get_full_path())
+    hari_ini = timezone.localdate()
+    try:
+        dari = date.fromisoformat(request.GET.get("dari") or "")
+    except ValueError:
+        dari = hari_ini.replace(day=1)
+    try:
+        sampai = date.fromisoformat(request.GET.get("sampai") or "")
+    except ValueError:
+        sampai = hari_ini
+    svc_siapkan.tarik_nota()
+    karyawan = list(KaryawanLapangan.objects.prefetch_related("lokasi_tim"))
+    lokasi = svc_lokasi.pilihan()
+    for k in karyawan:
+        k.tim_ids = {l.id for l in k.lokasi_tim.all()}
+    from master.models import Siapkan
+    return render(request, "master/lapangan.html", {
+        "menu": "lapangan", "karyawan": karyawan, "lokasi": lokasi, "dari": dari, "sampai": sampai,
+        "rekap": svc_siapkan.statistik(dari, sampai),
+        "buka": list(Siapkan.objects.filter(status="menunggu").prefetch_related("tugas__pengambil", "tugas__lokasi")),
+        "sekarang": timezone.now(),
     })

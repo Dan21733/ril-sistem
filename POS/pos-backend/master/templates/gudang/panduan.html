@@ -12,6 +12,13 @@
   <li>Yang kamu isi di sini tidak langsung mengubah stok atau harga; pemilik memeriksa dulu (kecuali Ambil barang dan Buka dus).</li>
 </ul></div>
 
+{% if toko_gudang.stok_di_kasir %}<div class="kartu"><h3>Siapkan barang</h3><ul>
+  <li>Setiap nota kasir otomatis masuk ke <b>Siapkan</b>. Barang yang sudah dijual wajib disiapkan sampai diserahkan; nota tidak boleh ditinggal.</li>
+  <li>Barang dikelompokkan per gudang. Tombol <b>Ambil: nama</b> = orang yang ditunjuk sistem (tim gudang itu, yang tugasnya paling sedikit hari ini). Ketuk untuk menugaskannya.</li>
+  <li>Orangnya tidak ada, sedang tugas lain, atau menolak? Ketuk alasannya di <b>Lewati</b>; sistem menunjuk orang berikutnya. Semua tercatat untuk pemilik.</li>
+  <li>Boleh memilih <b>Orang lain</b>, atau <b>Saya sendiri</b> untuk barang display.</li>
+  <li>Setelah barang sampai dan dicek, ketuk <b>Diserahkan</b>. Semua sekaligus: <b>Semua diserahkan</b> di atas nota.</li>
+</ul></div>
 {% if 'gudang_ambil' in hak %}<div class="kartu"><h3>Ambil barang</h3><ul>
   <li>Isinya barang yang sudah terjual atau dikirim dari gudang dan harus diambilkan.</li>
   <li>Ambil barangnya, cek jumlah dan gudang asalnya, lalu tekan <b>Sudah diambil</b>. Stok gudang berkurang saat itu.</li>
