@@ -1,0 +1,20 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}PO · DB Toko{% endblock %}
+{% block judul_kecil %}Pesanan ke supplier{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">PO dipesan</h1>
+<div class="kepala-grup"><h2>Belum ditugaskan</h2><span class="redup kecil">tidak muncul di gudang</span></div>
+<div class="grup">
+  {% for p in belum %}<a class="sel panah" href="{% url 'hp:po_detail' p.id %}"><div class="utama"><div class="nama">{{ p.supplier.nama }}</div>
+    <div class="sub">{{ p.nomor }} · {{ p.tanggal_pesan|date:"d M" }} · {{ p.n }} barang</div></div></a>
+  {% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
+</div>
+<div class="kepala-grup"><h2>Sudah ditugaskan</h2></div>
+<div class="grup">
+  {% for p in sudah %}<a class="sel panah" href="{% url 'hp:po_detail' p.id %}"><div class="utama"><div class="nama">{{ p.supplier.nama }}</div>
+    <div class="sub">{{ p.nomor }} · {{ p.tanggal_pesan|date:"d M" }} · {{ p.n }} barang · {{ p.penerima.first_name|default:p.penerima.username }}{% if not p.penerima_manual %} (otomatis){% endif %}</div></div></a>
+  {% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
+</div>
+<div style="height:16px"></div>
+{% endblock %}

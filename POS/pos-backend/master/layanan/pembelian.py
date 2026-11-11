@@ -155,15 +155,12 @@ def buat(pengguna, *, supplier_id, tanggal_pesan, catatan="", toko=None):
         raise Tolak("Pilih supplier.")
     toko = toko if isinstance(toko, Toko) else svc_toko.ambil(toko)
     tanggal = baca_tanggal(tanggal_pesan, wajib=True, label="Tanggal pesan")
-    # Penugasan terima: lokasi tujuan ikut PO terakhir dari supplier yang sama, penerima = PIC lokasi itu.
-    lalu = Pembelian.objects.filter(supplier=supplier, toko=toko).exclude(lokasi=None).order_by("-id").first()
-    lokasi = lalu.lokasi if lalu and lalu.lokasi.aktif else None
+    # Penerima ditentukan dari barangnya (PIC rak terbanyak), dihitung ulang tiap baris berubah.
     with transaction.atomic():
         po = Pembelian.objects.create(
             nomor=_nomor_baru(tanggal), toko=toko, supplier=supplier, tanggal_pesan=tanggal,
             catatan=rapikan_teks(catatan), dibuat_oleh=pengguna.username,
             mode_ppn="termasuk" if supplier.pkp else "tanpa",
-            lokasi=lokasi, penerima=lokasi.pic if lokasi and lokasi.pic and lokasi.pic.is_active else None,
         )
         layanan.catat(pengguna, aksi="tambah", sumber="pembelian", objek="pembelian", kolom="pembelian",
                       baru=f"{po.nomor} - {supplier.nama}")
@@ -179,23 +176,112 @@ def penerima_boleh():
             if "gudang_datang" in hak_pengguna(u)]
 
 
-def atur_penerima(pengguna, po, *, lokasi=None, penerima=None):
-    """Pemilik mengatur lokasi tujuan dan penerima PO. Ganti lokasi tanpa memilih penerima = PIC lokasi itu."""
-    from master.models import Lokasi
-    _harus(po, "dibuat")
-    l = Lokasi.objects.filter(pk=lokasi, aktif=True).first() if str(lokasi or "").isdigit() else None
+def _pic_baris(po):
+    """[(baris, id PIC efektif rak barangnya, id lokasi rak)]; PIC None = barang tanpa rak / rak tanpa PIC."""
+    hasil = []
+    for b in po.baris.select_related("varian__rak__tempat"):
+        rak = b.varian.rak if b.varian_id else None
+        hasil.append((b, rak.pic_efektif_id if rak else None, rak.tempat_id if rak else None))
+    return hasil
+
+
+def usulan_penerima(po):
+    """(PIC, lokasi) yang paling banyak barangnya di PO ini. Hanya PIC yang memakai aplikasi gudang."""
+    from collections import Counter
     boleh = {u.pk: u for u in penerima_boleh()}
-    u = boleh.get(int(penerima)) if str(penerima or "").isdigit() else None
-    if str(penerima or "").isdigit() and u is None:
-        raise Tolak("Penerima harus karyawan yang memakai aplikasi gudang.")
-    if u is None and l is not None and l.pic_id in boleh and l.pk != po.lokasi_id:
-        u = boleh[l.pic_id]
-    lama = f"{po.lokasi.nama if po.lokasi else '-'} / {_nama(po.penerima)}"
-    po.lokasi, po.penerima = l, u
-    po.save(update_fields=["lokasi", "penerima"])
-    layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="penerima", lama=lama,
-                  baru=f"{l.nama if l else '-'} / {_nama(u)}", catatan=po.nomor)
+    baris = [(pic, lok) for _, pic, lok in _pic_baris(po) if pic in boleh]
+    if not baris:
+        return None, None
+    hitung_pic = Counter(pic for pic, _ in baris)
+    urutan = {pic: i for i, (pic, _) in reversed(list(enumerate(baris)))}
+    pic = max(hitung_pic, key=lambda x: (hitung_pic[x], -urutan[x]))
+    lokasi = Counter(lok for p, lok in baris if p == pic and lok).most_common(1)
+    return boleh[pic], (lokasi[0][0] if lokasi else None)
+
+
+def penerima_otomatis(po):
+    """Dipanggil setiap baris PO berubah: penerima ikut barang, kecuali sudah diatur tangan."""
+    if po.penerima_manual or po.status != "dibuat":
+        return po
+    u, lokasi_id = usulan_penerima(po)
+    if (po.penerima_id, po.lokasi_id) != ((u.pk if u else None), lokasi_id):
+        po.penerima, po.lokasi_id = u, lokasi_id
+        po.save(update_fields=["penerima", "lokasi"])
     return po
+
+
+def atur_penerima(pengguna, po, *, penerima):
+    """Pemilik mengatur penerima PO. "otomatis" = ikut barang; "" = belum ditugaskan (tidak tampil di gudang)."""
+    _harus(po, "dibuat")
+    lama = _nama(po.penerima)
+    if penerima == "otomatis":
+        po.penerima_manual = False
+        po.save(update_fields=["penerima_manual"])
+        penerima_otomatis(po)
+    else:
+        boleh = {u.pk: u for u in penerima_boleh()}
+        u = boleh.get(int(penerima)) if str(penerima or "").isdigit() else None
+        if str(penerima or "").isdigit() and u is None:
+            raise Tolak("Penerima harus karyawan yang memakai aplikasi gudang.")
+        po.penerima, po.penerima_manual = u, True
+        po.save(update_fields=["penerima", "penerima_manual"])
+    layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="penerima", lama=lama,
+                  baru=_nama(po.penerima) + ("" if po.penerima_manual else " (otomatis)"), catatan=po.nomor)
+    return po
+
+
+def rincian_pic(po):
+    """Untuk tombol Pecah per PIC: [{pic, n}] urut terbanyak. pic None = tanpa PIC."""
+    from collections import Counter
+    boleh = {u.pk: u for u in penerima_boleh()}
+    n = Counter((pic if pic in boleh else None) for _, pic, _ in _pic_baris(po))
+    return [{"pic": boleh.get(pic), "n": jumlah} for pic, jumlah in n.most_common()]
+
+
+def pecah_per_pic(pengguna, po):
+    """Satu PO berisi barang beberapa PIC (supplier banyak kategori) -> satu PO per PIC.
+
+    Supplier, toko, tanggal, dan harga sama; hutang tetap ke supplier yang sama (per PO). PO asal
+    menyimpan kelompok terbanyak (dan barang tanpa PIC).
+    """
+    _harus(po, "dibuat")
+    boleh = {u.pk: u for u in penerima_boleh()}
+    kelompok = {}
+    for b, pic, lok in _pic_baris(po):
+        kelompok.setdefault(pic if pic in boleh else None, []).append((b, lok))
+    ber_pic = sorted((k for k in kelompok if k is not None), key=lambda k: -len(kelompok[k]))
+    if len(ber_pic) < 2:
+        raise Tolak("Barang PO ini sudah satu PIC, tidak perlu dipecah.")
+    baru = []
+    with transaction.atomic():
+        for pic in ber_pic[1:]:
+            from collections import Counter
+            lok = Counter(l for _, l in kelompok[pic] if l).most_common(1)
+            p2 = Pembelian.objects.create(
+                nomor=_nomor_baru(po.tanggal_pesan), toko=po.toko, supplier=po.supplier, tanggal_pesan=po.tanggal_pesan,
+                catatan=f"Pecahan dari {po.nomor}" + (f". {po.catatan}" if po.catatan else ""),
+                dibuat_oleh=pengguna.username, mode_ppn=po.mode_ppn, penerima=boleh[pic], penerima_manual=True,
+                lokasi_id=lok[0][0] if lok else None)
+            PembelianBaris.objects.filter(pk__in=[b.pk for b, _ in kelompok[pic]]).update(pembelian=p2)
+            baru.append(p2)
+        po.penerima_manual = False
+        po.save(update_fields=["penerima_manual"])
+        penerima_otomatis(po)
+        layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="pecah", lama=po.nomor,
+                      baru=", ".join(f"{p.nomor} ({_nama(p.penerima)})" for p in baru))
+    return baru
+
+
+def akan_datang(user, toko):
+    """PO milik PIC lain yang berisi barang area akun ini: [{po, barang}]. Tanpa supplier dan harga."""
+    hasil = []
+    pesanan = (Pembelian.objects.filter(status="dibuat", toko=toko).exclude(penerima=None).exclude(penerima=user)
+               .order_by("tanggal_pesan", "id"))
+    for po in pesanan:
+        barang = [b for b, pic, _ in _pic_baris(po) if pic == user.pk]
+        if barang:
+            hasil.append({"po": po, "penerima": _nama(po.penerima), "barang": barang})
+    return hasil
 
 
 def _nama(u):
@@ -217,10 +303,12 @@ def tambah_baris(po, *, varian_id, jumlah, harga):
         raise Tolak("Jumlah harus lebih dari nol.")
     if po.baris.filter(varian=info).exists():
         raise Tolak("Barang itu sudah ada di PO ini. Ubah jumlahnya di tabel.")
-    return PembelianBaris.objects.create(
+    baris = PembelianBaris.objects.create(
         pembelian=po, varian=info, item_name=info.item_name, variant=info.variant,
         jumlah_pesan=qty, harga=baca_harga_qty(harga, info),
     )
+    penerima_otomatis(po)
+    return baris
 
 
 def simpan_baris(po, data):
@@ -237,6 +325,7 @@ def simpan_baris(po, data):
             b.jumlah_pesan = qty
             b.harga = baca_harga_qty(data.get(f"harga_{b.id}"), b)
             b.save(update_fields=["jumlah_pesan", "harga"])
+        penerima_otomatis(po)
 
 
 def catat_datang(pengguna, po, data):
@@ -388,7 +477,7 @@ def _buat_lanjutan(pengguna, po, sisa):
     baru = Pembelian.objects.create(
         nomor=_nomor_baru(hari_ini), toko=po.toko, supplier=po.supplier, tanggal_pesan=hari_ini,
         catatan=f"Sisa dari {po.nomor}", dibuat_oleh=pengguna.username, mode_ppn=po.mode_ppn, lanjutan_dari=po,
-        lokasi=po.lokasi, penerima=po.penerima)
+        lokasi=po.lokasi, penerima=po.penerima, penerima_manual=po.penerima_manual)
     for b, n in sisa:
         PembelianBaris.objects.create(pembelian=baru, varian=b.varian, item_name=b.item_name, variant=b.variant,
                                       jumlah_pesan=n, harga=b.harga)

@@ -324,6 +324,7 @@ def tiket(request):
         "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
         "ada_riwayat": any(not t.bisa_diisi for t in semua),
         "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
+        "akan_datang": svc.akan_datang(request.user, toko) if ("gudang_datang" in hak and toko) else [],
         "boleh_buka_dus": "gudang_buka_dus" in hak,
     })
 
@@ -527,48 +528,90 @@ def ambil(request):
     })
 
 
-@perlu("gudang")
+def _boleh_siapkan(request):
+    """Siapkan tanpa login: cukup perangkat yang disetujui pemilik (gerbang). Yang mengikat orang = PIN."""
+    from master.akun.akses import hak_pengguna
+    from master.layanan import perangkat_ops
+    if getattr(request, "perangkat_ops", None) is not None:
+        return True
+    if request.user.is_authenticated and "gudang" in hak_pengguna(request.user):
+        return True
+    return not perangkat_ops.wajib()
+
+
+def _perangkat_siapkan(request):
+    p = getattr(request, "perangkat_ops", None)
+    if p is not None:
+        return (p.nama or p.kode), f"ops.perangkat-{p.pk}"
+    ip = request.META.get("REMOTE_ADDR", "")
+    nama = f"akun {request.user.username}" if request.user.is_authenticated else f"ip {ip}"
+    return nama, f"ops.ip-{ip}"
+
+
 def siapkan(request):
     """Siapkan barang (transaksi berlangsung): nota kasir yang barangnya sedang disiapkan.
 
-    Setiap nota kasir otomatis masuk. Pelayan menugaskan karyawan lapangan (rekomendasi sistem), atau
-    menyiapkan sendiri, lalu mencentang diserahkan. Lihat master/layanan/siapkan.py.
+    Tanpa login (tablet bisa dipinjam siapa saja); halaman hanya terbuka di perangkat yang disetujui.
+    Diserahkan dan Menolak wajib PIN karyawan. Aksi dikirim lewat fetch dan daftar diperbarui tiap
+    beberapa detik tanpa memuat ulang halaman. Lihat master/layanan/siapkan.py.
     """
+    from django.http import HttpResponseForbidden, JsonResponse
+    from django.template.loader import render_to_string
+
     from master.layanan import siapkan as svc_siapkan
-    kosong = _hanya_toko_stok(request)
-    if kosong:
-        return kosong
+    from master.layanan.toko import utama
+    if not _boleh_siapkan(request):
+        return HttpResponseForbidden("Perangkat ini belum disetujui pemilik.")
+    toko = utama()
+    if toko is None or not toko.stok_di_kasir:
+        return HttpResponseForbidden("Belum ada toko yang memegang stok kasir.")
+    nama_perangkat, kunci_pin = _perangkat_siapkan(request)
+    lewat_fetch = request.headers.get("X-Siapkan") == "1"
     if request.method == "POST":
         p = request.POST
-        aksi = p.get("aksi")
+        aksi, pesan, ok = p.get("aksi"), "", True
         try:
             if aksi == "tugaskan":
-                t = svc_siapkan.tugaskan(request.user, p.get("tugas"), p.get("karyawan"))
-                messages.success(request, f"{t.pengambil.nama} mengambil barang nota {t.siapkan.nomor}.")
+                t = svc_siapkan.tugaskan(p.get("tugas"), p.get("karyawan"), perangkat=nama_perangkat)
+                pesan = f"{t.pengambil.nama} mengambil barang nota {t.siapkan.nomor}."
             elif aksi == "lewati":
-                svc_siapkan.lewati(request.user, p.get("tugas"), p.get("karyawan"), p.get("alasan"))
+                svc_siapkan.lewati(p.get("tugas"), p.get("karyawan"), p.get("alasan"), perangkat=nama_perangkat,
+                                   pin=p.get("pin", ""), kunci_pin=kunci_pin)
             elif aksi == "sendiri":
-                svc_siapkan.sendiri(request.user, p.get("tugas"))
+                svc_siapkan.sendiri(p.get("tugas"), perangkat=nama_perangkat)
             elif aksi == "ulang":
-                svc_siapkan.ulang(request.user, p.get("tugas"))
+                svc_siapkan.ulang(p.get("tugas"))
             elif aksi == "serahkan":
-                svc_siapkan.serahkan(request.user, p.get("tugas"))
+                t = svc_siapkan.serahkan(p.get("tugas"), pin=p.get("pin", ""), perangkat=nama_perangkat, kunci_pin=kunci_pin)
+                pesan = f"Diserahkan oleh {t.selesai_oleh}."
             elif aksi == "serahkan_semua":
-                s = svc_siapkan.serahkan_semua(request.user, p.get("siapkan"))
-                messages.success(request, f"Nota {s.nomor} selesai diserahkan.")
+                s = svc_siapkan.serahkan_semua(p.get("siapkan"), pin=p.get("pin", ""), perangkat=nama_perangkat,
+                                               kunci_pin=kunci_pin)
+                pesan = f"Nota {s.nomor} selesai diserahkan oleh {s.selesai_oleh}."
+            else:
+                raise Tolak("Aksi tidak dikenal.")
         except Tolak as tolak:
-            messages.error(request, str(tolak))
-        tujuan = request.path + ("?semua=1" if p.get("semua") else "")
-        return redirect(tujuan + (f"#n{p.get('siapkan_id') or p.get('siapkan') or ''}"))
+            ok, pesan = False, str(tolak)
+        if lewat_fetch:
+            return JsonResponse({"ok": ok, "pesan": pesan})
+        if pesan:
+            (messages.success if ok else messages.error)(request, pesan)
+        return redirect(request.get_full_path())
     svc_siapkan.tarik_nota()
     daftar = svc_siapkan.daftar_buka()
-    saya = request.user.username.removeprefix("ops-").upper()
+    kasir = (request.GET.get("kasir") or "").strip().upper()
+    if not kasir and request.user.is_authenticated:
+        kasir = request.user.username.removeprefix("ops-").upper()
     for s in daftar:
-        s.punyaku = s.kasir_id.upper() == saya
+        s.punyaku = bool(kasir) and s.kasir_id.upper() == kasir
     punyaku = [s for s in daftar if s.punyaku]
     semua = request.GET.get("semua") == "1" or not punyaku
-    return render(request, "gudang/siapkan.html", {
-        "menu": "siapkan", "daftar": daftar if semua else punyaku, "semua": semua,
-        "n_semua": len(daftar), "n_punyaku": len(punyaku), "selesai": svc_siapkan.selesai_hari_ini(),
+    konteks = {
+        "menu": "siapkan", "toko_gudang": toko, "daftar": daftar if semua else punyaku, "semua": semua,
+        "kasir": kasir, "n_semua": len(daftar), "n_punyaku": len(punyaku),
+        "selesai": svc_siapkan.selesai_hari_ini(),
         "alasan_lewat": [("tidak_ada", "Tidak ada"), ("sibuk", "Sibuk"), ("menolak", "Menolak")],
-    })
+    }
+    if lewat_fetch:
+        return JsonResponse({"html": render_to_string("gudang/_siapkan_daftar.html", konteks, request=request)})
+    return render(request, "gudang/siapkan.html", konteks)

@@ -23,5 +23,10 @@
 <div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
 {% endif %}
 </div>
+{% if akan_datang %}
+<h3 style="margin:18px 0 8px">Akan datang ke areamu</h3>
+<div class="daftar">{% for a in akan_datang %}<details class="brs" style="display:block"><summary><b>{{ a.po.nomor }}</b> <span class="redup kecil">diterima {{ a.penerima }} · {{ a.barang|length }} barang areamu</span></summary>
+  <div class="kecil" style="margin-top:6px">{% for b in a.barang %}{{ b.item_name }}{% if b.variant != 'N/A' %} / {{ b.variant }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</div></details>{% endfor %}</div>
+{% endif %}
 {% if ada_riwayat %}<p style="margin-top:16px"><a href="{% url 'gudang:riwayat' %}">Lihat tugas sebelumnya →</a></p>{% endif %}
 {% endblock %}

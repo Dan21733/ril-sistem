@@ -2,12 +2,15 @@
 import uuid
 from datetime import timedelta
 
+from django.core.cache import cache
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from pos.models import NotaPiutang, RefundEvent, TransactionDetail, Transactions
 
 from master.akun.akses import SEMUA_HAK
+from master.layanan import karyawan as svc_karyawan
 from master.layanan import lokasi as svc_lokasi
 from master.layanan import siapkan as svc
 from master.layanan.inti import Tolak
@@ -19,11 +22,18 @@ class SiapkanTest(Dasar):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        cls.ga = svc_lokasi.simpan_lokasi(cls.admin, hak=SEMUA_HAK, kode="GA", nama="Gudang A")
+        cls.ga = svc_lokasi.simpan_lokasi(cls.admin, hak=SEMUA_HAK, kode="GA", nama="Gudang A", pic=cls.gudang.id)
         Rak.objects.create(kode="A3", nama="Rak 3", tempat=cls.ga)
         VarianInfo.objects.filter(item_name="Palu", variant="Kecil").update(rak_id="A3")
         cls.andi, cls.budi, cls.cecep = [KaryawanLapangan.objects.create(nama=n) for n in ("Andi", "Budi", "Cecep")]
-        cls.ga.tim.set([cls.andi, cls.budi])
+        KaryawanLapangan.objects.filter(pk__in=[cls.andi.pk, cls.budi.pk]).update(ketua=cls.gudang)
+        cls.sari, cls.pin = svc_karyawan.tambah(cls.admin, "Sari")     # pelayan ber-PIN
+
+    def setUp(self):
+        cache.clear()
+
+    def _pin(self):
+        return {"pin": self.pin, "kunci_pin": "uji"}
 
     def _nota(self, *baris, nomor="T01-000050", worker="ID001"):
         sid = uuid.uuid4()
@@ -74,25 +84,28 @@ class SiapkanTest(Dasar):
         rek = svc.rekomendasi(t0)
         self.assertIn(rek[0]["k"], (self.andi, self.budi))     # tim lokasi didahulukan
         self.assertEqual(rek[0]["alasan"], "tim lokasi")
+        self.assertEqual(t0.pic, self.gudang)                   # kelompok = lokasi + PIC efektif rak
         # Andi mengambil -> sedang sibuk -> Budi direkomendasikan.
-        svc.tugaskan(self.admin, t0.pk, self.andi.pk)
+        svc.tugaskan(t0.pk, self.andi.pk)
         t1 = self._tugas(sids[1], self.ga)
         self.assertEqual(svc.rekomendasi(t1)[0]["k"], self.budi)
         # Lewati Budi (menolak) -> tim habis -> orang luar tim.
-        svc.lewati(self.admin, t1.pk, self.budi.pk, "menolak")
+        with self.assertRaises(Tolak):                          # menolak memberatkan orang: wajib PIN
+            svc.lewati(t1.pk, self.budi.pk, "menolak")
+        svc.lewati(t1.pk, self.budi.pk, "menolak", **self._pin())
         rek = svc.rekomendasi(t1)
         self.assertEqual((rek[0]["k"], rek[0]["alasan"]), (self.cecep, "tim sedang sibuk"))
-        svc.tugaskan(self.admin, t1.pk, self.andi.pk)          # memilih di luar rekomendasi: tercatat
+        svc.tugaskan(t1.pk, self.andi.pk)          # memilih di luar rekomendasi: tercatat
         t1.refresh_from_db()
         self.assertFalse(t1.ikut_rekomendasi)
         self.assertEqual(t1.rekomendasi, self.cecep)
-        svc.serahkan(self.admin, t0.pk)
-        svc.serahkan(self.admin, t1.pk)
+        svc.serahkan(t0.pk, **self._pin())
+        svc.serahkan(t1.pk, **self._pin())
         # Pemerataan: Andi & Budi masing-masing 3 tugas, Cecep 0 -> Cecep walau luar tim.
         for i, k in ((2, self.andi), (3, self.budi), (4, self.budi), (5, self.budi)):
             t = self._tugas(sids[i], self.ga)
-            svc.tugaskan(self.admin, t.pk, k.pk)
-            svc.serahkan(self.admin, t.pk)
+            svc.tugaskan(t.pk, k.pk)
+            svc.serahkan(t.pk, **self._pin())
         rek = svc.rekomendasi(self._tugas(sids[6], self.ga))
         self.assertEqual((rek[0]["k"], rek[0]["alasan"]), (self.cecep, "pemerataan"))
         # Tugas kemarin tidak dihitung: beban per hari.
@@ -101,51 +114,113 @@ class SiapkanTest(Dasar):
         rek = svc.rekomendasi(self._tugas(sids[7], self.ga))
         self.assertEqual(rek[0]["alasan"], "tim lokasi")
 
-    def test_serahkan_dan_rekap(self):
+    def test_serahkan_pin_diambil_alih_dan_rekap(self):
         sid = self._nota(("Palu", "Kecil", 2), ("Kikir", "N/A", 1))
         svc.tarik_nota()
         s = Siapkan.objects.get(sync_id=sid)
         ga, lain = self._tugas(sid, self.ga), self._tugas(sid, None)
-        svc.tugaskan(self.admin, ga.pk, self.andi.pk)
-        svc.serahkan(self.admin, ga.pk)
+        self.assertEqual(svc.rekomendasi(lain)[0]["alasan"], "tugas paling sedikit")  # tanpa rak, kasir tanpa tim
+        svc.tugaskan(ga.pk, self.andi.pk, perangkat="Tablet A")
+        with self.assertRaises(Tolak):
+            svc.serahkan(ga.pk, pin="123", kunci_pin="uji")
+        svc.serahkan(ga.pk, **self._pin())
+        ga.refresh_from_db()
+        # Nota dibuat Rusdi, diserahkan Sari: tercatat diambil alih.
+        self.assertEqual((ga.selesai_oleh, ga.diambil_alih, ga.perangkat, ga.ditugaskan_oleh),
+                         ("Sari", True, "Tablet A", "Rusdi"))
         s.refresh_from_db()
         self.assertEqual(s.status, "menunggu")
-        svc.serahkan(self.admin, lain.pk)                     # dari belum ditugaskan = disiapkan sendiri
+        svc.serahkan(lain.pk, **self._pin())                 # dari belum ditugaskan = disiapkan sendiri
         s.refresh_from_db()
-        self.assertEqual(s.status, "selesai")
+        self.assertEqual((s.status, s.selesai_oleh), ("selesai", "Sari"))
         with self.assertRaises(Tolak):
-            svc.serahkan(self.admin, ga.pk)
+            svc.serahkan(ga.pk, **self._pin())
+        # Nota milik Sari sendiri: bukan diambil alih.
+        sendiri = self._nota(("Palu", "Kecil", 1), nomor="T01-000060", worker=self.sari)
+        svc.tarik_nota()
+        t = self._tugas(sendiri, self.ga)
+        svc.serahkan(t.pk, **self._pin())
+        t.refresh_from_db()
+        self.assertFalse(t.diambil_alih)
         r = svc.statistik(timezone.localdate(), timezone.localdate())
         andi = next(x for x in r["karyawan"] if x["k"] == self.andi)
         self.assertEqual((andi["tugas"], andi["selesai"]), (1, 1))
-        self.assertEqual(dict(r["pelayan"])["admin"]["sendiri"], 1)
+        self.assertEqual(dict(r["pelayan"])["Sari"]["sendiri"], 2)
+        self.assertEqual([g["pic"] for g in r["per_tim"]], ["gudang", ""])
 
-    def test_halaman_gudang_dan_master(self):
+    def test_rak_langsung_dan_pic_per_rak(self):
+        Rak.objects.create(kode="T1", nama="Display", tempat=self.toko_lokasi(), langsung=True)
+        VarianInfo.objects.filter(item_name="Palu", variant="Besar").update(rak_id="T1")
+        sid = self._nota(("Palu", "Besar", 1), nomor="T01-000070")
+        svc.tarik_nota()
+        s = Siapkan.objects.get(sync_id=sid)
+        self.assertEqual((s.status, s.tugas.count()), ("selesai", 0))  # semua di rak langsung: tidak disiapkan
+        self.assertNotIn(s, svc.selesai_hari_ini())
+        # Nota borongan (>= siapkan_min_baris) tetap disiapkan walau rak langsung.
+        from pos import pengaturan
+        pengaturan.simpan(siapkan_min_baris=2)
+        sid2 = self._nota(("Palu", "Besar", 1), ("Kikir", "N/A", 1), nomor="T01-000071")
+        svc.tarik_nota()
+        self.assertEqual(Siapkan.objects.get(sync_id=sid2).tugas.count(), 2)
+        # PIC per rak: satu lokasi dua PIC -> dua kelompok.
+        Rak.objects.create(kode="A4", nama="Rak 4", tempat=self.ga, pic=self.admin)
+        VarianInfo.objects.filter(item_name="Palu", variant="Besar").update(rak_id="A4")
+        sid3 = self._nota(("Palu", "Kecil", 1), ("Palu", "Besar", 1), nomor="T01-000072")
+        svc.tarik_nota()
+        pic = sorted(t.pic.username for t in Siapkan.objects.get(sync_id=sid3).tugas.all())
+        self.assertEqual(pic, ["admin", "gudang"])
+
+    def toko_lokasi(self):
+        return svc_lokasi.lokasi_toko()
+
+    def test_halaman_gudang_tanpa_login_dan_master(self):
         sid = self._nota(("Palu", "Kecil", 2))
-        self.client.force_login(self.gudang)
-        r = self.client.get(reverse("gudang:siapkan"))
+        url = reverse("gudang:siapkan")
+        r = self.client.get(url)                             # tanpa login (gerbang perangkat dimatikan di uji)
         self.assertContains(r, "T01-000050")
         self.assertContains(r, "rak A3")
         self.assertContains(r, "Ambil: ")
+        self.assertContains(r, "PIC gudang")
         t = self._tugas(sid, self.ga)
-        r = self.client.post(reverse("gudang:siapkan"), {"aksi": "tugaskan", "tugas": t.pk, "karyawan": self.budi.pk})
-        self.assertEqual(r.status_code, 302)
+        r = self.client.post(url, {"aksi": "tugaskan", "tugas": t.pk, "karyawan": self.budi.pk}, HTTP_X_SIAPKAN="1")
+        self.assertTrue(r.json()["ok"])
         t.refresh_from_db()
-        self.assertEqual((t.pengambil, t.status, t.ditugaskan_oleh), (self.budi, "diambil", "gudang"))
-        self.client.post(reverse("gudang:siapkan"), {"aksi": "serahkan_semua", "siapkan": t.siapkan_id})
+        self.assertEqual((t.pengambil, t.status, t.ditugaskan_oleh), (self.budi, "diambil", "Rusdi"))
+        r = self.client.post(url, {"aksi": "serahkan_semua", "siapkan": t.siapkan_id, "pin": "000000"}, HTTP_X_SIAPKAN="1")
+        self.assertFalse(r.json()["ok"])
+        r = self.client.post(url, {"aksi": "serahkan_semua", "siapkan": t.siapkan_id, "pin": self.pin}, HTTP_X_SIAPKAN="1")
+        self.assertTrue(r.json()["ok"], r.json())
         self.assertEqual(Siapkan.objects.get(sync_id=sid).status, "selesai")
-        # Master: karyawan, tim, rekap.
+        self.assertIn("html", self.client.get(url, HTTP_X_SIAPKAN="1").json())
+        # Master: Tim gudang (kartu per PIC), anak buah, lokasi PIC, rekap.
         self.client.force_login(self.admin)
         url = reverse("master:lapangan")
-        self.client.post(url, {"aksi": "tambah", "nama": "Dedi"})
+        self.client.post(url, {"aksi": "tambah", "nama": "Dedi", "ketua": self.gudang.id})
         dedi = KaryawanLapangan.objects.get(nama="Dedi")
-        self.client.post(url, {"aksi": "tim", f"tim_{self.ga.id}": [self.andi.id, dedi.id]})
-        self.assertEqual(set(self.ga.tim.all()), {self.andi, dedi})
+        self.assertEqual(dedi.ketua, self.gudang)
+        self.client.post(url, {"aksi": "ubah", "id": dedi.id, "nama": "Dedi", "ketua": ""})
+        dedi.refresh_from_db()
+        self.assertIsNone(dedi.ketua)
+        self.client.post(url, {"aksi": "pegang", "pic": self.gudang.id, "lokasi": []})
+        self.ga.refresh_from_db()
+        self.assertIsNone(self.ga.pic)
+        self.client.post(url, {"aksi": "pegang", "pic": self.gudang.id, "lokasi": [self.ga.id]})
+        self.ga.refresh_from_db()
+        self.assertEqual(self.ga.pic, self.gudang)
         self.client.post(url, {"aksi": "nonaktif", "id": dedi.id})
         dedi.refresh_from_db()
         self.assertFalse(dedi.aktif)
-        self.assertFalse(self.ga.tim.filter(pk=dedi.pk).exists())
         r = self.client.get(url)
+        self.assertContains(r, "Belum ada tim")
         self.assertContains(r, "Budi")
+        self.assertContains(self.client.get(url + "?tab=rekap"), "Tim gudang")
         with self.assertRaises(Tolak):
             svc.simpan_karyawan(self.admin, nama="andi")
+
+
+@override_settings(OPS_WAJIB_PERANGKAT=True)
+class SiapkanGerbangTest(Dasar):
+    def test_perangkat_belum_disetujui_tidak_bisa_membuka(self):
+        r = self.client.get(reverse("gudang:siapkan"))
+        self.assertEqual(r.status_code, 403)
+        self.assertNotContains(r, "Siapkan barang", status_code=403)

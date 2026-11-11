@@ -25,13 +25,17 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 
 {# ---------------------------------------------------------------- DIPESAN #}
 {% if po.status == "dibuat" %}
-<form method="post" class="kartu baris" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end{% if not po.penerima %};border-color:var(--bahaya){% endif %}">{% csrf_token %}<input type="hidden" name="aksi" value="penerima">
-  <div style="flex:1 1 100%"><b>Siapa yang menerima barang ini?</b> <span class="kecil redup">PO hanya muncul di tablet penerima. Ganti lokasi = penerima ikut PIC lokasi itu.</span>
-    {% if not po.penerima %}<div class="kecil" style="color:var(--bahaya)">Belum ditugaskan: PO ini tidak muncul di tablet siapa pun.</div>{% endif %}</div>
-  <div><label>Datang ke</label><select name="lokasi"><option value="">-</option>{% for l in lokasi_gudang %}<option value="{{ l.id }}" {% if l.id == po.lokasi_id %}selected{% endif %}>{{ l.nama }}{% if l.pic %} (PIC {{ l.pic.first_name|default:l.pic.username }}){% endif %}</option>{% endfor %}</select></div>
-  <div><label>Penerima</label><select name="penerima"><option value="">{% if po.penerima %}ikut PIC lokasi{% else %}-{% endif %}</option>{% for u in penerima_boleh %}<option value="{{ u.id }}" {% if u.id == po.penerima_id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
-  <button class="tombol" type="submit">Simpan</button>
-</form>
+<div class="kartu baris" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end{% if not po.penerima %};border-color:var(--bahaya){% endif %}">
+  <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0">{% csrf_token %}<input type="hidden" name="aksi" value="penerima">
+  <div><label>Diterima oleh (PIC)</label><select name="penerima">
+    <option value="otomatis" {% if not po.penerima_manual %}selected{% endif %}>Otomatis dari barang{% if usulan %} ({{ usulan.first_name|default:usulan.username }}){% endif %}</option>
+    {% for u in penerima_boleh %}<option value="{{ u.id }}" {% if po.penerima_manual and u.id == po.penerima_id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}
+    <option value="" {% if po.penerima_manual and not po.penerima %}selected{% endif %}>Belum ditugaskan</option></select></div>
+  <button class="tombol" type="submit">Simpan</button></form>
+  {% if rincian_pic|length > 1 %}<form method="post" style="margin:0" data-tanya="Pecah PO ini jadi satu PO per PIC? Supplier dan harga tetap sama.">{% csrf_token %}<input type="hidden" name="aksi" value="pecah"><button class="tombol" type="submit">Pecah per PIC</button></form>
+  <span class="kecil redup">{% for r in rincian_pic %}{% if r.pic %}{{ r.pic.first_name|default:r.pic.username }}{% else %}tanpa PIC{% endif %} {{ r.n }}{% if not forloop.last %} · {% endif %}{% endfor %} barang</span>{% endif %}
+  {% if not po.penerima %}<div class="kecil" style="flex:1 1 100%;color:var(--bahaya)">Belum ditugaskan: PO ini tidak muncul di tablet siapa pun.</div>{% endif %}
+</div>
 <h3 style="margin-top:0">Barang yang dipesan</h3>
 <form method="post" id="form-baris">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_baris">
 <div class="gulir"><table>

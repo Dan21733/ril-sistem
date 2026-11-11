@@ -132,7 +132,11 @@ def pindah(pengguna, info, *, dari, ke, jumlah, catatan="", hak):
 # ---------------------------------------------------------------------------
 
 
-def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0, pic=None):
+_TETAP = object()
+
+
+def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0, pic=_TETAP):
+    """pic: id akun PIC, "" = kosongkan, tidak diisi = tetap (PIC diatur di halaman Tim gudang)."""
     if HAK not in hak:
         raise Tolak("Akun ini tidak boleh mengelola lokasi.")
     kode = rapikan_teks(kode).upper()
@@ -150,7 +154,7 @@ def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0
     # PIC: karyawan aplikasi gudang (lihat pembelian.penerima_boleh).
     from master.layanan.pembelian import penerima_boleh
     pic_user = None
-    if str(pic or "").isdigit():
+    if pic is not _TETAP and str(pic or "").isdigit():
         pic_user = {u.pk: u for u in penerima_boleh()}.get(int(pic))
         if pic_user is None:
             raise Tolak("PIC harus karyawan yang memakai aplikasi gudang.")
@@ -159,6 +163,8 @@ def simpan_lokasi(pengguna, *, hak, id=None, kode, nama, keterangan="", urutan=0
         lama = f"{lokasi.kode} - {lokasi.nama}"
         lama_pic = lokasi.pic
         lokasi.kode, lokasi.nama, lokasi.keterangan, lokasi.urutan = kode, nama, rapikan_teks(keterangan), urutan
+        if pic is _TETAP:
+            pic_user = lama_pic
         lokasi.pic = pic_user
         lokasi.save()
         catat(pengguna, objek="lokasi", kolom="lokasi", lama=lama, baru=f"{kode} - {nama}")

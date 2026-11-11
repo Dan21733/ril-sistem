@@ -7,7 +7,7 @@ import json
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -238,8 +238,12 @@ def beranda(request):
         from master.layanan import bukti as svc_bukti
         from master.layanan import laporan
         bukti_ringkas = svc_bukti.ringkas(svc_bukti.nota_transfer(*laporan.rentang(awal, akhir), toko))
+    po_belum = 0
+    if "pembelian" in hak:
+        from master.models import Pembelian
+        po_belum = Pembelian.objects.filter(status="dibuat", toko=toko, penerima=None, baris__isnull=False).distinct().count()
     isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas,
-                "bukti_ringkas": bukti_ringkas})
+                "bukti_ringkas": bukti_ringkas, "po_belum": po_belum})
     return _tampil(request, "hp/beranda.html", isi)
 
 
@@ -958,6 +962,51 @@ def ikon(request, ukuran):
 # ---------------------------------------------------------------------------
 # Piutang & pesanan pelanggan
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# PO: siapa yang menerima (11 Nov 2026). PO belum ditugaskan tidak tampil di gudang siapa pun.
+# ---------------------------------------------------------------------------
+
+
+@perlu_hp("pembelian")
+def po(request):
+    from master.models import Pembelian
+    toko, _ = _toko_hp(request)
+    qs = Pembelian.objects.filter(status="dibuat").select_related("supplier", "penerima").order_by("tanggal_pesan", "id")
+    if toko is not None:
+        qs = qs.filter(toko=toko)
+    daftar = list(qs.annotate(n=Count("baris")))
+    return _tampil(request, "hp/po.html", {"tab": "", "belum": [p for p in daftar if not p.penerima_id],
+                                           "sudah": [p for p in daftar if p.penerima_id]})
+
+
+@perlu_hp("pembelian")
+def po_detail(request, po_id):
+    from master.layanan import pembelian as svc
+    from master.models import Pembelian
+    p = get_object_or_404(Pembelian.objects.select_related("supplier", "penerima"), pk=po_id)
+    if request.method == "POST":
+        d = _json_badan(request)
+        try:
+            if d.get("aksi") == "penerima":
+                svc.atur_penerima(request.user, p, penerima=str(d.get("penerima") or ""))
+                return _jawab(pesan="Penerima tersimpan." if p.penerima else "PO belum ditugaskan.")
+            if d.get("aksi") == "pecah":
+                baru = svc.pecah_per_pic(request.user, p)
+                return _jawab(pesan="Dipecah jadi " + ", ".join(x.nomor for x in baru) + ".")
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(False, "Permintaan tidak dikenali.", 400)
+    boleh = {u.pk: u for u in svc.penerima_boleh()}
+    baris = []
+    for b, pic, _ in svc._pic_baris(p):
+        b.pic = boleh.get(pic)
+        baris.append(b)
+    return _tampil(request, "hp/po_detail.html", {
+        "tab": "", "p": p, "baris": baris, "penerima_boleh": list(boleh.values()),
+        "usulan": svc.usulan_penerima(p)[0] if p.status == "dibuat" else None,
+        "rincian": svc.rincian_pic(p) if p.status == "dibuat" else []})
 
 
 @perlu_hp("piutang")

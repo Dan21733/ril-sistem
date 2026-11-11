@@ -1,0 +1,6 @@
+<form method="post" class="anak">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
+  <input type="text" name="nama" value="{{ k.nama }}" required maxlength="60" aria-label="Nama">
+  <select name="ketua" aria-label="Tim" onchange="this.form.requestSubmit(this.form.querySelector('[value=ubah]'))"><option value="">Tanpa tim</option>{% for c in kartu %}<option value="{{ c.pic.id }}" {% if k.ketua_id == c.pic.id %}selected{% endif %}>Tim {{ c.pic.first_name|default:c.pic.username }}</option>{% endfor %}</select>
+  <button class="tombol kecil" type="submit" name="aksi" value="ubah">Simpan</button>
+  <button class="tombol kecil bahaya" type="submit" name="aksi" value="nonaktif">Nonaktifkan</button>
+</form>

@@ -80,10 +80,10 @@ def daftar(request):
         try:
             aksi = request.POST.get("aksi")
             if aksi == "simpan":
+                lain = {"pic": request.POST["pic"]} if "pic" in request.POST else {}
                 svc.simpan_lokasi(request.user, hak=hak, id=request.POST.get("id") or None,
                                   kode=request.POST.get("kode"), nama=request.POST.get("nama"),
-                                  keterangan=request.POST.get("keterangan"), urutan=request.POST.get("urutan"),
-                                  pic=request.POST.get("pic"))
+                                  keterangan=request.POST.get("keterangan"), urutan=request.POST.get("urutan"), **lain)
                 messages.success(request, "Lokasi tersimpan.")
             elif aksi == "aktif":
                 svc.ubah_aktif(request.user, get_object_or_404(Lokasi, pk=request.POST.get("id")), hak=hak)
@@ -91,9 +91,7 @@ def daftar(request):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("master:lokasi")
-    from master.layanan.pembelian import penerima_boleh
-    return render(request, "master/lokasi.html", {"menu": "lokasi", "daftar": svc.ringkasan_lokasi(),
-                                                  "daftar_pic": penerima_boleh()})
+    return render(request, "master/lokasi.html", {"menu": "lokasi", "daftar": svc.ringkasan_lokasi()})
 
 
 def _total_gudang():

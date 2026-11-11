@@ -62,13 +62,16 @@ class KaryawanLapangan(models.Model):
     """Karyawan tanpa aplikasi (angkat, ambil, antar; keputusan pemilik 9-11 Nov 2026).
 
     Tidak punya akun, PIN, atau sidik jari. Tercatat lewat penugasan: pelayan mengetuk namanya saat
-    menyiapkan barang. Masuk tim lokasi (Lokasi.tim) supaya sistem bisa merekomendasikan siapa yang
-    mengambil, dan pembagiannya terhitung rata.
+    menyiapkan barang. Ikut satu PIC (ketua) supaya rekomendasi mendahulukan tim area itu, dan
+    pembagiannya terhitung rata.
     """
     nama = models.CharField(max_length=60, unique=True)
     aktif = models.BooleanField(default=True)
     catatan = models.CharField(max_length=200, blank=True, default="")
     dibuat = models.DateTimeField(auto_now_add=True)
+    # Ikut PIC siapa (tim). Tim hanya mengatur urutan rekomendasi; tanggung jawab & bonus tetap bersama.
+    ketua = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name="anak_buah")
 
     class Meta:
         db_table = "master_karyawan_lapangan"
@@ -95,8 +98,6 @@ class Lokasi(models.Model):
     # Penanggung jawab lokasi (karyawan cewek pemegang tablet, keputusan pemilik 9 Nov 2026): menerima barang
     # datang ke lokasi ini, menjaga rak rapi & berlabel, menjelaskan selisih. Tidak menghitung lokasinya sendiri.
     pic = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="pic_lokasi")
-    # Tim lokasi: karyawan lapangan yang biasa menyusun & mengambil di sini (didahulukan rekomendasi).
-    tim = models.ManyToManyField(KaryawanLapangan, blank=True, related_name="lokasi_tim", db_table="master_lokasi_tim")
     urutan = models.IntegerField(default=0)
 
     class Meta:
@@ -114,6 +115,12 @@ class Rak(models.Model):
     tempat = models.ForeignKey(Lokasi, null=True, blank=True, on_delete=models.SET_NULL, related_name="rak")
     lokasi = models.CharField(max_length=100, blank=True, default="")
     keterangan = models.TextField(blank=True, default="")
+    # PIC rak (11 Nov 2026): PIC dibagi per kategori, dan satu lokasi (mis. display) bisa berisi banyak
+    # kategori. Kosong = ikut PIC lokasinya (lihat `pic_efektif_id`).
+    pic = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="pic_rak")
+    # Rak "langsung": barang display yang dibawa pembeli sendiri, tidak masuk daftar Siapkan
+    # (kecuali notanya besar, lihat pengaturan siapkan_min_baris).
+    langsung = models.BooleanField(default=False)
 
     class Meta:
         db_table = "master_rak"
@@ -121,6 +128,12 @@ class Rak(models.Model):
 
     def __str__(self):
         return f"{self.kode} - {self.nama}"
+
+    @property
+    def pic_efektif_id(self):
+        if self.pic_id:
+            return self.pic_id
+        return self.tempat.pic_id if self.tempat_id and self.tempat else None
 
 
 class ItemInfo(models.Model):
@@ -375,6 +388,8 @@ class Pembelian(models.Model):
     lokasi = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     penerima = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                  related_name="terima_pembelian")
+    # True = penerima dipilih pemilik (atau sengaja dikosongkan); False = otomatis dari PIC barangnya.
+    penerima_manual = models.BooleanField(default=False)
     lanjutan_dari = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="lanjutan")
 
     # Dibekukan saat ACC
@@ -1518,6 +1533,8 @@ class SiapkanTugas(models.Model):
 
     siapkan = models.ForeignKey(Siapkan, on_delete=models.CASCADE, related_name="tugas")
     lokasi = models.ForeignKey(Lokasi, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    # PIC area barang kelompok ini (rak -> PIC rak / PIC lokasi). Kosong = barang tanpa rak.
+    pic = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     pengambil = models.ForeignKey(KaryawanLapangan, null=True, blank=True, on_delete=models.PROTECT, related_name="tugas_siapkan")
     sendiri = models.BooleanField(default=False)   # disiapkan pelayan sendiri, tanpa karyawan lapangan
     rekomendasi = models.ForeignKey(KaryawanLapangan, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
@@ -1527,6 +1544,9 @@ class SiapkanTugas(models.Model):
     ditugaskan_oleh = models.CharField(max_length=150, blank=True, default="")
     selesai_waktu = models.DateTimeField(null=True, blank=True)
     selesai_oleh = models.CharField(max_length=150, blank=True, default="")
+    # Diserahkan dengan PIN orang lain, bukan kasir pembuat nota.
+    diambil_alih = models.BooleanField(default=False)
+    perangkat = models.CharField(max_length=100, blank=True, default="")
 
     class Meta:
         db_table = "master_siapkan_tugas"
@@ -1555,6 +1575,7 @@ class SiapkanLewat(models.Model):
     alasan = models.CharField(max_length=10, choices=ALASAN)
     waktu = models.DateTimeField(auto_now_add=True)
     oleh = models.CharField(max_length=150)
+    perangkat = models.CharField(max_length=100, blank=True, default="")
 
     class Meta:
         db_table = "master_siapkan_lewat"

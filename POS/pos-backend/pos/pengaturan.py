@@ -34,6 +34,9 @@ BAWAAN = {
     # "1" = kasir boleh mencatat uang keluar dari laci di tablet (masuk antrean ACC biaya);
     # "0" = hanya pemilik (master/HP) yang mencatat.
     "kasir_uang_keluar": "1",
+    # Siapkan barang: barang di rak "langsung" (display) tidak disiapkan, KECUALI nota sebanyak ini
+    # baris atau lebih (pembeli borongan tetap dibantu).
+    "siapkan_min_baris": "5",
 }
 
 

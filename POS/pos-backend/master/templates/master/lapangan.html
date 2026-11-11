@@ -1,70 +1,84 @@
 {% extends "master/base.html" %}{% load master_tags %}
-{% block judul %}Karyawan lapangan{% endblock %}
+{% block judul %}Tim gudang{% endblock %}
 {% block isi %}
-<h2>Karyawan lapangan &amp; siapkan barang</h2>
-<p class="sub">Karyawan tanpa aplikasi (angkat, ambil, antar). Pelayan menugaskan mereka di menu <b>Siapkan</b> aplikasi gudang; sistem merekomendasikan anggota tim lokasi dengan tugas paling sedikit hari ini, dan pindah ke luar tim kalau bebannya sudah timpang 3 tugas.</p>
+<style>
+.tab-lap{display:flex;gap:6px;margin:4px 0 14px}.tab-lap a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.kartu-pic{background:var(--kartu);border:1px solid var(--garis);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.kartu-pic h3{margin:0 0 8px;font-size:17px}
+.cek-lokasi{display:flex;flex-wrap:wrap;gap:6px 14px;margin:4px 0 8px}
+.cek-lokasi label{display:flex;gap:6px;align-items:center;font-weight:400;margin:0}
+.anak{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:5px 0;border-top:1px solid var(--garis)}
+.anak input[type=text]{max-width:180px}.anak select{width:auto}
+.tambah-anak{display:flex;gap:6px;margin-top:8px}.tambah-anak input{max-width:220px}
+</style>
+<h2>Tim gudang</h2>
+<div class="tab-lap"><a class="tombol kecil {% if tab == 'tim' %}aktif{% endif %}" href="?">Tim</a><a class="tombol kecil {% if tab == 'rekap' %}aktif{% endif %}" href="?tab=rekap">Rekap &amp; sedang disiapkan</a></div>
 
-<h3>Tim per lokasi</h3>
-{% if karyawan %}
-<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tim">
-<div class="gulir"><table>
-  <tr><th>Karyawan</th>{% for l in lokasi %}<th style="text-align:center">{{ l.nama }}{% if l.pic %}<div class="kecil redup" style="font-weight:400">PIC {{ l.pic.first_name|default:l.pic.username }}</div>{% endif %}</th>{% endfor %}</tr>
-  {% for k in karyawan %}{% if k.aktif %}<tr><td><b>{{ k.nama }}</b></td>
-    {% for l in lokasi %}<td style="text-align:center"><input type="checkbox" name="tim_{{ l.id }}" value="{{ k.id }}" {% if l.id in k.tim_ids %}checked{% endif %} aria-label="{{ k.nama }} di tim {{ l.nama }}"></td>{% endfor %}</tr>{% endif %}{% endfor %}
-</table></div>
-<p style="margin-top:8px"><button class="tombol utama" type="submit">Simpan tim</button> <span class="kecil redup">Satu orang boleh di beberapa tim. Tim tidak membatasi: orang luar tim tetap bisa ditugaskan.</span></p>
-</form>
-{% else %}<p class="redup">Tambahkan karyawan lapangan dulu (di bawah).</p>{% endif %}
+{% if tab == 'tim' %}
+<p class="sub">Satu kartu per PIC: lokasi yang dipegang dan anak buahnya. Tim hanya mengatur siapa yang direkomendasikan duluan di Siapkan; tanggung jawab dan bonus tetap bersama. PIC per rak (kalau satu lokasi dipegang beberapa orang) diatur di menu Rak.</p>
+{% for c in kartu %}
+<div class="kartu-pic">
+  <h3>{{ c.pic.first_name|default:c.pic.username }}</h3>
+  <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="pegang"><input type="hidden" name="pic" value="{{ c.pic.id }}">
+    <div class="kecil redup">Lokasi yang dipegang</div>
+    <div class="cek-lokasi">{% for l in lokasi %}<label><input type="checkbox" name="lokasi" value="{{ l.id }}" {% if l.pic_id == c.pic.id %}checked{% endif %}>{{ l.nama }}{% if l.pic_id and l.pic_id != c.pic.id %} <span class="kecil redup">({{ l.pic.first_name|default:l.pic.username }})</span>{% endif %}</label>{% endfor %}</div>
+    <button class="tombol kecil" type="submit">Simpan lokasi</button>
+    {% if c.rak %}<span class="kecil redup">· juga PIC rak: {% for r in c.rak %}{{ r.kode }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+  </form>
+  <div class="kecil redup" style="margin-top:10px">Anak buah ({{ c.anak|length }})</div>
+  {% for k in c.anak %}{% include "master/_lapangan_anak.html" %}{% endfor %}
+  <form method="post" class="tambah-anak">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="ketua" value="{{ c.pic.id }}">
+    <input type="text" name="nama" placeholder="Nama karyawan lapangan" required maxlength="60" aria-label="Nama"><button class="tombol kecil" type="submit">Tambah</button></form>
+</div>
+{% empty %}
+<p class="redup">Belum ada karyawan beraplikasi gudang untuk dijadikan PIC (menu Karyawan &amp; hak akses).</p>
+{% endfor %}
+<div class="kartu-pic">
+  <h3>Belum ada tim</h3>
+  {% for k in tanpa_tim %}{% include "master/_lapangan_anak.html" %}{% empty %}<p class="kecil redup" style="margin:0">Semua karyawan lapangan sudah punya tim.</p>{% endfor %}
+  <form method="post" class="tambah-anak">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+    <input type="text" name="nama" placeholder="Nama karyawan lapangan" required maxlength="60" aria-label="Nama"><button class="tombol kecil" type="submit">Tambah</button></form>
+</div>
+{% if nonaktif %}<details class="kartu-pic"><summary>Nonaktif ({{ nonaktif|length }})</summary>
+  {% for k in nonaktif %}<div class="anak"><b>{{ k.nama }}</b><form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}"><button class="tombol kecil" type="submit" name="aksi" value="aktif">Aktifkan</button></form></div>{% endfor %}
+</details>{% endif %}
+<form method="post" class="kartu baris" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:760px">{% csrf_token %}<input type="hidden" name="aksi" value="min_baris">
+  <span>Rak <b>langsung</b> (display) tidak disiapkan, kecuali nota</span><input type="number" name="min_baris" value="{{ min_baris }}" min="1" max="99" style="width:70px" aria-label="Minimal baris"><span>baris atau lebih.</span>
+  <button class="tombol kecil" type="submit">Simpan</button></form>
 
-<h3>Rekap</h3>
-<form method="get" class="baris" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+{% else %}
+<form method="get" class="baris" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px"><input type="hidden" name="tab" value="rekap">
   <div><label>Dari</label><input type="date" name="dari" value="{{ dari|date:'Y-m-d' }}"></div>
   <div><label>Sampai</label><input type="date" name="sampai" value="{{ sampai|date:'Y-m-d' }}"></div>
   <button class="tombol" type="submit">Tampilkan</button>
 </form>
 <div class="gulir"><table>
   <tr><th>Karyawan</th><th class="angka">Tugas</th><th class="angka">Hari masuk</th><th class="angka">Menit (tengah)</th><th class="angka">Tidak ada</th><th class="angka">Sibuk</th><th class="angka">Menolak</th><th>Penolakan dicatat oleh</th></tr>
-  {% for r in rekap.karyawan %}<tr class="{% if not r.k.aktif %}nonaktif{% endif %}">
+  {% for g in rekap.per_tim %}
+  <tr><th colspan="8" style="text-align:left">{% if g.pic %}Tim {{ g.pic }}{% else %}Belum ada tim{% endif %} <span class="kecil redup" style="font-weight:400">· {{ g.tugas }} tugas</span></th></tr>
+  {% for r in g.baris %}<tr class="{% if not r.k.aktif %}nonaktif{% endif %}">
     <td><b>{{ r.k.nama }}</b>{% if r.rendah %} <span class="label bahaya" title="Kurang dari 60% nilai tengah ({{ rekap.tengah }})">jarang</span>{% endif %}</td>
     <td class="angka">{{ r.tugas }}</td><td class="angka">{{ r.jumlah_hari }}</td><td class="angka">{{ r.menit_tengah|default:"-" }}</td>
     <td class="angka">{{ r.tidak_ada|default:"" }}</td><td class="angka">{{ r.sibuk|default:"" }}</td>
     <td class="angka">{% if r.menolak %}<b style="color:var(--bahaya)">{{ r.menolak }}</b>{% endif %}</td>
-    <td class="kecil">{% for nama, n in r.menolak_oleh %}{{ nama }} {{ n }}×{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>
+    <td class="kecil">{% for nama, n in r.menolak_oleh %}{{ nama }} {{ n }}×{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
   {% empty %}<tr><td colspan="8" class="redup" style="padding:20px;text-align:center">Belum ada data.</td></tr>{% endfor %}
 </table></div>
-<p class="kecil redup">Nilai tengah tugas: {{ rekap.tengah }}. "Jarang" = kurang dari 60% nilai tengah. Penolakan dibaca sebagai pola: kalau hanya dicatat satu pelayan, masalahnya bisa di pasangan itu.</p>
+<p class="kecil redup">Nilai tengah tugas: {{ rekap.tengah }}. "Jarang" = kurang dari 60% nilai tengah. Penolakan dicatat atas nama PIN yang mengisi; kalau hanya dicatat satu orang, masalahnya bisa di pasangan itu.</p>
 {% if rekap.pelayan %}
 <div class="gulir"><table style="max-width:640px">
-  <tr><th>Pelayan</th><th class="angka">Menugaskan</th><th class="angka">Bukan rekomendasi</th><th class="angka">Siapkan sendiri</th><th class="angka">Catat menolak</th></tr>
+  <tr><th>Kasir nota</th><th class="angka">Ditugaskan</th><th class="angka">Bukan rekomendasi</th><th class="angka">Pelayan sendiri</th><th class="angka">Catat menolak</th></tr>
   {% for nama, p in rekap.pelayan %}<tr><td>{{ nama }}</td><td class="angka">{{ p.tugas }}</td><td class="angka">{{ p.bukan_rek|default:"" }}</td><td class="angka">{{ p.sendiri|default:"" }}</td><td class="angka">{{ p.menolak_dicatat|default:"" }}</td></tr>{% endfor %}
 </table></div>
 {% endif %}
-
 <h3>Sedang disiapkan ({{ buka|length }})</h3>
 <div class="gulir"><table>
   <tr><th>Nota</th><th>Kasir</th><th>Kelompok</th><th>Umur</th><th></th></tr>
   {% for s in buka %}<tr><td><b>{{ s.nomor }}</b> <span class="redup kecil">{{ s.waktu_nota|date:"d M H:i" }}</span></td><td>{{ s.kasir_nama }}</td>
-    <td class="kecil">{% for t in s.tugas.all %}{{ t.lokasi.nama|default:"Lokasi ?" }}: {% if t.status == 'selesai' %}diserahkan{% elif t.status == 'diambil' %}{% if t.sendiri %}pelayan{% else %}{{ t.pengambil.nama }}{% endif %}{% else %}<b>belum</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+    <td class="kecil">{% for t in s.tugas.all %}{{ t.lokasi.nama|default:"Tanpa rak" }}: {% if t.status == 'selesai' %}diserahkan{% elif t.status == 'diambil' %}{% if t.sendiri %}pelayan{% else %}{{ t.pengambil.nama }}{% endif %}{% else %}<b>belum</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
     <td>{{ s.waktu_nota|timesince:sekarang }}</td>
     <td><form method="post" style="display:inline" data-tanya="Tutup nota {{ s.nomor }} dari daftar Siapkan (dianggap sudah diserahkan)?">{% csrf_token %}<input type="hidden" name="aksi" value="tutup"><input type="hidden" name="siapkan" value="{{ s.id }}"><button class="tombol kecil" type="submit">Tutup</button></form></td></tr>
   {% empty %}<tr><td colspan="5" class="redup" style="padding:20px;text-align:center">Tidak ada.</td></tr>{% endfor %}
 </table></div>
-
-<h3>Daftar karyawan lapangan</h3>
-<div class="gulir"><table style="max-width:760px">
-  <tr><th>Nama</th><th>Catatan</th><th>Status</th><th></th></tr>
-  {% for k in karyawan %}<tr class="{% if not k.aktif %}nonaktif{% endif %}">
-    <td><input type="text" name="nama" value="{{ k.nama }}" form="kl-{{ k.id }}" style="max-width:200px" required></td>
-    <td><input type="text" name="catatan" value="{{ k.catatan }}" form="kl-{{ k.id }}" placeholder="mis. supir"></td>
-    <td>{% if k.aktif %}<span class="label baik">aktif</span>{% else %}<span class="label">nonaktif</span>{% endif %}</td>
-    <td style="white-space:nowrap"><form method="post" id="kl-{{ k.id }}" style="display:inline">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}">
-      <button class="tombol kecil" type="submit" name="aksi" value="ubah">Simpan</button>
-      {% if k.aktif %}<button class="tombol kecil bahaya" type="submit" name="aksi" value="nonaktif">Nonaktifkan</button>{% else %}<button class="tombol kecil" type="submit" name="aksi" value="aktif">Aktifkan</button>{% endif %}</form></td></tr>
-  {% endfor %}
-</table></div>
-<form method="post" class="kartu baris" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;max-width:760px">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
-  <div style="flex:1;min-width:160px"><label>Nama</label><input type="text" name="nama" required maxlength="60"></div>
-  <div style="flex:1;min-width:160px"><label>Catatan</label><input type="text" name="catatan" placeholder="boleh kosong"></div>
-  <button class="tombol utama" type="submit">Tambah</button>
-</form>
+{% endif %}
 {% endblock %}

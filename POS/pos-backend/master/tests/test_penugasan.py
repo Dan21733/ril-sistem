@@ -1,4 +1,5 @@
 """Penugasan & PIC (9 Nov 2026): PIC per lokasi, PO otomatis ke PIC lokasi tujuan, peringatan hitung area sendiri."""
+import json
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -29,31 +30,68 @@ class PenugasanTest(Dasar):
             svc_lokasi.simpan_lokasi(self.admin, hak=SEMUA_HAK, id=self.ga.id, kode="GA", nama="Gudang A", pic=self.finance.id)
         self.client.force_login(self.admin)
         r = self.client.get(reverse("master:lokasi"))
-        self.assertContains(r, 'selected>Eva</option>')
+        self.assertContains(r, '<td>Eva</td>')
+        # PIC tidak diubah dari halaman Lokasi (diatur di Tim gudang): simpan tanpa "pic" = tetap.
+        self.client.post(reverse("master:lokasi"), {"aksi": "simpan", "id": self.ga.id, "kode": "GA", "nama": "Gudang A2"})
+        self.ga.refresh_from_db()
+        self.assertEqual((self.ga.nama, self.ga.pic), ("Gudang A2", self.eva))
 
-    def test_po_otomatis_ke_pic_lokasi_tujuan(self):
+    def test_po_penerima_dari_barang_manual_dan_pecah(self):
+        from master.models import Rak, VarianInfo
+        Rak.objects.create(kode="A1", nama="Rak 1", tempat=self.ga)                    # PIC ikut lokasi: Eva
+        Rak.objects.create(kode="B1", nama="Rak B", tempat=self.ga, pic=self.gudang)   # PIC per rak
+        VarianInfo.objects.filter(item_name="Palu").update(rak_id="A1")
+        VarianInfo.objects.filter(item_name="Kikir").update(rak_id="B1")
         po = svc.buat(self.admin, supplier_id=self.supplier.id, tanggal_pesan="2026-11-01")
-        self.assertIsNone(po.penerima)                          # PO pertama: belum tahu tujuannya
+        self.assertIsNone(po.penerima)                          # belum ada barang
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("master:pembelian")), "belum ditugaskan")
-        r = self.client.post(reverse("master:pembelian_detail", args=[po.id]), {"aksi": "penerima", "lokasi": self.ga.id})
-        po.refresh_from_db()
-        self.assertEqual((po.lokasi, po.penerima), (self.ga, self.eva))
-        # PO berikutnya dari supplier yang sama ikut lokasi & PIC itu.
-        po2 = svc.buat(self.admin, supplier_id=self.supplier.id, tanggal_pesan="2026-11-02")
-        self.assertEqual((po2.lokasi, po2.penerima), (self.ga, self.eva))
-        # Pemilik bisa mengganti penerima (PIC sedang libur).
-        svc.atur_penerima(self.admin, po2, lokasi=self.ga.id, penerima=self.gudang.id)
-        self.assertEqual(po2.penerima, self.gudang)
-        with self.assertRaises(Tolak):
-            svc.atur_penerima(self.admin, po2, lokasi=self.ga.id, penerima=self.finance.id)
-        # Hanya penerima yang melihat dan membuka PO-nya.
-        svc.tambah_baris(po2, varian_id=self.info("Palu", "Kecil").id, jumlah=2, harga=900)
-        self.client.force_login(self.eva)
-        self.assertNotContains(self.client.get(reverse("gudang:tiket")), po2.nomor)
-        self.assertEqual(self.client.get(reverse("gudang:datang_detail", args=[po2.id])).status_code, 404)
+        svc.tambah_baris(po, varian_id=self.info("Kikir", "N/A").id, jumlah=1, harga=500)
+        self.assertEqual(po.penerima, self.gudang)
+        svc.tambah_baris(po, varian_id=self.info("Palu", "Kecil").id, jumlah=2, harga=900)
+        svc.tambah_baris(po, varian_id=self.info("Palu", "Besar").id, jumlah=2, harga=900)
+        self.assertEqual((po.penerima, po.lokasi), (self.eva, self.ga))   # PIC dengan barang terbanyak
+        # PIC lain melihat "akan datang ke areamu" tanpa supplier dan harga.
         self.client.force_login(self.gudang)
-        self.assertContains(self.client.get(reverse("gudang:tiket")), po2.nomor)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "Akan datang ke areamu")
+        self.assertContains(r, "Kikir")
+        self.assertNotContains(r, "PT Sumber")
+        self.assertEqual(self.client.get(reverse("gudang:datang_detail", args=[po.id])).status_code, 404)
+        # Pemilik mengganti penerima (PIC sedang libur): manual, tidak berubah lagi saat baris berubah.
+        svc.atur_penerima(self.admin, po, penerima=str(self.gudang.id))
+        self.assertTrue(po.penerima_manual)
+        svc.simpan_baris(po, {f"qty_{b.id}": "3" for b in po.baris.all()} | {f"harga_{b.id}": "900" for b in po.baris.all()})
+        po.refresh_from_db()
+        self.assertEqual(po.penerima, self.gudang)
+        with self.assertRaises(Tolak):
+            svc.atur_penerima(self.admin, po, penerima=str(self.finance.id))
+        svc.atur_penerima(self.admin, po, penerima="")             # belum ditugaskan: tidak tampil di siapa pun
+        self.assertIsNone(po.penerima)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("master:pembelian_detail", args=[po.id]), {"aksi": "penerima", "penerima": "otomatis"})
+        po.refresh_from_db()
+        self.assertEqual((po.penerima, po.penerima_manual), (self.eva, False))
+        # Pecah per PIC: Kikir pindah ke PO baru milik gudang, supplier sama.
+        self.client.post(reverse("master:pembelian_detail", args=[po.id]), {"aksi": "pecah"})
+        baru = po.supplier.pembelian.exclude(pk=po.pk).get()
+        self.assertEqual((baru.penerima, [b.item_name for b in baru.baris.all()]), (self.gudang, ["Kikir"]))
+        self.assertEqual(sorted(b.variant for b in po.baris.all()), ["Besar", "Kecil"])
+        with self.assertRaises(Tolak):
+            svc.pecah_per_pic(self.admin, po)
+        # Hanya penerima yang melihat dan membuka PO-nya.
+        self.client.force_login(self.eva)
+        self.assertContains(self.client.get(reverse("gudang:tiket")), po.nomor)
+        self.assertNotContains(self.client.get(reverse("gudang:tiket")), baru.nomor)
+        # HP: daftar & detail PO.
+        from master.tests.test_hp import masuk_hp
+        masuk_hp(self.client, self.admin)
+        self.assertContains(self.client.get(reverse("hp:po")), po.nomor)
+        r = self.client.post(reverse("hp:po_detail", args=[baru.id]), json.dumps({"aksi": "penerima", "penerima": ""}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        baru.refresh_from_db()
+        self.assertIsNone(baru.penerima)
 
     def test_peringatan_pic_menghitung_lokasinya_sendiri(self):
         t = tiket.buka(self.admin, untuk=self.eva, tujuan="hitung", jenis="hitung", hak=SEMUA_HAK,

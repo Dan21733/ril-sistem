@@ -1,0 +1,40 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}{{ p.nomor }} · DB Toko{% endblock %}
+{% block judul_kecil %}{{ p.supplier.nama }}{% endblock %}
+{% block kiri %}<a href="{% url 'hp:po' %}">‹ PO</a>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">{{ p.supplier.nama }}</h1>
+<p class="anak-judul">{{ p.nomor }} · dipesan {{ p.tanggal_pesan|date:"j M Y" }} · {{ p.get_status_display|lower }}</p>
+{% if p.status == 'dibuat' %}
+<div class="kepala-grup"><h2>Diterima oleh</h2></div>
+<div class="grup">
+  <label class="isian"><span>PIC</span><select id="penerima">
+    <option value="otomatis" {% if not p.penerima_manual %}selected{% endif %}>Otomatis dari barang{% if usulan %} ({{ usulan.first_name|default:usulan.username }}){% endif %}</option>
+    {% for u in penerima_boleh %}<option value="{{ u.id }}" {% if p.penerima_manual and u.id == p.penerima_id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}
+    <option value="" {% if p.penerima_manual and not p.penerima %}selected{% endif %}>Belum ditugaskan</option></select></label>
+  {% if not p.penerima %}<div class="sel"><div class="sub turun">Belum ditugaskan: tidak muncul di gudang siapa pun.</div></div>{% endif %}
+</div>
+<button class="tombol penuh" id="tombol-simpan" style="margin-top:10px">Simpan penerima</button>
+{% if rincian|length > 1 %}<button class="tombol abu penuh" id="tombol-pecah" style="margin-top:10px">Pecah per PIC ({% for r in rincian %}{% if r.pic %}{{ r.pic.first_name|default:r.pic.username }}{% else %}tanpa PIC{% endif %} {{ r.n }}{% if not forloop.last %} · {% endif %}{% endfor %})</button>{% endif %}
+{% endif %}
+<div class="kepala-grup"><h2>Barang ({{ baris|length }})</h2></div>
+<div class="grup">
+  {% for b in baris %}<div class="sel"><div class="utama"><div class="nama">{{ b.item_name }}{% if b.variant != 'N/A' %} / {{ b.variant }}{% endif %}</div>
+    <div class="sub">{{ b.jumlah_pesan|qty:b }} · {% if b.pic %}PIC {{ b.pic.first_name|default:b.pic.username }}{% else %}tanpa PIC rak{% endif %}</div></div></div>
+  {% empty %}<div class="kosong">Belum ada barang.</div>{% endfor %}
+</div>
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+const URL_INI = "{% url 'hp:po_detail' p.id %}";
+async function aksi(data, tombol){
+  if (tombol) tombol.disabled = true;
+  try { const d = await kirim(URL_INI, data); kabar(d.pesan); setTimeout(() => location.reload(), 700); }
+  catch (e) { kabar(e.message, true); if (tombol) tombol.disabled = false; }
+}
+document.getElementById('tombol-simpan')?.addEventListener('click', e => aksi({aksi: 'penerima', penerima: document.getElementById('penerima').value}, e.currentTarget));
+document.getElementById('tombol-pecah')?.addEventListener('click', async e => { const b = e.currentTarget;
+  if (await tanya('Pecah PO ini jadi satu PO per PIC? Supplier dan harga tetap.', {ya: 'Pecah'})) aksi({aksi: 'pecah'}, b); });
+</script>
+{% endblock %}

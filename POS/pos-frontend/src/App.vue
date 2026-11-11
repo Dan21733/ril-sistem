@@ -973,6 +973,17 @@ function noteKasStatus(status) {
   terapkanKunci(kunciDariStatus(status))
 }
 
+/*
+ * Halaman Siapkan ada di aplikasi gudang (tailscale serve :8443, kasir di :443).
+ * VITE_SIAPKAN_URL menimpa alamat bawaan kalau penataan servernya berbeda.
+ */
+const siapkanUrl = (() => {
+  const atur = String(import.meta.env?.VITE_SIAPKAN_URL || '').trim()
+  if (atur) return atur
+  if (typeof location === 'undefined') return '/gudang/siapkan/'
+  return `${location.protocol}//${location.hostname}:8443/gudang/siapkan/`
+})()
+
 function openHistory(tab = 'nota') {
   historyInitialTab.value = tab
   historyVisible.value = true
@@ -2642,6 +2653,7 @@ onBeforeUnmount(() => {
             mengambil satu baris penuh sendiri — label di kiri, lencana di
             kanan — tanpa memaksa tombol lain diperas di bawah ukuran jari.
           -->
+          <div class="header-nav">
           <button
             type="button"
             class="history-button"
@@ -2687,6 +2699,21 @@ onBeforeUnmount(() => {
               </span>
             </span>
           </button>
+
+          <!--
+            Siapkan barang (11 Nov 2026): daftar barang nota yang sedang disiapkan
+            di aplikasi gudang. Dibuka di tab bernama "siapkan" supaya ketukan
+            berikutnya kembali ke tab yang sama, bukan membuka tab baru terus.
+          -->
+          <a
+            class="history-button siapkan-button"
+            :href="siapkanUrl"
+            target="siapkan"
+            rel="noopener"
+          >
+            Siapkan
+          </a>
+          </div>
         </header>
 
         <!-- SEARCH -->
@@ -3039,6 +3066,17 @@ onBeforeUnmount(() => {
   border-color: var(--pos-accent);
 }
 
+/* Transaksi + Siapkan sebaris; ikut turun baris bersama kalau header sempit. */
+.header-nav {
+  display: flex;
+
+  gap: 8px;
+}
+
+.siapkan-button {
+  text-decoration: none;
+}
+
 /*
  * Dua hitungan tunggu di tombol "Riwayat Nota" (permintaan pemilik, 2026-10-10).
  * Tombolnya tetap tombol biasa; penandanya yang menarik perhatian kasir tanpa
@@ -3336,10 +3374,18 @@ onBeforeUnmount(() => {
  */
 
 @media (max-width: 480px) {
-  .history-button {
+  .header-nav {
     flex: 1 1 100%;
+  }
+
+  .header-nav .history-button {
+    flex: 1 1 auto;
 
     justify-content: space-between;
+  }
+
+  .header-nav .siapkan-button {
+    flex: none;
   }
 }
 

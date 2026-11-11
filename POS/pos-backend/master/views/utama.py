@@ -1020,16 +1020,25 @@ def rak(request):
             elif len(kode) > 20:
                 messages.error(request, "Kode rak maksimal 20 karakter.")
             else:
+                from master.layanan.pembelian import penerima_boleh
                 from master.models import Lokasi
                 tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
+                pic = {u.pk: u for u in penerima_boleh()}.get(int(request.POST.get("pic") or 0)
+                                                               if (request.POST.get("pic") or "").isdigit() else 0)
                 _, dibuat = Rak.objects.update_or_create(kode=kode, defaults={
-                    "nama": nama, "tempat": tempat,
+                    "nama": nama, "tempat": tempat, "pic": pic, "langsung": request.POST.get("langsung") == "1",
                     "lokasi": layanan.rapikan_teks(request.POST.get("lokasi")),
                     "keterangan": layanan.rapikan_teks(request.POST.get("keterangan")),
                 })
                 layanan.catat(request.user, aksi="tambah" if dibuat else "ubah", objek="rak",
                               kolom="rak", baru=f"{kode} - {nama}")
                 messages.success(request, f"Rak {kode} tersimpan.")
+        elif aksi == "langsung_lokasi":
+            # Semua rak di satu lokasi sekaligus (mis. semua rak Toko = display, tidak disiapkan).
+            nilai = request.POST.get("nilai") == "1"
+            n = Rak.objects.filter(tempat_id=request.POST.get("tempat") or 0).update(langsung=nilai)
+            layanan.catat(request.user, objek="rak", kolom="langsung", baru=f"{n} rak lokasi #{request.POST.get('tempat')}: {'langsung' if nilai else 'disiapkan'}")
+            messages.success(request, f"{n} rak diubah.")
         elif aksi == "hapus":
             objek = Rak.objects.filter(kode=kode).first()
             if objek and objek.varian.exists():
@@ -1041,9 +1050,10 @@ def rak(request):
         return redirect("master:rak")
 
     from master.models import Lokasi
-    daftar = Rak.objects.select_related("tempat").annotate(jumlah=Count("varian", filter=Q(varian__sampah__isnull=True)))
+    from master.layanan.pembelian import penerima_boleh
+    daftar = Rak.objects.select_related("tempat__pic", "pic").annotate(jumlah=Count("varian", filter=Q(varian__sampah__isnull=True)))
     return render(request, "master/rak.html", {
-        "menu": "rak", "daftar": daftar, "daftar_lokasi": Lokasi.objects.filter(aktif=True),
+        "menu": "rak", "daftar": daftar, "daftar_lokasi": Lokasi.objects.filter(aktif=True), "daftar_pic": penerima_boleh(),
         "tanpa_rak": VarianInfo.objects.filter(rak__isnull=True, sampah__isnull=True).count(),
     })
 

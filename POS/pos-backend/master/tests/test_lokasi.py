@@ -136,7 +136,7 @@ class LokasiAlurTest(Dasar):
         # Belum ditugaskan: tidak muncul dan tidak bisa dibuka (9 Nov 2026).
         self.assertEqual(self.client.get(reverse("gudang:datang_detail", args=[po.id])).status_code, 404)
         self.assertNotContains(self.client.get(reverse("gudang:tiket")), po.nomor)
-        svc.atur_penerima(self.admin, po, lokasi=self.ga.id, penerima=self.gudang.id)
+        svc.atur_penerima(self.admin, po, penerima=str(self.gudang.id))
         self.assertContains(self.client.get(reverse("gudang:tiket")), po.nomor)
         r = self.client.get(reverse("gudang:datang_detail", args=[po.id]))
         self.assertContains(r, ">Gudang A</option>")
