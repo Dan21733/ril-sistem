@@ -1,0 +1,62 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Gaji · DB Toko{% endblock %}
+{% block judul_kecil %}Gaji{% endblock %}
+{% block kiri %}<a href="{% url 'hp:menu' %}">‹ Menu</a>{% endblock %}
+{% block gaya %}<style>
+.kartu-gaji{padding:14px 16px;position:relative}
+.kartu-gaji+.kartu-gaji::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--garis)}
+.kartu-gaji .atas-gaji{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.kartu-gaji .nama{font-size:18px;font-weight:600}
+.kartu-gaji .total{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.kartu-gaji .sub{font-size:14px;color:var(--teks2);margin-top:2px}
+.kartu-gaji .aksi{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.kartu-gaji select,.kartu-gaji input{font-size:16px;padding:8px 10px;border:1px solid var(--garis);border-radius:10px;background:transparent;color:var(--teks)}
+.kartu-gaji input{width:70px}
+.kartu-gaji.selesai{opacity:.5}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Gaji</h1>
+
+<div class="kepala-grup"><h2>Jatuh tempo · {{ tempo|length }}</h2></div>
+<div class="grup">
+  {% for x in tempo %}<div class="kartu-gaji" data-gaji="{{ x.g.id }}" data-tanggal="{{ x.tanggal|date:'Y-m-d' }}" data-nama="{{ x.g.nama }}">
+    <div class="atas-gaji"><div class="nama">{{ x.g.nama }}</div><div class="total">{{ x.total|rupiah }}</div></div>
+    <div class="sub">{{ x.g.get_periode_display }} · {{ x.tanggal|date:"D, d M" }}{% if x.lewat %} · <span class="turun">lewat {{ x.lewat }} hari</span>{% endif %}</div>
+    <div class="aksi">
+      {% if x.g.cara_tunjangan == 'per_hari' and x.g.tunjangan %}<label class="kecil">Hari masuk <input type="number" name="hari_masuk" min="0" max="31" inputmode="numeric"></label>{% endif %}
+      <select name="sumber" aria-label="Sumber uang"><option value="luar_laci">Luar laci</option><option value="laci">Dari laci</option></select>
+      <button class="tombol kecil" type="button" data-bayar>Sudah dibayar</button>
+    </div>
+  </div>
+  {% empty %}<div class="kosong">Tidak ada gaji yang jatuh tempo.</div>{% endfor %}
+</div>
+
+<div class="kepala-grup"><h2>Karyawan digaji</h2></div>
+<div class="grup">
+  {% for k in orang %}<div class="sel"><div class="utama"><div class="nama">{{ k.nama }}</div><div class="sub">{{ k.aturan }}</div></div></div>
+  {% empty %}<div class="kosong">Belum ada yang diatur. Atur gaji di master › Karyawan › Gaji.</div>{% endfor %}
+</div>
+<p class="ket-grup">Sudah dibayar = tercatat sebagai Biaya toko kategori Gaji. Aturan gaji diubah di master.</p>
+
+{% if riwayat %}
+<div class="kepala-grup"><h2>Terakhir dibayar</h2></div>
+<div class="grup">
+  {% for b in riwayat %}<div class="sel"><div class="utama"><div class="nama">{{ b.gaji.nama }}</div><div class="sub">{{ b.tanggal_gajian|date:"d M" }} · {{ b.dibayar_oleh }}</div></div><span class="nilai">{{ b.jumlah|rupiah }}</span></div>{% endfor %}
+</div>
+{% endif %}
+<div style="height:16px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+document.querySelectorAll('[data-bayar]').forEach(b => b.addEventListener('click', async () => {
+  const k = b.closest('.kartu-gaji'), hari = k.querySelector('[name=hari_masuk]');
+  if (!await tanya(`Catat gaji ${k.dataset.nama} sudah dibayar?`, {ya: 'Sudah dibayar'})) return;
+  b.disabled = true;
+  try {
+    const d = await kirim("{% url 'hp:gaji' %}", {gaji: k.dataset.gaji, tanggal: k.dataset.tanggal,
+      sumber: k.querySelector('[name=sumber]').value, hari_masuk: hari ? hari.value : ''});
+    kabar(d.pesan); k.classList.add('selesai'); b.textContent = 'Dibayar';
+  } catch (e) { kabar(e.message, true); b.disabled = false; }
+}));
+</script>
+{% endblock %}

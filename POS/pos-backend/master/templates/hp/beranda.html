@@ -46,15 +46,22 @@
 
 {% include "hp/_acc.html" with semua=False %}
 
+{% if gaji_tempo %}
+<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:gaji' %}"><div class="utama"><div class="nama">Gaji jatuh tempo</div>
+  <div class="sub">{% for x in gaji_tempo|slice:":3" %}{{ x.g.nama }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if gaji_tempo|length > 3 %}, +{{ gaji_tempo|length|add:"-3" }}{% endif %}</div></div>
+  <span class="nilai"><span class="lencana merah">{{ gaji_tempo|length }}</span></span></a></div>
+{% endif %}
+{% if opname_ulang %}
+<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="utama"><div class="nama">Hitung ulang opname</div>
+  <div class="sub">baris menunggu dihitung ulang</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a></div>
+{% endif %}
+
+{% if mode_hp != 'simpel' %}
 {% if 'biaya' in hak %}
 <div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:biaya' %}"><div class="utama"><div class="nama">Biaya toko</div>
   <div class="sub">Catat pengeluaran, lihat bulan ini</div></div></a></div>
 {% endif %}
 
-{% if opname_ulang %}
-<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="utama"><div class="nama">Hitung ulang opname</div>
-  <div class="sub">baris menunggu dihitung ulang</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a></div>
-{% endif %}
 {% if po_belum %}
 <div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:po' %}"><div class="utama"><div class="nama">PO belum ditugaskan</div>
   <div class="sub">belum muncul di gudang siapa pun</div></div><span class="nilai"><span class="lencana merah">{{ po_belum }}</span></span></a></div>
@@ -63,6 +70,7 @@
 <div class="grup" style="margin-top:12px"><a class="sel" href="{% url 'hp:piutang' %}"><div class="utama"><div class="nama">Piutang pelanggan</div>
   <div class="sub">{{ piutang_ringkas.jumlah }} nota belum lunas{% if piutang_ringkas.lewat %} · <span class="turun">{{ piutang_ringkas.lewat }} lewat jatuh tempo</span>{% endif %}</div></div>
   <span class="nilai">{{ piutang_ringkas.sisa|singkat }}</span></a></div>
+{% endif %}
 {% endif %}
 
 <div class="grup" id="ajak-push" hidden style="margin-top:12px"><div style="font-size:26px">🔔</div><div style="flex:1"><b>Nyalakan notifikasi ACC</b><div class="redup kecil">Diberi tahu saat ada yang perlu ACC.</div></div><a class="tombol kecil" href="{% url 'hp:setelan' %}">Atur</a></div>

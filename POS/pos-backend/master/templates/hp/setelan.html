@@ -19,6 +19,12 @@
   <div><b>{{ request.user.first_name|default:request.user.username }}</b><span>{{ request.user.username }}{% if toko %} · {{ toko.nama }}{% endif %}</span></div>
 </div></div>
 
+<div class="kepala-grup"><h2>Menu</h2></div>
+<div class="seg" id="mode-hp">
+  <button type="button" data-mode="simpel" class="{% if mode_hp == 'simpel' %}aktif{% endif %}">Simpel</button><button type="button" data-mode="lanjutan" class="{% if mode_hp != 'simpel' %}aktif{% endif %}">Lanjutan</button>
+</div>
+<p class="ket-grup">Simpel: beranda (penjualan, kas, transfer, ACC), Barang, dan transaksi saja. Lanjutan: semua menu. Hanya tampilan untuk akun ini; hak akses tidak berubah.</p>
+
 <div class="kepala-grup"><h2>Tampilan</h2></div>
 <div class="seg" id="tema">
   <button type="button" data-tema="">Otomatis</button><button type="button" data-tema="terang">Terang</button><button type="button" data-tema="gelap">Gelap</button>
@@ -57,7 +63,6 @@
 
 <div class="kepala-grup"><h2>Lainnya</h2></div>
 <div class="grup">
-  <a class="sel" href="{% url 'hp:transaksi' %}"><div class="ikon-sel" style="background:#34C759">₨</div><div class="utama">Transaksi hari ini</div></a>
   <a class="sel" href="{% url 'master:dashboard' %}"><div class="ikon-sel" style="background:#8E8E93">⌘</div><div class="utama">Buka master (tampilan lengkap)</div></a>
 </div>
 
@@ -79,6 +84,10 @@ document.getElementById('tema').addEventListener('click', e => { const b = e.tar
 document.getElementById('aksen').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
   b.dataset.aksen ? akar.dataset.aksen = b.dataset.aksen : delete akar.dataset.aksen; simpan('hp-aksen', b.dataset.aksen); tandai(); });
 tandai();
+document.getElementById('mode-hp').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b || b.classList.contains('aktif')) return;
+  try { const d = await kirim("{% url 'hp:mode' %}", {mode: b.dataset.mode}); kabar(d.pesan);
+    document.querySelectorAll('#mode-hp button').forEach(x => x.classList.toggle('aktif', x === b)); setTimeout(() => location.reload(), 600); }
+  catch (err) { kabar(err.message, true); } });
 
 const saklar = document.getElementById('saklar-push'), status = document.getElementById('status-push'), tes = document.getElementById('tes-push');
 const keUint8 = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...b].map(c => c.charCodeAt(0))); };

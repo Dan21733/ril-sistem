@@ -1,0 +1,75 @@
+{% extends "master/base.html" %}{% load master_tags %}
+{% block judul %}Gaji karyawan{% endblock %}
+{% block isi %}
+<style>
+.form-gaji{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 14px;padding:12px 4px 4px}
+.form-gaji label{display:block;font-size:13px;color:var(--redup);margin-bottom:4px}
+details.atur>summary{cursor:pointer;color:var(--aksen);font-weight:600;list-style:none}
+details.atur>summary::-webkit-details-marker{display:none}
+.tempo-baris{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--garis)}
+.tempo-baris:first-of-type{border-top:0}
+.tempo-baris .nama{flex:1;min-width:200px}
+.tempo-baris select{width:auto}
+.tempo-baris input[type=number]{width:72px;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:8px;font:inherit}
+</style>
+<h2>Gaji karyawan</h2>
+<p class="sub">Hanya pemilik yang melihat halaman ini. "Sudah dibayar" otomatis tercatat sebagai Biaya toko kategori <b>Gaji</b>. Pengingat push jam 12.00 di hari gajian (nyalakan notifikasi di HP).</p>
+
+<h3>Jatuh tempo{% if tempo %} · {{ tempo|length }}{% endif %}</h3>
+<div class="kartu">
+  {% for x in tempo %}<form method="post" class="tempo-baris">{% csrf_token %}<input type="hidden" name="aksi" value="bayar"><input type="hidden" name="gaji" value="{{ x.g.id }}"><input type="hidden" name="tanggal" value="{{ x.tanggal|date:'Y-m-d' }}">
+    <div class="nama"><b>{{ x.g.nama }}</b> <span class="redup kecil">{{ x.g.get_periode_display }} · {{ x.tanggal|date:"D, d M" }}{% if x.lewat %} · <span style="color:var(--bahaya)">lewat {{ x.lewat }} hari</span>{% endif %}</span>
+      <div class="kecil redup">Pokok {{ x.pokok|rupiah }}{% if x.tunjangan %} + tunjangan {{ x.tunjangan|rupiah }}{% endif %}</div></div>
+    {% if x.g.cara_tunjangan == 'per_hari' and x.g.tunjangan %}<label class="kecil">Hari masuk <input type="number" name="hari_masuk" min="0" max="31" placeholder="{% if x.g.periode == 'harian' %}1{% elif x.g.periode == 'mingguan' %}6{% else %}26{% endif %}"></label>{% endif %}
+    <b style="min-width:120px;text-align:right">{{ x.total|rupiah }}</b>
+    <select name="sumber"><option value="luar_laci">Tunai luar laci</option><option value="laci">Dari laci kasir</option></select>
+    <button class="tombol utama" type="submit" data-tanya="Catat gaji {{ x.g.nama }} sudah dibayar?">Sudah dibayar</button>
+  </form>
+  {% empty %}<p class="redup" style="margin:6px 0">Tidak ada gaji yang jatuh tempo.</p>{% endfor %}
+</div>
+
+<h3 style="margin-top:22px">Semua karyawan</h3>
+<div class="gulir"><table>
+  <tr><th>Nama</th><th>Jenis</th><th>Aturan gaji</th><th class="angka">Per periode</th><th></th></tr>
+  {% for k in daftar %}<tr>
+    <td><b>{{ k.nama }}</b>{% if k.nonaktif %} <span class="label">nonaktif</span>{% endif %}</td><td class="redup">{{ k.jenis }}</td>
+    <td>{% if k.gaji %}{{ k.gaji.get_periode_display }} · {% if k.gaji.periode == 'mingguan' %}tiap {{ k.gaji.get_hari_gajian_display }}{% elif k.gaji.periode == 'bulanan' %}tiap tgl {{ k.gaji.tanggal_gajian }}{% else %}tiap hari{% endif %}{% if not k.gaji.aktif %} <span class="label bahaya">tidak digaji</span>{% endif %}{% else %}<span class="redup">belum diatur</span>{% endif %}</td>
+    <td class="angka">{% if k.jumlah %}{{ k.jumlah.total|rupiah }}{% endif %}</td>
+    <td style="min-width:120px"><details class="atur"><summary>{% if k.gaji %}Ubah{% else %}Atur{% endif %}</summary></details></td></tr>
+  <tr class="baris-form" hidden><td colspan="5">
+    <form method="post" class="form-gaji">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="kunci" value="{{ k.kunci }}">
+      <div><label>Gaji pokok{% if k.gaji.periode == 'harian' %} (per hari){% endif %}</label><input type="text" name="pokok" inputmode="numeric" value="{{ k.gaji.pokok|default:'' }}"></div>
+      <div><label>Tunjangan (makan, dll.)</label><input type="text" name="tunjangan" inputmode="numeric" value="{{ k.gaji.tunjangan|default:'' }}"></div>
+      <div><label>Cara tunjangan</label><select name="cara_tunjangan">{% for v, n in cara %}<option value="{{ v }}" {% if k.gaji.cara_tunjangan == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      <div><label>Periode</label><select name="periode" data-periode>{% for v, n in periode %}<option value="{{ v }}" {% if k.gaji.periode == v or not k.gaji and v == 'bulanan' %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      <div data-untuk="mingguan"><label>Hari gajian</label><select name="hari_gajian">{% for v, n in hari %}<option value="{{ v }}" {% if k.gaji.hari_gajian == v or not k.gaji and v == 5 %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+      <div data-untuk="bulanan"><label>Tanggal gajian</label><input type="number" name="tanggal_gajian" min="1" max="31" value="{{ k.gaji.tanggal_gajian|default:'1' }}"></div>
+      <div><label>Biaya dicatat di toko</label><select name="toko"><option value="">Toko yang sedang dibuka</option>{% for t in toko_pilih %}<option value="{{ t.id }}" {% if k.gaji.toko_id == t.id %}selected{% endif %}>{{ t.nama }}</option>{% endfor %}</select></div>
+      <div><label>Catatan</label><input type="text" name="catatan" value="{{ k.gaji.catatan|default:'' }}"></div>
+      <div><label>Status</label><select name="aktif"><option value="1">Digaji</option><option value="0" {% if k.gaji and not k.gaji.aktif %}selected{% endif %}>Tidak digaji</option></select></div>
+      <div style="align-self:end"><button class="tombol utama" type="submit">Simpan</button></div>
+    </form></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:24px;text-align:center">Belum ada karyawan.</td></tr>{% endfor %}
+</table></div>
+
+<h3 style="margin-top:22px">Riwayat pembayaran</h3>
+<div class="gulir"><table>
+  <tr><th>Tanggal gajian</th><th>Nama</th><th class="angka">Pokok</th><th class="angka">Tunjangan</th><th class="angka">Jumlah</th><th>Dibayar</th></tr>
+  {% for b in riwayat %}<tr><td>{{ b.tanggal_gajian|date:"d M Y" }}</td><td>{{ b.gaji.nama }}</td><td class="angka">{{ b.pokok|ribuan }}</td>
+    <td class="angka">{{ b.tunjangan|ribuan }}{% if b.hari_masuk is not None %} <span class="redup kecil">({{ b.hari_masuk }} hari)</span>{% endif %}</td><td class="angka"><b>{{ b.jumlah|ribuan }}</b></td>
+    <td class="kecil redup">{{ b.dibayar_oleh }}, {{ b.waktu|date:"d M H:i" }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:18px;text-align:center">Belum ada.</td></tr>{% endfor %}
+</table></div>
+<p class="kecil redup">Bonus (mingguan, opname) belum ada; aturannya mulai Januari 2027.</p>
+
+<script>
+document.querySelectorAll('details.atur').forEach(d => d.addEventListener('toggle', () => {
+  d.closest('tr').nextElementSibling.hidden = !d.open;
+}));
+document.querySelectorAll('.form-gaji').forEach(f => {
+  const p = f.querySelector('[data-periode]');
+  const atur = () => f.querySelectorAll('[data-untuk]').forEach(x => x.hidden = x.dataset.untuk !== p.value);
+  p.addEventListener('change', atur); atur();
+});
+</script>
+{% endblock %}

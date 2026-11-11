@@ -156,7 +156,16 @@ def _daftar_toko_hp(request):
     return hasil
 
 
+def mode_hp(request):
+    """'simpel' atau 'lanjutan' untuk akun ini (dihitung sekali per permintaan). Hanya tampilan."""
+    if not hasattr(request, "_mode_hp"):
+        from master.models import SetelanHp
+        request._mode_hp = SetelanHp.objects.filter(user=request.user).values_list("mode", flat=True).first() or "lanjutan"
+    return request._mode_hp
+
+
 def _tampil(request, nama, isi):
+    isi.setdefault("mode_hp", mode_hp(request))
     toko, semua = _toko_hp(request)
     isi.setdefault("jumlah_acc", _jumlah_acc(request))
     isi.setdefault("toko_hp", toko)
@@ -247,8 +256,13 @@ def beranda(request):
         from master.layanan import sesi_opname as svc_sesi
         sesi = svc_sesi.sesi_buka()
         opname_ulang = svc_sesi.jumlah_menunggu(sesi) if sesi else 0
+    gaji_tempo = []
+    if "gaji" in hak:
+        from master.layanan import gaji as svc_gaji
+        gaji_tempo = svc_gaji.jatuh_tempo()
     isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas,
-                "bukti_ringkas": bukti_ringkas, "po_belum": po_belum, "opname_ulang": opname_ulang})
+                "bukti_ringkas": bukti_ringkas, "po_belum": po_belum, "opname_ulang": opname_ulang,
+                "gaji_tempo": gaji_tempo})
     return _tampil(request, "hp/beranda.html", isi)
 
 
@@ -361,7 +375,7 @@ def transaksi(request):
         hari[-1]["nota"].append(n)
         hari[-1]["total"] += n["total_amount"]
     return _tampil(request, "hp/transaksi.html", {
-        "tab": "transaksi", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "tab": "menu", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
         "judul_pendek": _judul_pendek(kode, awal, akhir),
         "hari_ini": timezone.localdate(), "satu_hari": awal == akhir, "hari": hari, "jumlah_nota": len(nota),
         "terpotong": len(nota) > BATAS, "batas": BATAS, "kembali": kembali,
@@ -744,7 +758,8 @@ def setelan(request):
                                               ("piutang", "Invoice / titip barang menunggu ACC"),
                                               ("tempo", "Piutang pelanggan lewat jatuh tempo"),
                                               ("kas", "Tutup kas menunggu ACC"),
-                                              ("biaya", "Uang keluar dari kasir menunggu ACC"))
+                                              ("biaya", "Uang keluar dari kasir menunggu ACC"),
+                                              ("gaji", "Pengingat gajian jam 12.00"))
                   if svc_push.HAK_JENIS[jenis] in hak],
     })
 
@@ -1206,3 +1221,48 @@ def opname_ulang(request):
         grup = [{"lokasi": k[1], "rak": k[2] or "tanpa rak", "baris": v} for k, v in sorted(per.items())]
         selesai = len(r["diperiksa"])
     return _tampil(request, "hp/opname_ulang.html", {"tab": "", "sesi": sesi, "grup": grup, "selesai": selesai})
+
+
+@perlu_hp()
+def menu(request):
+    """Tab Menu: kumpulan fitur di luar tab bawah. Isi tergantung hak akun dan mode tampilan."""
+    hak = hak_pengguna(request.user)
+    simpel = mode_hp(request) == "simpel"
+    opname_ulang = 0
+    if "opname" in hak:
+        from master.layanan import sesi_opname as svc_sesi
+        sesi = svc_sesi.sesi_buka()
+        opname_ulang = svc_sesi.jumlah_menunggu(sesi) if sesi else 0
+    return _tampil(request, "hp/menu.html", {"tab": "menu", "simpel": simpel, "opname_ulang": opname_ulang})
+
+
+@require_POST
+@perlu_hp()
+def mode(request):
+    from master.models import SetelanHp
+    pilih = _json_badan(request).get("mode")
+    if pilih not in dict(SetelanHp.MODE):
+        return _jawab(False, "Pilihan tidak dikenal.", 400)
+    SetelanHp.objects.update_or_create(user=request.user, defaults={"mode": pilih})
+    return _jawab(pesan="Tampilan simpel." if pilih == "simpel" else "Tampilan lanjutan.")
+
+
+@perlu_hp("gaji")
+def gaji(request):
+    """Gaji di HP: yang jatuh tempo (tandai sudah dibayar) dan aturan gaji tiap orang. Aturan diubah di master."""
+    from master.layanan import gaji as svc
+    from master.layanan.toko import toko_aktif
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        d = _json_badan(request)
+        try:
+            b = svc.bayar(request.user, d.get("gaji"), d.get("tanggal"), hak=hak, sumber=d.get("sumber") or "luar_laci",
+                          hari_masuk=d.get("hari_masuk"), toko=toko_aktif(request))
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        return _jawab(pesan=f"Gaji {b.gaji.nama} {svc.rp(b.jumlah)} dicatat dibayar.")
+    orang = [k for k in svc.daftar() if k["gaji"] and k["gaji"].aktif]
+    for k in orang:
+        k["aturan"] = svc.ringkas_aturan(k["gaji"])
+    return _tampil(request, "hp/gaji.html", {"tab": "menu", "tempo": svc.jatuh_tempo(), "orang": orang,
+                                             "riwayat": svc.riwayat(10)})

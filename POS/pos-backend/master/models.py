@@ -1202,6 +1202,19 @@ class PushTerkirim(models.Model):
         db_table = "master_push_terkirim"
 
 
+class SetelanHp(models.Model):
+    """Pilihan tampilan aplikasi HP per akun. Hanya mengatur tampilan, bukan hak.
+
+    Simpel (untuk orang tua): beranda kas + transfer + ACC, Barang, dan Menu berisi transaksi.
+    Lanjutan: semua menu sesuai hak akun."""
+    MODE = [("simpel", "Simpel"), ("lanjutan", "Lanjutan")]
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="setelan_hp")
+    mode = models.CharField(max_length=10, choices=MODE, default="lanjutan")
+
+    class Meta:
+        db_table = "master_setelan_hp"
+
+
 class PasskeyHp(models.Model):
     """Passkey (Face ID / sidik jari) untuk masuk dan membuka kunci aplikasi HP. Hanya kunci publik."""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="passkey_hp")
@@ -1649,3 +1662,49 @@ class SiapkanLewat(models.Model):
     class Meta:
         db_table = "master_siapkan_lewat"
         ordering = ["id"]
+
+
+class GajiKaryawan(models.Model):
+    """Aturan gaji satu orang: pelayan (pos.Worker, lewat worker_id) atau karyawan lapangan.
+
+    Hanya pemilik yang melihat (hak `gaji`). Bonus belum (aturannya mulai Januari 2027)."""
+    PERIODE = [("harian", "Harian"), ("mingguan", "Mingguan"), ("bulanan", "Bulanan")]
+    CARA_TUNJANGAN = [("tetap", "Tetap per periode"), ("per_hari", "Per hari masuk")]
+    HARI = [(0, "Senin"), (1, "Selasa"), (2, "Rabu"), (3, "Kamis"), (4, "Jumat"), (5, "Sabtu"), (6, "Minggu")]
+
+    worker_id = models.CharField(max_length=5, blank=True, default="", db_index=True)
+    lapangan = models.OneToOneField(KaryawanLapangan, null=True, blank=True, on_delete=models.CASCADE,
+                                    related_name="gaji")
+    nama = models.CharField(max_length=60)
+    toko = models.ForeignKey(Toko, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    pokok = models.BigIntegerField(default=0)
+    tunjangan = models.BigIntegerField(default=0)
+    cara_tunjangan = models.CharField(max_length=10, choices=CARA_TUNJANGAN, default="tetap")
+    periode = models.CharField(max_length=10, choices=PERIODE, default="bulanan")
+    hari_gajian = models.SmallIntegerField(null=True, blank=True, choices=HARI)
+    tanggal_gajian = models.SmallIntegerField(null=True, blank=True)
+    aktif = models.BooleanField(default=True)
+    catatan = models.CharField(max_length=200, blank=True, default="")
+    diubah = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "master_gaji_karyawan"
+        ordering = ["nama"]
+
+
+class BayarGaji(models.Model):
+    """Satu pembayaran gaji untuk satu tanggal gajian. Uangnya tercatat sebagai Biaya kategori Gaji."""
+    gaji = models.ForeignKey(GajiKaryawan, on_delete=models.PROTECT, related_name="bayar")
+    tanggal_gajian = models.DateField()
+    pokok = models.BigIntegerField()
+    tunjangan = models.BigIntegerField()
+    hari_masuk = models.SmallIntegerField(null=True, blank=True)
+    jumlah = models.BigIntegerField()
+    biaya = models.ForeignKey("Biaya", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    dibayar_oleh = models.CharField(max_length=150, blank=True, default="")
+    waktu = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_bayar_gaji"
+        ordering = ["-tanggal_gajian", "-id"]
+        constraints = [models.UniqueConstraint(fields=["gaji", "tanggal_gajian"], name="master_bayar_gaji_unik")]

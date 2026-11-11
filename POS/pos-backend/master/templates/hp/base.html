@@ -254,15 +254,15 @@ details.lipat>summary::-webkit-details-marker{display:none}
   <a href="{% url 'hp:barang' %}" class="{% if tab == 'barang' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14.5 3.5H23a1.5 1.5 0 0 1 1.5 1.5v8.5L13 25 3 15 14.5 3.5Z" {% if tab == 'barang' %}fill="currentColor"{% endif %}/><circle cx="19.5" cy="8.5" r="1.8" fill="{% if tab == 'barang' %}var(--latar){% else %}currentColor{% endif %}" stroke="none"/></svg>
     Barang</a>
-  <a href="{% url 'hp:tugas' %}" class="{% if tab == 'tugas' %}aktif{% endif %}">
+{% if mode_hp != 'simpel' %}  <a href="{% url 'hp:tugas' %}" class="{% if tab == 'tugas' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4" width="19" height="21" rx="3" {% if tab == 'tugas' %}fill="currentColor"{% endif %}/><path d="m9 11 2 2 4-4M9 18.5h10" stroke="{% if tab == 'tugas' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
     Tugas</a>
   <a href="{% url 'hp:input' %}" class="{% if tab == 'input' %}aktif{% endif %}">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="14" cy="14" r="10.5" {% if tab == 'input' %}fill="currentColor"{% endif %}/><path d="M14 9v10M9 14h10" stroke="{% if tab == 'input' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
     Catat</a>
-  <a href="{% url 'hp:transaksi' %}" class="{% if tab == 'transaksi' %}aktif{% endif %}">
-    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h16v21l-2.7-1.8-2.6 1.8-2.7-1.8-2.7 1.8-2.6-1.8L6 24.5z" {% if tab == 'transaksi' %}fill="currentColor"{% endif %}/><path d="M10 10h8M10 14.5h8M10 19h5" stroke="{% if tab == 'transaksi' %}var(--latar){% else %}currentColor{% endif %}"/></svg>
-    Transaksi</a>
+{% endif %}  <a href="{% url 'hp:menu' %}" class="{% if tab == 'menu' %}aktif{% endif %}">
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4.5" y="4.5" width="8" height="8" rx="2" {% if tab == 'menu' %}fill="currentColor"{% endif %}/><rect x="15.5" y="4.5" width="8" height="8" rx="2" {% if tab == 'menu' %}fill="currentColor"{% endif %}/><rect x="4.5" y="15.5" width="8" height="8" rx="2" {% if tab == 'menu' %}fill="currentColor"{% endif %}/><rect x="15.5" y="15.5" width="8" height="8" rx="2" {% if tab == 'menu' %}fill="currentColor"{% endif %}/></svg>
+    Menu</a>
 </nav>{% endblock %}
 <div id="kabar" role="status"></div>
 {% if daftar_toko_hp %}<dialog class="lembar" id="lembar-toko" aria-label="Pindah toko">

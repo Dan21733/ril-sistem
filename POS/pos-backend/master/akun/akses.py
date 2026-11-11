@@ -44,6 +44,8 @@ SEMUA_HAK = {
     # Biaya toko (pengeluaran): catat & lihat; ACC uang keluar yang dicatat kasir.
     "biaya",
     "acc_biaya",
+    # Gaji karyawan: atur gaji, tandai sudah dibayar. Hanya pemilik.
+    "gaji",
     # Aplikasi operasional (/gudang/). "gudang" = boleh membukanya; menu dibuka per hak di bawah.
     "gudang_datang",
     "gudang_hitung",
@@ -99,6 +101,7 @@ LABEL_HAK = [
         ("kas", "Kas laci: buka/tutup kas, uang keluar, ACC tutup kas"),
         ("biaya", "Biaya toko: catat dan lihat pengeluaran, kelola kategori"),
         ("acc_biaya", "ACC uang keluar yang dicatat kasir"),
+        ("gaji", "Gaji karyawan: atur gaji, tandai sudah dibayar"),
         ("lihat_log", "Melihat log"),
         ("pengaturan", "Pengaturan"),
         ("kelola_toko", "Kelola toko"),

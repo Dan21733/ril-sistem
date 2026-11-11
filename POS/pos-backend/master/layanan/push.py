@@ -147,7 +147,8 @@ def kirim_ke(langganan_qs, data):
 
 # Hak yang dibutuhkan untuk tiap jenis permintaan ACC.
 HAK_JENIS = {"nota": "kelola_kasir", "tugas": "kelola_lokasi", "dus": "ubah_stok", "po": "pembelian",
-             "piutang": "acc_piutang", "tempo": "piutang", "kas": "kas", "biaya": "acc_biaya"}
+             "piutang": "acc_piutang", "tempo": "piutang", "kas": "kas", "biaya": "acc_biaya",
+             "gaji": "gaji"}
 
 
 def menunggu():
@@ -189,6 +190,17 @@ def menunggu():
     for p in svc_piutang.lewat_tempo()[:50]:
         hasil.append((f"tempo:{p.id}:{p.jatuh_tempo:%Y%m%d}", "tempo", "Piutang lewat jatuh tempo",
                       f"{p.nama} · {p.nomor} · sisa {svc_piutang.rp(p.sisa)}", reverse("hp:piutang_detail", args=[p.id])))
+    # Pengingat gajian: sekali sehari mulai jam 12.00, kalau ada yang gajian hari ini dan belum dibayar.
+    from django.utils import timezone
+    if timezone.localtime().hour >= 12:
+        from master.layanan import gaji as svc_gaji
+        hari = svc_gaji.gajian_hari_ini()
+        if hari:
+            isi = ", ".join(f"{x['g'].nama} {svc_gaji.rp(x['total'])}" for x in hari[:6])
+            if len(hari) > 6:
+                isi += f", +{len(hari) - 6} lagi"
+            hasil.append((f"gaji:{timezone.localdate():%Y%m%d}", "gaji", f"{len(hari)} orang gajian hari ini", isi,
+                          reverse("hp:gaji")))
     return hasil
 
 

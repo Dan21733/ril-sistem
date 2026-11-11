@@ -3,6 +3,7 @@ from django.urls import path
 
 from master.akun.masuk import MasukMaster
 
+from master.views import gaji as views_gaji
 from master.views import utama as views
 from master.views import faktur as views_faktur
 from master.views import kasir as views_kasir
@@ -29,6 +30,7 @@ urlpatterns = [
     path("kasir/karyawan/", views_kasir.karyawan, name="karyawan"),
     path("kasir/karyawan/slip/", views_kasir.karyawan_slip, name="karyawan_slip"),
     path("kasir/lapangan/", views_kasir.lapangan, name="lapangan"),
+    path("kasir/gaji/", views_gaji.daftar, name="gaji"),
     path("kasir/perangkat-ops/", views_kasir.perangkat_ops, name="perangkat_ops"),
     path("kasir/tablet/", views_kasir.tablet, name="tablet"),
     path("kasir/aturan/", views_kasir.aturan_kasir, name="aturan_kasir"),

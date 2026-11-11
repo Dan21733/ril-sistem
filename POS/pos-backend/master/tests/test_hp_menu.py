@@ -1,0 +1,50 @@
+"""HP: tab Menu dan mode tampilan simpel/lanjutan per akun (B, 12 Nov 2026)."""
+import json
+
+from django.urls import reverse
+
+from master.models import SetelanHp
+from master.tests.dasar import Dasar
+from master.tests.test_hp import masuk_hp
+
+
+class MenuHpTest(Dasar):
+    def setUp(self):
+        masuk_hp(self.client, self.admin)
+
+    def _mode(self, mode):
+        return self.client.post(reverse("hp:mode"), json.dumps({"mode": mode}), content_type="application/json")
+
+    def test_lanjutan_bawaan(self):
+        r = self.client.get(reverse("hp:menu"))
+        self.assertEqual(r.status_code, 200)
+        for teks in ("Transaksi", "Bukti transfer", "Kas", "Biaya toko", "PO &amp; barang datang", "Setelan", "Buka master"):
+            self.assertContains(r, teks)
+        b = self.client.get(reverse("hp:beranda"))
+        self.assertContains(b, reverse("hp:tugas"))
+        self.assertContains(b, reverse("hp:menu"))
+        # Transaksi pindah ke dalam Menu: tab Menu menyala di halaman transaksi.
+        t = self.client.get(reverse("hp:transaksi"))
+        self.assertContains(t, f'href="{reverse("hp:menu")}" class="aktif"')
+
+    def test_simpel_hanya_tampilan(self):
+        r = self._mode("simpel")
+        self.assertEqual(r.json()["ok"], True)
+        self.assertEqual(SetelanHp.objects.get(user=self.admin).mode, "simpel")
+        m = self.client.get(reverse("hp:menu"))
+        self.assertContains(m, "Transaksi")
+        self.assertNotContains(m, "Biaya toko")
+        self.assertNotContains(m, "Buka master")
+        b = self.client.get(reverse("hp:beranda"))
+        self.assertNotContains(b, reverse("hp:tugas"))
+        self.assertNotContains(b, reverse("hp:input"))
+        self.assertNotContains(b, "Biaya toko")
+        # Hak tidak berubah: halaman yang disembunyikan tetap bisa dibuka.
+        self.assertEqual(self.client.get(reverse("hp:biaya")).status_code, 200)
+        self.assertContains(self.client.get(reverse("hp:setelan")), 'data-mode="simpel" class="aktif"')
+        self._mode("lanjutan")
+        self.assertContains(self.client.get(reverse("hp:beranda")), reverse("hp:tugas"))
+
+    def test_mode_tidak_dikenal(self):
+        self.assertEqual(self._mode("admin").status_code, 400)
+        self.assertFalse(SetelanHp.objects.exists())
