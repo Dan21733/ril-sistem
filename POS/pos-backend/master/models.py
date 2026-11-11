@@ -1444,6 +1444,8 @@ class SesiOpname(models.Model):
     diputus_waktu = models.DateTimeField(null=True, blank=True)
     # Varian yang dinonaktifkan saat ACC (dipilih pemilik di daftar "belum dihitung").
     nonaktifkan = models.JSONField(default=list, blank=True)
+    # Setiap baris selisih wajib diberi alasan sebelum ACC. Mati untuk opname pemutihan (Des 2026).
+    alasan_wajib = models.BooleanField(default=False)
 
     class Meta:
         db_table = "master_sesi_opname"
@@ -1483,6 +1485,73 @@ class SesiHasil(models.Model):
     class Meta:
         db_table = "master_sesi_hasil"
         ordering = ["id"]
+
+
+class PeriksaUlang(models.Model):
+    """Hitung ulang oleh pemeriksa (pemilik/Mama) untuk satu barang di satu lokasi.
+
+    Terpisah dari HitungTempat: pemeriksa tidak dianggap "dihitung dua kali", dan angkanya
+    menjadi hitungan final saat ACC. `awal` = jumlah hitungan karyawan saat ulang diisi,
+    `penghitung` = nama mereka, untuk melihat pola akurasi per orang dan per lokasi.
+    """
+    ALASAN = [("manual", "Dipilih"), ("acak", "Acak"), ("rawan", "Barang rawan")]
+
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="periksa")
+    varian = models.ForeignKey(VarianInfo, on_delete=models.PROTECT, related_name="+")
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.PROTECT, related_name="+")
+    alasan_pilih = models.CharField(max_length=10, choices=ALASAN, default="manual")
+    dipilih_oleh = models.CharField(max_length=150, blank=True, default="")
+    dipilih_waktu = models.DateTimeField(auto_now_add=True)
+    awal = models.IntegerField(null=True, blank=True)
+    ulang = models.IntegerField(null=True, blank=True)
+    penghitung = models.CharField(max_length=300, blank=True, default="")
+    diisi_oleh = models.CharField(max_length=150, blank=True, default="")
+    diisi_waktu = models.DateTimeField(null=True, blank=True)
+    catatan = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        db_table = "master_periksa_ulang"
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["sesi", "varian", "lokasi"], name="master_periksa_ulang_unik")]
+
+
+class SesiHarga(models.Model):
+    """Draf modal / harga jual / floor baru dari sesi opname, diterapkan sekaligus saat ACC.
+
+    Nilai per kelipatan (sama seperti Item). Kosong = nilai sekarang tetap. Modal baru mengisi
+    modal terakhir DAN modal rata (keputusan pemilik 11 Nov 2026)."""
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="harga")
+    varian = models.ForeignKey(VarianInfo, on_delete=models.PROTECT, related_name="+")
+    modal = models.IntegerField(null=True, blank=True)
+    jual = models.IntegerField(null=True, blank=True)
+    floor = models.IntegerField(null=True, blank=True)
+    diisi_oleh = models.CharField(max_length=150, blank=True, default="")
+    diisi_waktu = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "master_sesi_harga"
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["sesi", "varian"], name="master_sesi_harga_unik")]
+
+
+class AlasanSelisih(models.Model):
+    """Alasan selisih satu barang di satu lokasi (wajib kalau `SesiOpname.alasan_wajib`)."""
+    PILIHAN = [
+        ("rusak", "Rusak"), ("dipakai", "Dipakai toko"), ("tanpa_catatan", "Diambil tanpa catatan"),
+        ("salah_hitung", "Salah hitung sebelumnya"), ("salah_jual", "Salah input jual"), ("tidak_tahu", "Tidak tahu"),
+    ]
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="alasan")
+    varian = models.ForeignKey(VarianInfo, on_delete=models.PROTECT, related_name="+")
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.PROTECT, related_name="+")
+    alasan = models.CharField(max_length=20, choices=PILIHAN)
+    catatan = models.CharField(max_length=200, blank=True, default="")
+    oleh = models.CharField(max_length=150, blank=True, default="")
+    waktu = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "master_alasan_selisih"
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["sesi", "varian", "lokasi"], name="master_alasan_selisih_unik")]
 
 
 class VarianRak(models.Model):

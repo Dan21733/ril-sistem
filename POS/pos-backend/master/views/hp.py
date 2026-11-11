@@ -242,8 +242,13 @@ def beranda(request):
     if "pembelian" in hak:
         from master.models import Pembelian
         po_belum = Pembelian.objects.filter(status="dibuat", toko=toko, penerima=None, baris__isnull=False).distinct().count()
+    opname_ulang = 0
+    if "opname" in hak:
+        from master.layanan import sesi_opname as svc_sesi
+        sesi = svc_sesi.sesi_buka()
+        opname_ulang = svc_sesi.jumlah_menunggu(sesi) if sesi else 0
     isi.update({"jual": jual, "kas_hari": kas, "acc": acc_hp.saring(items, toko), "piutang_ringkas": piutang_ringkas,
-                "bukti_ringkas": bukti_ringkas, "po_belum": po_belum})
+                "bukti_ringkas": bukti_ringkas, "po_belum": po_belum, "opname_ulang": opname_ulang})
     return _tampil(request, "hp/beranda.html", isi)
 
 
@@ -1169,3 +1174,35 @@ def opname(request, opname_id):
         "tab": "", "op": op, "beda": [b for b in baris if b.selisih], "cocok": [b for b in baris if not b.selisih],
         "lihat_modal": "lihat_modal" in hak, "punya_stok": op.toko is None or op.toko.stok_di_kasir,
     })
+
+
+@perlu_hp("opname")
+def opname_ulang(request):
+    """Hitung ulang opname dari HP (pemilik/Mama). Hitungan awal disembunyikan sampai pemeriksa mengisi."""
+    from master.layanan import sesi_opname as svc_sesi
+    from master.templatetags.master_tags import qty
+    sesi = svc_sesi.sesi_buka()
+    hak = hak_pengguna(request.user)
+    if request.method == "POST":
+        if sesi is None:
+            return _jawab(False, "Tidak ada sesi opname yang berjalan.", 400)
+        d = _json_badan(request)
+        try:
+            p = svc_sesi.isi_ulang(request.user, sesi, d.get("varian"), d.get("lokasi"), d.get("jumlah"), hak=hak)
+        except Tolak as e:
+            return _jawab(False, str(e), 400)
+        beda = p.ulang - (p.awal or 0)
+        return _jawab(pesan="Tersimpan.", awal=qty(p.awal, p.varian), ulang=qty(p.ulang, p.varian), beda=beda,
+                      beda_teks=qty(abs(beda), p.varian))
+    grup = []
+    selesai = 0
+    if sesi is not None:
+        r = svc_sesi.rekap(sesi)
+        per = {}
+        for b in r["menunggu_ulang"]:
+            raks = sorted({h.rak_id or "" for h in b["tempat"]}) or [b["v"].rak_id or ""]
+            kunci = (b["lokasi"].urutan, b["lokasi"].nama, raks[0])
+            per.setdefault(kunci, []).append({**b, "raks": [x or "tanpa rak" for x in raks]})
+        grup = [{"lokasi": k[1], "rak": k[2] or "tanpa rak", "baris": v} for k, v in sorted(per.items())]
+        selesai = len(r["diperiksa"])
+    return _tampil(request, "hp/opname_ulang.html", {"tab": "", "sesi": sesi, "grup": grup, "selesai": selesai})

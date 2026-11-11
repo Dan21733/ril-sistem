@@ -9,12 +9,17 @@
 .tab-hal .n{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#ece9e2;font-size:12px;margin-left:4px;text-align:center}
 .tab-hal .n.awas{background:var(--bahaya);color:#fff}
 .tempat{font-size:12px;color:var(--redup)}
+input.isian-baris{width:120px;max-width:120px;text-align:right;padding:7px 10px;font-size:15px}
+.status-simpan{font-size:12px;margin-left:6px}
+.status-simpan.ok{color:var(--baik)}.status-simpan.gagal,.status-simpan.beda{color:var(--bahaya)}
+.chip-kat{display:inline-flex;gap:6px;align-items:center;padding:4px 10px;border:1px solid var(--garis);border-radius:999px;margin:3px;font-size:14px;cursor:pointer}
 </style>
 <p class="kecil"><a href="{% url 'master:opname' %}">Stok opname</a> /</p>
 <h2>{{ sesi.nama }}</h2>
 <p class="sub">Dibuka {{ sesi.dibuka_oleh }}, {{ sesi.dibuka_waktu|date:"d M Y H:i" }} · <span class="label {% if sesi.status == 'disetujui' %}baik{% elif sesi.status == 'batal' %}bahaya{% endif %}">{{ sesi.get_status_display }}</span>{% if sesi.diputus_oleh %} · {{ sesi.diputus_oleh }}, {{ sesi.diputus_waktu|date:"d M Y H:i" }}{% endif %}</p>
 
 {% if sesi.status == "buka" %}
+{% if r.transfer.selama or r.transfer.di_jalan %}<div class="pesan warning">{% if r.transfer.selama %}Ada <b>{{ r.transfer.selama }}</b> transfer antar toko yang dikirim/diterima sejak sesi dibuka. {% endif %}{% if r.transfer.di_jalan %}<b>{{ r.transfer.di_jalan }}</b> transfer masih dalam perjalanan: barangnya tidak ada di toko asal maupun tujuan saat dihitung. {% endif %}Selisih bisa meleset; selesaikan transfer sebelum menghitung, atau cek barangnya di tab Selisih.</div>{% endif %}
 {% if r.transaksi_kasir %}<div class="pesan warning">Ada <b>{{ r.transaksi_kasir }}</b> transaksi kasir sejak sesi dibuka. Selisih dihitung terhadap stok saat ACC, jadi barang yang terjual setelah dihitung akan terhitung hilang. Sebaiknya kasir tidak berjualan selama opname.</div>{% endif %}
 
 <div class="kisi" style="margin-bottom:14px">
@@ -31,6 +36,8 @@
   <a href="?tab=tak" class="{% if tab == 'tak' %}aktif{% endif %}">Tidak ditemukan, stok 0<span class="n">{{ r.tak_ditemukan|length }}</span></a>
   <a href="?tab=selisih" class="{% if tab == 'selisih' %}aktif{% endif %}">Selisih<span class="n">{{ r.beda|length }}</span></a>
   <a href="?tab=semua" class="{% if tab == 'semua' %}aktif{% endif %}">Semua hitungan<span class="n">{{ r.baris|length }}</span></a>
+  <a href="?tab=ulang" class="{% if tab == 'ulang' %}aktif{% endif %}">Hitung ulang<span class="n {% if r.menunggu_ulang %}awas{% endif %}">{{ r.menunggu_ulang|length }}</span></a>
+  <a href="?tab=harga" class="{% if tab == 'harga' %}aktif{% endif %}">Harga &amp; modal baru<span class="n">{{ jumlah_draf }}</span></a>
   {% if r.tanpa_modal %}<a href="?tab=modal" class="{% if tab == 'modal' %}aktif{% endif %}">Tanpa modal<span class="n">{{ r.tanpa_modal|length }}</span></a>{% endif %}
 </div>
 
@@ -48,10 +55,16 @@
 
 <h3 style="margin-top:22px">Selesaikan</h3>
 <div class="kartu">
-  <p style="margin:0 0 8px">ACC bisa setelah: tidak ada tugas yang masih dihitung, tab <b>Dihitung dua kali</b> dan <b>Belum dihitung</b> kosong.</p>
-  <p class="kecil redup" style="margin:0 0 10px">Saat ACC: hitungan dijumlah per barang per lokasi, stok tiap lokasi disesuaikan sekali, rak barang diisi dari tempat hitungan (rak utama + rak tambahan), dan barang yang ditandai dinonaktifkan ({{ r.nonaktifkan|length }}).</p>
-  <form method="post" style="display:inline" data-tanya="ACC {{ sesi.nama }}? Stok semua barang yang dihitung langsung disesuaikan.">{% csrf_token %}<input type="hidden" name="aksi" value="acc"><button class="tombol utama" type="submit" {% if jalan or r.konflik or r.belum %}disabled{% endif %}>ACC sesi ini</button></form>
+  <p style="margin:0 0 8px">ACC bisa setelah: tidak ada tugas yang masih dihitung, tab <b>Dihitung dua kali</b>, <b>Belum dihitung</b>, dan <b>Hitung ulang</b> kosong{% if sesi.alasan_wajib %}, dan semua selisih punya alasan{% endif %}.</p>
+  {% if r.menunggu_ulang %}<p class="kecil" style="margin:0 0 8px;color:var(--bahaya)">{{ r.menunggu_ulang|length }} baris menunggu hitung ulang.</p>{% endif %}
+  {% if r.alasan_kurang %}<p class="kecil" style="margin:0 0 8px;color:var(--bahaya)">{{ r.alasan_kurang|length }} baris selisih belum punya alasan (tab Selisih).</p>{% endif %}
+  <p class="kecil redup" style="margin:0 0 10px">Saat ACC: hitungan dijumlah per barang per lokasi (hasil hitung ulang menggantikan hitungan karyawan), stok tiap lokasi disesuaikan sekali, rak barang diisi dari tempat hitungan (rak utama + rak tambahan), barang yang ditandai dinonaktifkan ({{ r.nonaktifkan|length }}), dan draf harga &amp; modal diterapkan ({{ jumlah_draf }}).</p>
+  <form method="post" style="display:inline" data-tanya="ACC {{ sesi.nama }}? Stok semua barang yang dihitung langsung disesuaikan.">{% csrf_token %}<input type="hidden" name="aksi" value="acc"><button class="tombol utama" type="submit" {% if jalan or r.konflik or r.belum or r.menunggu_ulang or r.alasan_kurang %}disabled{% endif %}>ACC sesi ini</button></form>
   <form method="post" style="display:inline" data-tanya="Batalkan seluruh sesi? Semua tugas ditutup dan stok tidak berubah.">{% csrf_token %}<input type="hidden" name="aksi" value="batal"><button class="tombol bahaya" type="submit">Batalkan sesi</button></form>
+  <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="aksi" value="alasan_wajib"><input type="hidden" name="nyala" value="{% if sesi.alasan_wajib %}0{% else %}1{% endif %}">
+    <span class="kecil">Alasan selisih: <b>{% if sesi.alasan_wajib %}wajib{% else %}tidak wajib{% endif %}</b>.</span>
+    <button class="tombol kecil" type="submit">{% if sesi.alasan_wajib %}Jadikan tidak wajib{% else %}Jadikan wajib{% endif %}</button>
+    <span class="kecil redup">Matikan untuk opname pemutihan (hampir semua baris selisih).</span></form>
 </div>
 
 {% elif tab == 'konflik' %}
@@ -92,6 +105,78 @@
 {% if r.tak_ditemukan %}<div style="margin-top:12px"><button class="tombol" type="submit" name="aksi" value="nonaktif">Nonaktifkan saat ACC</button> <button class="tombol" type="submit" name="aksi" value="batal_nonaktif">Tetap aktif</button></div>{% endif %}
 </form>
 
+{% elif tab == 'ulang' %}
+<p class="sub">Pemeriksa (kamu atau Mama) menghitung ulang baris yang dipilih. Hasil hitung ulang menjadi angka final. Penghitung tidak tahu baris mana yang dipilih. Barang kategori rawan selalu ikut. Isi juga bisa dari HP.</p>
+{% if r.menunggu_ulang or r.diperiksa %}
+<h3>Menunggu hitung ulang · {{ r.menunggu_ulang|length }}</h3>
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Lokasi · rak</th><th>Dipilih</th><th class="angka">Hitungan awal</th><th>Hitung ulang</th></tr>
+  {% for b in r.menunggu_ulang %}<tr><td>{{ b.v.item_name }} <span class="redup">{{ b.v.variant|varian }}</span></td>
+    <td>{{ b.lokasi.nama }}<div class="tempat">{% for h in b.tempat %}{{ h.rak_id|default:"tanpa rak" }}{% if not forloop.last %} · {% endif %}{% endfor %}</div></td>
+    <td>{% if b.periksa %}{{ b.periksa.get_alasan_pilih_display }}{% else %}Barang rawan{% endif %}</td>
+    <td class="angka">{{ b.awal|qty:b.v }}</td>
+    <td style="white-space:nowrap"><input type="text" class="isian-baris" data-ulang data-v="{{ b.v.id }}" data-l="{{ b.lokasi.id }}" inputmode="decimal" placeholder="{{ b.v|akhiran }}"><span class="status-simpan"></span></td></tr>
+  {% empty %}<tr><td colspan="5" class="redup" style="padding:18px;text-align:center">Tidak ada yang menunggu.</td></tr>{% endfor %}
+</table></div>
+{% if r.diperiksa %}
+<h3 style="margin-top:18px">Sudah dihitung ulang · {{ r.diperiksa|length }}</h3>
+<div class="gulir"><table>
+  <tr><th>Barang</th><th>Lokasi</th><th>Penghitung</th><th class="angka">Awal</th><th class="angka">Ulang (final)</th><th class="angka">Beda</th><th></th></tr>
+  {% for b in r.diperiksa %}<tr><td>{{ b.v.item_name }} <span class="redup">{{ b.v.variant|varian }}</span></td><td>{{ b.lokasi.nama }}</td><td class="kecil">{{ b.periksa.penghitung|default:"-" }}</td>
+    <td class="angka redup">{{ b.periksa.awal|qty:b.v }}</td><td class="angka"><b>{{ b.periksa.ulang|qty:b.v }}</b></td>
+    <td class="angka">{% if b.periksa.ulang == b.periksa.awal %}<span class="redup">cocok</span>{% else %}<span style="color:var(--bahaya)">beda</span>{% endif %}</td>
+    <td style="white-space:nowrap"><input type="text" class="isian-baris" data-ulang data-v="{{ b.v.id }}" data-l="{{ b.lokasi.id }}" inputmode="decimal" placeholder="ubah"><span class="status-simpan"></span></td></tr>{% endfor %}
+</table></div>
+<h3 style="margin-top:18px">Akurasi (pola, bukan vonis)</h3>
+<p class="kecil redup">Beda yang mengikuti orangnya = masalah orang. Beda yang tetap di satu lokasi siapa pun penghitungnya = masalah akses lokasi.</p>
+<div class="kisi">
+  <div class="kartu"><b>Per penghitung</b><table style="margin-top:6px"><tr><th>Nama</th><th class="angka">Diperiksa</th><th class="angka">Beda</th><th class="angka">Nilai beda</th></tr>
+    {% for x in akurasi.orang %}<tr><td>{{ x.nama }}</td><td class="angka">{{ x.diperiksa }}</td><td class="angka">{{ x.beda }}</td><td class="angka">{{ x.nilai|ribuan }}</td></tr>{% endfor %}</table></div>
+  <div class="kartu"><b>Per lokasi</b><table style="margin-top:6px"><tr><th>Lokasi</th><th class="angka">Diperiksa</th><th class="angka">Beda</th><th class="angka">Nilai beda</th></tr>
+    {% for x in akurasi.lokasi %}<tr><td>{{ x.nama }}</td><td class="angka">{{ x.diperiksa }}</td><td class="angka">{{ x.beda }}</td><td class="angka">{{ x.nilai|ribuan }}</td></tr>{% endfor %}</table></div>
+</div>
+{% endif %}
+{% endif %}
+
+<h3 style="margin-top:22px">Pilih baris untuk dihitung ulang</h3>
+<form method="post" class="kartu" style="margin-bottom:12px">{% csrf_token %}<input type="hidden" name="tab" value="ulang"><input type="hidden" name="aksi" value="rawan">
+  <div class="kecil" style="margin-bottom:6px"><b>Kategori rawan</b> (selalu dihitung ulang 100%, berlaku juga untuk opname berikutnya):</div>
+  {% for k in kategori %}<label class="chip-kat"><input type="checkbox" name="kategori" value="{{ k }}" {% if k in r.rawan %}checked{% endif %}>{{ k }}</label>{% endfor %}
+  <div style="margin-top:8px"><button class="tombol kecil" type="submit">Simpan kategori rawan</button></div>
+</form>
+<form method="post" id="f-ulang">{% csrf_token %}<input type="hidden" name="tab" value="ulang">
+<div class="kartu baris" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <button class="tombol utama" type="submit" name="aksi" value="pilih_ulang">Pilih untuk hitung ulang</button>
+  <button class="tombol" type="submit" name="aksi" value="batal_pilih">Batalkan pilihan</button>
+  <span style="flex:1"></span>
+  <div><label>Ambil acak</label><input name="n" type="number" min="1" value="20" style="width:90px"></div>
+  <button class="tombol" type="submit" name="aksi" value="acak" data-tanpa-pilih>Ambil acak N baris</button>
+</div>
+<p class="kecil redup">Urut nilai hitungan (jumlah × modal) terbesar dulu.{% if urut_total > urut|length %} Menampilkan {{ urut|length }} dari {{ urut_total }}. <a href="?tab=ulang&amp;semua=1">Tampilkan semua</a>{% endif %}</p>
+<div class="gulir"><table>
+  <tr><th><input type="checkbox" data-semua="f-ulang" title="Centang semua"></th><th>Barang</th><th>Lokasi</th><th class="angka">Hitungan</th><th class="angka">Nilai</th><th>Status</th></tr>
+  {% for b in urut %}<tr><td>{% if not b.rawan %}<input type="checkbox" name="pilih" value="{{ b.v.id }}-{{ b.lokasi.id }}">{% endif %}</td><td>{{ b.v.item_name }} <span class="redup">{{ b.v.variant|varian }}</span></td><td>{{ b.lokasi.nama }}</td>
+    <td class="angka">{{ b.awal|qty:b.v }}</td><td class="angka">{% if b.nilai_awal is None %}<span class="redup">modal kosong</span>{% else %}{{ b.nilai_awal|ribuan }}{% endif %}</td>
+    <td>{% if b.periksa and b.periksa.ulang is not None %}<span class="label baik">dihitung ulang</span>{% elif b.periksa %}<span class="label awas">{{ b.periksa.get_alasan_pilih_display|lower }}</span>{% elif b.rawan %}<span class="label awas">rawan</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:24px;text-align:center">Belum ada hitungan.</td></tr>{% endfor %}
+</table></div>
+</form>
+
+{% elif tab == 'harga' %}
+<p class="sub">Isi modal / harga jual / floor baru <b>per satuan</b>. Disimpan sebagai draf dan baru diterapkan sekaligus saat ACC. Kosong = nilai sekarang tetap. Modal baru mengisi modal terakhir <b>dan</b> modal rata; sesudahnya keduanya jalan sendiri seperti biasa.</p>
+<p class="kecil redup">Urut nilai hitungan terbesar dulu. Tersimpan otomatis saat pindah kolom.{% if harga_total > harga|length %} Menampilkan {{ harga|length }} dari {{ harga_total }}. <a href="?tab=harga&amp;semua=1">Tampilkan semua</a>{% endif %}</p>
+<div class="gulir"><table>
+  <tr><th>Barang</th><th class="angka">Hitungan</th><th class="angka">Modal terakhir</th><th class="angka">Modal rata</th><th class="angka">Jual</th><th class="angka">Floor</th><th>Modal baru</th><th>Jual baru</th><th>Floor baru</th><th></th></tr>
+  {% for x in harga %}<tr data-harga="{{ x.v.id }}"><td>{{ x.v.item_name }} <span class="redup">{{ x.v.variant|varian }}</span></td><td class="angka">{{ x.hitung|qty:x.v }}</td>
+    <td class="angka redup">{{ x.modal|harga_qty:x.v|ribuan }}</td><td class="angka redup">{{ x.v.modal_rata|harga_qty:x.v|ribuan }}</td>
+    <td class="angka redup">{{ x.jual|harga_qty:x.v|ribuan }}</td><td class="angka redup">{{ x.floor|harga_qty:x.v|ribuan }}</td>
+    <td><input type="text" class="isian-baris" name="modal" inputmode="numeric" value="{% if x.draf and x.draf.modal is not None %}{{ x.draf.modal|harga_qty:x.v }}{% endif %}"></td>
+    <td><input type="text" class="isian-baris" name="jual" inputmode="numeric" value="{% if x.draf and x.draf.jual is not None %}{{ x.draf.jual|harga_qty:x.v }}{% endif %}"></td>
+    <td><input type="text" class="isian-baris" name="floor" inputmode="numeric" value="{% if x.draf and x.draf.floor is not None %}{{ x.draf.floor|harga_qty:x.v }}{% endif %}"></td>
+    <td><span class="status-simpan"></span></td></tr>
+  {% empty %}<tr><td colspan="10" class="redup" style="padding:24px;text-align:center">Belum ada hitungan.</td></tr>{% endfor %}
+</table></div>
+
 {% elif tab == 'modal' %}
 <p class="sub">Barang yang dihitung tapi belum punya modal, jadi tidak ikut nilai stok. Isi modalnya di panel barang.</p>
 <div class="gulir"><table>
@@ -102,23 +187,49 @@
 {% else %}
 <p class="sub">{% if tab == 'selisih' %}Barang yang hitungannya berbeda dari stok sistem sekarang.{% else %}Semua hitungan, dijumlah per barang per lokasi.{% endif %} "Tempat" = rincian per rak.</p>
 <div class="gulir"><table>
-  <tr><th>Barang</th><th>Lokasi</th><th>Tempat</th><th class="angka">Sistem</th><th class="angka">Hitungan</th><th class="angka">Selisih</th><th class="angka">Nilai selisih</th></tr>
+  <tr><th>Barang</th><th>Lokasi</th><th>Tempat</th><th class="angka">Sistem</th><th class="angka">Hitungan</th><th class="angka">Selisih</th><th class="angka">Nilai selisih</th>{% if pilihan_alasan %}<th>Alasan</th>{% endif %}</tr>
   {% for b in r.baris %}{% if tab != 'selisih' or b.selisih %}<tr><td>{{ b.v.item_name }} <span class="redup">{{ b.v.variant|varian }}</span>{% if not b.v.aktif %} <span class="label">nonaktif</span>{% endif %}</td><td>{{ b.lokasi.nama }}</td>
     <td class="tempat">{% for h in b.tempat %}{{ h.rak_id|default:"tanpa rak" }}: {{ h.jumlah|qty:b.v }}{% if not h.tiket_id %} (pemilik){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
     <td class="angka redup">{{ b.sistem|qty:b.v }}</td><td class="angka"><b>{{ b.hitung|qty:b.v }}</b></td>
     <td class="angka" style="color:{% if b.selisih < 0 %}var(--bahaya){% elif b.selisih > 0 %}var(--baik){% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih|qty:b.v }}</td>
-    <td class="angka">{% if b.nilai_selisih is None %}<span class="redup">modal kosong</span>{% elif b.nilai_selisih < 0 %}-{{ b.nilai_selisih|cut:"-"|ribuan }}{% else %}{{ b.nilai_selisih|ribuan }}{% endif %}</td></tr>{% endif %}
+    <td class="angka">{% if b.nilai_selisih is None %}<span class="redup">modal kosong</span>{% elif b.nilai_selisih < 0 %}-{{ b.nilai_selisih|cut:"-"|ribuan }}{% else %}{{ b.nilai_selisih|ribuan }}{% endif %}</td>
+    {% if pilihan_alasan %}<td style="white-space:nowrap">{% if b.selisih %}<select data-alasan data-v="{{ b.v.id }}" data-l="{{ b.lokasi.id }}"><option value="">- pilih -</option>{% for k, n in pilihan_alasan %}<option value="{{ k }}" {% if b.alasan and b.alasan.alasan == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select><span class="status-simpan"></span>{% endif %}</td>{% endif %}</tr>{% endif %}
   {% empty %}<tr><td colspan="7" class="redup" style="padding:24px;text-align:center">Belum ada hitungan.</td></tr>{% endfor %}
 </table></div>
 {% endif %}
 
 <script>
+(() => {
+  const CSRF_SESI = document.querySelector('meta[name="csrf-token"]').content;
+  async function kirimBaris(data, tanda){
+    tanda.textContent = '…'; tanda.className = 'status-simpan';
+    try {
+      const r = await fetch(location.pathname, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_SESI}, body: JSON.stringify(data)});
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.pesan || 'Gagal.');
+      tanda.textContent = d.ulang !== undefined ? (d.beda ? `beda ${d.beda > 0 ? '+' : '-'}${d.beda_teks} dari ${d.awal}` : `cocok (${d.awal})`) : '✓';
+      tanda.className = 'status-simpan ' + (d.beda ? 'beda' : 'ok');
+      return d;
+    } catch (e) { tanda.textContent = e.message === 'Failed to fetch' ? 'tidak tersambung' : e.message; tanda.className = 'status-simpan gagal'; }
+  }
+  document.querySelectorAll('[data-ulang]').forEach(i => i.addEventListener('change', () => {
+    if (!i.value.trim()) return;
+    kirimBaris({aksi: 'isi_ulang', varian: i.dataset.v, lokasi: i.dataset.l, jumlah: i.value}, i.nextElementSibling);
+  }));
+  document.querySelectorAll('[data-alasan]').forEach(s => s.addEventListener('change', () =>
+    kirimBaris({aksi: 'alasan', varian: s.dataset.v, lokasi: s.dataset.l, alasan: s.value}, s.nextElementSibling)));
+  document.querySelectorAll('[data-harga]').forEach(tr => tr.querySelectorAll('input').forEach(i => i.addEventListener('change', () => {
+    const d = {aksi: 'harga', varian: tr.dataset.harga};
+    tr.querySelectorAll('input').forEach(x => d[x.name] = x.value);
+    kirimBaris(d, tr.querySelector('.status-simpan'));
+  })));
+})();
 document.querySelectorAll('[data-semua]').forEach(c => c.addEventListener('change', e => {
   document.getElementById(c.dataset.semua).querySelectorAll('[name=pilih]').forEach(x => x.checked = e.target.checked);
 }));
 document.querySelectorAll('form').forEach(f => f.addEventListener('submit', e => {
   const b = e.submitter;
-  if (b && b.value && f.querySelector('[name=pilih]') && !f.querySelector('[name=pilih]:checked')) { e.preventDefault(); alert('Centang barangnya dulu.'); return; }
+  if (b && b.value && !('tanpaPilih' in b.dataset) && f.querySelector('[name=pilih]') && !f.querySelector('[name=pilih]:checked')) { e.preventDefault(); alert('Centang barangnya dulu.'); return; }
   if (b && b.dataset.tanyaTombol && !confirm(b.dataset.tanyaTombol)) e.preventDefault();
 }));
 </script>

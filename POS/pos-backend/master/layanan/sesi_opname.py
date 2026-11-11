@@ -26,16 +26,18 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, rapikan_teks
-from master.models import HitungTempat, Lokasi, Rak, SesiHasil, SesiOpname, Tiket, VarianInfo, VarianRak
+from master.models import (AlasanSelisih, HitungTempat, Lokasi, PeriksaUlang, Rak, SesiHarga, SesiHasil, SesiOpname,
+                           Tiket, VarianInfo, VarianRak)
 
 BATAS_KIRIM = 500
+KUNCI_RAWAN = "opname_kategori_rawan"
 
 
 def sesi_buka():
     return SesiOpname.objects.filter(status="buka").first()
 
 
-def buka(pengguna, nama, *, hak):
+def buka(pengguna, nama, *, hak, alasan_wajib=False):
     if "opname" not in hak:
         raise Tolak("Akun ini tidak boleh membuka opname.")
     nama = rapikan_teks(nama)[:100]
@@ -43,7 +45,7 @@ def buka(pengguna, nama, *, hak):
         raise Tolak("Isi nama sesi, mis. 'Opname Desember 2026'.")
     if sesi_buka() is not None:
         raise Tolak("Masih ada sesi opname yang berjalan. Selesaikan atau batalkan dulu.")
-    s = SesiOpname.objects.create(nama=nama, dibuka_oleh=pengguna.username)
+    s = SesiOpname.objects.create(nama=nama, dibuka_oleh=pengguna.username, alasan_wajib=bool(alasan_wajib))
     layanan.catat(pengguna, aksi="tambah", objek="opname", kolom="sesi", baru=f"Sesi opname #{s.id} dibuka: {nama}")
     return s
 
@@ -202,9 +204,13 @@ def rekap(sesi):
         per_tempat[(h.varian_id, h.lokasi_id, h.rak_id)].append(h)
     konflik_kunci = {k for k, d in per_tempat.items() if len({x.tiket_id for x in d}) > 1}
 
+    periksa = {(p.varian_id, p.lokasi_id): p for p in PeriksaUlang.objects.filter(sesi=sesi)}
+    alasan = {(a.varian_id, a.lokasi_id): a for a in AlasanSelisih.objects.filter(sesi=sesi)}
+    rawan = set(kategori_rawan())
     varian = {v.id: v for v in VarianInfo.objects.filter(
-        Q(aktif=True, sampah__isnull=True) | Q(pk__in={k[0] for k in jumlah})).select_related("rak")}
+        Q(aktif=True, sampah__isnull=True) | Q(pk__in={k[0] for k in jumlah} | {k[0] for k in periksa})).select_related("rak")}
     total = {(n, v): s or 0 for n, v, s in Item.objects.values_list("item_name", "variant", "in_stock")}
+    kategori = {(n, v): c for n, v, c in Item.objects.values_list("item_name", "variant", "category")} if rawan else {}
     modal_akhir = {(n, v): m for n, v, m in Item.objects.values_list("item_name", "variant", "cost_amount")}
     gdg = jumlah_gudang(varian)
     pesan = dipesan(varian)
@@ -216,14 +222,23 @@ def rekap(sesi):
         sistem = {l.id: per.get(l.id, 0) for l in gudang}
         sistem[toko.id] = total.get(kunci, 0) - sum(per.values()) + pesan.get(vid, 0)
         modal = v.modal_rata if v.modal_rata is not None else modal_akhir.get(kunci)
-        dihitung_di = [l for l in semua_lokasi if (vid, l.id) in jumlah]
+        dihitung_di = [l for l in semua_lokasi if (vid, l.id) in jumlah or (vid, l.id) in periksa]
+        barang_rawan = bool(rawan) and kategori.get(kunci) in rawan
         for l in semua_lokasi:
-            if (vid, l.id) in jumlah:
-                n = jumlah[(vid, l.id)]
+            k = (vid, l.id)
+            if k in jumlah or k in periksa:
+                p = periksa.get(k)
+                awal = jumlah.get(k, 0)
+                # Hasil hitung ulang pemeriksa = angka final.
+                n = p.ulang if p is not None and p.ulang is not None else awal
                 baris.append({"v": v, "lokasi": l, "sistem": sistem[l.id], "hitung": n, "selisih": n - sistem[l.id],
                               "modal": modal, "nilai": None if modal is None else n * modal,
                               "nilai_selisih": None if modal is None else (n - sistem[l.id]) * modal,
-                              "tempat": tempat[(vid, l.id)]})
+                              "tempat": tempat.get(k, []), "awal": awal,
+                              "nilai_awal": None if modal is None else awal * modal,
+                              "periksa": p, "rawan": barang_rawan,
+                              "perlu_ulang": (p is not None or barang_rawan) and (p is None or p.ulang is None),
+                              "alasan": alasan.get(k)})
             elif sistem[l.id] and v.aktif:
                 belum.append({"v": v, "lokasi": l, "sistem": sistem[l.id], "dihitung_lain": bool(dihitung_di)})
         if not dihitung_di and v.aktif and not any(sistem.values()):
@@ -235,15 +250,21 @@ def rekap(sesi):
     konflik = [{"v": varian.get(k[0]), "lokasi": nama_lokasi.get(k[1]), "rak": k[2], "hitungan": per_tempat[k]}
                for k in sorted(konflik_kunci, key=lambda k: (k[0], k[1], k[2] or ""))]
     from pos.models import Transactions
+    beda = [b for b in baris if b["selisih"]]
     return {
-        "baris": baris, "beda": [b for b in baris if b["selisih"]], "konflik": konflik, "belum": belum,
+        "baris": baris, "beda": beda, "konflik": konflik, "belum": belum,
         "tak_ditemukan": tak_ditemukan,
         "nilai": sum(b["nilai"] or 0 for b in baris),
         "nilai_selisih": sum(b["nilai_selisih"] or 0 for b in baris),
         "tanpa_modal": [b for b in baris if b["modal"] is None and b["hitung"]],
         "jumlah_barang": len({b["v"].id for b in baris}),
         "transaksi_kasir": Transactions.objects.filter(transaction_time__gte=sesi.dibuka_waktu).count(),
+        "transfer": transfer_selama(sesi),
         "nonaktifkan": set(sesi.nonaktifkan or []),
+        "menunggu_ulang": [b for b in baris if b["perlu_ulang"]],
+        "diperiksa": [b for b in baris if b["periksa"] is not None and b["periksa"].ulang is not None],
+        "alasan_kurang": [b for b in beda if not b["alasan"]] if sesi.alasan_wajib else [],
+        "rawan": rawan,
     }
 
 
@@ -348,6 +369,13 @@ def acc(pengguna, sesi, *, hak):
                         "Hitung ulang atau anggap 0 dulu.")
         if not r["baris"]:
             raise Tolak("Belum ada hitungan di sesi ini.")
+        if r["menunggu_ulang"]:
+            raise Tolak(f"Ada {len(r['menunggu_ulang'])} baris menunggu hitung ulang. Isi hitungan ulangnya dulu.")
+        if r["alasan_kurang"]:
+            raise Tolak(f"Ada {len(r['alasan_kurang'])} baris selisih tanpa alasan. Isi alasannya, "
+                        "atau matikan 'alasan wajib' untuk sesi ini.")
+        harga = {h.varian_id: h for h in SesiHarga.objects.filter(sesi=sesi).select_related("varian")}
+        _cek_harga(harga.values())
         hak_stok = hak | {"ubah_stok"}
         # Gudang dulu, lalu toko: stok toko = total - gudang, jadi dihitung ulang setelah gudang disesuaikan.
         for b in sorted(r["baris"], key=lambda b: b["lokasi"].jenis == "toko"):
@@ -358,7 +386,10 @@ def acc(pengguna, sesi, *, hak):
                 layanan.sesuaikan_stok(pengguna, v, cara="tambah" if selisih > 0 else "kurang", angka=abs(selisih),
                                        jenis="hitung", hak=hak_stok, lokasi=None if l.jenis == "toko" else l,
                                        catatan=f"{sesi.nama} (sesi opname #{sesi.id}): dihitung {b['hitung']} di {l.nama}")
-            SesiHasil.objects.create(sesi=sesi, varian=v, lokasi=l, sistem=sistem, hitung=b["hitung"], modal=b["modal"])
+            draf = harga.get(v.id)
+            modal = draf.modal if draf is not None and draf.modal is not None else b["modal"]
+            SesiHasil.objects.create(sesi=sesi, varian=v, lokasi=l, sistem=sistem, hitung=b["hitung"], modal=modal)
+        r["peringatan_harga"] = _terapkan_harga(pengguna, sesi, harga.values(), hak=hak)
         _isi_rak(sesi)
         nonaktif = [x for x in (sesi.nonaktifkan or []) if not any(
             b["hitung"] for b in r["baris"] if b["v"].id == x)]
@@ -370,7 +401,8 @@ def acc(pengguna, sesi, *, hak):
         sesi.save()
         layanan.catat(pengguna, objek="opname", kolom="sesi", lama="Sedang dihitung", baru="Disetujui",
                       catatan=f"Sesi #{sesi.id} {sesi.nama}: {r['jumlah_barang']} barang, {len(r['beda'])} selisih, "
-                              f"{len(nonaktif)} dinonaktifkan")
+                              f"{len(nonaktif)} dinonaktifkan, {len(r['diperiksa'])} dihitung ulang, "
+                              f"{len(harga)} harga/modal baru")
     return r
 
 
@@ -398,3 +430,274 @@ def hasil_ringkas(sesi):
         "nilai_selisih": sum((h.hitung - h.sistem) * h.modal for h in hasil if h.modal is not None),
         "jumlah": len({h.varian_id for h in hasil}),
     }
+
+
+# ---------------------------------------------------------------------------
+# Hitung ulang oleh pemeriksa (D1, keputusan pemilik 11 Nov 2026)
+#
+# Pemilik memilih baris hasil hitung (urut nilai terbesar, atau acak N) untuk dihitung ulang
+# sendiri / oleh Mama. Barang kategori rawan selalu ikut. Baris terpilih menahan ACC sampai
+# hitungan ulangnya diisi, dan hitungan ulang = angka final. Penghitung tidak tahu baris mana
+# yang dipilih: pilihan hanya ada di master/HP, tidak pernah dikirim ke tablet gudang.
+# ---------------------------------------------------------------------------
+
+
+def kategori_rawan():
+    from pos.models import PosSetting
+    import json
+    s = PosSetting.objects.filter(kunci=KUNCI_RAWAN).first()
+    try:
+        isi = json.loads(s.nilai) if s and s.nilai else []
+    except ValueError:
+        return []
+    return [str(x) for x in isi if str(x).strip()] if isinstance(isi, list) else []
+
+
+def semua_kategori():
+    return sorted({c for c in Item.objects.values_list("category", flat=True) if c}, key=layanan.kunci_alami)
+
+
+def atur_rawan(pengguna, kategori, *, hak):
+    import json
+    from pos.models import PosSetting
+    if "opname" not in hak:
+        raise Tolak("Akun ini tidak boleh mengatur opname.")
+    ada = set(semua_kategori())
+    pilih = sorted({rapikan_teks(k) for k in kategori if rapikan_teks(k) in ada}, key=layanan.kunci_alami)
+    lama = kategori_rawan()
+    PosSetting.objects.update_or_create(kunci=KUNCI_RAWAN, defaults={"nilai": json.dumps(pilih)})
+    if pilih != lama:
+        layanan.catat(pengguna, objek="opname", kolom="kategori_rawan", lama=", ".join(lama), baru=", ".join(pilih))
+    return pilih
+
+
+def _harus_buka(sesi, hak):
+    if "opname" not in hak:
+        raise Tolak("Akun ini tidak boleh memutuskan opname.")
+    if sesi.status != "buka":
+        raise Tolak("Sesi ini sudah ditutup.")
+
+
+def nama_penghitung(tempat):
+    """Nama orang yang menghitung satu baris: isian 'dihitung oleh' tugas, kalau kosong akun tugasnya."""
+    nama = []
+    for h in tempat:
+        if h.tiket_id:
+            t = h.tiket
+            n = (t.catatan_admin or "").strip() or (t.untuk.first_name or t.untuk.username if t.untuk_id else h.oleh)
+        else:
+            n = f"{h.oleh} (pemilik)"
+        if n and n not in nama:
+            nama.append(n)
+    return ", ".join(nama)[:300]
+
+
+def pilih_ulang(pengguna, sesi, isian, *, hak, alasan="manual"):
+    """Tandai baris (varian-lokasi) untuk dihitung ulang. Yang sudah terpilih tidak berubah."""
+    _harus_buka(sesi, hak)
+    pasang = _pasangan(sesi, isian)
+    if not pasang:
+        raise Tolak("Pilih baris yang dihitung ulang.")
+    baru = 0
+    for v, l in pasang:
+        _, dibuat = PeriksaUlang.objects.get_or_create(sesi=sesi, varian=v, lokasi=l, defaults={
+            "alasan_pilih": alasan, "dipilih_oleh": pengguna.username})
+        baru += dibuat
+    return baru
+
+
+def batal_pilih(pengguna, sesi, isian, *, hak):
+    """Buang pilihan yang belum diisi. Barang rawan tetap wajib (tidak tersimpan sebagai pilihan)."""
+    _harus_buka(sesi, hak)
+    pasang = _pasangan(sesi, isian)
+    n = 0
+    for v, l in pasang:
+        n += PeriksaUlang.objects.filter(sesi=sesi, varian=v, lokasi=l, ulang__isnull=True).delete()[0]
+    return n
+
+
+def ambil_acak(pengguna, sesi, n, *, hak):
+    """Pilih N baris acak dari yang belum terpilih dan bukan barang rawan (yang cocok dengan sistem ikut)."""
+    import random
+    _harus_buka(sesi, hak)
+    try:
+        n = int(str(n).strip())
+    except (TypeError, ValueError):
+        raise Tolak("Isi jumlah baris acak, mis. 20.")
+    if n <= 0:
+        raise Tolak("Jumlah baris acak harus lebih dari 0.")
+    calon = [b for b in rekap(sesi)["baris"] if b["periksa"] is None and not b["rawan"]]
+    if not calon:
+        raise Tolak("Tidak ada baris lagi yang bisa diambil acak.")
+    ambil = random.SystemRandom().sample(calon, min(n, len(calon)))
+    return pilih_ulang(pengguna, sesi, [f"{b['v'].id}-{b['lokasi'].id}" for b in ambil], hak=hak, alasan="acak")
+
+
+def isi_ulang(pengguna, sesi, varian_id, lokasi_id, jumlah, *, hak, catatan=""):
+    """Simpan hitungan ulang pemeriksa untuk satu baris terpilih / barang rawan. Mengembalikan PeriksaUlang."""
+    from master.layanan.satuan import baca_qty
+    _harus_buka(sesi, hak)
+    v = VarianInfo.objects.filter(pk=varian_id).first() if str(varian_id).isdigit() else None
+    l = Lokasi.objects.filter(pk=lokasi_id).first() if str(lokasi_id).isdigit() else None
+    if v is None or l is None:
+        raise Tolak("Baris tidak ditemukan.")
+    p = PeriksaUlang.objects.filter(sesi=sesi, varian=v, lokasi=l).first()
+    tempat = list(_hitungan_sah(sesi).filter(varian=v, lokasi=l).select_related("tiket__untuk"))
+    if p is None:
+        rawan = set(kategori_rawan())
+        kat = Item.objects.filter(item_name=v.item_name, variant=v.variant).values_list("category", flat=True).first()
+        if not tempat or kat not in rawan:
+            raise Tolak("Baris ini tidak dipilih untuk dihitung ulang.")
+        p = PeriksaUlang(sesi=sesi, varian=v, lokasi=l, alasan_pilih="rawan", dipilih_oleh="otomatis")
+    p.ulang = baca_qty(jumlah, v, nama=v.item_name)
+    if p.ulang < 0:
+        raise Tolak("Jumlah tidak boleh minus.")
+    p.awal = sum(h.jumlah for h in tempat)
+    p.penghitung = nama_penghitung(tempat)
+    p.diisi_oleh = pengguna.first_name or pengguna.username
+    p.diisi_waktu = timezone.now()
+    p.catatan = rapikan_teks(catatan)[:200]
+    p.save()
+    layanan.catat(pengguna, objek="opname", kolom="hitung_ulang", item_name=v.item_name, variant=v.variant,
+                  lama=p.awal, baru=p.ulang, catatan=f"Sesi #{sesi.id} {l.nama}: hitung ulang pemeriksa")
+    return p
+
+
+def akurasi(r):
+    """Pola akurasi dari baris yang sudah dihitung ulang: per penghitung dan per lokasi.
+
+    Pola, bukan vonis: selisih yang mengikuti orangnya = masalah orang; yang menetap di satu
+    lokasi = masalah akses lokasi."""
+    per_orang, per_lokasi = {}, {}
+    for b in r["diperiksa"]:
+        p = b["periksa"]
+        beda = (p.ulang or 0) - (p.awal or 0)
+        nilai = abs(beda) * b["modal"] if b["modal"] is not None else 0
+        for kunci, kumpulan in ([n for n in p.penghitung.split(", ") if n] or ["(tanpa nama)"], per_orang), \
+                ([b["lokasi"].nama], per_lokasi):
+            for k in kunci:
+                x = kumpulan.setdefault(k, {"nama": k, "diperiksa": 0, "beda": 0, "nilai": 0})
+                x["diperiksa"] += 1
+                x["beda"] += 1 if beda else 0
+                x["nilai"] += nilai
+    urut = lambda d: sorted(d.values(), key=lambda x: (-x["beda"], -x["nilai"], x["nama"]))
+    return {"orang": urut(per_orang), "lokasi": urut(per_lokasi)}
+
+
+# ---------------------------------------------------------------------------
+# Alasan selisih (D3) dan transfer selama sesi
+# ---------------------------------------------------------------------------
+
+
+def atur_alasan_wajib(pengguna, sesi, nyala, *, hak):
+    _harus_buka(sesi, hak)
+    sesi.alasan_wajib = bool(nyala)
+    sesi.save(update_fields=["alasan_wajib"])
+    layanan.catat(pengguna, objek="opname", kolom="alasan_wajib", baru="nyala" if nyala else "mati",
+                  catatan=f"Sesi #{sesi.id}")
+
+
+def isi_alasan(pengguna, sesi, varian_id, lokasi_id, alasan, *, hak, catatan=""):
+    _harus_buka(sesi, hak)
+    v = VarianInfo.objects.filter(pk=varian_id).first() if str(varian_id).isdigit() else None
+    l = Lokasi.objects.filter(pk=lokasi_id).first() if str(lokasi_id).isdigit() else None
+    if v is None or l is None:
+        raise Tolak("Baris tidak ditemukan.")
+    if not alasan:
+        AlasanSelisih.objects.filter(sesi=sesi, varian=v, lokasi=l).delete()
+        return None
+    if alasan not in dict(AlasanSelisih.PILIHAN):
+        raise Tolak("Pilih alasan dari daftar.")
+    a, _ = AlasanSelisih.objects.update_or_create(sesi=sesi, varian=v, lokasi=l, defaults={
+        "alasan": alasan, "catatan": rapikan_teks(catatan)[:200], "oleh": pengguna.first_name or pengguna.username})
+    return a
+
+
+def transfer_selama(sesi):
+    """Transfer antar toko yang bisa membuat hitungan meleset: bergerak sejak sesi dibuka, atau masih di jalan."""
+    from master.models import Transfer
+    sejak = sesi.dibuka_waktu
+    bergerak = Transfer.objects.filter(Q(dikirim_waktu__gte=sejak) | Q(diterima_waktu__gte=sejak)).exclude(status="batal")
+    return {"selama": bergerak.count(), "di_jalan": Transfer.objects.filter(status="dikirim").count()}
+
+
+# ---------------------------------------------------------------------------
+# Harga & modal baru saat ACC (D2, keputusan pemilik 11 Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+def simpan_harga(pengguna, sesi, varian_id, *, modal="", jual="", floor="", hak):
+    """Draf harga satu barang. Isian kosong = nilai sekarang tetap. Semua kosong = draf dihapus."""
+    from master.layanan import titipan
+    from master.layanan.satuan import baca_harga_qty
+    _harus_buka(sesi, hak)
+    v = VarianInfo.objects.filter(pk=varian_id).first() if str(varian_id).isdigit() else None
+    if v is None:
+        raise Tolak("Barang tidak ditemukan.")
+    nilai = {k: baca_harga_qty(x, v, boleh_kosong=True) for k, x in (("modal", modal), ("jual", jual), ("floor", floor))}
+    if any(x is not None and x < 0 for x in nilai.values()):
+        raise Tolak("Harga tidak boleh minus.")
+    if nilai["modal"] is not None and "ubah_modal" not in hak:
+        raise Tolak("Akun ini tidak boleh mengubah modal.")
+    if (nilai["jual"] is not None or nilai["floor"] is not None) and "ubah_harga" not in hak:
+        raise Tolak("Akun ini tidak boleh mengubah harga.")
+    if nilai["floor"] is not None and titipan.floor_dikunci(v):
+        raise Tolak("Floor barang titipan dihitung dari diskon maks pemilik barang, tidak diubah dari opname.")
+    if all(x is None for x in nilai.values()):
+        SesiHarga.objects.filter(sesi=sesi, varian=v).delete()
+        return None
+    h = SesiHarga(sesi=sesi, varian=v, **nilai)
+    _cek_harga([h])
+    h, _ = SesiHarga.objects.update_or_create(sesi=sesi, varian=v, defaults={
+        **nilai, "diisi_oleh": pengguna.first_name or pengguna.username})
+    return h
+
+
+def _cek_harga(daftar):
+    for h in daftar:
+        if h.jual is None and h.floor is None:
+            continue
+        sekarang = Item.objects.filter(item_name=h.varian.item_name, variant=h.varian.variant).values(
+            "max_price", "min_price").first() or {}
+        jual = h.jual if h.jual is not None else sekarang.get("max_price")
+        floor = h.floor if h.floor is not None else sekarang.get("min_price")
+        if jual is not None and floor is not None and floor > jual:
+            raise Tolak(f"{h.varian.item_name} {'' if h.varian.variant == 'N/A' else h.varian.variant}: "
+                        "floor lebih tinggi dari harga jual.".replace("  ", " "))
+
+
+def _terapkan_harga(pengguna, sesi, daftar, *, hak):
+    """Dipanggil di dalam transaksi ACC. Mengembalikan peringatan (floor titipan dilewati)."""
+    import uuid
+    from master.layanan import titipan
+    hak = hak | {"ubah_harga", "ubah_modal"}
+    batch = uuid.uuid4()
+    catatan = f"{sesi.nama} (sesi opname #{sesi.id})"
+    peringatan = []
+    for h in daftar:
+        v = h.varian
+        if h.modal is not None:
+            layanan.ubah_varian(pengguna, v, "cost_amount", h.modal, hak=hak, batch=batch, catatan=catatan)
+            v.refresh_from_db()
+            layanan.ubah_varian(pengguna, v, "modal_rata", h.modal, hak=hak, batch=batch, catatan=catatan)
+        if h.jual is not None:
+            layanan.ubah_varian(pengguna, v, "max_price", h.jual, hak=hak, batch=batch, catatan=catatan)
+        if h.floor is not None:
+            if titipan.floor_dikunci(v):
+                peringatan.append(f"{v.item_name}: floor barang titipan tidak diubah.")
+            else:
+                layanan.ubah_varian(pengguna, v, "min_price", h.floor, hak=hak, batch=batch, catatan=catatan)
+    return peringatan
+
+
+def jumlah_menunggu(sesi):
+    """Jumlah baris menunggu hitung ulang tanpa menghitung rekap penuh (untuk kartu beranda HP)."""
+    terisi = set(PeriksaUlang.objects.filter(sesi=sesi).values_list("varian_id", "lokasi_id"))
+    menunggu = set(PeriksaUlang.objects.filter(sesi=sesi, ulang__isnull=True).values_list("varian_id", "lokasi_id"))
+    rawan = set(kategori_rawan())
+    if rawan:
+        nama = set(Item.objects.filter(category__in=rawan).values_list("item_name", "variant"))
+        for vid, lid, n, v in _hitungan_sah(sesi).values_list("varian_id", "lokasi_id", "varian__item_name", "varian__variant"):
+            if (n, v) in nama and (vid, lid) not in terisi:
+                menunggu.add((vid, lid))
+    return len(menunggu)

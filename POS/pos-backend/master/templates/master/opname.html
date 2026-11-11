@@ -9,6 +9,7 @@
   {% for s in sesi %}<div style="margin:4px 0"><a href="{% url 'master:opname_sesi' s.id %}"><b>{{ s.nama }}</b></a> <span class="label {% if s.status == 'disetujui' %}baik{% elif s.status == 'batal' %}bahaya{% else %}awas{% endif %}">{{ s.get_status_display }}</span> <span class="redup kecil">{{ s.dibuka_waktu|date:"d M Y" }}</span></div>{% endfor %}
   <form method="post" action="{% url 'master:opname_sesi_buka' %}" class="baris" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">{% csrf_token %}
     <input type="text" name="nama" placeholder="Nama sesi, mis. Opname Desember 2026" style="max-width:340px" required>
+    <label class="kecil" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="alasan_wajib" value="1"> Alasan selisih wajib</label>
     <button class="tombol" type="submit">Buka sesi</button>
   </form>
 </div>

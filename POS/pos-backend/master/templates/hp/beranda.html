@@ -51,6 +51,10 @@
   <div class="sub">Catat pengeluaran, lihat bulan ini</div></div></a></div>
 {% endif %}
 
+{% if opname_ulang %}
+<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="utama"><div class="nama">Hitung ulang opname</div>
+  <div class="sub">baris menunggu dihitung ulang</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a></div>
+{% endif %}
 {% if po_belum %}
 <div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:po' %}"><div class="utama"><div class="nama">PO belum ditugaskan</div>
   <div class="sub">belum muncul di gudang siapa pun</div></div><span class="nilai"><span class="lencana merah">{{ po_belum }}</span></span></a></div>

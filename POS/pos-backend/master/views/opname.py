@@ -57,7 +57,8 @@ def sesi_buka(request):
     from master.layanan import sesi_opname as svc_sesi
     if request.method == "POST":
         try:
-            s = svc_sesi.buka(request.user, request.POST.get("nama"), hak=hak_pengguna(request.user))
+            s = svc_sesi.buka(request.user, request.POST.get("nama"), hak=hak_pengguna(request.user),
+                              alasan_wajib=request.POST.get("alasan_wajib") == "1")
             messages.success(request, f"Sesi {s.nama} dibuka. Sekarang buka tugas hitung untuk tiap orang.")
             return redirect("master:opname_sesi", sesi_id=s.id)
         except Tolak as tolak:
@@ -77,6 +78,8 @@ def sesi_detail(request, sesi_id):
     from master.models import SesiOpname, Tiket
     sesi = get_object_or_404(SesiOpname, pk=sesi_id)
     hak = hak_pengguna(request.user)
+    if request.method == "POST" and request.content_type == "application/json":
+        return _sesi_json(request, sesi, hak)
     if request.method == "POST":
         p = request.POST
         aksi = p.get("aksi")
@@ -102,9 +105,26 @@ def sesi_detail(request, sesi_id):
             elif aksi in ("nonaktif", "batal_nonaktif"):
                 n = svc_sesi.tandai_nonaktif(request.user, sesi, p.getlist("pilih"), aksi == "nonaktif", hak=hak)
                 messages.success(request, f"{n} barang " + ("akan dinonaktifkan saat ACC." if aksi == "nonaktif" else "tidak jadi dinonaktifkan."))
+            elif aksi == "pilih_ulang":
+                n = svc_sesi.pilih_ulang(request.user, sesi, p.getlist("pilih"), hak=hak)
+                messages.success(request, f"{n} baris dipilih untuk dihitung ulang.")
+            elif aksi == "batal_pilih":
+                n = svc_sesi.batal_pilih(request.user, sesi, p.getlist("pilih"), hak=hak)
+                messages.info(request, f"{n} pilihan dibuang.")
+            elif aksi == "acak":
+                n = svc_sesi.ambil_acak(request.user, sesi, p.get("n"), hak=hak)
+                messages.success(request, f"{n} baris acak dipilih untuk dihitung ulang.")
+            elif aksi == "rawan":
+                pilih = svc_sesi.atur_rawan(request.user, p.getlist("kategori"), hak=hak)
+                messages.success(request, f"Kategori rawan: {', '.join(pilih) or 'tidak ada'}.")
+            elif aksi == "alasan_wajib":
+                svc_sesi.atur_alasan_wajib(request.user, sesi, p.get("nyala") == "1", hak=hak)
+                messages.success(request, "Alasan selisih " + ("wajib." if p.get("nyala") == "1" else "tidak wajib."))
             elif aksi == "acc":
-                svc_sesi.acc(request.user, sesi, hak=hak)
+                r = svc_sesi.acc(request.user, sesi, hak=hak)
                 messages.success(request, f"{sesi.nama} di-ACC. Stok semua lokasi sudah disesuaikan.")
+                for x in r.get("peringatan_harga") or []:
+                    messages.warning(request, x)
             elif aksi == "batal":
                 svc_sesi.batal(request.user, sesi, hak=hak)
                 messages.info(request, "Sesi dibatalkan. Stok tidak berubah.")
@@ -120,6 +140,31 @@ def sesi_detail(request, sesi_id):
     konteks = {"menu": "opname", "sesi": sesi, "tugas": tugas, "tab": request.GET.get("tab", "")}
     if sesi.status == "buka":
         r = svc_sesi.rekap(sesi)
+        tab = konteks["tab"]
+        from master.models import SesiHarga
+        konteks["jumlah_draf"] = SesiHarga.objects.filter(sesi=sesi).count()
+        if tab == "ulang":
+            urut = sorted(r["baris"], key=lambda b: (-(b["nilai_awal"] or 0), b["v"].item_name))
+            konteks.update(urut=urut if request.GET.get("semua") else urut[:300], urut_total=len(urut),
+                           akurasi=svc_sesi.akurasi(r), kategori=svc_sesi.semua_kategori())
+        elif tab == "harga":
+            draf = {h.varian_id: h for h in SesiHarga.objects.filter(sesi=sesi)}
+            per_v = {}
+            for b in r["baris"]:
+                x = per_v.setdefault(b["v"].id, {"v": b["v"], "nilai": 0, "hitung": 0})
+                x["nilai"] += b["nilai"] or 0
+                x["hitung"] += b["hitung"]
+            from pos.models import Item
+            harga = {(n, v): (j, f, m) for n, v, j, f, m in Item.objects.values_list(
+                "item_name", "variant", "max_price", "min_price", "cost_amount")}
+            daftar = sorted(per_v.values(), key=lambda x: (-x["nilai"], x["v"].item_name))
+            for x in daftar:
+                x["jual"], x["floor"], x["modal"] = harga.get((x["v"].item_name, x["v"].variant), (None, None, None))
+                x["draf"] = draf.get(x["v"].id)
+            konteks.update(harga=daftar if request.GET.get("semua") else daftar[:300], harga_total=len(daftar))
+        elif tab == "selisih" and sesi.alasan_wajib:
+            from master.models import AlasanSelisih
+            konteks["pilihan_alasan"] = AlasanSelisih.PILIHAN
         admin = []
         for u in get_user_model().objects.filter(is_active=True).order_by("first_name", "username"):
             h = hak_pengguna(u)
@@ -129,3 +174,37 @@ def sesi_detail(request, sesi_id):
     else:
         konteks.update(h=svc_sesi.hasil_ringkas(sesi))
     return render(request, "master/opname_sesi.html", konteks)
+
+
+def _sesi_json(request, sesi, hak):
+    """Simpan per baris dari halaman sesi (hitung ulang, draf harga, alasan) tanpa memuat ulang halaman."""
+    import json
+
+    from django.http import JsonResponse
+
+    from master.layanan import sesi_opname as svc_sesi
+    from master.templatetags.master_tags import qty
+    try:
+        d = json.loads(request.body.decode("utf-8"))
+        assert isinstance(d, dict)
+    except (ValueError, UnicodeDecodeError, AssertionError):
+        return JsonResponse({"ok": False, "pesan": "Isi kiriman tidak terbaca."}, status=400)
+    try:
+        aksi = d.get("aksi")
+        if aksi == "isi_ulang":
+            p = svc_sesi.isi_ulang(request.user, sesi, d.get("varian"), d.get("lokasi"), d.get("jumlah"),
+                                   hak=hak, catatan=d.get("catatan") or "")
+            return JsonResponse({"ok": True, "pesan": "Tersimpan.", "awal": qty(p.awal, p.varian),
+                                 "ulang": qty(p.ulang, p.varian), "beda": p.ulang - (p.awal or 0),
+                                 "beda_teks": qty(abs(p.ulang - (p.awal or 0)), p.varian)})
+        if aksi == "harga":
+            svc_sesi.simpan_harga(request.user, sesi, d.get("varian"), modal=d.get("modal") or "",
+                                  jual=d.get("jual") or "", floor=d.get("floor") or "", hak=hak)
+            return JsonResponse({"ok": True, "pesan": "Draf tersimpan."})
+        if aksi == "alasan":
+            svc_sesi.isi_alasan(request.user, sesi, d.get("varian"), d.get("lokasi"), d.get("alasan") or "",
+                                hak=hak, catatan=d.get("catatan") or "")
+            return JsonResponse({"ok": True, "pesan": "Tersimpan."})
+    except Tolak as e:
+        return JsonResponse({"ok": False, "pesan": str(e)}, status=400)
+    return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)

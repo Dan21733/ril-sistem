@@ -1,0 +1,58 @@
+{% extends "hp/base.html" %}{% load master_tags %}
+{% block judul %}Hitung ulang opname · DB Toko{% endblock %}
+{% block judul_kecil %}Hitung ulang{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block gaya %}<style>
+.baris-ulang{display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:60px;position:relative}
+.baris-ulang+.baris-ulang::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--garis)}
+.baris-ulang .utama{flex:1;min-width:0}
+.baris-ulang .nama{font-size:17px;line-height:1.25}
+.baris-ulang .sub{font-size:13px;color:var(--teks2);margin-top:2px}
+.baris-ulang input{width:96px;font-size:22px;text-align:right;padding:8px 10px;border:1px solid var(--garis);border-radius:10px;background:var(--latar2,transparent);color:var(--teks)}
+.baris-ulang .hasil{font-size:13px;margin-top:3px}
+.baris-ulang.tersimpan .nama{color:var(--teks2)}
+</style>{% endblock %}
+{% block isi %}
+<h1 class="judul-besar">Hitung ulang</h1>
+{% if not sesi %}
+<div class="grup"><div class="kosong">Tidak ada sesi opname yang berjalan.</div></div>
+{% else %}
+<p class="anak-judul">{{ sesi.nama }}{% if selesai %} · {{ selesai }} sudah dihitung ulang{% endif %}<br>Hitung barangnya lalu ketik jumlahnya. Hitungan karyawan baru terlihat setelah kamu isi.</p>
+{% for g in grup %}
+<div class="kepala-grup"><h2>{{ g.lokasi }} · {{ g.rak }}</h2></div>
+<div class="grup">
+  {% for b in g.baris %}<div class="baris-ulang" data-v="{{ b.v.id }}" data-l="{{ b.lokasi.id }}">
+    <div class="utama"><div class="nama">{{ b.v.item_name }}{% if b.v.variant != "N/A" %} <span class="redup">/ {{ b.v.variant }}</span>{% endif %}</div>
+      <div class="sub">{{ b.raks|join:", " }}{% if b.v.satuan %} · dalam {{ b.v|akhiran }}{% endif %}</div>
+      <div class="hasil"></div></div>
+    <input inputmode="decimal" enterkeyhint="next" aria-label="Jumlah {{ b.v.item_name }}"></div>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="grup"><div class="kosong">Tidak ada baris yang menunggu hitung ulang.</div></div>
+{% endfor %}
+{% endif %}
+<div style="height:24px"></div>
+{% endblock %}
+{% block skrip %}
+<script>
+(() => {
+  const URL_INI = "{% url 'hp:opname_ulang' %}";
+  const isian = [...document.querySelectorAll('.baris-ulang input')];
+  isian.forEach((i, n) => {
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (isian[n + 1] || i).focus(); i.blur(); } });
+    i.addEventListener('change', async () => {
+      if (!i.value.trim()) return;
+      const baris = i.closest('.baris-ulang'), hasil = baris.querySelector('.hasil');
+      hasil.textContent = 'Menyimpan…'; hasil.className = 'hasil redup';
+      try {
+        const d = await kirim(URL_INI, {varian: baris.dataset.v, lokasi: baris.dataset.l, jumlah: i.value});
+        baris.classList.add('tersimpan');
+        hasil.textContent = d.beda ? `Hitungan karyawan ${d.awal} · beda ${d.beda > 0 ? '+' : '-'}${d.beda_teks}` : `Cocok dengan hitungan karyawan (${d.awal})`;
+        hasil.className = 'hasil ' + (d.beda ? 'turun' : 'naik');
+      } catch (e) { hasil.textContent = e.message; hasil.className = 'hasil turun'; }
+    });
+  });
+})();
+</script>
+{% endblock %}

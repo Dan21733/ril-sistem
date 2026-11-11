@@ -33,6 +33,7 @@ urlpatterns = [
     path("input/beli/", v.input_beli, name="input_beli"),
     path("toko/", v.pilih_toko, name="pilih_toko"),
     path("opname/<int:opname_id>/", v.opname, name="opname"),
+    path("opname/ulang/", v.opname_ulang, name="opname_ulang"),
     path("kas/", v.kas, name="kas"),
     path("biaya/", v.biaya, name="biaya"),
     path("kas/<uuid:sesi_id>/", v.kas_detail, name="kas_detail"),
