@@ -228,11 +228,16 @@ def periode(toko, hak, awal, akhir):
     # Uang per cara bayar (yang dibayar di nota; nota DP dihitung sebesar DP-nya).
     metode = {"cash": 0, "edc": 0, "bank_transfer": 0, "jumlah_transfer": 0}
     for x in nota_ini:
-        bayar = (x.get("payment_amount") or 0) - (x.get("change_amount") or 0) if "change_amount" in x else x["total_amount"]
-        if x.get("payment_method") in ("cash", "edc", "bank_transfer"):
-            metode[x["payment_method"]] += bayar
-            if x["payment_method"] == "bank_transfer":
-                metode["jumlah_transfer"] += 1
+        if "bayar" in x:
+            uang = x["bayar"]
+        else:
+            bayar = (x.get("payment_amount") or 0) - (x.get("change_amount") or 0) if "change_amount" in x else x["total_amount"]
+            uang = {x.get("payment_method"): bayar}
+        for k, v in uang.items():
+            if k in ("cash", "edc", "bank_transfer"):
+                metode[k] += v
+        if "bank_transfer" in uang:
+            metode["jumlah_transfer"] += 1
     hasil["per_metode"] = metode
     if panjang == 1:
         per_jam = defaultdict(int)

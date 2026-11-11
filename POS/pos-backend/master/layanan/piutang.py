@@ -219,7 +219,7 @@ def bayar(pengguna, p, *, jumlah, cara="cash", catatan="", sumber="master"):
             raise Tolak("Isi jumlah yang dibayar.")
         if jumlah > p.sisa:
             raise Tolak(f"Lebih dari sisa tagihan ({rp(p.sisa)}).")
-        if cara not in CARA_BAYAR:
+        if cara not in CARA_BAYAR or cara == "campur":
             raise Tolak("Pilih cara bayar.")
         _catat_bayar(pengguna, p, jumlah, cara, rapikan_teks(catatan) or ("Pelunasan" if jumlah == p.sisa else "Cicilan"),
                      sumber)

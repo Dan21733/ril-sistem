@@ -37,7 +37,17 @@ BAWAAN = {
     # Siapkan barang: barang di rak "langsung" (display) tidak disiapkan, KECUALI nota sebanyak ini
     # baris atau lebih (pembeli borongan tetap dibantu).
     "siapkan_min_baris": "5",
+    # Cara bayar yang tampil di kasir (dipisah koma; diatur di Aturan kasir). "campur" = bayar campur.
+    "metode_bayar": "cash,bank_transfer,edc,campur",
 }
+
+METODE_BAYAR = [("cash", "Tunai"), ("bank_transfer", "Transfer"), ("edc", "EDC"), ("campur", "Bayar campur")]
+
+
+def metode_bayar():
+    pilih = [x.strip() for x in str(baca("metode_bayar")).split(",") if x.strip()]
+    hasil = [k for k, _ in METODE_BAYAR if k in pilih]
+    return hasil or ["cash"]
 
 
 def penyetuju_floor():

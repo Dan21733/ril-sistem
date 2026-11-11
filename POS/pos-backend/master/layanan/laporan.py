@@ -18,7 +18,8 @@ from pos.models import Item, TransactionDetail, Transactions, Worker
 
 from master.models import Log, VarianInfo
 
-METODE = {"cash": "Tunai", "bank_transfer": "Transfer", "edc": "EDC", "qris": "QRIS", "lainnya": "Lainnya"}
+METODE = {"cash": "Tunai", "bank_transfer": "Transfer", "edc": "EDC", "qris": "QRIS", "lainnya": "Lainnya",
+          "campur": "Campur"}
 
 
 def label_metode(kode):
@@ -190,7 +191,8 @@ def _ambil_manual(mulai, selesai, *, metode=None, toko=None):
              "nomor": m.nomor, "toko": m.toko, "transaction_time": waktu_nota(m), "item_amount": m.total_barang,
              "shipping_amount": m.ongkir, "total_amount": m.total, "payment_method": m.cara_bayar,
              "payment_amount": m.total, "change_amount": 0, "kasir": "Nota tulis tangan",
-             "metode": label_metode(m.cara_bayar), "pembeli": m.pembeli, "baris": [], "modal": 0, "modal_lengkap": True}
+             "metode": label_metode(m.cara_bayar), "pembeli": m.pembeli, "baris": [], "modal": 0, "modal_lengkap": True,
+             "bayar": {m.cara_bayar: m.total}}
         for x in m.baris.all():
             kunci = (x.item_name, x.variant)
             b = {"sync_id": n["sync_id"], "item_name": x.item_name, "variant": x.variant, "quantity": x.jumlah,
@@ -245,7 +247,11 @@ def _ambil_kasir(mulai, selesai, *, kasir=None, metode=None, perangkat=None, tok
     if kasir:
         qs = qs.filter(worker_id=kasir)
     if metode:
-        qs = qs.filter(payment_method=metode)
+        # Nota bayar campur ikut kalau salah satu bagiannya memakai metode itu.
+        from django.db.models import Q
+        from pos.models import NotaBayar
+        qs = qs.filter(Q(payment_method=metode) | Q(
+            payment_method="campur", sync_id__in=NotaBayar.objects.filter(metode=metode).values("sync_id")))
     if perangkat:
         qs = qs.filter(transaction_id__startswith=perangkat + "-")
     nota = list(qs.order_by("-transaction_time").values(
@@ -253,9 +259,15 @@ def _ambil_kasir(mulai, selesai, *, kasir=None, metode=None, perangkat=None, tok
         "total_amount", "payment_method", "payment_amount", "change_amount"))
     per_id = {n["sync_id"]: n for n in nota}
     pekerja = dict(Worker.objects.values_list("id", "name"))
+    from pos import bayar as svc_bayar
+    rincian = svc_bayar.rincian_nota([n["sync_id"] for n in nota if n["payment_method"] == "campur"])
     for n in nota:
         n["kasir"] = pekerja.get(n["worker_id"], n["worker_id"])
         n["metode"] = label_metode(n["payment_method"])
+        n["rincian_bayar"] = rincian.get(n["sync_id"], [])
+        n["bayar"] = svc_bayar.bersih(n["payment_method"], n["payment_amount"], n["change_amount"], n["rincian_bayar"])
+        if n["rincian_bayar"]:
+            n["metode"] = "Campur (" + " + ".join(label_metode(m) for m, _ in n["rincian_bayar"]) + ")"
         n["shipping_amount"] = n["shipping_amount"] or 0
         n["baris"] = []
         n["modal"] = 0

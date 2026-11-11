@@ -87,6 +87,8 @@ def aturan():
             hasil.update(atur[0])
         hasil["tersedia"] = True
     hasil["toko_titipan"] = toko_titipan()
+    from . import pengaturan
+    hasil["metode_bayar"] = pengaturan.metode_bayar()
     if _ada("master_pelanggan"):
         hasil["pelanggan"] = _baris(
             "SELECT id, nama, telepon FROM master_pelanggan WHERE aktif AND boleh_tempo ORDER BY nama, id")

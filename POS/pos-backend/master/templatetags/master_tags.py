@@ -116,3 +116,9 @@ def nama_satuan(x):
     from master.layanan.satuan import satuan_dari
     s, k = satuan_dari(x)
     return s if k > 1 else ""
+
+
+@register.filter
+def metode_bayar(kode):
+    from master.layanan.laporan import label_metode
+    return label_metode(kode)

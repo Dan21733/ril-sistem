@@ -13,7 +13,7 @@ import { DEFAULT_SUGGESTION_COUNT, suggestCashAmounts } from '../utils/cashSugge
 import { shouldCloseCheckoutModal } from '../utils/checkoutModal'
 import { PRICE_RANGE_PROBLEM, priceRangeProblem, resolveItemPrices } from '../utils/priceRange'
 import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../utils/discount'
-import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, minimalDp } from '../utils/piutang'
+import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, metodeBayarRapi, minimalDp } from '../utils/piutang'
 import { groupByOwner } from '../utils/pecahNota'
 import vModalFocus from '../directives/modalFocus'
 import { akhiranSatuan, angkaJumlah, bacaJumlah, hargaPerSatuan, hargaTersimpan, jualPerRupiah, langkahJumlah, pakaiSatuan, teksJumlah, totalPas } from '../utils/satuan'
@@ -171,6 +171,16 @@ const isCustomerPhoneValid = computed(() => {
 const paymentMethod = ref('')
 
 const cashReceived = ref('')
+
+/*
+ * Bayar campur (keputusan pemilik 2026-11-12): uang diterima per metode, urutan
+ * isi bebas. Kembalian selalu tunai dari laci, boleh juga kalau pembeli transfer
+ * lebih. Metode yang tampil diatur pemilik (Aturan kasir), salinannya ikut aturan DP.
+ */
+const campurTunai = ref('')
+const campurTransfer = ref('')
+const campurEdc = ref('')
+const LABEL_METODE = { cash: 'Cash', edc: 'EDC', bank_transfer: 'Bank Transfer', campur: 'Campur' }
 
 /*
  * DP & barang belum dibawa (rancangan DP 2026-10-31, fase 2). `dpMode` = bayar
@@ -411,6 +421,31 @@ const finalTotal = computed(() => {
 ======================================== */
 
 /* Yang harus diterima kasir hari ini: total, atau DP kalau bayar sebagian. */
+const metodeAktif = computed(() => metodeBayarRapi(aturanDp.value.metode_bayar))
+
+const campurBayar = computed(() => [
+  { method: 'bank_transfer', amount: Number(campurTransfer.value || 0) },
+  { method: 'edc', amount: Number(campurEdc.value || 0) },
+  { method: 'cash', amount: Number(campurTunai.value || 0) },
+].filter((p) => p.amount > 0))
+
+const campurDiterima = computed(() => campurBayar.value.reduce((sum, p) => sum + p.amount, 0))
+
+const perluBuktiTransfer = computed(() => paymentMethod.value === 'bank_transfer'
+  || (paymentMethod.value === 'campur' && Number(campurTransfer.value || 0) > 0))
+
+watch(metodeAktif, (aktif) => {
+  if (paymentMethod.value && !aktif.includes(paymentMethod.value)) {
+    paymentMethod.value = ''
+  }
+})
+
+const CAMPUR_ISIAN = { tunai: campurTunai, transfer: campurTransfer, edc: campurEdc }
+
+function updateCampur(nama, event) {
+  CAMPUR_ISIAN[nama].value = digitsOnly(event.target.value)
+}
+
 const amountDue = computed(() => (
   dpMode.value ? Math.min(Number(dpAmount.value || 0), finalTotal.value) : finalTotal.value
 ))
@@ -482,7 +517,7 @@ function pickPelangganTempo(event) {
 }
 
 const changeAmount = computed(() => {
-  const received = Number(cashReceived.value || 0)
+  const received = paymentMethod.value === 'campur' ? campurDiterima.value : Number(cashReceived.value || 0)
 
   if (received < amountDue.value) {
     return 0
@@ -699,6 +734,11 @@ watch(() => props.pendingReceipt, (sale) => {
   customerPhone.value = sale.phone_no || ''
   paymentMethod.value = sale.payment_method
   cashReceived.value = String(sale.payment_amount)
+  const bagian = Object.fromEntries((sale.payments || []).map((p) => [p.method, String(p.amount)]))
+  campurTunai.value = bagian.cash || ''
+  campurTransfer.value = bagian.bank_transfer || ''
+  campurEdc.value = bagian.edc || ''
+
   resolvedCashierName.value = sale.cashier_name || ''
   const piutang = sale.piutang || null
   dpMode.value = Boolean(piutang && Number(piutang.dibayar) < Number(sale.total_amount))
@@ -852,7 +892,11 @@ const isPaymentStepComplete = computed(() => {
     return false
   }
 
-  if (paymentMethod.value === 'bank_transfer' && !transferProofId.value) {
+  if (paymentMethod.value === 'campur' && (!campurBayar.value.length || campurDiterima.value < amountDue.value)) {
+    return false
+  }
+
+  if (perluBuktiTransfer.value && !transferProofId.value) {
     return false
   }
 
@@ -1082,8 +1126,10 @@ async function completeTransaction() {
     shippingCost: deliveryMethod.value === 'delivery' ? Number(shippingCost.value) : 0,
     customerName: customerName.value.trim(),
     customerPhone: customerPhone.value.trim(),
-    cashReceived: paymentMethod.value === 'cash' ? Number(cashReceived.value) : 0,
-    change: paymentMethod.value === 'cash' ? changeAmount.value : 0,
+    cashReceived: paymentMethod.value === 'cash' ? Number(cashReceived.value)
+      : paymentMethod.value === 'campur' ? campurDiterima.value : 0,
+    change: ['cash', 'campur'].includes(paymentMethod.value) ? changeAmount.value : 0,
+    payments: paymentMethod.value === 'campur' ? campurBayar.value.map((p) => ({ ...p })) : null,
     total: finalTotal.value,
     piutang: piutangPayload.value,
     proofId: transferProofId.value,
@@ -1728,30 +1774,14 @@ async function completeTransaction() {
 
                   <div class="payment-options">
                     <label
+                      v-for="m in metodeAktif"
+                      :key="m"
                       class="option-card"
-                      :class="{ selected: paymentMethod === 'cash' }"
+                      :class="{ selected: paymentMethod === m }"
                     >
-                      <input v-model="paymentMethod" type="radio" value="cash" />
+                      <input v-model="paymentMethod" type="radio" :value="m" />
 
-                      <span> Cash </span>
-                    </label>
-
-                    <label
-                      class="option-card"
-                      :class="{ selected: paymentMethod === 'edc' }"
-                    >
-                      <input v-model="paymentMethod" type="radio" value="edc" />
-
-                      <span> EDC </span>
-                    </label>
-
-                    <label
-                      class="option-card"
-                      :class="{ selected: paymentMethod === 'bank_transfer' }"
-                    >
-                      <input v-model="paymentMethod" type="radio" value="bank_transfer" />
-
-                      <span> Bank Transfer </span>
+                      <span> {{ LABEL_METODE[m] }} </span>
                     </label>
                   </div>
 
@@ -1812,9 +1842,59 @@ async function completeTransaction() {
                     mengonfirmasi transaksi.
                   </p>
 
-                  <!-- Bukti transfer -->
+                  <!-- Bayar campur -->
 
-                  <div v-else-if="paymentMethod === 'bank_transfer'" class="transfer-proof">
+                  <div v-else-if="paymentMethod === 'campur'" class="field-block campur-bayar">
+                    <div class="campur-baris">
+                      <label for="campur-transfer"> Transfer </label>
+                      <input
+                        id="campur-transfer"
+                        :value="campurTransfer ? `Rp ${formatRupiahInput(campurTransfer)}` : ''"
+                        type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Rp 0"
+                        :disabled="isEditingLocked"
+                        @keydown="preventNonNumericInput"
+                        @input="updateCampur('transfer', $event)"
+                      />
+                    </div>
+                    <div v-if="metodeAktif.includes('edc')" class="campur-baris">
+                      <label for="campur-edc"> EDC </label>
+                      <input
+                        id="campur-edc"
+                        :value="campurEdc ? `Rp ${formatRupiahInput(campurEdc)}` : ''"
+                        type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Rp 0"
+                        :disabled="isEditingLocked"
+                        @keydown="preventNonNumericInput"
+                        @input="updateCampur('edc', $event)"
+                      />
+                    </div>
+                    <div class="campur-baris">
+                      <label for="campur-tunai"> Tunai diterima </label>
+                      <input
+                        id="campur-tunai"
+                        :value="campurTunai ? `Rp ${formatRupiahInput(campurTunai)}` : ''"
+                        type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Rp 0"
+                        :disabled="isEditingLocked"
+                        @keydown="preventNonNumericInput"
+                        @input="updateCampur('tunai', $event)"
+                      />
+                    </div>
+                    <div class="change-row">
+                      <span> Total diterima </span>
+                      <strong>{{ formatPrice(campurDiterima) }}</strong>
+                    </div>
+                    <div v-if="campurDiterima < amountDue" class="change-row campur-kurang">
+                      <span> Kurang </span>
+                      <strong>{{ formatPrice(amountDue - campurDiterima) }}</strong>
+                    </div>
+                    <div v-else-if="changeAmount > 0" class="change-row">
+                      <span> Kembalian (tunai) </span>
+                      <strong>{{ formatPrice(changeAmount) }}</strong>
+                    </div>
+                  </div>
+
+                  <!-- Bukti transfer (transfer penuh, atau bagian transfer bayar campur) -->
+
+                  <div v-if="perluBuktiTransfer" class="transfer-proof">
                     <p class="step-description">
                       Ambil foto bukti transfer dengan kamera atau pilih foto yang sudah tersimpan.
                     </p>
@@ -1925,9 +2005,7 @@ async function completeTransaction() {
                     <span>Metode bayar</span>
                     <strong>
                       {{
-                        { cash: 'Cash', edc: 'EDC', bank_transfer: 'Bank Transfer' }[
-                          paymentMethod
-                        ] || '-'
+                        LABEL_METODE[paymentMethod] || '-'
                       }}
                     </strong>
                   </div>
@@ -3478,6 +3556,26 @@ async function completeTransaction() {
 /* ========================================
    CHANGE
 ======================================== */
+
+.campur-bayar {
+  display: grid;
+  gap: 10px;
+}
+
+.campur-baris {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) 1.2fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.campur-baris input {
+  min-width: 0;
+}
+
+.campur-kurang strong {
+  color: var(--danger, #b42318);
+}
 
 .change-row {
   display: flex;

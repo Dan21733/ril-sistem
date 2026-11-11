@@ -197,29 +197,35 @@ def hitung(sesi, akhir=None):
          "pelunasan_tunai": 0, "refund_tunai": 0, "edc": 0, "transfer": 0, "jumlah_transfer": 0,
          "keluar": 0, "tambah_modal": 0, "pakai_cadangan": 0, "isi_cadangan": 0, "per_kategori": {}}
     if kasir:
-        nota = Transactions.objects.filter(transaction_time__gt=awal, transaction_time__lte=akhir)
-        for n in nota.values("payment_method", "payment_amount", "change_amount"):
-            bersih = int(n["payment_amount"] or 0) - int(n["change_amount"] or 0)
-            if n["payment_method"] == "cash":
-                r["tunai_nota"] += bersih
+        from . import bayar as svc_bayar
+        nota = list(Transactions.objects.filter(transaction_time__gt=awal, transaction_time__lte=akhir).values(
+            "sync_id", "payment_method", "payment_amount", "change_amount"))
+        rincian = svc_bayar.rincian_nota([n["sync_id"] for n in nota if n["payment_method"] == "campur"])
+        for n in nota:
+            uang = svc_bayar.bersih(n["payment_method"], n["payment_amount"], n["change_amount"],
+                                    rincian.get(n["sync_id"]))
+            if "cash" in uang:
+                r["tunai_nota"] += uang["cash"]
                 r["jumlah_nota_tunai"] += 1
-            elif n["payment_method"] == "edc":
-                r["edc"] += bersih
-            elif n["payment_method"] == "bank_transfer":
-                r["transfer"] += bersih
+            r["edc"] += uang.get("edc", 0)
+            if "bank_transfer" in uang:
+                r["transfer"] += uang["bank_transfer"]
                 r["jumlah_transfer"] += 1
         # Nota final di tablet yang ditahan server: uangnya sudah diterima kasir.
         for t in NotaTinjau.objects.filter(status__in=("menunggu", "ditolak"),
                                            masuk__gt=awal - datetime.timedelta(days=3)).only("payload", "masuk"):
             p = t.payload or {}
             w = _waktu_payload(p) or t.masuk
-            if not (awal < w <= akhir) or p.get("payment_method") != "cash":
+            if not (awal < w <= akhir) or p.get("payment_method") not in ("cash", "campur"):
                 continue
             try:
-                r["tunai_ditahan"] += int(p.get("payment_amount") or 0) - int(p.get("change_amount") or 0)
-                r["jumlah_ditahan"] += 1
+                tunai = svc_bayar.bersih(p.get("payment_method"), p.get("payment_amount"), p.get("change_amount"),
+                                         svc_bayar.rincian_payload(p)).get("cash")
             except (TypeError, ValueError):
                 continue
+            if tunai is not None:
+                r["tunai_ditahan"] += tunai
+                r["jumlah_ditahan"] += 1
         for a in AksiPiutang.objects.filter(jenis="bayar", waktu__gt=awal, waktu__lte=akhir).exclude(
                 status="ditolak").values("cara", "jumlah"):
             if a["cara"] == "cash":

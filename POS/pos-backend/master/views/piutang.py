@@ -56,7 +56,7 @@ def detail(request, piutang_id):
             messages.error(request, str(tolak))
         return redirect("master:piutang_detail", piutang_id=p.pk)
     return render(request, "master/piutang_detail.html", {
-        "menu": "piutang", "p": p, "pembayaran": p.pembayaran.all(), "cara": svc.CARA_BAYAR.items(),
+        "menu": "piutang", "p": p, "pembayaran": p.pembayaran.all(), "cara": [(k, v) for k, v in svc.CARA_BAYAR.items() if k != "campur"],
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
         "barang": svc.barang(p),
         "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas),

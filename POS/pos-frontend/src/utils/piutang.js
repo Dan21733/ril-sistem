@@ -45,13 +45,25 @@ export function dpRules() {
         jatuh_tempo_hari: Number(data.jatuh_tempo_hari) || BAWAAN.jatuh_tempo_hari,
         pelanggan: Array.isArray(data.pelanggan) ? data.pelanggan : [],
         toko_titipan: Array.isArray(data.toko_titipan) ? data.toko_titipan : [],
+        metode_bayar: metodeBayarRapi(data.metode_bayar),
       }
     }
   } catch {
     /* Salinan rusak: pakai bawaan. */
   }
 
-  return { ...BAWAAN, pelanggan: [], toko_titipan: [] }
+  return { ...BAWAAN, pelanggan: [], toko_titipan: [], metode_bayar: [...METODE_BAYAR] }
+}
+
+/* Cara bayar yang ditampilkan kasir (Aturan kasir di master, 2026-11-12). Salinan lama tanpa daftar = semua. */
+export const METODE_BAYAR = ['cash', 'bank_transfer', 'edc', 'campur']
+
+export function metodeBayarRapi(daftar) {
+  if (!Array.isArray(daftar)) {
+    return [...METODE_BAYAR]
+  }
+  const pilih = METODE_BAYAR.filter((m) => daftar.includes(m))
+  return pilih.length ? pilih : ['cash']
 }
 
 export function noteDpRules(data) {
@@ -75,6 +87,7 @@ export function noteDpRules(data) {
         alamat: String(t.alamat || ''),
         telepon: String(t.telepon || ''),
       })),
+      metode_bayar: metodeBayarRapi(data.metode_bayar),
     }))
   } catch {
     /* Penyimpanan penuh: aturan lama tetap dipakai. */

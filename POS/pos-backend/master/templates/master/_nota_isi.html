@@ -18,7 +18,8 @@
   <tr><td colspan="3"><b>Barang</b></td><td class="angka"><b>{{ n.item_amount|ribuan }}</b></td><td class="angka redup">{{ n.modal|ribuan }}</td><td class="angka"><b>{{ n.laba|ribuan }}</b></td></tr>
   {% if n.shipping_amount %}<tr><td colspan="3">Ongkir</td><td class="angka">{{ n.shipping_amount|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
   <tr><td colspan="3"><b>Total</b></td><td class="angka"><b>{{ n.total_amount|ribuan }}</b></td><td colspan="2"></td></tr>
-  <tr><td colspan="3">Dibayar ({{ n.metode }})</td><td class="angka">{{ n.payment_amount|ribuan }}</td><td colspan="2"></td></tr>
+  {% if n.rincian_bayar %}{% for m, j in n.rincian_bayar %}<tr><td colspan="3">Dibayar {{ m|metode_bayar }}</td><td class="angka">{{ j|ribuan }}</td><td colspan="2"></td></tr>{% endfor %}
+  {% else %}<tr><td colspan="3">Dibayar ({{ n.metode }})</td><td class="angka">{{ n.payment_amount|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
   {% if n.change_amount %}<tr><td colspan="3">Kembalian</td><td class="angka">{{ n.change_amount|ribuan }}</td><td colspan="2"></td></tr>{% endif %}
 </table></div>
 {% if foto_nota %}<h3>Foto nota</h3><div class="baris">{% for x in foto_nota %}<a href="{% url 'master:nota_manual_foto' x.id %}" target="_blank">{% if x.content_type == "application/pdf" %}PDF{% else %}<img src="{% url 'master:nota_manual_foto' x.id %}" alt="Foto nota" style="max-width:220px;max-height:220px;border:1px solid var(--garis);border-radius:8px">{% endif %}</a>{% endfor %}</div>{% endif %}

@@ -24,7 +24,7 @@
   <div class="sel"><div class="utama">
     <div class="nama">{{ n.transaction_id|default:"(nomor belum ada)" }} <span class="redup">· {{ n.transaction_time|date:"d M H.i" }}</span></div>
     <div class="sub">{{ n.kasir }}</div></div>
-    <span class="nilai" style="color:var(--teks)"><b>{{ n.total_amount|rupiah }}</b></span></div>
+    <span class="nilai" style="color:var(--teks)"><b>{% if n.rincian_bayar %}{{ n.bayar.bank_transfer|rupiah }}{% else %}{{ n.total_amount|rupiah }}{% endif %}</b></span></div>
   {% if n.bukti %}
   <div class="bt-foto">
     {% for x in n.bukti %}

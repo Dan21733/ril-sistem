@@ -703,7 +703,7 @@ function formatTime(value) {
 }
 
 function paymentLabel(method) {
-  return { cash: 'Cash', edc: 'EDC', bank_transfer: 'Bank Transfer' }[method] || method
+  return { cash: 'Cash', edc: 'EDC', bank_transfer: 'Bank Transfer', campur: 'Campur' }[method] || method
 }
 
 /*

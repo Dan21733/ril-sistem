@@ -166,6 +166,7 @@ def aturan_kasir(request):
     return render(request, "master/kasir_aturan.html", {
         "menu": "aturan_kasir", "a": aturan.semua(), "now_waktu": timezone.now(), "hari": list(enumerate(svc.NAMA_HARI)),
         "berikut": berikut, "penjadwal_hidup": svc.penjadwal_hidup(),
+        "metode_bayar_pilihan": aturan.METODE_BAYAR, "metode_bayar_aktif": aturan.metode_bayar(),
         "siapkan_mulai": (berikut - datetime.timedelta(days=aturan.angka("rotasi_siapkan_hari", 2))) if berikut else None,
     })
 

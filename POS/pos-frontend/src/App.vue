@@ -1493,7 +1493,9 @@ function buildTransaction(data, { cartItems = cart.value, withShipping = true } 
    */
   const piutang = data.piutang && typeof data.piutang === 'object' ? { ...data.piutang } : null
   const amountDue = piutang ? Math.min(Number(piutang.dibayar), totalAmount) : totalAmount
-  const paymentAmount = data.paymentMethod === 'cash' ? Number(data.cashReceived) : amountDue
+  /* Bayar campur (2026-11-12): `cashReceived` = total diterima semua metode, rinciannya di `payments`. */
+  const campur = data.paymentMethod === 'campur'
+  const paymentAmount = data.paymentMethod === 'cash' || campur ? Number(data.cashReceived) : amountDue
 
   return {
     sync_id: createSyncId(),
@@ -1508,6 +1510,7 @@ function buildTransaction(data, { cartItems = cart.value, withShipping = true } 
     payment_amount: paymentAmount,
     change_amount: paymentAmount - amountDue,
     items,
+    ...(campur ? { payments: (data.payments || []).map((p) => ({ method: p.method, amount: Number(p.amount) })) } : {}),
     ...(piutang ? { piutang } : {}),
   }
 }
@@ -1650,6 +1653,7 @@ function buildReceiptSale(transaction, data) {
     payment_method: transaction.payment_method,
     payment_amount: transaction.payment_amount,
     change_amount: transaction.change_amount,
+    ...(transaction.payments ? { payments: transaction.payments.map((p) => ({ ...p })) } : {}),
     ...(transaction.piutang ? { piutang: { ...transaction.piutang } } : {}),
     ...(transaction.toko ? { toko: { ...transaction.toko } } : {}),
     ...(transaction.gabungan ? { gabungan: structuredCloneSafe(transaction.gabungan) } : {}),
@@ -1695,10 +1699,14 @@ async function buildSealedParts(data) {
     const pays = splitPayment(parts.map((t) => t.total_amount), {
       method: data.paymentMethod,
       cashReceived: data.cashReceived,
+      payments: data.payments,
     })
     parts.forEach((t, index) => {
       t.payment_amount = pays[index].payment
       t.change_amount = pays[index].change
+      if (pays[index].payments) {
+        t.payments = pays[index].payments
+      }
     })
   }
 
@@ -1711,12 +1719,13 @@ async function buildSealedParts(data) {
 
   if (parts.length > 1) {
     const total = parts.reduce((sum, t) => sum + t.total_amount, 0)
-    const diterima = data.paymentMethod === 'cash' ? Number(data.cashReceived) : total
+    const diterima = data.paymentMethod === 'cash' || data.paymentMethod === 'campur' ? Number(data.cashReceived) : total
     const gabungan = {
       nota: parts.map((t) => t.transaction_id || '(belum bernomor)'),
       total,
       diterima,
       kembali: diterima - total,
+      ...(data.paymentMethod === 'campur' ? { payments: (data.payments || []).map((p) => ({ ...p })) } : {}),
     }
     parts.forEach((t) => { t.gabungan = gabungan })
   }

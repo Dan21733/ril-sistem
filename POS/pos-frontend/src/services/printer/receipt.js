@@ -58,6 +58,14 @@ const PAYMENT_LABELS = {
   cash: 'CASH',
   edc: 'EDC',
   bank_transfer: 'TRANSFER',
+  campur: 'CAMPUR',
+}
+
+/* Bayar campur (2026-11-12): satu baris per metode, kembalian selalu tunai. */
+function pushRincianBayar(lines, payments) {
+  for (const p of payments) {
+    pushMoney(lines, `Bayar ${PAYMENT_LABELS[p.method] || String(p.method || '').toUpperCase()}`, Number(p.amount || 0))
+  }
 }
 
 const STATUS_BARANG_LABELS = {
@@ -594,10 +602,20 @@ export function buildReceiptLines(sale, store = {}) {
 
     pushPair(lines, 'Dibayar bersama', lain.join(', '))
     pushMoney(lines, 'Total semua nota', gabungan.total)
-    pushMoney(lines, `Bayar ${paymentLabel}`.trim(), gabungan.diterima)
+    if (sale.payment_method === 'campur' && Array.isArray(gabungan.payments)) {
+      pushRincianBayar(lines, gabungan.payments)
+    } else {
+      pushMoney(lines, `Bayar ${paymentLabel}`.trim(), gabungan.diterima)
+    }
 
-    if (sale.payment_method === 'cash') {
+    if (sale.payment_method === 'cash' || (sale.payment_method === 'campur' && gabungan.kembali > 0)) {
       pushMoney(lines, 'Kembali', gabungan.kembali)
+    }
+  } else if (sale.payment_method === 'campur' && Array.isArray(sale.payments)) {
+    pushRincianBayar(lines, sale.payments)
+
+    if (paymentAmount - dibayar > 0) {
+      pushMoney(lines, 'Kembali', paymentAmount - dibayar)
     }
   } else {
     if (!piutang || dibayar >= total || sale.payment_method === 'cash') {

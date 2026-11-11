@@ -1345,7 +1345,7 @@ class Piutang(models.Model):
 
 class PembayaranPiutang(models.Model):
     """Satu kali pembayaran (DP, cicilan, pelunasan) untuk satu piutang."""
-    CARA = [("cash", "Tunai"), ("bank_transfer", "Transfer"), ("edc", "EDC"), ("lainnya", "Lainnya")]
+    CARA = [("cash", "Tunai"), ("bank_transfer", "Transfer"), ("edc", "EDC"), ("campur", "Campur"), ("lainnya", "Lainnya")]
     SUMBER = [("master", "Master"), ("hp", "HP"), ("kasir", "Kasir")]
 
     piutang = models.ForeignKey(Piutang, on_delete=models.CASCADE, related_name="pembayaran")

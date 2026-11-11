@@ -369,6 +369,9 @@ def simpan_aturan_pin(pengguna, data):
         "pin_tenggang_hari": str(angka("pin_tenggang_hari", 1, 60, 14)),
         "refund_maks_persen": str(angka("refund_maks_persen", 0, 100, 100)),
         "kasir_uang_keluar": "1" if data.get("kasir_uang_keluar") else "0",
+        "metode_bayar": ",".join(k for k, _ in aturan.METODE_BAYAR
+                                 if k in (data.getlist("metode_bayar") if hasattr(data, "getlist") else
+                                          data.get("metode_bayar") or [])) or "cash",
     }
     lama = aturan.semua()
     jadwal_berubah = any(lama.get(k) != baru[k] for k in ("rotasi_aktif", "rotasi_interval_hari", "rotasi_hari", "rotasi_jam"))

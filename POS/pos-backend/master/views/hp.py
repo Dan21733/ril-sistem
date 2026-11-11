@@ -1077,7 +1077,7 @@ def piutang_detail(request, piutang_id):
             return _jawab(False, str(e), 400)
         return _jawab(False, "Permintaan tidak dikenali.", 400)
     return _tampil(request, "hp/piutang_detail.html", {
-        "tab": "", "p": p, "pembayaran": p.pembayaran.all(), "cara": svc.CARA_BAYAR.items(),
+        "tab": "", "p": p, "pembayaran": p.pembayaran.all(), "cara": [(k, v) for k, v in svc.CARA_BAYAR.items() if k != "campur"],
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
         "barang": svc.barang(p),
         "lewat": bool(p.jatuh_tempo and p.jatuh_tempo < timezone.localdate() and not p.lunas)})

@@ -38,6 +38,11 @@
   <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="kasir_uang_keluar" value="1" {% if a.kasir_uang_keluar != "0" %}checked{% endif %} style="width:auto"> Kasir boleh mencatat uang keluar dari tablet</label>
   <p class="kecil redup">Kalau dicentang, kasir bisa mencatat uang keluar (bensin, belanja keperluan toko, dll.) dengan PIN-nya, dan catatan itu menunggu ACC di <a href="{% url 'master:biaya' %}">Biaya toko</a> / HP. Kalau ditolak, uangnya tetap sudah keluar dari laci dan menjadi tanggungan kasir yang mencatat. Kalau tidak dicentang, uang keluar hanya dicatat pemilik dari master atau HP.</p>
 
+  <h3>Cara bayar di kasir</h3>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">{% for k, n in metode_bayar_pilihan %}
+    <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="metode_bayar" value="{{ k }}" {% if k in metode_bayar_aktif %}checked{% endif %} style="width:auto"> {{ n }}</label>{% endfor %}</div>
+  <p class="kecil redup">Yang tidak dicentang tidak muncul di tablet (sampai tablet tersambung lagi). Bayar campur = tunai + transfer (+ EDC) dalam satu nota; kembalian selalu tunai dari laci. Minimal satu tetap aktif.</p>
+
   <div style="margin-top:16px"><button class="tombol utama" type="submit">Simpan</button></div>
 </form>
 {% endblock %}

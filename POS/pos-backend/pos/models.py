@@ -456,6 +456,24 @@ class AksiPiutang(models.Model):
         ordering = ["masuk"]
 
 
+class NotaBayar(models.Model):
+    """Rincian bayar campur (keputusan pemilik 12 Nov 2026): uang DITERIMA per metode.
+
+    Hanya untuk nota `payment_method = "campur"`. Jumlah per metode = yang diterima
+    (bukan bersih); kembalian nota (`change_amount`) selalu diberikan tunai dari laci,
+    jadi bersih tunai = tunai diterima - kembalian (boleh minus kalau pembeli
+    transfer lebih). Tabel nota kasir tidak diubah.
+    """
+
+    sync_id = models.UUIDField(db_index=True)
+    metode = models.CharField(max_length=20)
+    jumlah = models.BigIntegerField()
+
+    class Meta:
+        db_table = "nota_bayar"
+        constraints = [models.UniqueConstraint(fields=["sync_id", "metode"], name="nota_bayar_unik")]
+
+
 class NotaToko(models.Model):
     """Nota kasir milik toko titipan (brand), bukan toko pemegang kasir.
 

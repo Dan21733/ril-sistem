@@ -3,7 +3,7 @@ import datetime
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import Item, MutasiKasir, NotaPiutang, NotaToko, TransactionDetail, Transactions
+from .models import Item, MutasiKasir, NotaBayar, NotaPiutang, NotaToko, TransactionDetail, Transactions
 from .transaction_id import build_transaction_id
 from .transaction_sync import (
     TransactionSyncConflict,
@@ -342,6 +342,11 @@ def persist_transaction(transaction_data, worker_id, device_code=None, lewati_ha
             created_transaction.sync_id,
             transaction_data["items"],
         )
+        if transaction_data.get("payments"):
+            NotaBayar.objects.bulk_create([
+                NotaBayar(sync_id=created_transaction.sync_id, metode=r["method"], jumlah=r["amount"])
+                for r in transaction_data["payments"]
+            ])
         _catat_mutasi(perubahan, transaction_data, worker_id)
         if transaction_data.get("toko_id") or transaction_data.get("grup_id"):
             NotaToko.objects.create(

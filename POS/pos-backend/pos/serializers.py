@@ -188,6 +188,12 @@ class TransactionItemSerializer(serializers.Serializer):
 STATUS_BARANG = ("bawa", "antar", "ambil", "pesan")
 
 
+class BayarRincianSerializer(serializers.Serializer):
+    """Satu bagian bayar campur: uang yang diterima lewat satu metode."""
+    method = serializers.ChoiceField(choices=["cash", "edc", "bank_transfer"])
+    amount = serializers.IntegerField(min_value=1)
+
+
 class PiutangNotaSerializer(serializers.Serializer):
     """DP / barang belum dibawa (rancangan DP 31 Okt 2026).
 
@@ -240,12 +246,16 @@ class TransactionCreateSerializer(serializers.Serializer):
         # Keputusan bisnis (2026-09-26): hanya 3 metode pembayaran.
         # EDC mencakup QRIS dan kartu; tidak ada metode "qris" atau "debit"
         # terpisah. Jangan menambah pilihan lain tanpa keputusan baru.
+        # "campur" (keputusan 2026-11-12) = gabungan ketiganya, rinciannya di `payments`.
         choices=[
             "cash",
             "edc",
             "bank_transfer",
+            "campur",
         ]
     )
+
+    payments = BayarRincianSerializer(many=True, required=False, allow_null=True)
 
     payment_amount = serializers.IntegerField(min_value=0)
 
@@ -368,10 +378,27 @@ class TransactionCreateSerializer(serializers.Serializer):
                 )
             })
 
+        # Bayar campur: jumlah bayar = total uang diterima semua metode. Kembalian
+        # selalu tunai dari laci, dan boleh muncul walau tunai tidak ikut (pembeli
+        # transfer lebih; keputusan pemilik 2026-11-12).
+        rincian = attrs.get("payments")
+        if attrs["payment_method"] == "campur":
+            if not rincian:
+                raise serializers.ValidationError({"payments": "Rincian bayar campur wajib diisi."})
+            metode = [r["method"] for r in rincian]
+            if len(set(metode)) != len(metode):
+                raise serializers.ValidationError({"payments": "Satu metode hanya boleh sekali."})
+            if sum(r["amount"] for r in rincian) != payment_amount:
+                raise serializers.ValidationError({"payments": "Rincian bayar tidak sama dengan jumlah bayar."})
+        elif rincian:
+            raise serializers.ValidationError({"payments": "Rincian hanya untuk bayar campur."})
+        else:
+            attrs["payments"] = None
+
         # Kembalian hanya masuk akal untuk tunai: EDC/transfer dibayar persis
         # sejumlah total, jadi overpayment + kembalian pada metode itu
         # adalah tanda payload rusak, bukan penjualan sah.
-        is_cash = attrs["payment_method"] == "cash"
+        is_cash = attrs["payment_method"] in ("cash", "campur")
 
         if not is_cash and payment_amount != harus_dibayar:
             raise serializers.ValidationError({
