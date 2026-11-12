@@ -33,7 +33,7 @@
     <td class="kecil redup">{{ l.rak_pic_lain|join:", " }}</td></tr>
   {% empty %}<tr><td colspan="4" class="redup" style="padding:18px;text-align:center">Belum ada lokasi (menu Stok &amp; gudang › Lokasi).</td></tr>{% endfor %}
 </table></div>
-{% if not pics %}<p class="kecil redup">Belum ada karyawan beraplikasi gudang untuk dijadikan PIC (menu Karyawan &amp; hak akses).</p>{% endif %}
+<p class="kecil redup">Pilihan PIC = karyawan yang dicentang <b>PIC gudang</b> di <a href="{% url 'master:karyawan' %}">Karyawan &amp; hak akses</a>.{% if not pics %} Belum ada.{% endif %}</p>
 
 <h3 style="margin-top:22px">Karyawan lapangan</h3>
 <div class="gulir"><table class="tabel-tim" style="max-width:860px">

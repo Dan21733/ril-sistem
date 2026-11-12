@@ -25,7 +25,7 @@ HAK_KASIR = [("pos_jual", "Jualan di kasir"), ("penyetuju", "Setujui harga di ba
 def hak_ops_semua():
     """{worker_id: [hak operasional]} untuk karyawan yang akunnya aktif."""
     # Akun lama menyimpan hak ops satu-satu (gudang_ambil, ops_tiket_rak, ...); sejak 9 Nov cukup "gudang".
-    return {a.worker_id: ["gudang"]
+    return {a.worker_id: ["gudang"] + (["pic"] if "pic" in a.peran else [])
             for a in AkunKaryawan.objects.select_related("user") if a.user.is_active and a.peran}
 
 
@@ -35,7 +35,9 @@ def atur_hak_ops(pengguna, worker_id, hak):
         raise Tolak("Karyawan tidak ditemukan.")
     # Sejak 9 Nov 2026 hak operasional cukup satu ("gudang"); centang lama per hak dianggap "gudang".
     from master.akun.akses import HAK_OPERASIONAL
-    hak = ["gudang"] if set(hak or []) & (HAK_OPERASIONAL | {"ops_lihat_stok"}) else []
+    # PIC (12 Nov 2026) satu-satunya tambahan; PIC ikut menyalakan aplikasi gudang.
+    pic = "pic" in set(hak or [])
+    hak = (["gudang"] if set(hak or []) & (HAK_OPERASIONAL | {"ops_lihat_stok", "pic"}) else []) + (["pic"] if pic else [])
     from master.akun.akses import HAK_BENTROK
     for pasangan, pesan in HAK_BENTROK:
         if pasangan <= set(hak):
@@ -43,7 +45,7 @@ def atur_hak_ops(pengguna, worker_id, hak):
     User = get_user_model()
     with transaction.atomic():
         akun = AkunKaryawan.objects.select_related("user").filter(worker_id=w.id).first()
-        lama = ["gudang"] if akun and akun.user.is_active and akun.peran else []
+        lama = (["gudang"] + (["pic"] if "pic" in akun.peran else [])) if akun and akun.user.is_active and akun.peran else []
         if akun is None:
             if not hak:
                 return []

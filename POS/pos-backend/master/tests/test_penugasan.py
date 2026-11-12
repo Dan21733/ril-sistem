@@ -36,6 +36,25 @@ class PenugasanTest(Dasar):
         self.ga.refresh_from_db()
         self.assertEqual((self.ga.nama, self.ga.pic), ("Gudang A2", self.eva))
 
+    def test_pic_dicentang_di_karyawan(self):
+        """12 Nov 2026: PIC = karyawan yang dicentang "PIC gudang", bukan semua akun aplikasi gudang."""
+        from master.layanan import akun_karyawan
+        from master.layanan import karyawan as svc_karyawan
+        wid, _ = svc_karyawan.tambah(self.admin, "Joni")
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "gudang"])
+        joni = get_user_model().objects.get(username=f"ops-{wid.lower()}")
+        self.assertNotIn(joni, svc.penerima_boleh())          # aplikasi gudang saja: bukan PIC
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "pic"])
+        joni = get_user_model().objects.get(pk=joni.pk)
+        self.assertIn(joni, svc.penerima_boleh())             # PIC ikut menyalakan aplikasi gudang
+        self.assertEqual(akun_karyawan.hak_ops_semua()[wid], ["gudang", "pic"])
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:karyawan"))
+        self.assertContains(r, 'value="pic"')
+        self.assertContains(r, "PIC")
+        akun_karyawan.atur_semua(self.admin, wid, ["pos_jual", "gudang"])
+        self.assertNotIn(get_user_model().objects.get(pk=joni.pk), svc.penerima_boleh())
+
     def test_po_penerima_dari_barang_manual_dan_pecah(self):
         from master.models import Rak, VarianInfo
         Rak.objects.create(kode="A1", nama="Rak 1", tempat=self.ga)                    # PIC ikut lokasi: Eva

@@ -72,8 +72,8 @@
       <button type="button" class="tb-chip" data-jam="1">1 jam</button>
       <button type="button" class="tb-chip" data-jam="2">2 jam</button>
       <button type="button" class="tb-chip aktif" data-jam="4">4 jam</button>
-      <button type="button" class="tb-chip" data-sore="17">Sampai jam 17</button>
-      <button type="button" class="tb-chip" data-besok="12">Esoknya jam 12</button>
+      <button type="button" class="tb-chip" data-sore="17">Sampai 17.00</button>
+      <button type="button" class="tb-chip" data-besok="12">Esoknya 12.00</button>
       <label class="tb-chip tb-tanggal">📅 <span data-label>Tanggal lain</span> <span class="redup">▾</span><input type="datetime-local" id="tb-batas" value="{{ batas_awal }}" required aria-label="Batas waktu"></label>
       <input type="hidden" name="batas" id="tb-batas-kirim">
     </div>
@@ -109,8 +109,7 @@
 .tb-cek:has(input:checked)::before{background:var(--aksen);border-color:var(--aksen);box-shadow:inset 0 0 0 3px var(--kartu)}
 .tb-chip.mati{opacity:.4;cursor:not-allowed}
 .tb-chip[hidden],[data-bagian][hidden],.pm-kartu[hidden]{display:none}
-.tb-tanggal{overflow:hidden}
-.tb-tanggal input{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:auto!important;cursor:pointer;border:0;padding:0}
+.tb-tanggal input{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
 .tb-ringkas{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:6px;padding:14px 16px;border-radius:10px;background:var(--latar)}
 #tb-ringkas{font-size:16px;flex:1;min-width:240px}
 .tb-kirim{font-size:17px;padding:12px 26px}
@@ -268,6 +267,12 @@
     if (batas.value) lbl.querySelector('[data-label]').textContent = teksTanggal(new Date(batas.value));
     ringkas();
   });
+  // Tombol tanggal: buka pemilih tanggal bawaan browser (Chrome/Edge: showPicker). Isian aslinya tersembunyi.
+  $$('.tb-tanggal').forEach(lbl => lbl.addEventListener('click', e => {
+    e.preventDefault();
+    const inp = lbl.querySelector('input');
+    try { inp.showPicker(); } catch (_) { inp.style.cssText = 'position:static;width:auto;height:auto;opacity:1;pointer-events:auto'; inp.focus(); }
+  }));
   hitungSampai();
   function teksBatas(){
     if (!batas.value) return '';

@@ -48,6 +48,8 @@ SEMUA_HAK = {
     "gaji",
     # Aplikasi operasional (/gudang/). "gudang" = boleh membukanya; menu dibuka per hak di bawah.
     "gudang_datang",
+    # PIC gudang (12 Nov 2026): boleh memegang lokasi/rak, punya tim, dan ditugaskan menerima barang datang.
+    "pic",
     "gudang_hitung",
     "gudang_buka_dus",
     "gudang_ambil",
@@ -110,6 +112,7 @@ LABEL_HAK = [
     ]),
     ("Aplikasi operasional (/gudang/)", [
         ("gudang", "Pakai aplikasi gudang (ambil, barang datang yang ditugaskan, buka dus, tugas dari pemilik)"),
+        ("pic", "PIC gudang: pegang lokasi/rak, punya tim, menerima barang datang"),
     ]),
 ]
 
@@ -119,7 +122,7 @@ PERAN = {
     "Finance": {"master", "ubah_harga", "ubah_info", "lihat_log", "lihat_stok"},
     # Kepala gudang tidak masuk ke master sama sekali. Ia punya halaman sendiri di
     # /gudang/: catat barang datang, hitung stok, buka dus. Tanpa harga dan modal.
-    "Gudang": {"gudang", "gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil"},
+    "Gudang": {"gudang", "gudang_datang", "gudang_hitung", "gudang_buka_dus", "gudang_ambil", "pic"},
 }
 
 # Hak karyawan (masuk dengan PIN kasir) di aplikasi operasional, dicentang satu-satu di
@@ -128,6 +131,8 @@ HAK_KARYAWAN_OPS = [
     ("Gudang", [
         ("gudang", "Pakai aplikasi gudang: ambil barang, barang datang yang ditugaskan ke dia, buka dus, "
                    "dan tugas dari pemilik. Semua hasilnya menunggu ACC; jumlah stok tidak pernah terlihat."),
+        ("pic", "PIC gudang: bisa dipilih memegang lokasi/rak, punya tim karyawan lapangan, dan menerima "
+                "barang datang. Ikut menyalakan aplikasi gudang."),
     ]),
 ]
 LABEL_HAK_OPS = {k: label for _, isi in HAK_KARYAWAN_OPS for k, label in isi}

@@ -63,8 +63,10 @@ def karyawan(request):
         o = ops.get(d["id"], [])
         if o:
             ringkas.append("Gudang")
+        if "pic" in o:
+            ringkas.append("PIC")
         d["hak_ringkas"] = ringkas
-        d["hak_ops_label"] = [LABEL_HAK_OPS[h] for h in o]
+        d["hak_ops_label"] = [LABEL_HAK_OPS[h] for h in o if h in LABEL_HAK_OPS]
     orang = {d["id"]: d for d in daftar}
     pin_baru = []
     for t in svc.pin_untuk_dibagikan():

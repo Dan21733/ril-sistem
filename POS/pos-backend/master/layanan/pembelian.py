@@ -168,12 +168,16 @@ def buat(pengguna, *, supplier_id, tanggal_pesan, catatan="", toko=None):
 
 
 def penerima_boleh():
-    """Akun yang bisa ditugaskan menerima barang: karyawan aktif dengan aplikasi gudang."""
+    """PIC gudang: akun yang bisa memegang lokasi/rak, punya tim, dan ditugaskan menerima barang.
+
+    Sejak 12 Nov 2026 hanya yang dicentang **PIC gudang** di Karyawan & hak akses (sebelumnya semua akun
+    aplikasi gudang, sehingga daftar PIC berisi semua orang).
+    """
     from django.contrib.auth import get_user_model
 
     from master.akun.akses import hak_pengguna
     return [u for u in get_user_model().objects.filter(is_active=True, is_superuser=False).order_by("first_name", "username")
-            if "gudang_datang" in hak_pengguna(u)]
+            if "pic" in hak_pengguna(u)]
 
 
 def _pic_baris(po):
