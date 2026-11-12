@@ -136,7 +136,8 @@ def simpan(pengguna, data, toko=None):
     isi = {"kode": kode, "nama": nama, "titip_di": titip_di, "atas_nama": rapikan_teks(data.get("atas_nama"))[:150],
            "alamat": (data.get("alamat") or "").strip()[:500], "telepon": rapikan_teks(data.get("telepon"))[:50],
            "pkp": pkp, "pkp_mulai": pkp_mulai, "warna": _warna(data.get("warna")),
-           "kas_sisa_minimal": _sisa_minimal(data.get("kas_sisa_minimal"), toko)}
+           "kas_sisa_minimal": _sisa_minimal(data.get("kas_sisa_minimal"), toko),
+           "kas_tampil_kasir": str(data.get("kas_tampil_kasir") or "") == "1"}
     with transaction.atomic():
         if toko is None:
             toko = Toko.objects.create(urutan=Toko.objects.count() + 1, **isi)

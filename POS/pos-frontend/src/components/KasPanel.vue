@@ -108,7 +108,7 @@ function applyStatus(data) {
   rememberKasStatus(data)
   emit('status', data)
   if (!data.sesi) {
-    modal.value = String(data.modal_saran || 0)
+    modal.value = data.modal_saran == null ? '' : String(data.modal_saran || 0)
   }
 }
 
@@ -242,8 +242,8 @@ defineExpose({ load })
       <div class="kas-status-card" :class="{ open: sesi }">
         <p class="kas-label">Kas toko</p>
         <p class="kas-state">{{ sesi ? 'Dibuka' : sudahTutup ? 'Sudah ditutup' : 'Belum dibuka' }}</p>
-        <p v-if="sesi" class="kas-sub">{{ formatDateTime(sesi.dibuka_waktu) }} · {{ sesi.dibuka_oleh }} · modal {{ formatPrice(sesi.modal_awal) }}</p>
-        <p v-else-if="sudahTutup" class="kas-sub">Ditutup {{ formatTime(status.tutup_terakhir) }}. Sisa {{ formatPrice(status.modal_saran) }} jadi modal besok.</p>
+        <p v-if="sesi" class="kas-sub">{{ formatDateTime(sesi.dibuka_waktu) }} · {{ sesi.dibuka_oleh }}<template v-if="sesi.modal_awal != null"> · modal {{ formatPrice(sesi.modal_awal) }}</template></p>
+        <p v-else-if="sudahTutup" class="kas-sub">Ditutup {{ formatTime(status.tutup_terakhir) }}.<template v-if="status.modal_saran != null"> Sisa {{ formatPrice(status.modal_saran) }} jadi modal besok.</template></p>
         <p v-else-if="status?.tutup_terakhir" class="kas-sub">Tutup terakhir {{ formatDateTime(status.tutup_terakhir) }}</p>
         <p v-if="status?.mode_pemilik" class="kas-sub">Kas dibuka &amp; ditutup pemilik dari HP.</p>
         <p v-else-if="!bolehKas" class="kas-sub">Kas dibuka &amp; ditutup dari tablet kas. Tablet ini mencatat uang keluar.</p>
@@ -278,7 +278,8 @@ defineExpose({ load })
           <span>Modal di laci (hitung dulu)</span>
           <input :value="modal ? `Rp ${formatRupiahInput(modal)}` : ''" type="text" inputmode="numeric" placeholder="Rp 0" aria-label="Modal di laci"
             @keydown="preventNonNumericInput" @input="modal = digitsOnly($event.target.value)" />
-          <small>Sisa tutup kas terakhir {{ formatPrice(status?.modal_saran) }}. Kalau beda, isi yang benar-benar ada.</small>
+          <small v-if="status?.modal_saran != null">Sisa tutup kas terakhir {{ formatPrice(status?.modal_saran) }}. Kalau beda, isi yang benar-benar ada.</small>
+          <small v-else>Isi uang yang benar-benar ada di laci.</small>
         </label>
         <button type="button" class="kas-primary" :disabled="busy || !online" @click="buka">{{ busy ? 'MEMBUKA…' : 'BUKA KAS' }}</button>
         <p v-if="!online" class="kas-muted">Buka kas butuh koneksi ke server.</p>

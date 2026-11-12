@@ -40,6 +40,8 @@ class Toko(models.Model):
     warna = models.CharField(max_length=7, blank=True, default="")
     # Kas: uang minimal yang ditinggal di laci saat tutup kas (keperluan pagi, mis. bensin).
     kas_sisa_minimal = models.IntegerField(default=400000)
+    # Tablet kasir boleh melihat angka modal/sisa laci (toko yang dipegang karyawan). Bawaan: tidak.
+    kas_tampil_kasir = models.BooleanField(default=False)
 
     WARNA_BAWAAN = ["#2F5D8A", "#A8461F", "#2E7D4F", "#6B4FA0", "#B0841C", "#1F7A80"]
 

@@ -239,13 +239,46 @@ input[inputmode='numeric'] {
 
 /*
  * Warna tablet (Ril, 2026-11-12): 8 pilihan per tablet supaya karyawan mengenali tabletnya.
- * Hanya warna aksen yang berubah; merah/kuning/hijau status tetap sama. "toska" = bawaan di atas.
+ * Aksen + latar (halaman, panel, hover, garis) ikut diwarnai tipis; warna status
+ * (merah/kuning/hijau) dan teks tidak berubah supaya tetap terbaca. Dibuat dari satu warna
+ * dasar per pilihan (dicampur putih untuk terang, hitam untuk gelap).
  */
+[data-warna='toska'] {
+  --pos-accent: #0f766e;
+  --pos-accent-hover: #0b5f59;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(15, 118, 110, 0.14);
+  --pos-bg: #d9e9e8;
+  --pos-surface-alt: #f1f7f6;
+  --pos-hover: #e9f3f2;
+  --pos-border: #b7d6d4;
+  --pos-divider: #e0edec;
+}
+
+[data-theme='dark'][data-warna='toska'] {
+  --pos-accent: #14b8a6;
+  --pos-accent-hover: #0f9c8d;
+  --pos-accent-contrast: #05201d;
+  --pos-accent-soft: rgba(20, 184, 166, 0.2);
+  --pos-bg: #0e1a1b;
+  --pos-surface: #182224;
+  --pos-surface-alt: #1e2d30;
+  --pos-hover: #223639;
+  --pos-field-bg: #141c1f;
+  --pos-border: #274b4c;
+  --pos-divider: #233a3c;
+}
+
 [data-warna='biru'] {
   --pos-accent: #1d6fd6;
   --pos-accent-hover: #1659ad;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(29, 111, 214, 0.14);
+  --pos-bg: #dbe8f8;
+  --pos-surface-alt: #f1f6fd;
+  --pos-hover: #ebf2fb;
+  --pos-border: #bbd4f3;
+  --pos-divider: #e2ecfa;
 }
 
 [data-theme='dark'][data-warna='biru'] {
@@ -253,6 +286,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #3b8ff0;
   --pos-accent-contrast: #04162e;
   --pos-accent-soft: rgba(96, 165, 250, 0.2);
+  --pos-bg: #141921;
+  --pos-surface: #1c2029;
+  --pos-surface-alt: #252b37;
+  --pos-hover: #2b3343;
+  --pos-field-bg: #181b23;
+  --pos-border: #37475f;
+  --pos-divider: #2d3748;
 }
 
 [data-warna='navy'] {
@@ -260,6 +300,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #172f70;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(30, 58, 138, 0.14);
+  --pos-bg: #dbdfec;
+  --pos-surface-alt: #f2f3f8;
+  --pos-hover: #ebedf4;
+  --pos-border: #bcc4dc;
+  --pos-divider: #e2e5f0;
 }
 
 [data-theme='dark'][data-warna='navy'] {
@@ -267,6 +312,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #7aa0f7;
   --pos-accent-contrast: #0b1633;
   --pos-accent-soft: rgba(147, 180, 255, 0.2);
+  --pos-bg: #171a22;
+  --pos-surface: #1f212a;
+  --pos-surface-alt: #292c38;
+  --pos-hover: #313544;
+  --pos-field-bg: #1a1c24;
+  --pos-border: #434a60;
+  --pos-divider: #343949;
 }
 
 [data-warna='ungu'] {
@@ -274,6 +326,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #5b21b6;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(109, 40, 217, 0.14);
+  --pos-bg: #e8ddf9;
+  --pos-surface-alt: #f6f2fd;
+  --pos-hover: #f2ecfc;
+  --pos-border: #d3bef4;
+  --pos-divider: #ece3fa;
 }
 
 [data-theme='dark'][data-warna='ungu'] {
@@ -281,6 +338,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #8b5cf6;
   --pos-accent-contrast: #1a0b3d;
   --pos-accent-soft: rgba(167, 139, 250, 0.2);
+  --pos-bg: #191721;
+  --pos-surface: #211f29;
+  --pos-surface-alt: #2b2937;
+  --pos-hover: #343043;
+  --pos-field-bg: #1b1a23;
+  --pos-border: #47415f;
+  --pos-divider: #373348;
 }
 
 [data-warna='pink'] {
@@ -288,6 +352,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #9e1249;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(194, 24, 91, 0.14);
+  --pos-bg: #f5dae5;
+  --pos-surface-alt: #fbf1f5;
+  --pos-hover: #faeaf0;
+  --pos-border: #edbace;
+  --pos-divider: #f7e1ea;
 }
 
 [data-theme='dark'][data-warna='pink'] {
@@ -295,6 +364,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #ec4899;
   --pos-accent-contrast: #2a0716;
   --pos-accent-soft: rgba(244, 114, 182, 0.2);
+  --pos-bg: #1e151d;
+  --pos-surface: #251d25;
+  --pos-surface-alt: #322631;
+  --pos-hover: #3d2d3b;
+  --pos-field-bg: #1f1920;
+  --pos-border: #583b50;
+  --pos-divider: #42303e;
 }
 
 [data-warna='jingga'] {
@@ -302,6 +378,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #9a3412;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(194, 65, 12, 0.14);
+  --pos-bg: #f5e1d8;
+  --pos-surface-alt: #fbf4f0;
+  --pos-hover: #faeee9;
+  --pos-border: #edc6b6;
+  --pos-divider: #f7e6df;
 }
 
 [data-theme='dark'][data-warna='jingga'] {
@@ -309,6 +390,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #f97316;
   --pos-accent-contrast: #2a1003;
   --pos-accent-soft: rgba(251, 146, 60, 0.2);
+  --pos-bg: #1f1714;
+  --pos-surface: #261f1e;
+  --pos-surface-alt: #332926;
+  --pos-hover: #3e312c;
+  --pos-field-bg: #201a1a;
+  --pos-border: #5a4235;
+  --pos-divider: #43342d;
 }
 
 [data-warna='cokelat'] {
@@ -316,6 +404,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #6f4630;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(138, 90, 59, 0.14);
+  --pos-bg: #ece5e0;
+  --pos-surface-alt: #f8f5f3;
+  --pos-hover: #f4f0ed;
+  --pos-border: #dccec4;
+  --pos-divider: #f0eae6;
 }
 
 [data-theme='dark'][data-warna='cokelat'] {
@@ -323,6 +416,13 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #c48e5d;
   --pos-accent-contrast: #2a1708;
   --pos-accent-soft: rgba(214, 167, 122, 0.2);
+  --pos-bg: #1c1918;
+  --pos-surface: #232122;
+  --pos-surface-alt: #2f2b2c;
+  --pos-hover: #393434;
+  --pos-field-bg: #1e1b1d;
+  --pos-border: #514743;
+  --pos-divider: #3e3736;
 }
 
 [data-warna='abu'] {
@@ -330,6 +430,11 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #334155;
   --pos-accent-contrast: #ffffff;
   --pos-accent-soft: rgba(71, 85, 105, 0.14);
+  --pos-bg: #e2e4e7;
+  --pos-surface-alt: #f4f5f6;
+  --pos-hover: #eef0f2;
+  --pos-border: #c8ccd2;
+  --pos-divider: #e7e9ec;
 }
 
 [data-theme='dark'][data-warna='abu'] {
@@ -337,5 +442,12 @@ input[inputmode='numeric'] {
   --pos-accent-hover: #b4c0cf;
   --pos-accent-contrast: #0f172a;
   --pos-accent-soft: rgba(203, 213, 225, 0.2);
+  --pos-bg: #1b1c20;
+  --pos-surface: #232328;
+  --pos-surface-alt: #2e2f35;
+  --pos-hover: #383940;
+  --pos-field-bg: #1d1e22;
+  --pos-border: #4f5159;
+  --pos-divider: #3c3e44;
 }
 

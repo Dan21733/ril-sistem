@@ -220,7 +220,8 @@ def tugaskan(tugas_id, karyawan_id, *, perangkat=""):
     rek = rekomendasi(t)
     saran = rek[0]["k"] if rek and rek[0]["alasan"] else None
     t.pengambil, t.sendiri, t.rekomendasi = k, False, saran
-    t.ikut_rekomendasi = saran is None or saran.pk == k.pk
+    # 3 teratas yang tidak sedang mengambil = rekomendasi (SOP: nomor 1; nomor 2 dan 3 juga sah).
+    t.ikut_rekomendasi = saran is None or k.pk in {r["k"].pk for r in teratas(rek)}
     t.status, t.ditugaskan_waktu, t.ditugaskan_oleh = "diambil", timezone.now(), t.siapkan.kasir_nama
     t.perangkat = perangkat[:100]
     t.save()
@@ -318,6 +319,13 @@ def tutup(pengguna, siapkan_id, catatan=""):
 # ---------------------------------------------------------------------------
 
 
+def teratas(pilihan, n=3):
+    """Rekomendasi yang ditampilkan: sampai 3 orang yang tidak sedang mengambil, urut rekomendasi."""
+    if not pilihan or not pilihan[0]["alasan"]:
+        return []
+    return [p for p in pilihan if not p["sibuk"]][:n]
+
+
 def daftar_buka():
     """Nota yang sedang disiapkan, lengkap dengan kelompok, baris, rak, dan rekomendasi."""
     daftar = list(Siapkan.objects.filter(status="menunggu").order_by("waktu_nota")
@@ -330,6 +338,7 @@ def daftar_buka():
         for t in s.daftar_tugas:
             if t.status == "menunggu":
                 t.pilihan = rekomendasi(t, keadaan, karyawan)
+                t.teratas = teratas(t.pilihan)
             t.daftar_baris = list(t.baris.all())
             for b in t.daftar_baris:
                 v = b.varian

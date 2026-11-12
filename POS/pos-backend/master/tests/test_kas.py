@@ -167,6 +167,8 @@ class KasTabletTest(_KasDasar):
         self.api2.credentials(HTTP_AUTHORIZATION=f"Device {create_device_token(self.device2)}")
 
     def test_alur_tablet(self, _):
+        # Toko dipegang karyawan: angka kas boleh tampil di tablet.
+        Toko.objects.filter(pk=self.toko.pk).update(kas_tampil_kasir=True)
         r = self.api.get("/api/kas/?antrean=0")
         self.assertEqual(r.status_code, 200)
         self.assertEqual((r.data["boleh_kas"], r.data["mode_pemilik"], r.data["sesi"]), (True, False, None))
@@ -269,3 +271,25 @@ class KasMasterTest(_KasDasar):
     def test_tanpa_hak_kas_ditolak(self):
         self.client.force_login(self.gudang)
         self.assertNotEqual(self.client.get("/master/kas/").status_code, 200)
+
+
+class KasTampilTabletTest(_KasDasar):
+    """Toko yang kasnya dipegang pemilik: tablet tidak menerima angka modal/sisa/tambah modal (12 Nov 2026)."""
+
+    def test_disembunyikan_bawaan_dan_bisa_dinyalakan(self):
+        s = kas.buka(self.toko.id, modal=500000, cadangan_lengkap=True, oleh="Daniel", dari="master")
+        KasGerak.objects.create(gerak_id=uuid.uuid4(), toko_id=self.toko.id, jenis="tambah_modal", jumlah=100000,
+                                oleh="Daniel", waktu=timezone.now())
+        KasGerak.objects.create(gerak_id=uuid.uuid4(), toko_id=self.toko.id, jenis="keluar", jumlah=20000,
+                                kategori="Bensin", oleh="Rusdi", waktu=timezone.now())
+        with patch("pos.kas.toko_kasir", return_value=self.toko.id):
+            st = kas.status_tablet(self.device.id)
+            self.assertFalse(st["kas_tampil"])
+            self.assertIsNone(st["sesi"]["modal_awal"])
+            self.assertIsNone(st["modal_saran"])
+            self.assertEqual([g["jenis"] for g in st["sesi"]["gerak"]], ["keluar"])
+            Toko.objects.filter(pk=self.toko.pk).update(kas_tampil_kasir=True)
+            st = kas.status_tablet(self.device.id)
+            self.assertEqual(st["sesi"]["modal_awal"], 500000)
+            self.assertEqual(len(st["sesi"]["gerak"]), 2)
+        self.assertEqual(s.modal_awal, 500000)

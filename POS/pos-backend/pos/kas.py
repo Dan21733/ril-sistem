@@ -449,8 +449,19 @@ def _gerak_json(g):
             "keterangan": g.keterangan, "oleh": g.oleh, "waktu": g.waktu.isoformat(), "batal": g.batal}
 
 
+def kas_tampil(toko_id):
+    """Tablet boleh melihat angka modal/sisa laci? Diatur per toko di master (bawaan: tidak)."""
+    if toko_id is None or not _ada("master_toko"):
+        return False
+    r = _baris("SELECT kas_tampil_kasir FROM master_toko WHERE id = %s", [toko_id])
+    return bool(r and r[0].get("kas_tampil_kasir"))
+
+
 def status_tablet(device_id):
-    """Yang boleh dilihat tablet: status sesi, modal, uang keluar. Tanpa angka seharusnya/selisih."""
+    """Yang boleh dilihat tablet: status sesi, modal, uang keluar. Tanpa angka seharusnya/selisih.
+
+    Toko yang kasnya dipegang pemilik (`kas_tampil_kasir` mati): angka modal, sisa, tambah modal,
+    dan cadangan juga tidak dikirim (12 Nov 2026). Uang keluar tetap terlihat."""
     toko_id = toko_kasir()
     s = sesi_buka(toko_id) if toko_id is not None else None
     st = DeviceStatus.objects.filter(device_id=device_id).first() if device_id else None
@@ -475,4 +486,13 @@ def status_tablet(device_id):
             "id": str(s.id), "dibuka_waktu": s.dibuka_waktu.isoformat(), "dibuka_oleh": s.dibuka_oleh,
             "modal_awal": s.modal_awal, "gerak": [_gerak_json(g) for g in gerak_sesi(s) if not g.batal],
         }
+    tampil = kas_tampil(toko_id)
+    hasil["kas_tampil"] = tampil
+    if not tampil:
+        hasil["modal_saran"] = None
+        hasil["cadangan"] = None
+        hasil["cadangan_terpakai"] = None
+        if hasil["sesi"]:
+            hasil["sesi"]["modal_awal"] = None
+            hasil["sesi"]["gerak"] = [g for g in hasil["sesi"]["gerak"] if g["jenis"] == "keluar"]
     return hasil
