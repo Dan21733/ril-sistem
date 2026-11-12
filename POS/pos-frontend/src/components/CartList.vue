@@ -13,7 +13,7 @@ import { DEFAULT_SUGGESTION_COUNT, suggestCashAmounts } from '../utils/cashSugge
 import { shouldCloseCheckoutModal } from '../utils/checkoutModal'
 import { PRICE_RANGE_PROBLEM, priceRangeProblem, resolveItemPrices } from '../utils/priceRange'
 import { QUICK_DISCOUNTS, discountedPrice, parsePercent, percentOff } from '../utils/discount'
-import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, metodeBayarRapi, minimalDp } from '../utils/piutang'
+import { STATUS_BARANG, buildPiutangPayload, dpRules, dueDateFrom, masalahBayar, metodeBayarRapi, minimalDp, perluTempo, statusNota } from '../utils/piutang'
 import { groupByOwner } from '../utils/pecahNota'
 import vModalFocus from '../directives/modalFocus'
 import { akhiranSatuan, angkaJumlah, bacaJumlah, hargaPerSatuan, hargaTersimpan, jualPerRupiah, langkahJumlah, pakaiSatuan, teksJumlah, totalPas } from '../utils/satuan'
@@ -454,23 +454,43 @@ const dpMinimal = computed(() => minimalDp(props.cartItems, aturanDp.value.dp_mi
 
 const dpSisa = computed(() => Math.max(0, finalTotal.value - amountDue.value))
 
-/* DP di bawah minimal: hanya boleh untuk pelanggan tempo (nota menunggu ACC pemilik). */
-const dpBelowMinimal = computed(() => dpMode.value && dpAmount.value !== '' && amountDue.value < dpMinimal.value)
+/*
+ * Aturan bayar per jenis nota (SOP 12 Nov 2026, utils/piutang.js): dibawa = lunas
+ * (sebagian hanya invoice pelanggan tempo), COD = bayar 0..lunas + wajib No. HP
+ * dan tidak di daftar hitam, titip di toko = lunas, pesanan = DP minimal.
+ */
+const statusEfektif = computed(() => statusNota(statusBarang.value, deliveryMethod.value === 'delivery'))
+const isCod = computed(() => dpMode.value && statusEfektif.value === 'antar')
 
-const dpProblem = computed(() => {
-  if (!dpMode.value) {
-    return ''
+/* Pilihan pelanggan tempo (invoice, ACC pemilik) muncul hanya kalau aturannya membutuhkan. */
+const dpBelowMinimal = computed(() => perluTempo({
+  status: statusEfektif.value, dpMode: dpMode.value, dp: dpAmount.value, minimal: dpMinimal.value,
+}))
+
+const dpProblem = computed(() => masalahBayar({
+  status: statusEfektif.value,
+  dpMode: dpMode.value,
+  dp: dpAmount.value,
+  total: finalTotal.value,
+  minimal: dpMinimal.value,
+  pelangganTempo: pelangganTempoId.value,
+  telepon: customerPhone.value,
+  daftarHitam: aturanDp.value.daftar_hitam || [],
+}))
+
+/* Titip di toko wajib lunas: pilihan bayar sebagian ditutup. */
+watch(statusBarang, (status) => {
+  if (status === 'ambil' && dpMode.value) {
+    dpMode.value = false
   }
-  if (dpAmount.value === '') {
-    return 'Isi jumlah DP.'
+})
+
+/* Jenis nota berubah saat bayar sebagian aktif: isi ulang dengan bawaan jenis barunya
+   (COD 0, lainnya DP minimal), supaya angka DP lama tidak terbawa ke COD. */
+watch(statusEfektif, (status, sebelum) => {
+  if (dpMode.value && status !== sebelum && !isEditingLocked.value) {
+    dpAmount.value = status === 'antar' ? '0' : String(dpMinimal.value)
   }
-  if (Number(dpAmount.value) >= finalTotal.value) {
-    return 'DP sama dengan total: pilih Lunas.'
-  }
-  if (dpBelowMinimal.value && !pelangganTempoId.value) {
-    return `DP minimal ${formatPrice(dpMinimal.value)}. Kurang dari itu hanya untuk pelanggan tempo.`
-  }
-  return ''
 })
 
 const piutangPayload = computed(() => buildPiutangPayload({
@@ -487,12 +507,16 @@ function setDpMode(value) {
   if (isEditingLocked.value) {
     return
   }
+  if (value && statusBarang.value === 'ambil') {
+    return
+  }
   dpMode.value = value
   if (value && !jatuhTempo.value) {
     jatuhTempo.value = dueDateFrom(aturanDp.value.jatuh_tempo_hari)
   }
   if (value && dpAmount.value === '') {
-    dpAmount.value = String(dpMinimal.value)
+    /* COD: bawaan 0 (semua ditagih di tempat); pesanan: DP minimal. */
+    dpAmount.value = statusEfektif.value === 'antar' ? '0' : String(dpMinimal.value)
   }
 }
 
@@ -1676,7 +1700,7 @@ async function completeTransaction() {
                       </button>
                     </div>
                     <p v-if="statusBarang === 'pesan'" class="dp-hint">Stok berkurang saat barang diserahkan.</p>
-                    <p v-else-if="statusBarang === 'ambil' && !dpMode" class="dp-hint">Lunas, barang dititip di toko: menunggu ACC pemilik.</p>
+                    <p v-else-if="statusBarang === 'ambil'" class="dp-hint">Titip di toko: wajib lunas, menunggu ACC pemilik.</p>
                   </div>
 
                   <!--
@@ -1699,14 +1723,14 @@ async function completeTransaction() {
                   </div>
 
                   <div class="field-block">
-                    <label for="customer-phone"> No. HP (opsional) </label>
+                    <label for="customer-phone"> No. HP {{ isCod ? '(wajib untuk COD)' : '(opsional)' }} </label>
 
                     <input
                       id="customer-phone"
                       v-model.trim="customerPhone"
                       type="tel"
                       autocomplete="off"
-                      placeholder="Opsional"
+                      :placeholder="isCod ? 'Wajib untuk COD' : 'Opsional'"
                       maxlength="20"
                       :disabled="isEditingLocked"
                     />
@@ -1722,7 +1746,7 @@ async function completeTransaction() {
                     <button type="button" class="dp-chip" :class="{ selected: !dpMode }" role="radio"
                       :aria-checked="!dpMode" :disabled="isEditingLocked" @click="setDpMode(false)">Lunas</button>
                     <button type="button" class="dp-chip" :class="{ selected: dpMode }" role="radio"
-                      :aria-checked="dpMode" :disabled="isEditingLocked || isMixedCart" @click="setDpMode(true)">DP / bayar sebagian</button>
+                      :aria-checked="dpMode" :disabled="isEditingLocked || isMixedCart || statusBarang === 'ambil'" @click="setDpMode(true)">{{ statusEfektif === 'antar' ? 'COD / bayar di tempat' : 'DP / bayar sebagian' }}</button>
                   </div>
 
                   <p v-if="isMixedCart" class="dp-hint mixed-note">
@@ -1732,7 +1756,7 @@ async function completeTransaction() {
 
                   <div v-if="dpMode" class="dp-block">
                     <div class="field-block">
-                      <label for="dp-amount"> DP dibayar sekarang </label>
+                      <label for="dp-amount"> {{ statusEfektif === 'antar' ? 'Dibayar di toko (boleh 0)' : 'DP dibayar sekarang' }} </label>
                       <input
                         id="dp-amount"
                         :value="dpAmount ? `Rp ${formatRupiahInput(dpAmount)}` : ''"
@@ -1745,8 +1769,11 @@ async function completeTransaction() {
                         @keydown="preventNonNumericInput"
                         @input="updateDpAmount"
                       />
-                      <p class="dp-hint">
-                        Minimal {{ formatPrice(dpMinimal) }} · sisa <strong>{{ formatPrice(dpSisa) }}</strong>
+                      <p v-if="statusEfektif === 'antar'" class="dp-hint">
+                        Ditagih sopir di tempat: <strong>{{ formatPrice(dpSisa) }}</strong>. Tidak dibayar penuh = barang dibawa pulang.
+                      </p>
+                      <p v-else class="dp-hint">
+                        {{ statusEfektif === 'pesan' ? `Minimal ${formatPrice(dpMinimal)} · ` : '' }}sisa <strong>{{ formatPrice(dpSisa) }}</strong>
                       </p>
                     </div>
 
@@ -1762,7 +1789,7 @@ async function completeTransaction() {
                       <p v-else-if="pelangganTempoId" class="dp-hint">Nota menunggu ACC pemilik.</p>
                     </div>
 
-                    <div class="field-block">
+                    <div v-if="statusEfektif !== 'antar'" class="field-block">
                       <label for="dp-due"> Jatuh tempo </label>
                       <input id="dp-due" v-model="jatuhTempo" type="date" :disabled="isEditingLocked" />
                     </div>
@@ -2012,7 +2039,7 @@ async function completeTransaction() {
 
                   <div v-if="piutangPayload && statusBarang !== 'sekarang'" class="summary-row">
                     <span>Barang</span>
-                    <strong>{{ { ambil: 'Ambil nanti', pesan: 'Pesan dulu' }[statusBarang] }}</strong>
+                    <strong>{{ { ambil: 'Titip di toko', pesan: 'Pesan dulu' }[statusBarang] }}</strong>
                   </div>
 
                   <div v-if="totalPotongan > 0" class="summary-row summary-potongan">
@@ -2027,11 +2054,11 @@ async function completeTransaction() {
 
                   <template v-if="dpMode">
                     <div class="summary-row">
-                      <span>DP dibayar</span>
+                      <span>{{ isCod ? 'Dibayar di toko' : 'DP dibayar' }}</span>
                       <strong>{{ formatPrice(amountDue) }}</strong>
                     </div>
                     <div class="summary-row">
-                      <span>Sisa tagihan</span>
+                      <span>{{ isCod ? 'Tagih di tempat' : 'Sisa tagihan' }}</span>
                       <strong>{{ formatPrice(dpSisa) }}</strong>
                     </div>
                   </template>

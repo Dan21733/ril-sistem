@@ -11,7 +11,7 @@ tr.lewat td{background:var(--bahaya-lembut)}
 </style>
 <div class="baris" style="justify-content:space-between;align-items:start">
   <div><h2>Piutang & pesanan</h2>
-    <p class="sub">Nota yang belum lunas (DP / invoice), barang yang diambil nanti, dan pesanan. Total sisa tagihan <b>{{ ringkas.sisa|ribuan }}</b> dari {{ ringkas.jumlah }} nota{% if ringkas.lewat %}, <span style="color:var(--bahaya)">{{ ringkas.lewat }} lewat jatuh tempo</span>{% endif %}.</p></div>
+    <p class="sub">Nota diproses: pesanan (DP), COD (sisa ditagih di tempat), titipan (lunas, barang di toko), dan invoice. Total sisa tagihan <b>{{ ringkas.sisa|ribuan }}</b> dari {{ ringkas.jumlah }} nota{% if ringkas.lewat %}, <span style="color:var(--bahaya)">{{ ringkas.lewat }} lewat jatuh tempo</span>{% endif %}.</p></div>
   <a class="tombol" href="{% url 'master:pelanggan' %}">Pelanggan tempo</a>
 </div>
 <div class="tab-piutang">
@@ -26,7 +26,7 @@ tr.lewat td{background:var(--bahaya-lembut)}
   <tr class="{% if p.lewat %}lewat{% endif %}" style="cursor:pointer" onclick="location.href='{% url 'master:piutang_detail' p.id %}'">
     <td style="white-space:nowrap">{{ p.tanggal|date:"d M Y" }}<div class="kecil redup">{{ p.umur }} hari</div></td>
     <td><a href="{% url 'master:piutang_detail' p.id %}"><b>{{ p.nomor }}</b></a>
-      {% if p.acc_status == 'menunggu' %} <span class="label">ACC {{ p.get_jenis_acc_display|lower }}</span>{% elif p.acc_status == 'ditolak' %} <span class="label bahaya">ditolak</span>{% elif p.jenis_acc %} <span class="label netral">{{ p.get_jenis_acc_display|lower }}</span>{% endif %}</td>
+      {% if p.acc_status == 'menunggu' %} <span class="label">ACC {{ p.get_jenis_acc_display|lower }}</span>{% elif p.acc_status == 'ditolak' %} <span class="label bahaya">ditolak</span>{% elif p.jenis_acc %} <span class="label netral">{{ p.get_jenis_acc_display|lower }}</span>{% endif %}{% if p.aturan_lama %} <span class="label bahaya">aturan lama</span>{% endif %}</td>
     <td>{{ p.nama }}<div class="kecil redup">{{ p.telepon }}</div></td>
     <td>{{ p.get_status_barang_display }}{% if p.barang_selesai %} <span class="kecil redup">· selesai</span>{% endif %}</td>
     <td class="angka">{{ p.total|ribuan }}</td><td class="angka">{{ p.dibayar|ribuan }}</td>

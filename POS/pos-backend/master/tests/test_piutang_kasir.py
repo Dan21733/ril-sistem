@@ -58,15 +58,16 @@ class PiutangKasirTest(Dasar):
         return Item.objects.get(item_name="Palu", variant="Kecil").in_stock
 
     def test_nota_dp_dicatat_dan_diimpor_master(self, _):
-        r, t = self._nota({"dibayar": 2500, "status_barang": "ambil"}, bayar=3000)
+        r, t = self._nota({"dibayar": 2500, "status_barang": "pesan"}, bayar=3000)
         self.assertEqual(r.status_code, 201, r.data)
         n = NotaPiutang.objects.get(sync_id=t["sync_id"])
-        self.assertEqual((n.dibayar, n.status_barang, n.stok_ditunda), (2500, "ambil", False))
+        self.assertEqual((n.dibayar, n.status_barang, n.stok_ditunda), (2500, "pesan", True))
         self.assertEqual(Transactions.objects.get(sync_id=t["sync_id"]).change_amount, 500)
-        self.assertEqual(self._stok(), 7)
+        self.assertEqual(self._stok(), 10)
         self.assertEqual(svc.sinkron_kasir(), 1)
         p = Piutang.objects.get(kasir_sync_id=t["sync_id"])
-        self.assertEqual((p.total, p.dibayar, p.nama, p.acc_status, p.nomor), (4500, 2500, "Pak Budi", "", "T01-000011"))
+        self.assertEqual((p.total, p.dibayar, p.nama, p.acc_status, p.nomor, p.jenis),
+                         (4500, 2500, "Pak Budi", "", "T01-000011", "pesanan"))
         self.assertEqual(p.pembayaran.get().sumber, "kasir")
         self.assertEqual(svc.sinkron_kasir(), 0)        # tidak diimpor dua kali
 
@@ -102,7 +103,7 @@ class PiutangKasirTest(Dasar):
         self.assertIn("bukan pelanggan tempo", p2.acc_catatan)
 
     def test_daftar_tablet_dan_pelunasan_kasir(self, _):
-        r, t = self._nota({"dibayar": 2500, "status_barang": "ambil"}, bayar=2500)
+        r, t = self._nota({"dibayar": 2500, "status_barang": "pesan"}, bayar=2500)
         # Belum diimpor master: tetap terlihat di tablet.
         r = self.api.get("/api/piutang/?tab=belum_lunas", HTTP_X_APPROVER_PIN="111111")
         self.assertEqual(r.status_code, 200, r.data)
@@ -135,7 +136,7 @@ class PiutangKasirTest(Dasar):
         self.assertIsNotNone(p.barang_selesai)
 
     def test_aksi_lebih_dari_sisa_ditolak(self, _):
-        r, t = self._nota({"dibayar": 2500, "status_barang": "ambil"}, bayar=2500)
+        r, t = self._nota({"dibayar": 2500, "status_barang": "pesan"}, bayar=2500)
         svc.sinkron_kasir()
         p = Piutang.objects.get(kasir_sync_id=t["sync_id"])
         self.api.post("/api/piutang/aksi/", {"pin": "111111", "aksi_id": str(uuid.uuid4()), "jenis": "bayar",
@@ -161,3 +162,63 @@ class PiutangKasirTest(Dasar):
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(r.data["count"], 2)     # nota uji Dasar (ID001) + nota barusan
         self.assertEqual(self.api.get("/api/transactions/history/?scope=akun").status_code, 400)
+
+    # ---- Aturan nota diproses 12 Nov 2026 ----
+    def test_melanggar_sop_wajib_acc(self, _):
+        # Tablet lama: titipan dengan DP sebagian -> tetap tercatat, tapi menunggu ACC pemilik.
+        r, t = self._nota({"dibayar": 2500, "status_barang": "ambil"}, bayar=2500)
+        self.assertEqual(r.status_code, 201, r.data)
+        svc.sinkron_kasir()
+        p = Piutang.objects.get(kasir_sync_id=t["sync_id"])
+        self.assertEqual((p.jenis, p.jenis_acc, p.acc_status), ("titipan", "sop", "menunggu"))
+        self.assertIn("Titipan wajib lunas", p.acc_catatan)
+
+    def test_cod_dibawa_pulang_kurangi_tagihan_dan_daftar_hitam(self, _):
+        from pos.models import RefundEvent, RefundEventDetail
+        from master.models import DaftarHitam
+        r, t = self._nota({"dibayar": 0, "status_barang": "antar"}, bayar=0)
+        self.assertEqual(r.status_code, 201, r.data)
+        Transactions.objects.filter(sync_id=t["sync_id"]).update(phone_no="0812-7777-1111")
+        svc.sinkron_kasir()
+        p = Piutang.objects.get(kasir_sync_id=t["sync_id"])
+        self.assertEqual((p.jenis, p.jenis_acc, p.sisa), ("cod", "", 4500))
+        # Pembeli hanya mau 1 dari 3: 2 dibawa pulang (retur kasir), 1.500 dibayar di tempat.
+        rid = uuid.uuid4()
+        RefundEvent.objects.create(refund_id=rid, sync_id=t["sync_id"], transaction_id=t["transaction_id"],
+                                   event_type="return", reason="COD dibawa pulang", refund_method="cash", refund_amount=0,
+                                   approver_worker_id="ID001", device_code="T01", created_at=timezone.now())
+        RefundEventDetail.objects.create(refund_id=rid, item_name="Palu", variant="Kecil", quantity=2,
+                                         unit_price=1500, subtotal=3000)
+        svc.sinkron_kasir()
+        p.refresh_from_db()
+        self.assertEqual((p.potongan_retur, p.sisa), (3000, 1500))
+        self.assertEqual(DaftarHitam.objects.get().telepon, "081277771111")
+        svc.sinkron_kasir()                                   # dihitung ulang, tidak dobel
+        p.refresh_from_db()
+        self.assertEqual(p.potongan_retur, 3000)
+        r = self.api.get("/api/piutang/aturan/")
+        self.assertEqual(r.data["daftar_hitam"], ["081277771111"])
+        # Nota COD berikutnya untuk nomor itu: tercatat tapi melanggar SOP -> ACC.
+        r, t2 = self._nota({"dibayar": 0, "status_barang": "antar"}, bayar=0)
+        Transactions.objects.filter(sync_id=t2["sync_id"]).update(phone_no="081277771111")
+        svc.sinkron_kasir()
+        self.assertEqual(Piutang.objects.get(kasir_sync_id=t2["sync_id"]).jenis_acc, "sop")
+
+    def test_tab_belum_selesai_dan_invoice_di_tablet(self, _):
+        r, t = self._nota({"dibayar": 0, "status_barang": "antar"}, bayar=0)
+        r, t2 = self._nota({"dibayar": 0, "status_barang": "bawa", "pelanggan_id": self.tempo.id}, bayar=0)
+        # Belum diimpor master: jenis dihitung di server kasir, pembuat dari PIN.
+        r = self.api.get("/api/piutang/?tab=proses", HTTP_X_APPROVER_PIN="111111")
+        self.assertEqual([(x["jenis"], x["pembuat"], x["sisa"]) for x in r.data["hasil"]], [("cod", "Rusdi", 4500)])
+        svc.sinkron_kasir()
+        r = self.api.get("/api/piutang/?tab=proses", HTTP_X_APPROVER_PIN="111111")
+        self.assertEqual([(x["jenis"], x["pembuat"]) for x in r.data["hasil"]], [("cod", "Rusdi")])
+        r = self.api.get("/api/piutang/?tab=invoice", HTTP_X_APPROVER_PIN="111111")
+        self.assertEqual([x["jenis"] for x in r.data["hasil"]], ["invoice"])
+        self.assertEqual((r.data["hitungan"]["proses"], r.data["hitungan"]["invoice"]), (1, 1))
+        # Ditolak pemilik: tetap tampil sampai kasir membatalkan nota.
+        p = Piutang.objects.get(kasir_sync_id=t2["sync_id"])
+        svc.acc(self.admin, p, setuju=False, catatan="bukan langganan")
+        r = self.api.get("/api/piutang/?tab=invoice", HTTP_X_APPROVER_PIN="111111")
+        self.assertEqual([x["acc_status"] for x in r.data["hasil"]], ["ditolak"])
+

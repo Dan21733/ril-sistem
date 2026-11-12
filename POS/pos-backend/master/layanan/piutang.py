@@ -1,11 +1,15 @@
-"""DP, piutang pelanggan, barang ambil nanti / pesan dulu (rancangan 31 Okt 2026).
+"""Nota diproses: pesanan, titipan, COD, invoice (rancangan DP 31 Okt 2026, aturan baru 12 Nov 2026).
 
-Aturan pemilik:
-- Semua nota yang belum lunas wajib DP minimal (bawaan 50% harga barang; barang tertentu lebih tinggi).
-- Di bawah minimal (invoice / ngutang) hanya untuk pelanggan di daftar tempo, dalam batas piutangnya,
-  dan tetap wajib ACC pemilik per nota.
-- Titip barang (sudah lunas, barang belum dibawa) juga wajib ACC.
-- Barang "pesan dulu": stok baru berkurang saat barang diserahkan.
+Aturan pemilik (SOP, 12 Nov 2026):
+- Dibawa sekarang: wajib lunas. Kurang dari lunas hanya invoice (pelanggan tempo, dalam batas, ACC per nota).
+- Diantar (COD): bayar 0 sampai lunas di toko, sisanya ditagih di tempat. Wajib nama dan No. HP. Tidak boleh
+  jadi utang: kalau pembeli tidak membayar penuh, barang dibawa pulang (retur) dan No. HP-nya masuk daftar hitam
+  COD. Nomor di daftar hitam tidak boleh COD lagi.
+- Titip di toko: wajib lunas dan ACC pemilik per nota.
+- Pesan dulu: DP minimal (bawaan 50% harga barang; barang tertentu lebih tinggi) atau lunas. Stok baru berkurang
+  saat barang diserahkan.
+- Nota kasir yang melanggar aturan di atas (mis. tablet memakai aturan lama) tetap tercatat tetapi wajib ACC
+  pemilik (jenis_acc "sop"); ditolak = kasir membatalkan nota.
 """
 from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_CEILING
@@ -16,7 +20,7 @@ from django.utils import timezone
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
-from master.models import ItemInfo, Pelanggan, PembayaranPiutang, Pengaturan, Piutang
+from master.models import DaftarHitam, ItemInfo, Pelanggan, PembayaranPiutang, Pengaturan, Piutang
 
 STATUS_BARANG = dict(Piutang.BARANG)
 CARA_BAYAR = dict(PembayaranPiutang.CARA)
@@ -120,6 +124,99 @@ def cari_pelanggan(nama="", telepon="", pelanggan_id=None):
 
 
 # ---------------------------------------------------------------------------
+# Daftar hitam COD
+# ---------------------------------------------------------------------------
+
+def telepon_baku(telepon):
+    """Nomor HP untuk dicocokkan: hanya angka, awalan 62 jadi 0. Kosong kalau terlalu pendek."""
+    angka = "".join(c for c in str(telepon or "") if c.isdigit())
+    if angka.startswith("62"):
+        angka = "0" + angka[2:]
+    return angka if len(angka) >= 8 else ""
+
+
+def di_daftar_hitam(telepon):
+    baku = telepon_baku(telepon)
+    return bool(baku) and DaftarHitam.objects.filter(telepon=baku, aktif=True).exists()
+
+
+def masuk_daftar_hitam(p, alasan):
+    """Catat No. HP pembeli nota ini ke daftar hitam COD (sekali saja; yang pernah dibuka diaktifkan lagi)."""
+    baku = telepon_baku(p.telepon)
+    if not baku:
+        return None
+    d, baru = DaftarHitam.objects.get_or_create(telepon=baku, defaults={
+        "nama": p.nama[:150], "alasan": alasan[:300], "nomor_nota": p.nomor[:40]})
+    if not baru and not d.aktif:
+        d.aktif, d.nama, d.alasan, d.nomor_nota = True, p.nama[:150], alasan[:300], p.nomor[:40]
+        d.dibuka_oleh, d.dibuka_waktu = "", None
+        d.save()
+    if baru or d.aktif:
+        layanan.catat(None, aksi="tambah", objek="daftar hitam COD", kolom="telepon", baru=f"{p.nama} {baku}",
+                      catatan=f"{p.nomor}: {alasan}"[:300])
+    return d
+
+
+def buka_daftar_hitam(pengguna, d):
+    if not d.aktif:
+        raise Tolak("Nomor ini sudah dibuka.")
+    d.aktif, d.dibuka_oleh, d.dibuka_waktu = False, getattr(pengguna, "username", "") or "", timezone.now()
+    d.save(update_fields=["aktif", "dibuka_oleh", "dibuka_waktu"])
+    layanan.catat(pengguna, aksi="ubah", objek="daftar hitam COD", kolom="aktif", lama="ya", baru="dibuka",
+                  catatan=f"{d.nama} {d.telepon}")
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Aturan SOP per jenis nota (dipakai nota tulis tangan master dan impor nota kasir)
+# ---------------------------------------------------------------------------
+
+def _cek_tempo(pelanggan, kurang):
+    """'' kalau boleh invoice, atau alasan kenapa tidak."""
+    if not (pelanggan and pelanggan.boleh_tempo):
+        return "bukan pelanggan tempo"
+    if pelanggan.batas_piutang is not None and sisa_berjalan(pelanggan) + kurang > pelanggan.batas_piutang:
+        return (f"melewati batas piutang {pelanggan.nama} ({rp(pelanggan.batas_piutang)}; "
+                f"berjalan {rp(sisa_berjalan(pelanggan))})")
+    return ""
+
+
+def nilai_sop(*, status, dibayar, total, minimal, pelanggan, nama, telepon):
+    """Jenis nota, ACC yang dibutuhkan, dan pelanggaran SOP (teks; kosong = sesuai SOP).
+
+    Dipanggil hanya untuk nota yang memang diproses (belum lunas, atau barang belum dibawa).
+    """
+    lunas = dibayar >= total
+    kurang = max(0, total - dibayar)
+    jenis, acc, langgar = "", "", ""
+    if status == "ambil":
+        jenis, acc = "titipan", "titip"
+        if not lunas:
+            langgar = f"Titipan wajib lunas (kurang {rp(kurang)})."
+    elif status == "pesan":
+        jenis = "pesanan"
+        if not lunas and dibayar < minimal:
+            alasan = _cek_tempo(pelanggan, kurang)
+            if alasan:
+                langgar = f"DP pesanan minimal {rp(minimal)} ({alasan})."
+            else:
+                jenis, acc = "invoice", "invoice"
+    elif status == "antar":
+        jenis = "cod"
+        if not rapikan_teks(nama) or not telepon_baku(telepon):
+            langgar = "COD wajib ada nama dan No. HP pembeli."
+        elif di_daftar_hitam(telepon):
+            langgar = "No. HP ini ada di daftar hitam COD (pernah menolak bayar saat barang diantar)."
+    else:
+        alasan = _cek_tempo(pelanggan, kurang)
+        if alasan:
+            jenis, langgar = "invoice", f"Barang dibawa wajib lunas; kurang {rp(kurang)} hanya untuk invoice ({alasan})."
+        else:
+            jenis, acc = "invoice", "invoice"
+    return {"jenis": jenis, "jenis_acc": "sop" if langgar else acc, "langgar": langgar}
+
+
+# ---------------------------------------------------------------------------
 # Rencana piutang untuk nota baru
 # ---------------------------------------------------------------------------
 
@@ -148,30 +245,25 @@ def rencana(pengguna, *, hak, tanggal, total, baris, data):
     if not nama:
         raise Tolak("Nota yang belum lunas atau barangnya belum dibawa wajib ada nama pembeli.")
 
-    jenis_acc = ""
     minimal = minimal_dp(baris)
-    if dibayar < total and dibayar < minimal:
-        if not (pelanggan and pelanggan.boleh_tempo):
-            raise Tolak(f"DP minimal {rp(minimal)}. Kurang dari itu hanya untuk pelanggan tempo (invoice), "
-                        "dengan ACC pemilik.")
-        if pelanggan.batas_piutang is not None and sisa_berjalan(pelanggan) + (total - dibayar) > pelanggan.batas_piutang:
-            raise Tolak(f"Melewati batas piutang {pelanggan.nama} ({rp(pelanggan.batas_piutang)}); "
-                        f"piutang berjalan {rp(sisa_berjalan(pelanggan))}.")
-        jenis_acc = "invoice"
-    elif dibayar >= total and status == "ambil":
-        jenis_acc = "titip"
+    sop = nilai_sop(status=status, dibayar=dibayar, total=total, minimal=minimal, pelanggan=pelanggan,
+                    nama=nama, telepon=telepon)
+    if sop["langgar"]:
+        raise Tolak(sop["langgar"])
+    jenis_acc = sop["jenis_acc"]
 
     jatuh_tempo = None
     if dibayar < total:
         from master.layanan.pembelian import baca_tanggal
-        jatuh_tempo = baca_tanggal(data.get("jatuh_tempo"), label="Jatuh tempo") or \
-            tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari)
+        jatuh_tempo = tanggal if sop["jenis"] == "cod" else (
+            baca_tanggal(data.get("jatuh_tempo"), label="Jatuh tempo")
+            or tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari))
         if jatuh_tempo < tanggal:
             raise Tolak("Jatuh tempo tidak boleh sebelum tanggal nota.")
 
     otomatis = bool(jenis_acc) and "acc_piutang" in hak
     return {"status_barang": status, "dibayar": dibayar, "nama": nama, "telepon": telepon, "pelanggan": pelanggan,
-            "jatuh_tempo": jatuh_tempo, "jenis_acc": jenis_acc, "minimal": minimal,
+            "jatuh_tempo": jatuh_tempo, "jenis": sop["jenis"], "jenis_acc": jenis_acc, "minimal": minimal,
             "acc_status": ("disetujui" if otomatis else "menunggu") if jenis_acc else "",
             "acc_oleh": getattr(pengguna, "username", "") if otomatis else "",
             "stok_dikurangi": status != "pesan"}
@@ -182,6 +274,7 @@ def buat(pengguna, r, *, toko, nomor, tanggal, total, cara, sumber="master", not
         nota_manual=nota_manual, kasir_sync_id=kasir_sync_id, toko=toko, nomor=nomor, tanggal=tanggal,
         pelanggan=r["pelanggan"], nama=r["nama"], telepon=r["telepon"], total=total, dibayar=0,
         jatuh_tempo=r["jatuh_tempo"], status_barang=r["status_barang"], stok_dikurangi=r["stok_dikurangi"],
+        jenis=r.get("jenis", ""),
         jenis_acc=r["jenis_acc"], acc_status=r["acc_status"], acc_oleh=r["acc_oleh"],
         acc_waktu=timezone.now() if r["acc_status"] == "disetujui" else None,
         dibuat_oleh=getattr(pengguna, "username", "") or "")
@@ -284,8 +377,25 @@ def batalkan_untuk_nota(n):
 # Daftar
 # ---------------------------------------------------------------------------
 
-TAB = [("belum_lunas", "Belum lunas"), ("ambil", "Ambil nanti"), ("pesan", "Pesanan"), ("acc", "Menunggu ACC"),
-       ("selesai", "Selesai")]
+TAB = [("pesanan", "Pesanan"), ("cod", "COD"), ("titipan", "Titipan"), ("invoice", "Invoice"), ("acc", "Menunggu ACC"),
+       ("aturan_lama", "Aturan lama"), ("selesai", "Selesai")]
+
+
+def _q_belum_lunas():
+    from django.db.models import Q
+    # dibayar - uang_kembali < total - potongan_retur
+    return Q(dibayar__lt=F("total") - F("potongan_retur") + F("uang_kembali"))
+
+
+def _belum_lunas(qs):
+    return qs.filter(_q_belum_lunas())
+
+
+def _berjalan(qs):
+    """Belum selesai: belum lunas, atau barangnya masih menunggu diambil/diserahkan. Yang ditolak tidak."""
+    from django.db.models import Q
+    tertunda = Q(status_barang__in=("ambil", "pesan"), barang_selesai__isnull=True)
+    return qs.exclude(acc_status="ditolak").filter(_q_belum_lunas() | tertunda)
 
 
 def daftar(tab, toko=None):
@@ -293,17 +403,50 @@ def daftar(tab, toko=None):
     if toko is not None:
         qs = qs.filter(toko=toko)
     if tab == "belum_lunas":
-        return qs.filter(dibayar__lt=F("total")).exclude(acc_status="ditolak").order_by("jatuh_tempo", "tanggal")
+        return _belum_lunas(qs.exclude(acc_status="ditolak")).order_by("jatuh_tempo", "tanggal")
     if tab in ("ambil", "pesan"):
         return qs.filter(status_barang=tab, barang_selesai__isnull=True).exclude(acc_status="ditolak").order_by("tanggal")
+    if tab in ("pesanan", "cod", "titipan", "invoice"):
+        return _berjalan(qs.filter(jenis=tab)).order_by("tanggal", "id")
     if tab == "acc":
         return qs.filter(acc_status="menunggu").order_by("dibuat")
-    selesai = qs.filter(dibayar__gte=F("total")).exclude(status_barang__in=("ambil", "pesan"), barang_selesai__isnull=True)
-    return (selesai | qs.filter(acc_status="ditolak")).distinct().order_by("-tanggal", "-id")
+    if tab == "aturan_lama":
+        return _berjalan(qs.filter(aturan_lama=True)).order_by("tanggal", "id")
+    from django.db.models import Q
+    tertunda = Q(status_barang__in=("ambil", "pesan"), barang_selesai__isnull=True)
+    return qs.filter(Q(acc_status="ditolak") | ~(_q_belum_lunas() | tertunda)).order_by("-tanggal", "-id")
 
 
 def hitungan(toko=None):
     return {k: daftar(k, toko).count() for k, _ in TAB if k != "selesai"}
+
+
+def tab_untuk(p):
+    """Tab tempat nota ini tampil (untuk tautan kembali)."""
+    return p.jenis or "selesai"
+
+
+# Halaman HP (12 Nov 2026): tiga halaman terpisah, bukan satu halaman bertab.
+HALAMAN_HP = {
+    "pesanan": ("Pesanan", ("pesanan", "cod"), "Pesanan (DP) dan COD yang belum selesai."),
+    "titipan": ("Titipan", ("titipan",), "Barang pelanggan yang dititip di toko (sudah lunas)."),
+    "invoice": ("Piutang & invoice", ("invoice",), "Pelanggan tempo yang belum lunas."),
+}
+
+
+def halaman_untuk(p):
+    return {"cod": "pesanan"}.get(p.jenis, p.jenis if p.jenis in HALAMAN_HP else "pesanan")
+
+
+def daftar_halaman(halaman, toko=None):
+    qs = Piutang.objects.filter(batal=False, jenis__in=HALAMAN_HP[halaman][1]).select_related("toko", "pelanggan")
+    if toko is not None:
+        qs = qs.filter(toko=toko)
+    return _berjalan(qs).order_by("tanggal", "id")
+
+
+def hitungan_halaman(toko=None):
+    return {k: daftar_halaman(k, toko).count() for k in HALAMAN_HP}
 
 
 def ringkas(toko=None):
@@ -404,27 +547,23 @@ def _impor_satu(n):
     pelanggan = Pelanggan.objects.filter(pk=n.pelanggan_id).first() if n.pelanggan_id else None
     if pelanggan is None and t.phone_no:
         pelanggan = cari_pelanggan("", t.phone_no)
-    jenis_acc, catatan = "", ""
-    if dibayar < total and dibayar < minimal:
-        jenis_acc = "invoice"
-        if not (pelanggan and pelanggan.boleh_tempo):
-            catatan = f"Kasir: DP di bawah minimal {rp(minimal)} dan bukan pelanggan tempo."
-        elif pelanggan.batas_piutang is not None and sisa_berjalan(pelanggan) + (total - dibayar) > pelanggan.batas_piutang:
-            catatan = f"Kasir: melewati batas piutang {pelanggan.nama} ({rp(pelanggan.batas_piutang)})."
-    elif dibayar >= total and n.status_barang == "ambil":
-        jenis_acc = "titip"
+    nama = (t.cust_name or (pelanggan.nama if pelanggan else "") or "")[:150]
+    telepon = (t.phone_no or (pelanggan.telepon if pelanggan else ""))[:30]
+    sop = nilai_sop(status=n.status_barang, dibayar=dibayar, total=total, minimal=minimal, pelanggan=pelanggan,
+                    nama=nama, telepon=telepon)
+    jenis_acc, catatan = sop["jenis_acc"], sop["langgar"]
     tanggal = timezone.localdate(t.transaction_time)
     jatuh_tempo = None
     if dibayar < total:
-        jatuh_tempo = n.jatuh_tempo or tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari)
+        jatuh_tempo = tanggal if sop["jenis"] == "cod" else (
+            n.jatuh_tempo or tanggal + timedelta(days=Pengaturan.ambil().jatuh_tempo_hari))
     from pos.models import NotaToko
     milik = NotaToko.objects.filter(sync_id=n.sync_id).values_list("toko_id", flat=True).first()
     toko = (Toko.objects.filter(pk=milik).first() if milik else None) \
         or Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.order_by("id").first()
     pengguna = _Kasir(_nama_kasir(n.worker_id))
     r = {"status_barang": n.status_barang, "dibayar": dibayar, "pelanggan": pelanggan,
-         "nama": (t.cust_name or (pelanggan.nama if pelanggan else "") or "Tanpa nama")[:150],
-         "telepon": (t.phone_no or (pelanggan.telepon if pelanggan else ""))[:30],
+         "nama": nama or "Tanpa nama", "telepon": telepon, "jenis": sop["jenis"],
          "jatuh_tempo": jatuh_tempo, "jenis_acc": jenis_acc, "minimal": minimal,
          "acc_status": "menunggu" if jenis_acc else "", "acc_oleh": "", "stok_dikurangi": not n.stok_ditunda}
     p = buat(pengguna, r, toko=toko, nomor=t.transaction_id or f"kasir {str(n.sync_id)[:8]}", tanggal=tanggal,
@@ -458,6 +597,40 @@ def _terapkan_aksi(a):
     return True
 
 
+def _terapkan_retur():
+    """Barang yang dikembalikan pembeli (event retur kasir) mengurangi tagihan piutang nota itu.
+
+    COD yang barangnya dibawa pulang = pembeli menolak bayar penuh: No. HP-nya masuk daftar hitam COD.
+    Dihitung ulang dari semua event retur nota itu, jadi aman diulang.
+    """
+    from collections import defaultdict
+    from pos.models import RefundEvent, RefundEventDetail, TransactionDetail
+    p_kasir = Piutang.objects.filter(kasir_sync_id__isnull=False, batal=False)
+    events = list(RefundEvent.objects.filter(event_type="return", sync_id__in=p_kasir.values("kasir_sync_id")))
+    if not events:
+        return 0
+    per_nota = defaultdict(list)
+    for e in events:
+        per_nota[e.sync_id].append(e)
+    n = 0
+    for p in p_kasir.filter(kasir_sync_id__in=list(per_nota)):
+        harga = {(d.item_name, d.variant): (d.subtotal / d.quantity if d.quantity else 0)
+                 for d in TransactionDetail.objects.filter(sync_id=p.kasir_sync_id)}
+        ids = [e.refund_id for e in per_nota[p.kasir_sync_id]]
+        potongan = round(sum(harga.get((d.item_name, d.variant), 0) * d.quantity
+                             for d in RefundEventDetail.objects.filter(refund_id__in=ids)))
+        kembali = sum(int(e.refund_amount or 0) for e in per_nota[p.kasir_sync_id])
+        if (potongan, kembali) == (p.potongan_retur, p.uang_kembali):
+            continue
+        Piutang.objects.filter(pk=p.pk).update(potongan_retur=potongan, uang_kembali=kembali)
+        layanan.catat(None, objek="piutang", kolom="retur", lama=p.potongan_retur, baru=potongan,
+                      catatan=f"{p.nomor} {p.nama}: barang dikembalikan {rp(potongan)}, uang kembali {rp(kembali)}")
+        if p.jenis == "cod" and potongan > 0:
+            masuk_daftar_hitam(p, "COD: tidak membayar penuh, barang dibawa pulang.")
+        n += 1
+    return n
+
+
 def sinkron_kasir():
     """Impor nota DP kasir baru, batalkan piutang yang notanya di-void, terapkan aksi kasir.
     Aman dipanggil berulang. Tanpa tabel kasir (database uji master lama): tidak melakukan apa-apa."""
@@ -475,6 +648,7 @@ def sinkron_kasir():
                 n += 1
     void = RefundEvent.objects.filter(event_type="void").values("sync_id")
     Piutang.objects.filter(kasir_sync_id__in=void, batal=False).update(batal=True)
+    _terapkan_retur()
     for a in AksiPiutang.objects.filter(status="baru").order_by("masuk")[:200]:
         _terapkan_aksi(a)
     return n

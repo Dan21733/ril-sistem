@@ -1,15 +1,19 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}{{ p.nomor }} · DB Toko{% endblock %}
 {% block judul_kecil %}{{ p.nama }}{% endblock %}
-{% block kiri %}<a href="{% url 'hp:piutang' %}">‹ Piutang</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:piutang' %}?h={{ halaman }}">‹ {{ judul_halaman }}</a>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">{{ p.nama }}</h1>
 <p class="anak-judul">{{ p.nomor }} · {{ p.tanggal|date:"j M Y" }} · {{ p.toko.nama }}{% if p.telepon %} · {{ p.telepon }}{% endif %}</p>
 {% if p.batal %}<div class="grup"><div class="kosong turun">Nota ini dibatalkan.</div></div>{% endif %}
+{% if p.aturan_lama and not p.batal %}<div class="galat">Nota masa uji dengan aturan lama. Batalkan lalu input ulang sesuai aturan baru.</div>{% endif %}
+{% if p.acc_status == 'ditolak' and not p.batal %}<div class="galat">Ditolak: kasir wajib membatalkan (void) nota ini.</div>{% endif %}
+{% if p.jenis_acc == 'sop' and p.acc_status == 'menunggu' and p.acc_catatan %}<div class="galat" style="background:var(--kuning-lembut);color:var(--kuning)">Melanggar SOP: {{ p.acc_catatan }}</div>{% endif %}
 <div class="ubin">
-  <div><div class="lbl">Total</div><div class="angka">{{ p.total|rupiah }}</div><div class="ket">dibayar {{ p.dibayar|rupiah }}</div></div>
-  <div><div class="lbl">Sisa</div><div class="angka{% if lewat %} turun{% endif %}">{% if p.lunas %}Lunas{% else %}{{ p.sisa|rupiah }}{% endif %}</div>
-    <div class="ket">{% if p.jatuh_tempo and not p.lunas %}tempo {{ p.jatuh_tempo|date:"d M" }}{% if lewat %} (lewat){% endif %}{% else %}&nbsp;{% endif %}</div></div>
+  <div><div class="lbl">Total{% if p.jenis %} · {{ p.get_jenis_display }}{% endif %}</div><div class="angka">{{ p.total|rupiah }}</div>
+    <div class="ket">dibayar {{ p.dibayar|rupiah }}{% if p.potongan_retur %} · barang kembali −{{ p.potongan_retur|rupiah }}{% endif %}</div></div>
+  <div><div class="lbl">{% if p.jenis == 'cod' %}Tagih di tempat{% else %}Sisa{% endif %}</div><div class="angka{% if lewat %} turun{% endif %}">{% if p.lunas %}Lunas{% else %}{{ p.sisa|rupiah }}{% endif %}</div>
+    <div class="ket">{% if p.jatuh_tempo and not p.lunas and p.jenis != 'cod' %}tempo {{ p.jatuh_tempo|date:"d M" }}{% if lewat %} (lewat){% endif %}{% else %}&nbsp;{% endif %}</div></div>
 </div>
 <div class="grup" style="margin-top:12px">
   <div class="sel"><div class="utama"><div class="nama">Barang: {{ p.get_status_barang_display }}</div>

@@ -25,7 +25,7 @@ test('payload piutang hanya untuk nota DP atau barang belum dibawa', () => {
   assert.deepEqual(buildPiutangPayload({
     total: 10000, dpMode: true, dp: '6000', statusBarang: 'sekarang', delivery: true, pelangganId: '4',
     jatuhTempo: '2026-11-16',
-  }), { dibayar: 6000, status_barang: 'antar', jatuh_tempo: '2026-11-16', pelanggan_id: 4 })
+  }), { dibayar: 6000, status_barang: 'antar', jatuh_tempo: null, pelanggan_id: 4 })   // COD: tanpa jatuh tempo (12 Nov 2026)
 })
 
 test('jatuh tempo dihitung dari tanggal lokal', () => {
@@ -83,7 +83,7 @@ test('nota DP mencetak DP, kembalian dari DP, sisa tagihan, dan jatuh tempo', as
   assert.ok(isi.some((t) => t.startsWith('Kembali') && t.trim().endsWith('100.000')))
   assert.ok(isi.some((t) => t.startsWith('SISA TAGIHAN') && t.trim().endsWith('820.000')))
   assert.ok(isi.some((t) => t.startsWith('Jatuh tempo') && t.endsWith('16/11/26')))
-  assert.ok(isi.some((t) => t.includes('AMBIL NANTI DI TOKO')))
+  assert.ok(isi.some((t) => t.includes('TITIP DI TOKO')))
   assert.equal(receiptWidthIssues(lines).length, 0)
 })
 

@@ -253,6 +253,17 @@ def _same_event(existing, validated_data):
     )
 
 
+def _retur_cod(sale, event_type):
+    """COD yang barangnya dibawa pulang (12 Nov 2026): sopir bisa kembali setelah kasir nota pulang,
+    jadi retur barang nota COD boleh dicatat kasir mana pun (tetap ber-PIN, tercatat sebagai penyetuju).
+    Uang keluar (refund) dan void tetap hanya kasir nota asal."""
+    if event_type != "return":
+        return False
+    from .models import NotaPiutang
+    n = NotaPiutang.objects.filter(sync_id=sale.sync_id).first()
+    return bool(n and n.status_barang == "antar" and n.dibayar < int(sale.total_amount or 0))
+
+
 def persist_refund(validated_data, worker_id, device_code):
     """Catat satu event void/return/refund. Kembalikan (event, created).
 
@@ -291,7 +302,7 @@ def persist_refund(validated_data, worker_id, device_code):
 
         # Otorisasi lebih dulu daripada idempotency: replay payload identik
         # oleh kasir lain tetap ditolak, bukan dibalas idempotent.
-        if str(sale.worker_id) != str(worker_id):
+        if str(sale.worker_id) != str(worker_id) and not _retur_cod(sale, event_type):
             raise RefundForbidden(
                 "Hanya kasir nota asal yang boleh mencatat void, retur, "
                 "atau refund."

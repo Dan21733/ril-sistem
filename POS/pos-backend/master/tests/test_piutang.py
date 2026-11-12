@@ -41,36 +41,39 @@ class PiutangTest(Dasar):
         self.assertFalse(Piutang.objects.exists())
 
     def test_dp_minimal_dan_sisa(self):
-        n = self._buat(dibayar="3.500", telepon="0811")
+        n = self._buat(dibayar="3.500", telepon="0811", status_barang="pesan")
         p = n.piutang
-        self.assertEqual((p.total, p.dibayar, p.sisa, p.acc_status, p.nama), (12000, 3500, 8500, "", "Pak Budi"))
+        self.assertEqual((p.total, p.dibayar, p.sisa, p.acc_status, p.nama, p.jenis), (12000, 3500, 8500, "", "Pak Budi", "pesanan"))
         self.assertEqual(p.jatuh_tempo, timezone.localdate() + timedelta(days=14))
         self.assertEqual(p.pembayaran.get().jumlah, 3500)
-        self.assertEqual(self._stok(), 7)
+        self.assertEqual(self._stok(), 10)          # pesan dulu: stok berkurang saat diserahkan
 
     def test_dp_kurang_ditolak_kecuali_pelanggan_tempo(self):
         from master.models import NotaManual
-        with self.assertRaisesMessage(Tolak, "DP minimal Rp3.500"):
-            self._buat(dibayar="3.000")
+        with self.assertRaisesMessage(Tolak, "DP pesanan minimal Rp3.500"):
+            self._buat(dibayar="3.000", status_barang="pesan")
+        # Aturan 12 Nov 2026: barang dibawa wajib lunas; kurang hanya invoice pelanggan tempo.
+        with self.assertRaisesMessage(Tolak, "Barang dibawa wajib lunas"):
+            self._buat(dibayar="11.000")
         self.assertFalse(NotaManual.objects.exists())
         self.assertEqual(self._stok(), 10)
         p = self._buat(self.finance, dibayar="0", pelanggan=self.tempo.id, pembeli="").piutang
-        self.assertEqual((p.jenis_acc, p.acc_status, p.nama, p.telepon), ("invoice", "menunggu", "CV Maju", "08123"))
+        self.assertEqual((p.jenis_acc, p.acc_status, p.nama, p.telepon, p.jenis), ("invoice", "menunggu", "CV Maju", "08123", "invoice"))
 
     def test_dp_per_barang_lebih_tinggi(self):
         from master.models import ItemInfo
         ItemInfo.objects.filter(item_name="Palu").update(min_dp_persen=80)
-        with self.assertRaisesMessage(Tolak, "DP minimal Rp5.600"):
-            self._buat(dibayar="5.000")
+        with self.assertRaisesMessage(Tolak, "DP pesanan minimal Rp5.600"):
+            self._buat(dibayar="5.000", status_barang="pesan")
 
     def test_batas_piutang_tempo(self):
         self._buat(dibayar="0", pelanggan=self.tempo.id)            # sisa 12.000
-        with self.assertRaisesMessage(Tolak, "Melewati batas piutang"):
+        with self.assertRaisesMessage(Tolak, "melewati batas piutang"):
             self._buat(dibayar="0", pelanggan=self.tempo.id)        # 24.000 > 20.000
 
     def test_belum_lunas_wajib_nama(self):
         with self.assertRaisesMessage(Tolak, "wajib ada nama pembeli"):
-            self._buat(dibayar="5000", pembeli="")
+            self._buat(dibayar="5000", pembeli="", status_barang="pesan")
 
     def test_titip_barang_butuh_acc_owner_otomatis(self):
         p = self._buat(status_barang="ambil").piutang
@@ -105,7 +108,7 @@ class PiutangTest(Dasar):
 
     def test_bayar_tidak_boleh_lebih_dari_sisa(self):
         from master.layanan import piutang as svc
-        p = self._buat(dibayar="4000").piutang
+        p = self._buat(dibayar="4000", status_barang="pesan").piutang
         with self.assertRaisesMessage(Tolak, "Lebih dari sisa"):
             svc.bayar(self.admin, p, jumlah="9000")
         svc.bayar(self.admin, p, jumlah="3000")
@@ -125,7 +128,7 @@ class PiutangTest(Dasar):
 
     def test_halaman_master(self):
         self.client.force_login(self.admin)
-        p = self._buat(dibayar="4000", telepon="0811").piutang
+        p = self._buat(dibayar="4000", telepon="0811", status_barang="pesan").piutang
         r = self.client.get(reverse("master:piutang"))
         self.assertContains(r, p.nomor)
         r = self.client.get(reverse("master:piutang_detail", args=[p.id]))
@@ -165,3 +168,59 @@ class PiutangTest(Dasar):
         self.client.post(reverse("master:toko"), {"aksi": "dp", "dp_minimal_persen": "40", "jatuh_tempo_hari": "7"})
         a = Pengaturan.ambil()
         self.assertEqual((a.dp_minimal_persen, a.jatuh_tempo_hari), (40, 7))
+
+    # ---- Aturan nota diproses 12 Nov 2026 ----
+    def test_titipan_wajib_lunas(self):
+        with self.assertRaisesMessage(Tolak, "Titipan wajib lunas"):
+            self._buat(status_barang="ambil", dibayar="11.000")
+        self.assertEqual(self._buat(status_barang="ambil").piutang.jenis, "titipan")
+
+    def test_cod_wajib_nama_hp_dan_daftar_hitam(self):
+        from master.layanan import piutang as svc
+        from master.models import DaftarHitam
+        with self.assertRaisesMessage(Tolak, "COD wajib ada nama dan No. HP"):
+            self._buat(status_barang="antar", dibayar="0")
+        p = self._buat(status_barang="antar", dibayar="2.000", telepon="0812-3456-789").piutang
+        self.assertEqual((p.jenis, p.jenis_acc, p.jatuh_tempo, p.sisa), ("cod", "", timezone.localdate(), 10000))
+        svc.masuk_daftar_hitam(p, "COD: barang dibawa pulang.")
+        self.assertEqual(DaftarHitam.objects.get().telepon, "08123456789")
+        # Nomor yang sama (ditulis +62) tidak boleh COD lagi; lunas & diantar tetap boleh (bukan COD).
+        with self.assertRaisesMessage(Tolak, "daftar hitam COD"):
+            self._buat(status_barang="antar", dibayar="0", telepon="+62 812 3456 789")
+        self._buat(status_barang="antar", telepon="+62 812 3456 789")
+        svc.buka_daftar_hitam(self.admin, DaftarHitam.objects.get())
+        self._buat(status_barang="antar", dibayar="0", telepon="08123456789")
+
+    def test_halaman_daftar_hitam(self):
+        from master.layanan import piutang as svc
+        from master.models import DaftarHitam
+        p = self._buat(status_barang="antar", dibayar="0", telepon="081299990000").piutang
+        svc.masuk_daftar_hitam(p, "COD: barang dibawa pulang.")
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("master:pelanggan")), "081299990000")
+        d = DaftarHitam.objects.get()
+        self.client.post(reverse("master:pelanggan"), {"aksi": "buka_hitam", "id": d.id})
+        d.refresh_from_db()
+        self.assertFalse(d.aktif)
+        self.assertContains(self.client.get(reverse("master:piutang") + "?tab=cod"), p.nomor)
+
+    def test_hp_tiga_halaman(self):
+        from master.tests.test_hp import masuk_hp
+        masuk_hp(self.client, self.admin)
+        cod = self._buat(status_barang="antar", dibayar="0", telepon="081234567890").piutang
+        pesan = self._buat(status_barang="pesan", dibayar="6.000").piutang
+        titip = self._buat(status_barang="ambil").piutang
+        invoice = self._buat(dibayar="0", pelanggan=self.tempo.id).piutang
+        url = reverse("hp:piutang")
+        r = self.client.get(url + "?h=pesanan")
+        self.assertContains(r, cod.nomor)
+        self.assertContains(r, pesan.nomor)
+        self.assertNotContains(r, titip.nomor)
+        self.assertContains(self.client.get(url + "?h=titipan"), titip.nomor)
+        r = self.client.get(url + "?h=invoice")
+        self.assertContains(r, invoice.nomor)
+        self.assertNotContains(r, cod.nomor)
+        m = self.client.get(reverse("hp:menu"))
+        self.assertEqual(m.context["nota_proses"], {"pesanan": 2, "titipan": 1, "invoice": 1})
+        self.assertContains(self.client.get(reverse("hp:piutang_detail", args=[cod.id])), "?h=pesanan")
+

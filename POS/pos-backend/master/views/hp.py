@@ -1033,12 +1033,23 @@ def po_detail(request, po_id):
 
 @perlu_hp("piutang")
 def piutang(request):
+    """Pesanan (termasuk COD), Titipan, Piutang & invoice: tiga halaman dari Menu (12 Nov 2026).
+    ?h=selesai / ?h=aturan_lama untuk daftar pelengkap."""
     from master.layanan import piutang as svc
     svc.sinkron_kasir()
-    tab = request.GET.get("tab") or "belum_lunas"
-    if tab not in dict(svc.TAB):
-        tab = "belum_lunas"
-    qs = svc.daftar(tab)
+    lama = {"belum_lunas": "invoice", "ambil": "titipan", "pesan": "pesanan", "cod": "pesanan"}
+    h = request.GET.get("h") or lama.get(request.GET.get("tab") or "", request.GET.get("tab") or "pesanan")
+    if h in svc.HALAMAN_HP:
+        judul, _, ket = svc.HALAMAN_HP[h]
+        qs = svc.daftar_halaman(h)
+    elif h in ("selesai", "aturan_lama"):
+        judul, ket = dict(svc.TAB)[h], ("Nota yang sudah selesai atau ditolak." if h == "selesai"
+                                         else "Nota masa uji dengan aturan lama: batalkan lalu input ulang.")
+        qs = svc.daftar(h)
+    else:
+        h = "pesanan"
+        judul, _, ket = svc.HALAMAN_HP[h]
+        qs = svc.daftar_halaman(h)
     cari = (request.GET.get("q") or "").strip()
     if cari:
         from django.db.models import Q
@@ -1048,8 +1059,8 @@ def piutang(request):
     for p in baris:
         p.lewat = bool(p.jatuh_tempo and p.jatuh_tempo < hari_ini and not p.lunas)
     return _tampil(request, "hp/piutang.html", {
-        "tab": "", "pilih": tab, "tabs": svc.TAB, "hitung": svc.hitungan(), "baris": baris, "cari": cari,
-        "ringkas": svc.ringkas()})
+        "tab": "", "h": h, "judul_halaman": judul, "ket_halaman": ket, "baris": baris, "cari": cari,
+        "sisa_total": sum(p.sisa for p in baris), "aturan_lama": svc.daftar("aturan_lama").count()})
 
 
 @perlu_hp("piutang")
@@ -1079,6 +1090,7 @@ def piutang_detail(request, piutang_id):
             return _jawab(False, str(e), 400)
         return _jawab(False, "Permintaan tidak dikenali.", 400)
     return _tampil(request, "hp/piutang_detail.html", {
+        "halaman": svc.halaman_untuk(p), "judul_halaman": svc.HALAMAN_HP[svc.halaman_untuk(p)][0],
         "tab": "", "p": p, "pembayaran": p.pembayaran.all(), "cara": [(k, v) for k, v in svc.CARA_BAYAR.items() if k != "campur"],
         "boleh_acc": "acc_piutang" in hak, "wa": svc.wa_url(p) if p.telepon else "",
         "barang": svc.barang(p),
@@ -1235,7 +1247,12 @@ def menu(request):
         from master.layanan import sesi_opname as svc_sesi
         sesi = svc_sesi.sesi_buka()
         opname_ulang = svc_sesi.jumlah_menunggu(sesi) if sesi else 0
-    return _tampil(request, "hp/menu.html", {"tab": "menu", "simpel": simpel, "opname_ulang": opname_ulang})
+    nota_proses = {}
+    if "piutang" in hak and not simpel:
+        from master.layanan import piutang as svc_piutang
+        nota_proses = svc_piutang.hitungan_halaman()
+    return _tampil(request, "hp/menu.html", {"tab": "menu", "simpel": simpel, "opname_ulang": opname_ulang,
+                                             "nota_proses": nota_proses})
 
 
 @require_POST

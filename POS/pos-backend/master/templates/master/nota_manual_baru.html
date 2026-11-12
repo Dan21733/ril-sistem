@@ -130,23 +130,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const belumLunas = bayar < totalNota, status = elStatus.value;
     const piutang = belumLunas || status === 'ambil' || status === 'pesan';
     document.getElementById('isian-piutang').hidden = !piutang;
-    document.getElementById('isian-tempo').hidden = !belumLunas;
+    document.getElementById('isian-tempo').hidden = !belumLunas || status === 'antar';
     const tempo = document.getElementById('jatuh-tempo');
     if (belumLunas && !tempo.value){ const t = new Date(document.getElementById('tanggal').value || Date.now()); t.setDate(t.getDate() + HARI_TEMPO); tempo.value = t.toISOString().slice(0, 10); }
     document.getElementById('ket-dp').textContent = totalNota ? 'DP minimal ' + ribuan(minimal) + (belumLunas ? ' · sisa ' + ribuan(totalNota - bayar) : '') : '';
     const ket = document.getElementById('ket-piutang'); ket.style.color = '';
     if (!piutang){ ket.textContent = ''; return; }
-    const tempoDipilih = !!document.getElementById('pelanggan').value;
-    if (belumLunas && bayar < minimal){
-      ket.textContent = tempoDipilih ? 'Di bawah DP minimal: jadi invoice pelanggan tempo, menunggu ACC pemilik.' : 'Di bawah DP minimal ' + ribuan(minimal) + '. Hanya pelanggan tempo yang boleh (pilih di atas).';
-      ket.style.color = tempoDipilih ? 'var(--awas)' : 'var(--bahaya)';
-    } else if (!belumLunas && status === 'ambil'){
-      ket.textContent = 'Lunas, barang dititip di toko: menunggu ACC pemilik.'; ket.style.color = 'var(--awas)';
-    } else {
-      ket.textContent = 'Masuk ke Piutang & pesanan. Nama pembeli wajib diisi.' + (status === 'pesan' ? ' Stok berkurang saat barang diserahkan.' : '');
+    // Aturan 12 Nov 2026: dibawa = lunas (kurang hanya invoice), COD = nama + No. HP, titipan = lunas + ACC,
+    // pesanan = DP minimal. Server memeriksa ulang.
+    const tempoDipilih = !!document.getElementById('pelanggan').value, merah = 'var(--bahaya)', kuning = 'var(--awas)';
+    const telp = (document.getElementById('telepon').value || '').replace(/\D/g, '');
+    let teks = 'Masuk ke Piutang & pesanan. Nama pembeli wajib diisi.', warna = '';
+    if (status === 'ambil'){
+      if (belumLunas){ teks = 'Titipan wajib lunas.'; warna = merah; } else { teks = 'Titipan (lunas, barang di toko): menunggu ACC pemilik.'; warna = kuning; }
+    } else if (status === 'antar'){
+      teks = telp.length < 8 ? 'COD wajib ada nama dan No. HP pembeli.' : 'COD: sisa ' + ribuan(totalNota - bayar) + ' ditagih saat barang diantar. Tidak dibayar penuh = barang dibawa pulang.';
+      warna = telp.length < 8 ? merah : '';
+    } else if (status === 'pesan'){
+      if (belumLunas && bayar < minimal){ teks = tempoDipilih ? 'Di bawah DP minimal: jadi invoice pelanggan tempo, menunggu ACC pemilik.' : 'DP pesanan minimal ' + ribuan(minimal) + '.'; warna = tempoDipilih ? kuning : merah; }
+      else teks += ' Stok berkurang saat barang diserahkan.';
+    } else if (belumLunas){
+      teks = tempoDipilih ? 'Barang dibawa tapi belum lunas: jadi invoice pelanggan tempo, menunggu ACC pemilik.' : 'Barang dibawa wajib lunas. Kurang dari lunas hanya untuk pelanggan tempo (pilih di atas).';
+      warna = tempoDipilih ? kuning : merah;
     }
+    ket.textContent = teks; ket.style.color = warna;
   }
-  [elStatus, elBayar, document.getElementById('pelanggan')].forEach(el => el.addEventListener('input', hitung));
+  [elStatus, elBayar, document.getElementById('pelanggan'), document.getElementById('telepon')].forEach(el => el.addEventListener('input', hitung));
   elStatus.addEventListener('change', hitung);
   elBayar.addEventListener('blur', () => { const n = angka(elBayar.value); if (n != null) elBayar.value = ribuan(n); });
   document.getElementById('pelanggan').addEventListener('change', e => {

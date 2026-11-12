@@ -123,3 +123,21 @@ test('barang meteran tercetak dalam satuan asli (x1,5m)', async () => {
   assert.ok(baris.includes('37.500'), baris)
   assert.equal(receiptWidthIssues(lines).length, 0)
 })
+
+/* COD (12 Nov 2026): nota dan surat jalan mencetak jumlah yang ditagih di tempat + syaratnya. */
+test('nota COD mencetak tagih di tempat dan syarat; surat jalan ikut membawa jumlahnya', async () => {
+  const { buildReceiptLines, buildDeliverySlipLines, receiptWidthIssues } = (await loadReceipt()).namespace
+  const cod = sale({ payment_amount: 10000, change_amount: 0,
+    piutang: { dibayar: 10000, status_barang: 'antar', jatuh_tempo: null } })
+  const lines = buildReceiptLines(cod, {})
+  const text = lines.map((line) => line.text).join('\n')
+  assert.match(text, /COD - BAYAR DI TEMPAT/)
+  assert.match(text, /TAGIH DI TEMPAT\s+34\.000/)
+  assert.match(text, /barang dibawa\s+kembali/)
+  assert.doesNotMatch(text, /Jatuh tempo/)
+  assert.equal(receiptWidthIssues(lines).length, 0)
+  const slip = buildDeliverySlipLines(cod, {}).map((line) => line.text).join('\n')
+  assert.match(slip, /TAGIH DI TEMPAT\s+34\.000/)
+  /* Nota lunas yang diantar: surat jalan tetap tanpa angka. */
+  assert.doesNotMatch(buildDeliverySlipLines(sale(), {}).map((line) => line.text).join('\n'), /TAGIH/)
+})

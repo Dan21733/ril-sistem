@@ -1293,6 +1293,28 @@ class Pelanggan(models.Model):
         return self.nama
 
 
+class DaftarHitam(models.Model):
+    """Pembeli yang tidak boleh COD lagi (keputusan 12 Nov 2026): pernah menolak bayar penuh saat barang diantar.
+
+    Dikenali dari nomor HP (hanya angka, awalan 62 diganti 0). Pemilik bisa membukanya lagi dari master.
+    """
+    telepon = models.CharField(max_length=30, unique=True)
+    nama = models.CharField(max_length=150, blank=True, default="")
+    alasan = models.CharField(max_length=300, blank=True, default="")
+    nomor_nota = models.CharField(max_length=40, blank=True, default="")
+    aktif = models.BooleanField(default=True)
+    dibuat = models.DateTimeField(auto_now_add=True)
+    dibuka_oleh = models.CharField(max_length=150, blank=True, default="")
+    dibuka_waktu = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "master_daftar_hitam"
+        ordering = ["-dibuat"]
+
+    def __str__(self):
+        return f"{self.nama} {self.telepon}"
+
+
 class Piutang(models.Model):
     """Nota yang belum selesai: belum lunas (DP/invoice), barang diambil nanti, atau barang dipesan.
 
@@ -1301,7 +1323,10 @@ class Piutang(models.Model):
     """
     BARANG = [("bawa", "Dibawa sekarang"), ("antar", "Diantar"), ("ambil", "Ambil nanti di toko"), ("pesan", "Pesan dulu")]
     ACC = [("", "Tidak perlu"), ("menunggu", "Menunggu ACC"), ("disetujui", "Disetujui"), ("ditolak", "Ditolak")]
-    JENIS_ACC = [("", "-"), ("invoice", "Invoice / ngutang"), ("titip", "Titip barang")]
+    JENIS_ACC = [("", "-"), ("invoice", "Invoice / ngutang"), ("titip", "Titip barang"), ("sop", "Melanggar SOP")]
+    # Jenis nota diproses (keputusan 12 Nov 2026): pesanan (DP >= minimal), titipan (wajib lunas + ACC),
+    # COD (diantar, sisa ditagih di tempat, tidak boleh jadi utang), invoice (pelanggan tempo + ACC).
+    JENIS = [("pesanan", "Pesanan"), ("titipan", "Titipan"), ("cod", "COD"), ("invoice", "Invoice")]
 
     nota_manual = models.OneToOneField("NotaManual", null=True, blank=True, on_delete=models.CASCADE, related_name="piutang")
     kasir_sync_id = models.UUIDField(null=True, blank=True, unique=True)
@@ -1315,6 +1340,13 @@ class Piutang(models.Model):
     dibayar = models.BigIntegerField(default=0)
     jatuh_tempo = models.DateField(null=True, blank=True)
     status_barang = models.CharField(max_length=10, choices=BARANG, default="bawa")
+    jenis = models.CharField(max_length=10, choices=JENIS, blank=True, default="", db_index=True)
+    # Barang yang dikembalikan pembeli (retur kasir, mis. COD dibawa pulang) mengurangi tagihan;
+    # uang_kembali = uang yang dikembalikan ke pembeli lewat event retur yang sama.
+    potongan_retur = models.BigIntegerField(default=0)
+    uang_kembali = models.BigIntegerField(default=0)
+    # Nota masa uji yang dibuat dengan aturan lama (sebelum 12 Nov 2026): dibatalkan lalu diinput ulang.
+    aturan_lama = models.BooleanField(default=False)
     # Stok barang "pesan dulu" baru berkurang saat diserahkan.
     stok_dikurangi = models.BooleanField(default=True)
     barang_selesai = models.DateTimeField(null=True, blank=True)
@@ -1333,12 +1365,21 @@ class Piutang(models.Model):
         ordering = ["-tanggal", "-id"]
 
     @property
+    def tagihan(self):
+        """Total setelah barang yang dikembalikan."""
+        return max(0, self.total - self.potongan_retur)
+
+    @property
+    def dibayar_bersih(self):
+        return self.dibayar - self.uang_kembali
+
+    @property
     def sisa(self):
-        return max(0, self.total - self.dibayar)
+        return max(0, self.tagihan - self.dibayar_bersih)
 
     @property
     def lunas(self):
-        return self.dibayar >= self.total
+        return self.dibayar_bersih >= self.tagihan
 
     @property
     def barang_tertunda(self):

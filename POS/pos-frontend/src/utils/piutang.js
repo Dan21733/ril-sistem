@@ -16,14 +16,14 @@ const BAWAAN = { dp_minimal_persen: 50, jatuh_tempo_hari: 14, pelanggan: [] }
 
 export const STATUS_BARANG = [
   { value: 'sekarang', label: 'Dibawa sekarang' },
-  { value: 'ambil', label: 'Ambil nanti' },
+  { value: 'ambil', label: 'Titip di toko' },
   { value: 'pesan', label: 'Pesan dulu' },
 ]
 
 export const STATUS_BARANG_LABEL = {
   bawa: 'Dibawa',
   antar: 'Diantar',
-  ambil: 'Ambil nanti di toko',
+  ambil: 'Titip di toko',
   pesan: 'Pesan dulu',
 }
 
@@ -46,13 +46,14 @@ export function dpRules() {
         pelanggan: Array.isArray(data.pelanggan) ? data.pelanggan : [],
         toko_titipan: Array.isArray(data.toko_titipan) ? data.toko_titipan : [],
         metode_bayar: metodeBayarRapi(data.metode_bayar),
+        daftar_hitam: Array.isArray(data.daftar_hitam) ? data.daftar_hitam.map(String) : [],
       }
     }
   } catch {
     /* Salinan rusak: pakai bawaan. */
   }
 
-  return { ...BAWAAN, pelanggan: [], toko_titipan: [], metode_bayar: [...METODE_BAYAR] }
+  return { ...BAWAAN, pelanggan: [], toko_titipan: [], metode_bayar: [...METODE_BAYAR], daftar_hitam: [] }
 }
 
 /* Cara bayar yang ditampilkan kasir (Aturan kasir di master, 2026-11-12). Salinan lama tanpa daftar = semua. */
@@ -88,6 +89,8 @@ export function noteDpRules(data) {
         telepon: String(t.telepon || ''),
       })),
       metode_bayar: metodeBayarRapi(data.metode_bayar),
+      /* No. HP yang tidak boleh COD lagi (pernah menolak bayar saat diantar). */
+      daftar_hitam: (Array.isArray(data.daftar_hitam) ? data.daftar_hitam : []).map(String),
     }))
   } catch {
     /* Penyimpanan penuh: aturan lama tetap dipakai. */
@@ -137,9 +140,86 @@ export function buildPiutangPayload({ total, dpMode, dp, statusBarang, delivery,
   return {
     dibayar,
     status_barang: status,
-    jatuh_tempo: dibayar < Number(total) && jatuhTempo ? jatuhTempo : null,
+    /* COD tidak punya jatuh tempo: sisanya ditagih hari itu juga saat diantar. */
+    jatuh_tempo: dibayar < Number(total) && jatuhTempo && status !== 'antar' ? jatuhTempo : null,
     pelanggan_id: pelangganId ? Number(pelangganId) : null,
   }
+}
+
+/* Nomor HP untuk dicocokkan dengan daftar hitam: angka saja, awalan 62 jadi 0 (sama dengan master). */
+export function teleponBaku(telepon) {
+  let angka = String(telepon || '').replace(/\D/g, '')
+  if (angka.startsWith('62')) {
+    angka = `0${angka.slice(2)}`
+  }
+  return angka.length >= 8 ? angka : ''
+}
+
+/*
+ * Status barang nota: bawa / antar / ambil (titip di toko) / pesan.
+ * 'sekarang' di layar kasir = dibawa atau diantar, tergantung pengambilan.
+ */
+export function statusNota(statusBarang, delivery) {
+  if (statusBarang === 'ambil' || statusBarang === 'pesan') {
+    return statusBarang
+  }
+  return delivery ? 'antar' : 'bawa'
+}
+
+/*
+ * Aturan bayar per jenis nota (SOP pemilik 12 Nov 2026). Hasil: '' kalau
+ * boleh, atau pesan yang ditampilkan ke kasir. Master memeriksa ulang; nota
+ * yang lolos dari tablet lama tetap wajib ACC pemilik.
+ *
+ * - bawa  : lunas; bayar sebagian hanya pelanggan tempo (invoice).
+ * - antar : COD, bayar 0 sampai lunas; wajib No. HP; nomor di daftar hitam wajib lunas.
+ * - ambil : titip di toko, wajib lunas.
+ * - pesan : DP minimal; kurang dari itu hanya pelanggan tempo.
+ */
+export function masalahBayar({ status, dpMode, dp, total, minimal, pelangganTempo, telepon, daftarHitam = [] }) {
+  if (!dpMode) {
+    return ''
+  }
+  if (status === 'ambil') {
+    return 'Titip di toko wajib lunas.'
+  }
+  if (dp === '' || dp === null || dp === undefined) {
+    return status === 'antar' ? 'Isi uang yang dibayar di toko (boleh 0).' : 'Isi jumlah DP.'
+  }
+  const dibayar = Number(dp)
+  if (dibayar >= Number(total)) {
+    return 'Jumlahnya sama dengan total: pilih Lunas.'
+  }
+  if (status === 'antar') {
+    const baku = teleponBaku(telepon)
+    if (!baku) {
+      return 'COD wajib No. HP pembeli.'
+    }
+    if (daftarHitam.includes(baku)) {
+      return 'No. HP ini ada di daftar hitam COD (pernah menolak bayar). Wajib lunas di toko.'
+    }
+    return ''
+  }
+  if (status === 'pesan' && dibayar >= Number(minimal)) {
+    return ''
+  }
+  if (!pelangganTempo) {
+    return status === 'pesan'
+      ? `DP pesanan minimal Rp${Number(minimal).toLocaleString('id-ID')}. Kurang dari itu hanya untuk pelanggan tempo.`
+      : 'Barang dibawa wajib lunas. Bayar sebagian hanya untuk pelanggan tempo (invoice).'
+  }
+  return ''
+}
+
+/* Perlu memilih pelanggan tempo (nota jadi invoice)? */
+export function perluTempo({ status, dpMode, dp, minimal }) {
+  if (!dpMode || dp === '' || dp === null || dp === undefined) {
+    return false
+  }
+  if (status === 'bawa') {
+    return true
+  }
+  return status === 'pesan' && Number(dp) < Number(minimal)
 }
 
 export default {
@@ -150,4 +230,8 @@ export default {
   minimalDp,
   dueDateFrom,
   buildPiutangPayload,
+  teleponBaku,
+  statusNota,
+  masalahBayar,
+  perluTempo,
 }

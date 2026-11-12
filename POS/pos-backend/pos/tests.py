@@ -5745,6 +5745,19 @@ class RefundEndpointTests(ExternalPostgresTableMixin, TransactionTestCase):
         self.assertEqual(detail.data["refund_status"], "none")
         self.assertEqual(detail.data["refunds"], [])
 
+    def test_other_cashier_may_return_cod_goods(self):
+        """COD yang barangnya dibawa pulang (12 Nov 2026): sopir bisa kembali
+        setelah kasir nota pulang, jadi retur barang nota COD boleh dicatat
+        kasir lain. Uang keluar (refund) tetap hanya kasir nota asal."""
+        from pos.models import NotaPiutang
+        NotaPiutang.objects.create(sync_id=self.sale_sync_id, transaction_id="T01-000010", worker_id="W001",
+                                   dibayar=0, cara="cash", status_barang="antar")
+        response = self._refund(self._base_payload(approver_pin="654321"))
+        self.assertEqual(response.status_code, 201, response.data)
+        refund = self._refund(self._base_payload(approver_pin="654321", event_type="refund", items=[],
+                                                 refund_amount=1000, refund_id=str(uuid4())))
+        self.assertEqual(refund.status_code, 403)
+
     def test_refund_id_reused_with_different_content_conflicts(self):
         payload = self._base_payload()
         self.assertEqual(self._refund(payload).status_code, 201)

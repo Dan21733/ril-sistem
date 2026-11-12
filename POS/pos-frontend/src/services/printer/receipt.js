@@ -68,10 +68,22 @@ function pushRincianBayar(lines, payments) {
   }
 }
 
+/* Syarat COD dicetak di nota dan surat jalan (keputusan pemilik 12 Nov 2026). */
+export const SYARAT_COD = 'Pembayaran penuh saat barang diterima. Bila tidak dibayar penuh, barang dibawa kembali.'
+
+/* Nota COD: diantar dan belum lunas (sisa ditagih sopir di tempat). */
+export function sisaCod(sale) {
+  const p = sale && sale.piutang
+  if (!p || p.status_barang !== 'antar') {
+    return 0
+  }
+  return Math.max(0, Number(sale.total_amount || 0) - Number(p.dibayar || 0))
+}
+
 const STATUS_BARANG_LABELS = {
   bawa: 'DIBAWA',
   antar: 'DIANTAR',
-  ambil: 'AMBIL NANTI DI TOKO',
+  ambil: 'TITIP DI TOKO',
   pesan: 'PESAN DULU',
 }
 
@@ -490,6 +502,7 @@ export function buildReceiptLines(sale, store = {}) {
    * (undefined), jadi kertas transaksi normal tidak berubah sama sekali.
    */
   const actionBanner = ACTION_BANNERS[sale.refund_status]
+    || (sisaCod(sale) > 0 ? ['*** COD - BAYAR DI TEMPAT ***'] : null)
     || (sale.piutang && Number(sale.piutang.dibayar || 0) < Number(sale.total_amount || 0)
       ? ['*** NOTA DP - BELUM LUNAS ***'] : null)
 
@@ -630,7 +643,12 @@ export function buildReceiptLines(sale, store = {}) {
   if (piutang) {
     pushLine(lines, RULE_DASH)
 
-    if (dibayar < total) {
+    if (dibayar < total && piutang.status_barang === 'antar') {
+      pushLine(lines, `${pad('TAGIH DI TEMPAT', COLUMNS - MONEY_WIDTH)}${alignRight(rupiah(total - dibayar), MONEY_WIDTH)}`, { bold: true })
+      for (const line of wrapText(SYARAT_COD, COLUMNS)) {
+        pushLine(lines, line)
+      }
+    } else if (dibayar < total) {
       pushLine(lines, `${pad('SISA TAGIHAN', COLUMNS - MONEY_WIDTH)}${alignRight(rupiah(total - dibayar), MONEY_WIDTH)}`, { bold: true })
 
       if (piutang.jatuh_tempo) {
@@ -754,6 +772,16 @@ export function buildDeliverySlipLines(sale, store = {}) {
   })
 
   pushLine(lines, RULE_DASH)
+
+  /* COD: satu-satunya angka di surat jalan, supaya sopir tahu berapa yang ditagih. */
+  const tagihCod = sisaCod(sale)
+  if (tagihCod > 0) {
+    pushLine(lines, `${pad('TAGIH DI TEMPAT', COLUMNS - MONEY_WIDTH)}${alignRight(rupiah(tagihCod), MONEY_WIDTH)}`, { bold: true })
+    for (const line of wrapText(SYARAT_COD, COLUMNS)) {
+      pushLine(lines, line)
+    }
+    pushLine(lines, RULE_DASH)
+  }
 
   /* Bagian tanda tangan: nama penerima dan nama toko, keduanya ditulis tangan. */
   pushLine(lines, pairCells('Penerima,', 'Hormat Kami,'))

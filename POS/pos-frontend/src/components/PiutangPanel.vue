@@ -14,6 +14,11 @@ import LoadingSpinner from './LoadingSpinner.vue'
 /*
  * Piutang pelanggan di menu Transaksi (DP fase 2, 2026-11-02).
  *
+ * Nota diproses (12 Nov 2026): tab "Belum selesai" (pesanan, titipan, COD;
+ * semua kasir boleh melanjutkan, tiap baris menyebut kasir pembuatnya) dan
+ * "Invoice" (pelanggan tempo). COD: "Uang COD diterima" = pelunasan sebesar
+ * sisa; "Barang dibawa pulang" membuka retur nota itu (kasir mana pun).
+ *
  * Tab "Belum lunas" dan "Ambil nanti / Pesanan" terlihat untuk semua kasir
  * setelah PIN. Kasir boleh mencatat pelunasan dan menandai barang diambil;
  * keduanya masuk antrean perangkat dulu (jalan saat offline) lalu dikirim,
@@ -21,12 +26,21 @@ import LoadingSpinner from './LoadingSpinner.vue'
  */
 
 const props = defineProps({
-  tab: { type: String, default: 'belum_lunas' },
+  tab: { type: String, default: 'proses' },
   pin: { type: String, default: '' },
   cashierName: { type: String, default: '' },
 })
 
-const emit = defineEmits(['pin-invalid', 'counts'])
+const emit = defineEmits(['pin-invalid', 'counts', 'retur-cod'])
+
+const JENIS_LABEL = { pesanan: 'Pesanan', titipan: 'Titipan', cod: 'COD', invoice: 'Invoice' }
+const SUB_FILTER = [
+  { value: '', label: 'Semua' },
+  { value: 'pesanan', label: 'Pesanan' },
+  { value: 'titipan', label: 'Titipan' },
+  { value: 'cod', label: 'COD' },
+]
+const subFilter = ref('')
 
 const rows = ref([])
 const loading = ref(false)
@@ -142,9 +156,31 @@ async function open(row, { keepMessage = false } = {}) {
 
 const current = computed(() => detail.value || selected.value)
 
+const shownRows = computed(() => (props.tab === 'proses' && subFilter.value
+  ? rows.value.filter((row) => row.jenis === subFilter.value)
+  : rows.value))
+
+function subCount(jenis) {
+  return jenis ? rows.value.filter((row) => row.jenis === jenis).length : rows.value.length
+}
+
+const isCod = computed(() => current.value?.jenis === 'cod')
+
+/* Pesan ACC per jenis: invoice, titipan, atau pelanggaran SOP (alasan dari master). */
+function accText(r) {
+  if (r.jenis_acc === 'sop') {
+    return `Melanggar SOP${r.acc_catatan ? `: ${r.acc_catatan}` : ''} Menunggu ACC pemilik.`
+  }
+  return `${r.jenis_acc === 'invoice' ? 'Invoice' : 'Titipan'} menunggu ACC pemilik.`
+}
+
 const pending = computed(() => (current.value?.menunggu || []).length > 0)
 
 const canPay = computed(() => current.value && current.value.sisa > 0 && current.value.acc_status !== 'ditolak')
+
+/* COD: barang dibawa pulang lewat retur nota kasir (butuh nomor nota kasir). */
+const canReturCod = computed(() => isCod.value && current.value.sisa > 0 && Boolean(current.value.kasir_sync_id)
+  && current.value.acc_status !== 'ditolak')
 
 const canHandover = computed(() => {
   const r = current.value
@@ -172,6 +208,10 @@ const payProblem = computed(() => {
   }
   if (current.value && jumlah > current.value.sisa) {
     return `Lebih dari sisa tagihan (${formatPrice(current.value.sisa)}).`
+  }
+  /* COD tidak boleh jadi utang: uang yang dibawa sopir harus pas sisa. Kurang = barang dibawa pulang dulu. */
+  if (isCod.value && jumlah !== current.value.sisa) {
+    return `COD harus dibayar penuh (${formatPrice(current.value.sisa)}). Kalau kurang, catat dulu barang yang dibawa pulang.`
   }
   return ''
 })
@@ -225,7 +265,7 @@ async function record(jenis, extra = {}) {
     const printed = await printQuietly(printData(jenis, extra))
     const offline = hasil.pending > 0
     actionMessage.value = [
-      jenis === 'bayar' ? 'Pembayaran dicatat.' : 'Barang ditandai sudah diambil.',
+      jenis !== 'bayar' ? 'Barang ditandai sudah diambil.' : (isCod.value ? 'Uang COD dicatat; nota selesai.' : 'Pembayaran dicatat.'),
       offline ? 'Server belum terjangkau: tersimpan di antrean tablet, dikirim otomatis.' : 'Pemilik melihatnya di master.',
       printed ? 'Struk masuk antrean cetak.' : 'Struk belum bisa disiapkan untuk printer.',
     ].join(' ')
@@ -276,6 +316,7 @@ watch(query, () => {
 })
 
 watch(() => [props.tab, props.pin], () => {
+  subFilter.value = ''
   selected.value = null
   detail.value = null
   if (props.pin) {
@@ -283,9 +324,11 @@ watch(() => [props.tab, props.pin], () => {
   }
 }, { immediate: true })
 
-const emptyText = computed(() => (props.tab === 'ambil'
-  ? 'Tidak ada barang pelanggan yang menunggu diambil atau dipesan.'
-  : 'Tidak ada nota yang belum lunas.'))
+const emptyText = computed(() => ({
+  proses: 'Tidak ada pesanan, titipan, atau COD yang belum selesai.',
+  invoice: 'Tidak ada invoice yang belum lunas.',
+  ambil: 'Tidak ada barang pelanggan yang menunggu diambil atau dipesan.',
+}[props.tab] || 'Tidak ada nota yang belum lunas.'))
 
 defineExpose({ load })
 </script>
@@ -297,13 +340,24 @@ defineExpose({ load })
         <input v-model="query" type="search" placeholder="Cari nama, No. HP, nomor nota" aria-label="Cari piutang" />
       </div>
 
+      <div v-if="tab === 'proses'" class="piutang-chips piutang-sub" role="tablist" aria-label="Jenis nota">
+        <button
+          v-for="opsi in SUB_FILTER"
+          :key="opsi.value"
+          type="button"
+          class="piutang-chip"
+          :class="{ selected: subFilter === opsi.value }"
+          @click="subFilter = opsi.value"
+        >{{ opsi.label }}<template v-if="subCount(opsi.value)"> · {{ subCount(opsi.value) }}</template></button>
+      </div>
+
       <p v-if="errorMessage" class="piutang-error" role="alert">{{ errorMessage }}</p>
 
       <div v-if="loading && rows.length === 0" class="piutang-empty"><LoadingSpinner /></div>
-      <p v-else-if="rows.length === 0 && !errorMessage" class="piutang-empty">{{ emptyText }}</p>
+      <p v-else-if="shownRows.length === 0 && !errorMessage" class="piutang-empty">{{ emptyText }}</p>
 
       <button
-        v-for="row in rows"
+        v-for="row in shownRows"
         :key="row.kunci"
         type="button"
         class="piutang-row"
@@ -313,10 +367,12 @@ defineExpose({ load })
         <span class="piutang-row-main">
           <strong>{{ row.nama || 'Tanpa nama' }}</strong>
           <span class="piutang-row-sub">
-            {{ row.nomor }} · {{ formatDate(row.tanggal) }} · {{ STATUS_BARANG_LABEL[row.status_barang] || row.status_barang }}
+            {{ row.nomor }} · {{ formatDate(row.tanggal) }}<template v-if="row.pembuat"> · oleh {{ row.pembuat }}</template>
           </span>
           <span class="piutang-tags">
-            <span v-if="row.acc_status === 'menunggu'" class="piutang-tag warn">Menunggu ACC</span>
+            <span v-if="JENIS_LABEL[row.jenis]" class="piutang-tag" :class="{ cod: row.jenis === 'cod' }">{{ JENIS_LABEL[row.jenis] }}</span>
+            <span v-if="row.acc_status === 'ditolak'" class="piutang-tag danger">Ditolak: batalkan nota</span>
+            <span v-else-if="row.acc_status === 'menunggu'" class="piutang-tag warn">{{ row.jenis_acc === 'sop' ? 'Melanggar SOP · ACC' : 'Menunggu ACC' }}</span>
             <span v-if="isLate(row)" class="piutang-tag danger">Lewat tempo</span>
             <span v-if="row.menunggu?.length" class="piutang-tag">Belum terkirim ke master</span>
           </span>
@@ -346,12 +402,16 @@ defineExpose({ load })
         </div>
 
         <div class="piutang-figures">
-          <div><span>Total</span><strong>{{ formatPrice(current.total) }}</strong></div>
+          <div>
+            <span>Total{{ JENIS_LABEL[current.jenis] ? ` · ${JENIS_LABEL[current.jenis]}` : '' }}</span>
+            <strong>{{ formatPrice(current.total) }}</strong>
+            <small v-if="current.potongan_retur">barang kembali −{{ formatPrice(current.potongan_retur) }}</small>
+          </div>
           <div><span>Dibayar</span><strong>{{ formatPrice(current.dibayar) }}</strong></div>
           <div :class="{ late: isLate(current) }">
-            <span>Sisa</span>
+            <span>{{ isCod ? 'Tagih di tempat' : 'Sisa' }}</span>
             <strong>{{ current.sisa > 0 ? formatPrice(current.sisa) : 'Lunas' }}</strong>
-            <small v-if="current.jatuh_tempo && current.sisa > 0">tempo {{ formatDate(current.jatuh_tempo) }}</small>
+            <small v-if="current.jatuh_tempo && current.sisa > 0 && !isCod">tempo {{ formatDate(current.jatuh_tempo) }}</small>
           </div>
           <div>
             <span>Barang</span>
@@ -360,8 +420,10 @@ defineExpose({ load })
           </div>
         </div>
 
-        <p v-if="current.acc_status === 'menunggu'" class="piutang-note warn">
-          {{ current.jenis_acc === 'invoice' ? 'Invoice' : 'Titip barang' }} menunggu ACC pemilik.
+        <p v-if="current.pembuat" class="piutang-row-sub">Dibuat oleh {{ current.pembuat }}</p>
+        <p v-if="current.acc_status === 'menunggu'" class="piutang-note warn">{{ accText(current) }}</p>
+        <p v-if="current.acc_status === 'ditolak'" class="piutang-error" role="alert">
+          Ditolak pemilik. Kasir pembuat wajib membatalkan (void) nota ini dari Riwayat, lalu jelaskan ke pembeli.
         </p>
         <p v-if="pending" class="piutang-note">Ada aksi kasir yang belum diproses master (biasanya kurang dari 1 menit).</p>
         <p v-if="detailError" class="piutang-note">{{ detailError }}</p>
@@ -369,7 +431,7 @@ defineExpose({ load })
         <p v-if="actionError" class="piutang-error" role="alert">{{ actionError }}</p>
 
         <div v-if="canPay" class="piutang-action">
-          <p class="piutang-action-title">Catat pembayaran</p>
+          <p class="piutang-action-title">{{ isCod ? 'Uang COD diterima' : 'Catat pembayaran' }}</p>
           <div class="piutang-pay-row">
             <input
               :value="payAmount ? `Rp ${formatRupiahInput(payAmount)}` : ''"
@@ -395,8 +457,16 @@ defineExpose({ load })
           <input v-model="payNote" type="text" maxlength="120" placeholder="Catatan (opsional), mis. transfer BCA" aria-label="Catatan pembayaran" />
           <p v-if="payProblem && payAmount" class="piutang-error">{{ payProblem }}</p>
           <button type="button" class="piutang-primary" :disabled="Boolean(payProblem) || busy" @click="submitPayment">
-            {{ Number(payAmount) === current.sisa ? 'SIMPAN PELUNASAN & CETAK' : 'SIMPAN PEMBAYARAN & CETAK' }}
+            {{ isCod ? 'SIMPAN UANG COD & CETAK' : Number(payAmount) === current.sisa ? 'SIMPAN PELUNASAN & CETAK' : 'SIMPAN PEMBAYARAN & CETAK' }}
           </button>
+        </div>
+
+        <div v-if="canReturCod" class="piutang-action">
+          <p class="piutang-action-title">Pembeli tidak membayar penuh?</p>
+          <p class="piutang-row-sub">
+            Barang yang tidak dibayar dibawa pulang: catat sebagai retur (boleh sebagian). No. HP pembeli masuk daftar hitam COD.
+          </p>
+          <button type="button" class="piutang-secondary" :disabled="busy" @click="emit('retur-cod', current)">BARANG DIBAWA PULANG</button>
         </div>
 
         <div v-if="canHandover" class="piutang-action">
@@ -532,6 +602,16 @@ defineExpose({ load })
 .piutang-tag.warn {
   background: var(--pos-warning-bg);
   color: var(--pos-warning-text);
+}
+
+.piutang-tag.cod {
+  background: var(--pos-accent);
+  color: var(--pos-on-accent, #fff);
+}
+
+.piutang-sub {
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .piutang-tag.danger {

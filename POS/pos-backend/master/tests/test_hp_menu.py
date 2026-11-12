@@ -18,7 +18,7 @@ class MenuHpTest(Dasar):
     def test_lanjutan_bawaan(self):
         r = self.client.get(reverse("hp:menu"))
         self.assertEqual(r.status_code, 200)
-        for teks in ("Piutang &amp; pesanan", "PO &amp; barang datang", "Setelan", "Buka master"):
+        for teks in ("Piutang &amp; invoice", "Titipan", "Pesanan", "PO &amp; barang datang", "Setelan", "Buka master"):
             self.assertContains(r, teks)
         # Catat pembelian pindah dari tab bawah ke Menu (12 Nov 2026).
         self.assertContains(r, reverse("hp:input") + "?mode=datang")
@@ -40,7 +40,7 @@ class MenuHpTest(Dasar):
         self.assertEqual(SetelanHp.objects.get(user=self.admin).mode, "simpel")
         m = self.client.get(reverse("hp:menu"))
         self.assertContains(m, "Setelan")
-        self.assertNotContains(m, "Piutang &amp; pesanan")
+        self.assertNotContains(m, "Nota diproses")
         self.assertNotContains(m, "Buka master")
         b = self.client.get(reverse("hp:beranda"))
         self.assertNotContains(b, reverse("hp:tugas"))

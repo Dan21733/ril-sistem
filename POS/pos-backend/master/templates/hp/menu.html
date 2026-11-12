@@ -15,11 +15,18 @@
   <a class="sel panah" href="{% url 'hp:input' %}?mode=datang"><div class="ikon-sel" style="background:#248A3D">✎</div><div class="utama"><div class="nama">Nota supplier datang</div><div class="sub">Stok, modal, hutang langsung masuk</div></div></a>
   <a class="sel panah" href="{% url 'hp:input' %}?mode=pesan"><div class="ikon-sel" style="background:#FF9500">⇡</div><div class="utama"><div class="nama">Pesan barang ke supplier</div><div class="sub">Jadi PO, dicatat gudang saat datang</div></div></a>
 </div>
-<div class="kepala-grup"><h2>Lainnya</h2></div>
 {% endif %}
-{% if not simpel and 'piutang' in hak or not simpel and 'pembelian' in hak or 'gaji' in hak or opname_ulang %}
+{% if not simpel and 'piutang' in hak %}
+<div class="kepala-grup"><h2>Nota diproses</h2></div>
+<div class="grup">
+  <a class="sel panah" href="{% url 'hp:piutang' %}?h=pesanan"><div class="ikon-sel" style="background:#5856D6">⏱</div><div class="utama"><div class="nama">Pesanan</div><div class="sub">DP pesanan dan COD</div></div>{% if nota_proses.pesanan %}<span class="nilai"><span class="lencana">{{ nota_proses.pesanan }}</span></span>{% endif %}</a>
+  <a class="sel panah" href="{% url 'hp:piutang' %}?h=titipan"><div class="ikon-sel" style="background:#AF52DE">⌂</div><div class="utama"><div class="nama">Titipan</div><div class="sub">Barang pelanggan di toko</div></div>{% if nota_proses.titipan %}<span class="nilai"><span class="lencana">{{ nota_proses.titipan }}</span></span>{% endif %}</a>
+  <a class="sel panah" href="{% url 'hp:piutang' %}?h=invoice"><div class="ikon-sel" style="background:#FF3B30">Rp</div><div class="utama"><div class="nama">Piutang &amp; invoice</div><div class="sub">Pelanggan tempo belum lunas</div></div>{% if nota_proses.invoice %}<span class="nilai"><span class="lencana">{{ nota_proses.invoice }}</span></span>{% endif %}</a>
+</div>
+{% endif %}
+<div class="kepala-grup"><h2>Lainnya</h2></div>
+{% if not simpel and 'pembelian' in hak or 'gaji' in hak or opname_ulang %}
 <div class="grup" style="margin-top:12px">
-  {% if not simpel and 'piutang' in hak %}<a class="sel panah" href="{% url 'hp:piutang' %}"><div class="ikon-sel" style="background:#5856D6">⏱</div><div class="utama"><div class="nama">Piutang &amp; pesanan</div><div class="sub">DP, invoice, titip barang</div></div></a>{% endif %}
   {% if not simpel and 'pembelian' in hak %}<a class="sel panah" href="{% url 'hp:po' %}"><div class="ikon-sel" style="background:#8E5A2B">⇣</div><div class="utama"><div class="nama">PO &amp; barang datang</div><div class="sub">Tugaskan penerima, ACC barang datang</div></div></a>{% endif %}
   {% if 'gaji' in hak %}<a class="sel panah" href="{% url 'hp:gaji' %}"><div class="ikon-sel" style="background:#30B0C7">₲</div><div class="utama"><div class="nama">Gaji karyawan</div><div class="sub">Jatuh tempo, tandai sudah dibayar</div></div></a>{% endif %}
   {% if opname_ulang %}<a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="ikon-sel" style="background:#7E57C2">#</div><div class="utama"><div class="nama">Hitung ulang opname</div><div class="sub">baris menunggu dihitung ulang</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a>{% endif %}

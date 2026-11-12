@@ -6,15 +6,15 @@ from django.utils import timezone
 from master.akun.akses import hak_pengguna, perlu
 from master.layanan import piutang as svc
 from master.layanan.inti import Tolak
-from master.models import Pelanggan, Piutang
+from master.models import DaftarHitam, Pelanggan, Piutang
 
 
 @perlu("piutang")
 def daftar(request):
     svc.sinkron_kasir()
-    tab = request.GET.get("tab") or "belum_lunas"
+    tab = request.GET.get("tab") or "pesanan"
     if tab not in dict(svc.TAB):
-        tab = "belum_lunas"
+        tab = "pesanan"
     qs = svc.daftar(tab)
     cari = (request.GET.get("q") or "").strip()
     if cari:
@@ -78,6 +78,11 @@ def pelanggan(request):
         try:
             if "acc_piutang" not in hak_pengguna(request.user):
                 raise Tolak("Hanya pemilik yang boleh mengatur pelanggan tempo.")
+            if request.POST.get("aksi") == "buka_hitam":
+                d = get_object_or_404(DaftarHitam, pk=request.POST.get("id"))
+                svc.buka_daftar_hitam(request.user, d)
+                messages.success(request, f"{d.telepon} dibuka; boleh COD lagi.")
+                return redirect("master:pelanggan")
             obj = Pelanggan.objects.filter(pk=request.POST.get("id")).first() if request.POST.get("id") else None
             p = svc.simpan_pelanggan(request.user, request.POST, obj)
             messages.success(request, f"{p.nama} tersimpan.")
@@ -88,4 +93,5 @@ def pelanggan(request):
     for p in semua:
         p.berjalan = svc.sisa_berjalan(p)
     return render(request, "master/pelanggan.html", {"menu": "pelanggan", "semua": semua,
+                                                      "hitam": DaftarHitam.objects.all()[:300],
                                                       "boleh_atur": "acc_piutang" in hak_pengguna(request.user)})

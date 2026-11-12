@@ -18,4 +18,17 @@
 {% if boleh_atur %}<h3>Tambah pelanggan</h3>
 <form method="post" class="kartu">{% csrf_token %}{% include "master/_pelanggan_isian.html" with c=None %}
   <button class="tombol utama" type="submit" style="margin-top:12px">Tambah</button></form>{% endif %}
+
+<h3 id="daftar-hitam" style="margin-top:28px">Daftar hitam COD</h3>
+<p class="sub">No. HP yang pernah menolak membayar penuh saat barang diantar (barang dibawa pulang). Nomor ini tidak bisa COD lagi di kasir.
+  Dibuka hanya oleh pemilik.</p>
+<div class="gulir"><table>
+  <tr><th>No. HP</th><th>Nama</th><th>Nota</th><th>Alasan</th><th>Sejak</th><th></th></tr>
+  {% for d in hitam %}<tr{% if not d.aktif %} style="opacity:.55"{% endif %}><td><b>{{ d.telepon }}</b></td><td>{{ d.nama }}</td><td>{{ d.nomor_nota }}</td>
+    <td class="kecil">{{ d.alasan }}</td><td class="kecil">{{ d.dibuat|date:"d M Y" }}</td>
+    <td>{% if d.aktif %}{% if boleh_atur %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="buka_hitam"><input type="hidden" name="id" value="{{ d.id }}">
+      <button class="tombol" type="submit" onclick="return confirm('Buka {{ d.telepon }}? Nomor ini boleh COD lagi.')">Buka</button></form>{% endif %}
+      {% else %}<span class="kecil redup">dibuka {{ d.dibuka_oleh }} {{ d.dibuka_waktu|date:"d M" }}</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="redup" style="padding:22px;text-align:center">Kosong.</td></tr>{% endfor %}
+</table></div>
 {% endblock %}

@@ -43,7 +43,7 @@ export function fetchDpRules(deviceToken) {
   return request('/api/piutang/aturan/', deviceToken)
 }
 
-export function fetchPiutangList(deviceToken, pin, tab = 'belum_lunas', query = '') {
+export function fetchPiutangList(deviceToken, pin, tab = 'proses', query = '') {
   const params = new URLSearchParams({ tab })
 
   if (query) {

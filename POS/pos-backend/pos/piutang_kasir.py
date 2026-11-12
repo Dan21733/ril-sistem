@@ -16,7 +16,9 @@ from django.utils import timezone
 
 from .models import AksiPiutang, NotaPiutang, TransactionDetail, Transactions
 
-TAB = ("belum_lunas", "ambil")
+# proses = nota diproses (pesanan, titipan, COD); invoice = pelanggan tempo (12 Nov 2026).
+# belum_lunas / ambil = tab lama, tetap dilayani untuk tablet yang belum diperbarui.
+TAB = ("proses", "invoice", "belum_lunas", "ambil")
 CARA = ("cash", "edc", "bank_transfer")
 
 
@@ -92,6 +94,12 @@ def aturan():
     if _ada("master_pelanggan"):
         hasil["pelanggan"] = _baris(
             "SELECT id, nama, telepon FROM master_pelanggan WHERE aktif AND boleh_tempo ORDER BY nama, id")
+    # Daftar hitam COD (12 Nov 2026): No. HP yang pernah menolak bayar penuh saat barang diantar.
+    hasil["daftar_hitam"] = []
+    if _ada("master_daftar_hitam"):
+        aktif = "aktif" if connection.vendor != "sqlite" else "aktif = 1"
+        hasil["daftar_hitam"] = [r["telepon"] for r in _baris(
+            f"SELECT telepon FROM master_daftar_hitam WHERE {aktif} ORDER BY telepon")]
     return hasil
 
 
@@ -99,14 +107,36 @@ def aturan():
 # Daftar & detail
 # ---------------------------------------------------------------------------
 
-KOLOM = ("id, kasir_sync_id, nota_manual_id, nomor, tanggal, nama, telepon, total, dibayar, jatuh_tempo, "
-         "status_barang, barang_selesai, jenis_acc, acc_status")
+KOLOM_DASAR = ("id, kasir_sync_id, nota_manual_id, nomor, tanggal, nama, telepon, total, dibayar, jatuh_tempo, "
+               "status_barang, barang_selesai, jenis_acc, acc_status")
+KOLOM_BARU = ", jenis, dibuat_oleh, potongan_retur, uang_kembali, acc_catatan"
+
+
+def _kolom():
+    """Kolom master_piutang yang dibaca; kolom nota diproses (master 0054) hanya kalau sudah ada."""
+    return KOLOM_DASAR + (KOLOM_BARU if _ada("master_piutang", "jenis") else "")
+
+
+def jenis_dari(status_barang, dibayar, total):
+    """Jenis nota diproses untuk nota yang belum diimpor master (aturan sama dengan master)."""
+    if status_barang == "ambil":
+        return "titipan"
+    if status_barang == "pesan":
+        return "pesanan"
+    if status_barang == "antar" and dibayar < total:
+        return "cod"
+    return "invoice" if dibayar < total else ""
 
 
 def _rapikan(r):
     r = dict(r)
-    r["sisa"] = max(0, int(r["total"]) - int(r["dibayar"]))
     r["total"], r["dibayar"] = int(r["total"]), int(r["dibayar"])
+    r["potongan_retur"], r["uang_kembali"] = int(r.get("potongan_retur") or 0), int(r.get("uang_kembali") or 0)
+    r["sisa"] = max(0, r["total"] - r["potongan_retur"] - (r["dibayar"] - r["uang_kembali"]))
+    if not r.get("jenis"):
+        r["jenis"] = jenis_dari(r["status_barang"], r["dibayar"], r["total"])
+    r["pembuat"] = (r.pop("dibuat_oleh", "") or "").replace(" (kasir)", "")
+    r["acc_catatan"] = r.get("acc_catatan") or ""
     r["kasir_sync_id"] = str(uuid.UUID(str(r["kasir_sync_id"]))) if r.get("kasir_sync_id") else None
     for k in ("tanggal", "jatuh_tempo"):
         if r.get(k) is not None and hasattr(r[k], "isoformat"):
@@ -120,6 +150,11 @@ def _uuid_sql(nilai):
     """UUID sebagai parameter SQL mentah: SQLite menyimpan 32 heksa tanpa tanda hubung."""
     u = uuid.UUID(str(nilai))
     return u.hex if connection.vendor == "sqlite" else str(u)
+
+
+def _nama_pekerja(worker_id):
+    from .models import Worker
+    return Worker.objects.filter(pk=worker_id).values_list("name", flat=True).first() or "" if worker_id else ""
 
 
 def _belum_diimpor():
@@ -138,6 +173,7 @@ def _belum_diimpor():
             continue
         t = nota[n.sync_id]
         hasil.append(_rapikan({
+            "dibuat_oleh": _nama_pekerja(n.worker_id),
             "id": None, "kasir_sync_id": n.sync_id, "nota_manual_id": None,
             "nomor": n.transaction_id or "nota kasir", "tanggal": timezone.localdate(t.transaction_time),
             "nama": t.cust_name or "", "telepon": t.phone_no or "", "total": t.total_amount,
@@ -161,39 +197,43 @@ def _terapkan_tertunda(r, tertunda):
     for a in tertunda.get(r["kunci"], []):
         if a.jenis == "bayar":
             r["dibayar"] += a.jumlah
-            r["sisa"] = max(0, r["total"] - r["dibayar"])
+            r["sisa"] = max(0, r["sisa"] - a.jumlah)
         else:
             r["barang_selesai"] = a.waktu.isoformat()
         r["menunggu"].append({"jenis": a.jenis, "jumlah": a.jumlah})
     return r
 
 
+def _berjalan(r):
+    """Belum selesai: masih ada sisa, barangnya belum diambil/diserahkan, atau aksi kasir belum diproses.
+    Nota yang ditolak pemilik tetap tampil sampai kasir membatalkannya."""
+    tertunda = r["status_barang"] in ("ambil", "pesan") and not r["barang_selesai"]
+    return r["sisa"] > 0 or tertunda or bool(r["menunggu"]) or r["acc_status"] == "ditolak"
+
+
 def daftar(tab, cari=""):
     if tab not in TAB:
-        tab = "belum_lunas"
+        tab = "proses"
     baris = []
     if _ada("master_piutang"):
-        syarat = "batal = false AND acc_status <> 'ditolak'"
-        if tab == "belum_lunas":
-            syarat += " AND dibayar < total"
-            urut = "jatuh_tempo NULLS LAST, tanggal"
-        else:
-            syarat += " AND status_barang IN ('ambil', 'pesan') AND barang_selesai IS NULL"
-            urut = "tanggal"
+        syarat = ("batal = false AND (dibayar < total OR acc_status = 'ditolak' "
+                  "OR (status_barang IN ('ambil', 'pesan') AND barang_selesai IS NULL))")
+        urut = "tanggal, id"
         if connection.vendor == "sqlite":
             syarat = syarat.replace("false", "0")
-            urut = urut.replace(" NULLS LAST", "")
-        baris = [_rapikan(r) for r in _baris(f"SELECT {KOLOM} FROM master_piutang WHERE {syarat} ORDER BY {urut} LIMIT 300")]
-    for r in _belum_diimpor():
-        cocok = r["sisa"] > 0 if tab == "belum_lunas" else r["status_barang"] in ("ambil", "pesan")
-        if cocok:
-            baris.insert(0, r)
+        baris = [_rapikan(r) for r in _baris(f"SELECT {_kolom()} FROM master_piutang WHERE {syarat} ORDER BY {urut} LIMIT 500")]
+    baris = _belum_diimpor() + baris
     tertunda = _menunggu_per_kunci()
     baris = [_terapkan_tertunda(r, tertunda) for r in baris]
     if tab == "belum_lunas":
-        baris = [r for r in baris if r["sisa"] > 0 or r["menunggu"]]
+        baris = [r for r in baris if (r["sisa"] > 0 or r["menunggu"]) and r["acc_status"] != "ditolak"]
+    elif tab == "ambil":
+        baris = [r for r in baris if r["status_barang"] in ("ambil", "pesan") and r["acc_status"] != "ditolak"
+                 and (not r["barang_selesai"] or r["menunggu"])]
+    elif tab == "invoice":
+        baris = [r for r in baris if r["jenis"] == "invoice" and _berjalan(r)]
     else:
-        baris = [r for r in baris if not r["barang_selesai"] or r["menunggu"]]
+        baris = [r for r in baris if r["jenis"] != "invoice" and _berjalan(r)]
     teks = (cari or "").strip().lower()
     if teks:
         baris = [r for r in baris if teks in f"{r['nama']} {r['telepon']} {r['nomor']}".lower()]
@@ -208,13 +248,13 @@ def detail(kunci):
     """kunci: 'p<id>' (piutang master) atau 'k<sync_id>' (nota kasir belum diimpor)."""
     r = None
     if kunci.startswith("p") and kunci[1:].isdigit() and _ada("master_piutang"):
-        ada = _baris(f"SELECT {KOLOM} FROM master_piutang WHERE id = %s", [int(kunci[1:])])
+        ada = _baris(f"SELECT {_kolom()} FROM master_piutang WHERE id = %s", [int(kunci[1:])])
         r = _rapikan(ada[0]) if ada else None
     elif kunci.startswith("k"):
         r = next((x for x in _belum_diimpor() if x["kunci"] == kunci), None)
         if r is None and _ada("master_piutang"):
             try:
-                ada = _baris(f"SELECT {KOLOM} FROM master_piutang WHERE kasir_sync_id = %s", [_uuid_sql(kunci[1:])])
+                ada = _baris(f"SELECT {_kolom()} FROM master_piutang WHERE kasir_sync_id = %s", [_uuid_sql(kunci[1:])])
             except ValueError:
                 ada = []
             r = _rapikan(ada[0]) if ada else None

@@ -1,31 +1,27 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block kiri %}<a href="{% url 'hp:menu' %}" data-kembali-akar>‹ Menu</a>{% endblock %}
-{% block judul %}Piutang · DB Toko{% endblock %}
-{% block judul_kecil %}Piutang & pesanan{% endblock %}
-{% block gaya %}<style>
-.tab-p{display:flex;gap:6px;overflow-x:auto;margin:4px 0 12px;padding-bottom:2px;scrollbar-width:none}
-.tab-p::-webkit-scrollbar{display:none}
-.tab-p a{flex:none;padding:8px 14px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;box-shadow:var(--bayang);border:1px solid var(--garis)}
-.tab-p a.aktif{background:var(--tint);color:#fff;border-color:var(--tint)}
-.tab-p .n{margin-left:6px;font-size:12px;opacity:.75}
-</style>{% endblock %}
+{% block judul %}{{ judul_halaman }} · DB Toko{% endblock %}
+{% block judul_kecil %}{{ judul_halaman }}{% endblock %}
 {% block isi %}
-<h1 class="judul-besar">Piutang & pesanan</h1>
-<div class="ubin"><div class="lebar"><div class="lbl">Sisa tagihan pelanggan</div><div class="angka">{{ ringkas.sisa|rupiah }}</div>
-  <div class="ket">{{ ringkas.jumlah }} nota{% if ringkas.lewat %} · <span class="turun">{{ ringkas.lewat }} lewat jatuh tempo</span>{% endif %}</div></div></div>
-<div class="tab-p" style="margin-top:12px">{% for k, label in tabs %}<a href="?tab={{ k }}" class="{% if pilih == k %}aktif{% endif %}">{{ label }}{% if k != 'selesai' %}<span class="n">{{ hitung|get:k }}</span>{% endif %}</a>{% endfor %}</div>
-<form method="get" class="cari" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ pilih }}"><input type="search" name="q" value="{{ cari }}" placeholder="Nama, No. HP, nomor nota"></form>
+{# Pesanan (termasuk COD), Titipan, Piutang & invoice: halaman terpisah dari Menu (12 Nov 2026). #}
+<h1 class="judul-besar">{{ judul_halaman }}</h1>
+<p class="anak-judul">{{ ket_halaman }}</p>
+{% if h != 'selesai' and h != 'aturan_lama' %}
+<div class="ubin"><div class="lebar"><div class="lbl">{% if h == 'titipan' %}Nota titipan{% else %}Sisa tagihan{% endif %}</div>
+  <div class="angka">{% if h == 'titipan' %}{{ baris|length }} nota{% else %}{{ sisa_total|rupiah }}{% endif %}</div>
+  {% if h != 'titipan' %}<div class="ket">{{ baris|length }} nota</div>{% endif %}</div></div>
+{% endif %}
+<form method="get" class="cari" style="margin:12px 0"><input type="hidden" name="h" value="{{ h }}"><input type="search" name="q" value="{{ cari }}" placeholder="Nama, No. HP, nomor nota"></form>
 <div class="grup">
   {% for p in baris %}<a class="sel panah" href="{% url 'hp:piutang_detail' p.id %}"><div class="utama">
-    <div class="nama">{{ p.nama }}{% if p.acc_status == 'menunggu' %} <span class="lencana kuning">ACC</span>{% elif p.acc_status == 'ditolak' %} <span class="lencana merah">ditolak</span>{% endif %}{% if p.lewat %} <span class="lencana merah">lewat</span>{% endif %}</div>
-    <div class="sub">{{ p.nomor }} · {{ p.tanggal|date:"d M" }} · {{ p.get_status_barang_display|lower }}{% if p.jatuh_tempo and not p.lunas %} · tempo {{ p.jatuh_tempo|date:"d M" }}{% endif %}</div></div>
+    <div class="nama">{{ p.nama }}{% if p.jenis == 'cod' %} <span class="lencana tint">COD</span>{% endif %}{% if p.acc_status == 'menunggu' %} <span class="lencana kuning">{% if p.jenis_acc == 'sop' %}SOP{% else %}ACC{% endif %}</span>{% elif p.acc_status == 'ditolak' %} <span class="lencana merah">ditolak</span>{% endif %}{% if p.lewat %} <span class="lencana merah">lewat</span>{% endif %}</div>
+    <div class="sub">{{ p.nomor }} · {{ p.tanggal|date:"d M" }}{% if p.dibuat_oleh %} · {{ p.dibuat_oleh|cut:" (kasir)" }}{% endif %}{% if p.jatuh_tempo and not p.lunas and p.jenis != 'cod' %} · tempo {{ p.jatuh_tempo|date:"d M" }}{% endif %}</div></div>
     <div class="nilai">{% if p.lunas %}<b style="color:var(--teks)">lunas</b>{% else %}<b style="color:var(--teks)">{{ p.sisa|rupiah }}</b><div class="kecil redup">dari {{ p.total|rupiah }}</div>{% endif %}</div></a>
   {% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
 </div>
+<div class="grup" style="margin-top:16px">
+  {% if h != 'selesai' %}<a class="sel panah" href="?h=selesai"><div class="utama"><div class="nama">Sudah selesai</div><div class="sub">Lunas & barang sudah diserahkan, atau ditolak</div></div></a>{% endif %}
+  {% if aturan_lama and h != 'aturan_lama' %}<a class="sel panah" href="?h=aturan_lama"><div class="utama"><div class="nama">Nota aturan lama</div><div class="sub">Masa uji: batalkan lalu input ulang</div></div><span class="nilai"><span class="lencana merah">{{ aturan_lama }}</span></span></a>{% endif %}
+</div>
 <div style="height:16px"></div>
 {% endblock %}
-
-{% block skrip %}<script>
-/* Pindah tab tidak menambah riwayat: tombol kembali Android langsung ke halaman sebelumnya. */
-document.querySelectorAll('.tab-p a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); location.replace(a.href); }));
-</script>{% endblock %}

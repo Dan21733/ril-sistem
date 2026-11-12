@@ -10,8 +10,10 @@
     <a class="tombol" href="{% url 'master:piutang_cetak' p.id %}" target="_blank">Cetak (struk)</a></div>
 </div>
 {% if p.batal %}<div class="pesan error">Nota ini sudah dibatalkan.</div>{% endif %}
+{% if p.aturan_lama and not p.batal %}<div class="pesan warning">Nota masa uji dengan aturan lama (sebelum 12 Nov 2026). Batalkan nota ini lalu input ulang sesuai aturan baru.</div>{% endif %}
+{% if p.acc_status == 'ditolak' and not p.batal %}<div class="pesan error">Ditolak pemilik: kasir wajib membatalkan (void) nota ini.</div>{% endif %}
 {% if p.acc_status == 'menunggu' %}
-<div class="pesan warning">{{ p.get_jenis_acc_display }} menunggu ACC pemilik.
+<div class="pesan warning">{{ p.get_jenis_acc_display }} menunggu ACC pemilik.{% if p.jenis_acc == 'sop' and p.acc_catatan %} <b>{{ p.acc_catatan }}</b> Kalau ditolak, kasir wajib membatalkan nota ini.{% endif %}
   {% if boleh_acc %}<form method="post" class="baris" style="margin-top:10px;align-items:end">{% csrf_token %}
     <div style="flex:1;min-width:200px"><label>Catatan (wajib kalau menolak)</label><input type="text" name="catatan"></div>
     <button class="tombol utama" name="aksi" value="setuju">Setujui</button>
@@ -19,7 +21,8 @@
 {% elif p.acc_status %}<div class="pesan {% if p.acc_status == 'ditolak' %}error{% else %}info{% endif %}">{{ p.get_jenis_acc_display }}: {{ p.get_acc_status_display|lower }} oleh {{ p.acc_oleh }}{% if p.acc_waktu %} · {{ p.acc_waktu|date:"d M Y H:i" }}{% endif %}{% if p.acc_catatan %} · {{ p.acc_catatan }}{% endif %}</div>{% endif %}
 
 <div class="kisi">
-  <div class="kartu"><div class="redup kecil">Total</div><div style="font-size:24px;font-weight:600">{{ p.total|ribuan }}</div></div>
+  <div class="kartu"><div class="redup kecil">Total{% if p.jenis %} · {{ p.get_jenis_display }}{% endif %}</div><div style="font-size:24px;font-weight:600">{{ p.total|ribuan }}</div>
+    {% if p.potongan_retur %}<div class="kecil redup">barang dikembalikan −{{ p.potongan_retur|ribuan }}{% if p.uang_kembali %} · uang kembali {{ p.uang_kembali|ribuan }}{% endif %}</div>{% endif %}</div>
   <div class="kartu"><div class="redup kecil">Sudah dibayar</div><div style="font-size:24px;font-weight:600">{{ p.dibayar|ribuan }}</div></div>
   <div class="kartu" {% if not p.lunas %}style="border-color:var(--aksen)"{% endif %}><div class="redup kecil">Sisa</div><div style="font-size:24px;font-weight:600">{% if p.lunas %}Lunas{% else %}{{ p.sisa|ribuan }}{% endif %}</div>
     {% if p.jatuh_tempo and not p.lunas %}<div class="kecil {% if lewat %}" style="color:var(--bahaya){% else %} redup{% endif %}">jatuh tempo {{ p.jatuh_tempo|date:"d M Y" }}{% if lewat %} (lewat){% endif %}</div>{% endif %}</div>

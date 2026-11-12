@@ -503,7 +503,9 @@ async function unlockSession() {
     personPin.value = pin
     sessionName.value = name
     pinInput.value = ''
-    activeTab.value = ['nota', 'belum_lunas', 'ambil', 'kas'].includes(props.initialTab) ? props.initialTab : 'nota'
+    /* Tab lama (belum_lunas / ambil) dari tombol pemberitahuan lama diarahkan ke Belum selesai. */
+    const awal = { belum_lunas: 'proses', ambil: 'proses' }[props.initialTab] || props.initialTab
+    activeTab.value = ['nota', 'proses', 'invoice', 'kas'].includes(awal) ? awal : 'nota'
     touchSession()
     selectedDate.value === todayIsoDate() ? loadPage(1) : (selectedDate.value = todayIsoDate())
   } finally {
@@ -1151,6 +1153,31 @@ function aturReturSatuan(item, event) {
   event.target.value = angkaJumlah(jumlah, item)
 }
 
+/*
+ * COD dibawa pulang (12 Nov 2026): dari tab Belum selesai, buka nota COD itu
+ * (boleh nota kasir lain) langsung dengan form retur. Server mengizinkan retur
+ * nota COD oleh kasir mana pun; uang kembali bawaan 0 karena barangnya belum
+ * dibayar penuh.
+ */
+async function returCod(row) {
+  activeTab.value = 'nota'
+  await openNota({
+    transaction_id: row.nomor,
+    sync_id: row.kasir_sync_id,
+    total_amount: row.total,
+    cust_name: row.nama,
+    phone_no: row.telepon,
+    payment_method: '',
+    refund_status: 'none',
+  })
+  if (!detailError.value) {
+    openRefundForm('return')
+    refundReason.value = 'COD: pembeli tidak membayar penuh, barang dibawa pulang.'
+    refundAmount.value = '0'
+    refundNotice.value = 'Centang barang yang dibawa pulang. Sisanya ditagih sebagai uang COD di tab Belum selesai.'
+  }
+}
+
 function closeRefundForm() {
   refundMode.value = null
   refundReason.value = ''
@@ -1544,14 +1571,14 @@ watch(queueSignature, async () => {
 
       <template v-else>
       <div class="transaksi-tabs" role="tablist" @pointerdown="touchSession" @keydown="touchSession">
+        <button type="button" role="tab" :aria-selected="activeTab === 'proses'" :class="{ active: activeTab === 'proses' }" @click="activeTab = 'proses'; touchSession()">
+          Belum selesai<span v-if="piutangCounts.proses" class="tab-count">{{ piutangCounts.proses }}</span>
+        </button>
+        <button type="button" role="tab" :aria-selected="activeTab === 'invoice'" :class="{ active: activeTab === 'invoice' }" @click="activeTab = 'invoice'; touchSession()">
+          Invoice<span v-if="piutangCounts.invoice" class="tab-count">{{ piutangCounts.invoice }}</span>
+        </button>
         <button type="button" role="tab" :aria-selected="activeTab === 'nota'" :class="{ active: activeTab === 'nota' }" @click="activeTab = 'nota'; touchSession()">
-          Nota saya
-        </button>
-        <button type="button" role="tab" :aria-selected="activeTab === 'belum_lunas'" :class="{ active: activeTab === 'belum_lunas' }" @click="activeTab = 'belum_lunas'; touchSession()">
-          Belum lunas<span v-if="piutangCounts.belum_lunas" class="tab-count">{{ piutangCounts.belum_lunas }}</span>
-        </button>
-        <button type="button" role="tab" :aria-selected="activeTab === 'ambil'" :class="{ active: activeTab === 'ambil' }" @click="activeTab = 'ambil'; touchSession()">
-          Ambil nanti / Pesanan<span v-if="piutangCounts.ambil" class="tab-count">{{ piutangCounts.ambil }}</span>
+          Riwayat saya
         </button>
         <button type="button" role="tab" :aria-selected="activeTab === 'kas'" :class="{ active: activeTab === 'kas' }" @click="activeTab = 'kas'; touchSession()">
           Kas
@@ -1578,6 +1605,7 @@ watch(queueSignature, async () => {
         @keydown="touchSession"
         @pin-invalid="lockSession('PIN tidak diterima server. Masukkan lagi.')"
         @counts="piutangCounts = $event"
+        @retur-cod="returCod"
       />
 
       <!-- ==================================
