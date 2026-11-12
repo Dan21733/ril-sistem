@@ -210,7 +210,7 @@ def lapangan(request):
         try:
             if aksi == "tambah":
                 k = svc_siapkan.simpan_karyawan(request.user, nama=p.get("nama"), catatan=p.get("catatan", ""),
-                                                ketua=p.get("ketua", ""))
+                                                ketua=p.get("ketua", ""), bisa_nyetir=p.get("bisa_nyetir") == "1")
                 messages.success(request, f"{k.nama} ditambahkan.")
             elif aksi in ("ubah", "nonaktif", "aktif"):
                 k = get_object_or_404(KaryawanLapangan, pk=p.get("id"))
@@ -219,6 +219,16 @@ def lapangan(request):
                                             catatan=p.get("catatan", k.catatan),
                                             ketua=p.get("ketua") if "ketua" in p else None)
                 messages.success(request, "Tersimpan.")
+            elif aksi == "pic_lokasi":
+                l = svc_siapkan.atur_pic_lokasi(p.get("lokasi"), p.get("pic"))
+                messages.success(request, f"PIC {l.nama} tersimpan.")
+            elif aksi == "baris":
+                # Satu baris tabel karyawan lapangan: tim, bisa nyetir, sopir utama (12 Nov 2026).
+                k = get_object_or_404(KaryawanLapangan, pk=p.get("id"))
+                svc_siapkan.simpan_karyawan(request.user, id=k.id, nama=k.nama, aktif=k.aktif, catatan=k.catatan,
+                                            ketua=p.get("ketua", ""), bisa_nyetir=p.get("bisa_nyetir") == "1",
+                                            sopir_utama=p.get("sopir_utama") == "1")
+                messages.success(request, f"{k.nama} tersimpan.")
             elif aksi == "pegang":
                 svc_siapkan.pegang_lokasi(p.get("pic"), p.getlist("lokasi"))
                 messages.success(request, "Lokasi PIC tersimpan.")

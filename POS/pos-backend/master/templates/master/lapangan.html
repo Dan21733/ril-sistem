@@ -10,35 +10,50 @@
 .anak{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:5px 0;border-top:1px solid var(--garis)}
 .anak input[type=text]{max-width:180px}.anak select{width:auto}
 .tambah-anak{display:flex;gap:6px;margin-top:8px}.tambah-anak input{max-width:220px}
+.tabel-tim td{vertical-align:middle;padding-top:6px;padding-bottom:6px}.tabel-tim select{width:100%;max-width:240px}
+.baris-k{display:grid;grid-template-columns:minmax(0,1fr) 110px 110px;gap:8px;align-items:center;margin:0}
+.baris-k:has(input[name=nama]){display:flex;flex-wrap:wrap}
+.cek{display:flex;justify-content:flex-start;align-items:center;gap:6px;margin:0;font-weight:400}
 </style>
 <h2>Tim gudang</h2>
 <div class="tab-lap"><a class="tombol kecil {% if tab == 'tim' %}aktif{% endif %}" href="?">Tim</a><a class="tombol kecil {% if tab == 'rekap' %}aktif{% endif %}" href="?tab=rekap">Rekap &amp; sedang disiapkan</a></div>
 
 {% if tab == 'tim' %}
-<p class="sub">Satu kartu per PIC: lokasi yang dipegang dan anak buahnya. Tim hanya mengatur siapa yang direkomendasikan duluan di Siapkan; tanggung jawab dan bonus tetap bersama. PIC per rak (kalau satu lokasi dipegang beberapa orang) diatur di menu Rak.</p>
-{% for c in kartu %}
-<div class="kartu-pic">
-  <h3>{{ c.pic.first_name|default:c.pic.username }}</h3>
-  <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="pegang"><input type="hidden" name="pic" value="{{ c.pic.id }}">
-    <div class="kecil redup">Lokasi yang dipegang</div>
-    <div class="cek-lokasi">{% for l in lokasi %}<label><input type="checkbox" name="lokasi" value="{{ l.id }}" {% if l.pic_id == c.pic.id %}checked{% endif %}>{{ l.nama }}{% if l.pic_id and l.pic_id != c.pic.id %} <span class="kecil redup">({{ l.pic.first_name|default:l.pic.username }})</span>{% endif %}</label>{% endfor %}</div>
-    <button class="tombol kecil" type="submit">Simpan lokasi</button>
-    {% if c.rak %}<span class="kecil redup">· juga PIC rak: {% for r in c.rak %}{{ r.kode }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
-  </form>
-  <div class="kecil redup" style="margin-top:10px">Anak buah ({{ c.anak|length }})</div>
-  {% for k in c.anak %}{% include "master/_lapangan_anak.html" %}{% endfor %}
-  <form method="post" class="tambah-anak">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="ketua" value="{{ c.pic.id }}">
-    <input type="text" name="nama" placeholder="Nama karyawan lapangan" required maxlength="60" aria-label="Nama"><button class="tombol kecil" type="submit">Tambah</button></form>
-</div>
-{% empty %}
-<p class="redup">Belum ada karyawan beraplikasi gudang untuk dijadikan PIC (menu Karyawan &amp; hak akses).</p>
-{% endfor %}
-<div class="kartu-pic">
-  <h3>Belum ada tim</h3>
-  {% for k in tanpa_tim %}{% include "master/_lapangan_anak.html" %}{% empty %}<p class="kecil redup" style="margin:0">Semua karyawan lapangan sudah punya tim.</p>{% endfor %}
-  <form method="post" class="tambah-anak">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
-    <input type="text" name="nama" placeholder="Nama karyawan lapangan" required maxlength="60" aria-label="Nama"><button class="tombol kecil" type="submit">Tambah</button></form>
-</div>
+{# Dua tabel ringkas (12 Nov 2026): satu lokasi satu PIC, satu karyawan satu baris. Ganti pilihan = langsung tersimpan. #}
+<p class="sub">Tim hanya mengatur siapa yang direkomendasikan duluan di Siapkan; tanggung jawab dan bonus tetap bersama. PIC per rak (kalau satu lokasi dipegang beberapa orang) diatur di menu Rak.</p>
+<h3 style="margin-top:6px">Lokasi dan PIC</h3>
+<div class="gulir"><table class="tabel-tim" style="max-width:860px">
+  <tr><th style="width:38%">Lokasi</th><th style="width:34%">PIC</th><th class="angka">Anak buah</th><th>PIC rak lain</th></tr>
+  {% for l in lokasi %}<tr>
+    <td><b>{{ l.nama }}</b></td>
+    <td><form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="pic_lokasi"><input type="hidden" name="lokasi" value="{{ l.id }}">
+      <select name="pic" aria-label="PIC {{ l.nama }}" onchange="this.form.requestSubmit()"><option value="">Belum ada PIC</option>{% for u in pics %}<option value="{{ u.id }}" {% if l.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select>
+      <noscript><button class="tombol kecil" type="submit">Simpan</button></noscript></form></td>
+    <td class="angka">{% if l.pic_id %}{{ l.jumlah_anak }}{% else %}<span class="redup">–</span>{% endif %}</td>
+    <td class="kecil redup">{{ l.rak_pic_lain|join:", " }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="redup" style="padding:18px;text-align:center">Belum ada lokasi (menu Stok &amp; gudang › Lokasi).</td></tr>{% endfor %}
+</table></div>
+{% if not pics %}<p class="kecil redup">Belum ada karyawan beraplikasi gudang untuk dijadikan PIC (menu Karyawan &amp; hak akses).</p>{% endif %}
+
+<h3 style="margin-top:22px">Karyawan lapangan</h3>
+<div class="gulir"><table class="tabel-tim" style="max-width:860px">
+  <tr><th style="width:28%">Nama</th><th colspan="3"><div style="display:grid;grid-template-columns:minmax(0,1fr) 110px 110px;gap:8px"><span>Ikut tim</span><span>Bisa nyetir</span><span>Sopir utama</span></div></th><th></th></tr>
+  {% for k in karyawan %}<tr>
+    <td><b>{{ k.nama }}</b></td>
+    <td colspan="3"><form method="post" class="baris-k">{% csrf_token %}<input type="hidden" name="aksi" value="baris"><input type="hidden" name="id" value="{{ k.id }}">
+      <select name="ketua" aria-label="Tim {{ k.nama }}" onchange="this.form.requestSubmit()"><option value="">Tanpa tim</option>{% for u in pics %}<option value="{{ u.id }}" {% if k.ketua_id == u.id %}selected{% endif %}>Tim {{ u.first_name|default:u.username }}</option>{% endfor %}</select>
+      <label class="cek"><input type="checkbox" name="bisa_nyetir" value="1" {% if k.bisa_nyetir %}checked{% endif %} onchange="this.form.requestSubmit()" aria-label="{{ k.nama }} bisa nyetir"></label>
+      <label class="cek"><input type="checkbox" name="sopir_utama" value="1" {% if k.sopir_utama %}checked{% endif %} onchange="this.form.requestSubmit()" aria-label="{{ k.nama }} sopir utama"></label>
+      <noscript><button class="tombol kecil" type="submit">Simpan</button></noscript></form></td>
+    <td style="text-align:right"><form method="post" style="display:inline" data-tanya="Nonaktifkan {{ k.nama }}? Tidak direkomendasikan lagi di Siapkan.">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}"><button class="tombol kecil" type="submit" name="aksi" value="nonaktif">Nonaktifkan</button></form></td></tr>
+  {% endfor %}
+  <tr><td colspan="5"><form method="post" class="baris-k">{% csrf_token %}<input type="hidden" name="aksi" value="tambah">
+    <input type="text" name="nama" placeholder="Nama karyawan baru" required maxlength="60" aria-label="Nama karyawan baru" style="max-width:220px">
+    <select name="ketua" aria-label="Tim"><option value="">Tanpa tim</option>{% for u in pics %}<option value="{{ u.id }}">Tim {{ u.first_name|default:u.username }}</option>{% endfor %}</select>
+    <label class="cek kecil"><input type="checkbox" name="bisa_nyetir" value="1"> bisa nyetir</label>
+    <button class="tombol kecil" type="submit">Tambah</button></form></td></tr>
+</table></div>
+<p class="kecil redup">Sopir utama direkomendasikan pertama untuk nota antar; kalau tidak ada, yang bisa nyetir. Ganti pilihan langsung tersimpan.</p>
 {% if nonaktif %}<details class="kartu-pic"><summary>Nonaktif ({{ nonaktif|length }})</summary>
   {% for k in nonaktif %}<div class="anak"><b>{{ k.nama }}</b><form method="post" style="margin:0">{% csrf_token %}<input type="hidden" name="id" value="{{ k.id }}"><button class="tombol kecil" type="submit" name="aksi" value="aktif">Aktifkan</button></form></div>{% endfor %}
 </details>{% endif %}
@@ -53,16 +68,16 @@
   <button class="tombol" type="submit">Tampilkan</button>
 </form>
 <div class="gulir"><table>
-  <tr><th>Karyawan</th><th class="angka">Tugas</th><th class="angka">Hari masuk</th><th class="angka">Menit (tengah)</th><th class="angka">Tidak ada</th><th class="angka">Sibuk</th><th class="angka">Menolak</th><th>Penolakan dicatat oleh</th></tr>
+  <tr><th>Karyawan</th><th class="angka">Tugas</th><th class="angka" title="Beban dibagi rata ke anggota tim">Bagian</th><th class="angka">Ikut antar</th><th class="angka">Hari masuk</th><th class="angka">Menit (tengah)</th><th class="angka">Tidak ada</th><th class="angka">Sibuk</th><th class="angka">Menolak</th><th>Penolakan dicatat oleh</th></tr>
   {% for g in rekap.per_tim %}
-  <tr><th colspan="8" style="text-align:left">{% if g.pic %}Tim {{ g.pic }}{% else %}Belum ada tim{% endif %} <span class="kecil redup" style="font-weight:400">· {{ g.tugas }} tugas</span></th></tr>
+  <tr><th colspan="10" style="text-align:left">{% if g.pic %}Tim {{ g.pic }}{% else %}Belum ada tim{% endif %} <span class="kecil redup" style="font-weight:400">· {{ g.tugas }} tugas</span></th></tr>
   {% for r in g.baris %}<tr class="{% if not r.k.aktif %}nonaktif{% endif %}">
     <td><b>{{ r.k.nama }}</b>{% if r.rendah %} <span class="label bahaya" title="Kurang dari 60% nilai tengah ({{ rekap.tengah }})">jarang</span>{% endif %}</td>
-    <td class="angka">{{ r.tugas }}</td><td class="angka">{{ r.jumlah_hari }}</td><td class="angka">{{ r.menit_tengah|default:"-" }}</td>
+    <td class="angka">{{ r.tugas }}</td><td class="angka">{{ r.bagian }}</td><td class="angka">{{ r.antar|default:"" }}</td><td class="angka">{{ r.jumlah_hari }}</td><td class="angka">{{ r.menit_tengah|default:"-" }}</td>
     <td class="angka">{{ r.tidak_ada|default:"" }}</td><td class="angka">{{ r.sibuk|default:"" }}</td>
     <td class="angka">{% if r.menolak %}<b style="color:var(--bahaya)">{{ r.menolak }}</b>{% endif %}</td>
     <td class="kecil">{% for nama, n in r.menolak_oleh %}{{ nama }} {{ n }}×{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
-  {% empty %}<tr><td colspan="8" class="redup" style="padding:20px;text-align:center">Belum ada data.</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="10" class="redup" style="padding:20px;text-align:center">Belum ada data.</td></tr>{% endfor %}
 </table></div>
 <p class="kecil redup">Nilai tengah tugas: {{ rekap.tengah }}. "Jarang" = kurang dari 60% nilai tengah. Penolakan dicatat atas nama PIN yang mengisi; kalau hanya dicatat satu orang, masalahnya bisa di pasangan itu.</p>
 {% if rekap.pelayan %}
@@ -75,7 +90,7 @@
 <div class="gulir"><table>
   <tr><th>Nota</th><th>Kasir</th><th>Kelompok</th><th>Umur</th><th></th></tr>
   {% for s in buka %}<tr><td><b>{{ s.nomor }}</b> <span class="redup kecil">{{ s.waktu_nota|date:"d M H:i" }}</span></td><td>{{ s.kasir_nama }}</td>
-    <td class="kecil">{% for t in s.tugas.all %}{{ t.lokasi.nama|default:"Tanpa rak" }}: {% if t.status == 'selesai' %}diserahkan{% elif t.status == 'diambil' %}{% if t.sendiri %}pelayan{% else %}{{ t.pengambil.nama }}{% endif %}{% else %}<b>belum</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+    <td class="kecil">{% for t in s.tugas.all %}{{ t.lokasi.nama|default:"Tanpa rak" }}: {% if t.status == 'selesai' %}diserahkan{% elif t.status == 'diambil' %}{% if t.sendiri %}pelayan{% else %}{% for a in t.anggota.all %}{{ a.karyawan.nama }}{% if not forloop.last %}, {% endif %}{% empty %}{{ t.pengambil.nama }}{% endfor %}{% endif %}{% else %}<b>belum</b>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
     <td>{{ s.waktu_nota|timesince:sekarang }}</td>
     <td><form method="post" style="display:inline" data-tanya="Tutup nota {{ s.nomor }} dari daftar Siapkan (dianggap sudah diserahkan)?">{% csrf_token %}<input type="hidden" name="aksi" value="tutup"><input type="hidden" name="siapkan" value="{{ s.id }}"><button class="tombol kecil" type="submit">Tutup</button></form></td></tr>
   {% empty %}<tr><td colspan="5" class="redup" style="padding:20px;text-align:center">Tidak ada.</td></tr>{% endfor %}

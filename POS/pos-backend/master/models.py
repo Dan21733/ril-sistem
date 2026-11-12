@@ -74,6 +74,10 @@ class KaryawanLapangan(models.Model):
     # Ikut PIC siapa (tim). Tim hanya mengatur urutan rekomendasi; tanggung jawab & bonus tetap bersama.
     ketua = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                               related_name="anak_buah")
+    # Sopir (12 Nov 2026): sopir utama direkomendasikan pertama untuk nota antar; kalau tidak ada,
+    # karyawan lain yang bisa nyetir.
+    bisa_nyetir = models.BooleanField(default=False)
+    sopir_utama = models.BooleanField(default=False)
 
     class Meta:
         db_table = "master_karyawan_lapangan"
@@ -1676,6 +1680,27 @@ class SiapkanTugas(models.Model):
     class Meta:
         db_table = "master_siapkan_tugas"
         ordering = ["id"]
+
+
+class SiapkanAnggota(models.Model):
+    """Orang yang ikut menyiapkan satu kelompok barang (12 Nov 2026): 30 zak semen tidak dimuat satu orang.
+
+    Peran: muat (menyiapkan / memuat), antar (ikut mengantar: muat + bongkar), sopir (menyetir, juga memuat).
+    Beban satu tugas dibagi rata ke anggotanya; bobot per peran menyusul (sesi bobot bersama pemilik).
+    """
+    PERAN = [("muat", "Muat"), ("antar", "Ikut antar"), ("sopir", "Sopir")]
+
+    tugas = models.ForeignKey(SiapkanTugas, on_delete=models.CASCADE, related_name="anggota")
+    karyawan = models.ForeignKey(KaryawanLapangan, on_delete=models.PROTECT, related_name="anggota_siapkan")
+    peran = models.CharField(max_length=10, choices=PERAN, default="muat")
+    # Orang ini yang direkomendasikan sistem saat ia dipilih (False = pelayan memilih orang lain).
+    ikut_rekomendasi = models.BooleanField(default=True)
+    dibuat = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_siapkan_anggota"
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["tugas", "karyawan"], name="siapkan_anggota_unik")]
 
 
 class SiapkanBaris(models.Model):

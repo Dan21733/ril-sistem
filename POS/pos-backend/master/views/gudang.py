@@ -574,6 +574,14 @@ def siapkan(request):
             if aksi == "tugaskan":
                 t = svc_siapkan.tugaskan(p.get("tugas"), p.get("karyawan"), perangkat=nama_perangkat)
                 pesan = f"{t.pengambil.nama} mengambil barang nota {t.siapkan.nomor}."
+            elif aksi == "tambah":
+                svc_siapkan.tambah_anggota(p.get("tugas"), p.get("karyawan"), p.get("peran") or "muat",
+                                           perangkat=nama_perangkat)
+            elif aksi == "keluarkan":
+                svc_siapkan.hapus_anggota(p.get("tugas"), p.get("karyawan"))
+            elif aksi == "mulai":
+                t = svc_siapkan.mulai(p.get("tugas"), perangkat=nama_perangkat)
+                pesan = f"Tim mulai menyiapkan barang nota {t.siapkan.nomor} ({t.anggota.count()} orang)."
             elif aksi == "lewati":
                 svc_siapkan.lewati(p.get("tugas"), p.get("karyawan"), p.get("alasan"), perangkat=nama_perangkat,
                                    pin=p.get("pin", ""), kunci_pin=kunci_pin)

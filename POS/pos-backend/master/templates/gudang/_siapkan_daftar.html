@@ -13,22 +13,32 @@
   <div class="klp">
     <div class="judul-klp">{% if t.lokasi %}{{ t.lokasi.nama }}{% else %}<span class="redup">Tanpa rak</span>{% endif %}
       {% if t.pic %}<span class="label">PIC {{ t.pic.first_name|default:t.pic.username }}</span>{% endif %}
-      {% if t.status == 'selesai' %}<span class="label baik">Diserahkan</span>{% elif t.status == 'diambil' %}<span class="label awas">{% if t.sendiri %}Disiapkan sendiri{% else %}Diambil {{ t.pengambil.nama }}{% endif %} · {{ t.ditugaskan_waktu|date:"H:i" }}</span>{% elif t.status == 'batal' %}<span class="label bahaya">Batal</span>{% endif %}</div>
+      {% if t.status == 'selesai' %}<span class="label baik">Diserahkan</span>{% elif t.status == 'diambil' %}<span class="label awas">{% if t.sendiri %}Disiapkan sendiri{% else %}{% for a in t.tim %}{{ a.karyawan.nama }}{% if s.cara == 'antar' %} ({{ a.get_peran_display|lower }}){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}Diambil {{ t.pengambil.nama }}{% endfor %}{% endif %} · {{ t.ditugaskan_waktu|date:"H:i" }}</span>{% elif t.status == 'batal' %}<span class="label bahaya">Batal</span>{% endif %}</div>
     {% for b in t.daftar_baris %}<div class="brg"><span><b>{{ b.jumlah|qty:b.varian }}</b> × {{ b.item_name }}{% if b.variant != 'N/A' %} / {{ b.variant }}{% endif %}</span><span class="rak">{% if b.rak_teks %}rak {{ b.rak_teks }}{% else %}rak ?{% endif %}</span></div>{% endfor %}
     {% if t.status == 'menunggu' %}
+    {# Tim dipilih satu per satu (12 Nov 2026): orang yang direkomendasikan berikutnya + perannya. #}
+    {% if t.tim %}<div class="tim">{% for a in t.tim %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="keluarkan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ a.karyawan_id }}">
+      <button class="chip" type="submit" title="Keluarkan dari tim">{{ a.karyawan.nama }}{% if s.cara == 'antar' %} · {{ a.get_peran_display|lower }}{% endif %} ×</button></form>{% endfor %}</div>{% endif %}
     <div class="aksi">
-      {% with rek=t.pilihan.0 %}{% if t.teratas %}
-      {% for r in t.teratas %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tugaskan"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ r.k.id }}">
-        <button class="tombol{% if forloop.first %} rek{% else %} kecil{% endif %}" type="submit">{{ forloop.counter }}. {{ r.k.nama }}</button></form>{% endfor %}
-      <span class="kecil redup">Lewati {{ rek.k.nama }}:</span>
+      {% with rek=t.berikut %}{% if rek %}
+      <span class="calon">{% if t.tim %}Berikutnya{% else %}Rekomendasi{% endif %}: <b>{{ rek.k.nama }}</b>{% if rek.alasan == 'sopir' %} <span class="label">sopir</span>{% endif %}</span>
+      {% if s.cara == 'antar' %}
+        {% if t.perlu_sopir and rek.k.bisa_nyetir %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="peran" value="sopir"><button class="tombol rek" type="submit">Sopir</button></form>{% endif %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="peran" value="antar"><button class="tombol{% if not t.perlu_sopir or not rek.k.bisa_nyetir %} rek{% endif %}" type="submit">Ikut antar</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="peran" value="muat"><button class="tombol" type="submit">Muat saja</button></form>
+      {% else %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="peran" value="muat"><button class="tombol rek" type="submit">Masuk tim</button></form>
+      {% endif %}
       {% for kode, label in alasan_lewat %}<form method="post"{% if kode == 'menolak' %} data-pin="{{ rek.k.nama }} menolak (dicatat atas nama PIN ini)"{% endif %}>{% csrf_token %}<input type="hidden" name="aksi" value="lewati"><input type="hidden" name="tugas" value="{{ t.id }}"><input type="hidden" name="karyawan" value="{{ rek.k.id }}"><input type="hidden" name="alasan" value="{{ kode }}"><button class="tombol kecil{% if kode == 'menolak' %} bahaya{% endif %}" type="submit">{{ label }}</button></form>{% endfor %}
-      {% else %}<span class="redup kecil">{% if t.pilihan %}Semua karyawan sedang mengambil.{% else %}Belum ada karyawan lapangan aktif.{% endif %}</span>{% endif %}{% endwith %}
+      {% else %}<span class="redup kecil">{% if t.pilihan %}Yang lain sedang mengambil.{% elif t.tim %}Semua karyawan sudah di tim.{% else %}Belum ada karyawan lapangan aktif.{% endif %}</span>{% endif %}{% endwith %}
     </div>
     <div class="aksi" style="padding-top:0">
-      {% if t.pilihan %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tugaskan"><input type="hidden" name="tugas" value="{{ t.id }}">
-        <select name="karyawan" aria-label="Orang lain" required><option value="">Orang lain…</option>{% for p in t.pilihan %}{% if p not in t.teratas %}<option value="{{ p.k.id }}">{{ p.k.nama }}{% if p.sibuk %} · sedang mengambil{% endif %}</option>{% endif %}{% endfor %}</select>
-        <button class="tombol kecil" type="submit">Tugaskan</button></form>{% endif %}
-      <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="sendiri"><input type="hidden" name="tugas" value="{{ t.id }}"><button class="tombol kecil" type="submit">Pelayan sendiri</button></form>
+      {% if t.tim %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="mulai"><input type="hidden" name="tugas" value="{{ t.id }}"><button class="tombol utama" type="submit">Mulai ({{ t.tim|length }} orang)</button></form>{% endif %}
+      {% if t.pilihan|length > 1 %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="tambah"><input type="hidden" name="tugas" value="{{ t.id }}">
+        <select name="karyawan" aria-label="Orang lain" required><option value="">Orang lain…</option>{% for p in t.pilihan %}{% if p != t.berikut %}<option value="{{ p.k.id }}">{{ p.k.nama }}{% if p.sibuk %} · sedang mengambil{% endif %}</option>{% endif %}{% endfor %}</select>
+        {% if s.cara == 'antar' %}<select name="peran" aria-label="Peran"><option value="antar">Ikut antar</option><option value="muat">Muat saja</option>{% if t.perlu_sopir %}<option value="sopir">Sopir</option>{% endif %}</select>{% endif %}
+        <button class="tombol kecil" type="submit">Tambah</button></form>{% endif %}
+      {% if not t.tim %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="sendiri"><input type="hidden" name="tugas" value="{{ t.id }}"><button class="tombol kecil" type="submit">Pelayan sendiri</button></form>{% endif %}
       <form method="post" data-pin="Barang {{ t.lokasi.nama|default:'tanpa rak' }} nota {{ s.nomor }} diserahkan">{% csrf_token %}<input type="hidden" name="aksi" value="serahkan"><input type="hidden" name="tugas" value="{{ t.id }}"><button class="tombol kecil" type="submit">Diserahkan</button></form>
     </div>
     {% elif t.status == 'diambil' %}

@@ -21,7 +21,7 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 
 from master.layanan.inti import Tolak, rapikan_teks
-from master.models import (KaryawanLapangan, Lokasi, Siapkan, SiapkanBaris, SiapkanLewat, SiapkanTugas,
+from master.models import (KaryawanLapangan, Lokasi, Siapkan, SiapkanAnggota, SiapkanBaris, SiapkanLewat, SiapkanTugas,
                            VarianInfo)
 
 # Rekomendasi pindah ke luar tim kalau anggota tim sudah lebih banyak tugas sebanyak ini dari yang paling jarang.
@@ -125,12 +125,22 @@ def _akun_kasir(kasir_id):
 
 
 def beban_hari_ini():
-    """{karyawan_id: jumlah tugas hari ini}, {id: waktu tugas terakhir}, set id yang sedang mengambil."""
-    qs = SiapkanTugas.objects.filter(pengambil__isnull=False).exclude(status="batal")
-    hari = qs.filter(ditugaskan_waktu__gte=_awal_hari()).values("pengambil").annotate(n=Count("id"))
-    beban = {r["pengambil"]: r["n"] for r in hari}
-    terakhir = dict(qs.values("pengambil").annotate(t=Max("ditugaskan_waktu")).values_list("pengambil", "t"))
-    sibuk = set(qs.filter(status="diambil").values_list("pengambil", flat=True))
+    """{karyawan_id: beban hari ini}, {id: waktu tugas terakhir}, set id yang sedang mengambil.
+
+    Beban satu tugas dibagi rata ke anggota timnya (12 Nov 2026): 3 orang memuat semen = 1/3 tugas
+    per orang. Bobot per peran (ikut antar = muat + bongkar) menyusul.
+    """
+    qs = SiapkanAnggota.objects.filter(tugas__status__in=("diambil", "selesai"))
+    hari = list(qs.filter(tugas__ditugaskan_waktu__gte=_awal_hari()).values_list("tugas_id", "karyawan_id"))
+    per_tugas = defaultdict(int)
+    for tid, _ in hari:
+        per_tugas[tid] += 1
+    beban = defaultdict(float)
+    for tid, kid in hari:
+        beban[kid] += 1 / per_tugas[tid]
+    beban = {k: round(v, 2) for k, v in beban.items()}
+    terakhir = dict(qs.values("karyawan").annotate(t=Max("tugas__ditugaskan_waktu")).values_list("karyawan", "t"))
+    sibuk = set(qs.filter(tugas__status="diambil").values_list("karyawan_id", flat=True))
     return beban, terakhir, sibuk
 
 
@@ -165,8 +175,28 @@ def rekomendasi(tugas, keadaan=None, karyawan=None):
     sisa = [k for k in tim_bebas + luar_bebas if k != pilih]
     sisa += sorted([k for k in karyawan if k.id in sibuk and k.id not in dilewati], key=kunci)
     urut = ([pilih] if pilih else []) + sisa
+    # Yang sudah masuk tim tugas ini tidak ditawarkan lagi.
+    sudah = set(SiapkanAnggota.objects.filter(tugas=tugas).values_list("karyawan_id", flat=True))
+    urut = [k for k in urut if k.id not in sudah]
+    if pilih is not None and pilih.id in sudah:
+        pilih = next((k for k in urut if k.id not in sibuk), None)
+        alasan = "tim lokasi" if pilih and pilih.id in tim else "pemerataan"
+    # Nota antar yang belum punya sopir: sopir utama dulu, lalu yang bisa nyetir (yang tidak sedang mengambil).
+    if butuh_sopir(tugas, sudah):
+        calon = sorted([k for k in urut if k.bisa_nyetir and k.id not in sibuk],
+                       key=lambda k: (not k.sopir_utama, kunci(k)))
+        if calon:
+            pilih, alasan = calon[0], "sopir"
+            urut = [pilih] + [k for k in urut if k != pilih]
     return [{"k": k, "alasan": alasan if k == pilih else "", "beban": beban.get(k.id, 0), "tim": k.id in tim,
              "sibuk": k.id in sibuk} for k in urut]
+
+
+def butuh_sopir(tugas, anggota_ids=None):
+    """Nota antar yang timnya belum punya sopir."""
+    if tugas.siapkan.cara != "antar":
+        return False
+    return not SiapkanAnggota.objects.filter(tugas=tugas, peran="sopir").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -210,22 +240,74 @@ def _tugas_buka(tugas_id):
     return t
 
 
-def tugaskan(tugas_id, karyawan_id, *, perangkat=""):
-    t = _tugas_buka(tugas_id)
-    if t.status not in ("menunggu", "diambil"):
-        raise Tolak("Kelompok ini sudah diserahkan.")
+def _karyawan(karyawan_id):
     k = KaryawanLapangan.objects.filter(pk=karyawan_id if str(karyawan_id or "").isdigit() else 0, aktif=True).first()
     if k is None:
-        raise Tolak("Pilih karyawan yang mengambil.")
+        raise Tolak("Pilih karyawan yang ikut.")
+    return k
+
+
+def tambah_anggota(tugas_id, karyawan_id, peran="muat", *, perangkat=""):
+    """Masukkan satu orang ke tim kelompok ini (sebelum Mulai). Peran: muat / antar / sopir."""
+    t = _tugas_buka(tugas_id)
+    if t.status != "menunggu":
+        raise Tolak("Tim kelompok ini sudah jalan. Pakai Ganti orang kalau perlu mengubah.")
+    k = _karyawan(karyawan_id)
+    if peran not in dict(SiapkanAnggota.PERAN):
+        peran = "muat"
+    if t.siapkan.cara != "antar":
+        peran = "muat"                       # dibawa sendiri pembeli: semua memuat
+    if peran == "sopir" and not k.bisa_nyetir:
+        raise Tolak(f"{k.nama} belum ditandai bisa nyetir (atur di Tim gudang).")
+    if peran == "sopir" and not butuh_sopir(t):
+        peran = "antar"                      # sopir sudah ada: yang berikut ikut antar
     rek = rekomendasi(t)
     saran = rek[0]["k"] if rek and rek[0]["alasan"] else None
-    t.pengambil, t.sendiri, t.rekomendasi = k, False, saran
-    # 3 teratas yang tidak sedang mengambil = rekomendasi (SOP: nomor 1; nomor 2 dan 3 juga sah).
-    t.ikut_rekomendasi = saran is None or k.pk in {r["k"].pk for r in teratas(rek)}
+    ikut = saran is None or saran.pk == k.pk
+    SiapkanAnggota.objects.update_or_create(tugas=t, karyawan=k, defaults={"peran": peran, "ikut_rekomendasi": ikut})
+    if t.rekomendasi_id is None and saran is not None:
+        t.rekomendasi = saran
+        t.save(update_fields=["rekomendasi"])
+    return t
+
+
+def hapus_anggota(tugas_id, karyawan_id):
+    t = _tugas_buka(tugas_id)
+    if t.status != "menunggu":
+        raise Tolak("Tim kelompok ini sudah jalan. Pakai Ganti orang kalau perlu mengubah.")
+    SiapkanAnggota.objects.filter(tugas=t, karyawan_id=karyawan_id if str(karyawan_id or "").isdigit() else 0).delete()
+    return t
+
+
+def mulai(tugas_id, *, perangkat=""):
+    """Tim lengkap: kelompok mulai disiapkan. Pengambil = orang pertama (dipakai laporan lama)."""
+    t = _tugas_buka(tugas_id)
+    if t.status != "menunggu":
+        raise Tolak("Kelompok ini sudah jalan.")
+    anggota = list(t.anggota.select_related("karyawan"))
+    if not anggota:
+        raise Tolak("Pilih minimal satu orang.")
+    t.pengambil, t.sendiri = anggota[0].karyawan, False
+    t.ikut_rekomendasi = all(a.ikut_rekomendasi for a in anggota)
     t.status, t.ditugaskan_waktu, t.ditugaskan_oleh = "diambil", timezone.now(), t.siapkan.kasir_nama
     t.perangkat = perangkat[:100]
     t.save()
     return t
+
+
+def tugaskan(tugas_id, karyawan_id, *, perangkat=""):
+    """Satu orang langsung jalan (cara lama, tetap dipakai kalau cukup satu orang)."""
+    t = _tugas_buka(tugas_id)
+    if t.status not in ("menunggu", "diambil"):
+        raise Tolak("Kelompok ini sudah diserahkan.")
+    if t.status == "diambil":
+        ulang(t.pk)
+    peran = "antar" if t.siapkan.cara == "antar" else "muat"
+    k = _karyawan(karyawan_id)
+    if peran == "antar" and butuh_sopir(t) and k.bisa_nyetir:
+        peran = "sopir"
+    tambah_anggota(t.pk, k.pk, peran, perangkat=perangkat)
+    return mulai(t.pk, perangkat=perangkat)
 
 
 def sendiri(tugas_id, *, perangkat=""):
@@ -262,6 +344,7 @@ def ulang(tugas_id):
     t.pengambil, t.sendiri, t.rekomendasi, t.status = None, False, None, "menunggu"
     t.ditugaskan_waktu, t.ditugaskan_oleh, t.ikut_rekomendasi = None, "", True
     t.save()
+    t.anggota.all().delete()
     return t
 
 
@@ -330,15 +413,19 @@ def daftar_buka():
     """Nota yang sedang disiapkan, lengkap dengan kelompok, baris, rak, dan rekomendasi."""
     daftar = list(Siapkan.objects.filter(status="menunggu").order_by("waktu_nota")
                   .prefetch_related("tugas__baris__varian__rak", "tugas__baris__varian__tempat_rak",
-                                    "tugas__lokasi", "tugas__pic", "tugas__pengambil"))
+                                    "tugas__lokasi", "tugas__pic", "tugas__pengambil", "tugas__anggota__karyawan"))
     keadaan = beban_hari_ini()
     karyawan = list(KaryawanLapangan.objects.filter(aktif=True))
     for s in daftar:
         s.daftar_tugas = list(s.tugas.all())
         for t in s.daftar_tugas:
+            t.tim = list(t.anggota.all())
             if t.status == "menunggu":
                 t.pilihan = rekomendasi(t, keadaan, karyawan)
                 t.teratas = teratas(t.pilihan)
+                # Satu orang ditawarkan sekali: yang direkomendasikan berikutnya (12 Nov 2026).
+                t.berikut = t.pilihan[0] if t.pilihan and not t.pilihan[0]["sibuk"] else None
+                t.perlu_sopir = butuh_sopir(t)
             t.daftar_baris = list(t.baris.all())
             for b in t.daftar_baris:
                 v = b.varian
@@ -358,9 +445,12 @@ def statistik(mulai, akhir):
     """Rekap per karyawan lapangan dan per pelayan pada rentang tanggal [mulai, akhir]."""
     awal, ujung = _awal_hari(mulai), _awal_hari(akhir) + timedelta(days=1)
     tugas = SiapkanTugas.objects.filter(ditugaskan_waktu__gte=awal, ditugaskan_waktu__lt=ujung).exclude(status="batal")
-    per = {k.id: {"k": k, "tugas": 0, "selesai": 0, "menit": [], "tidak_ada": 0, "sibuk": 0, "menolak": 0,
-                  "menolak_oleh": defaultdict(int), "hari": set()}
+    per = {k.id: {"k": k, "tugas": 0, "bagian": 0.0, "antar": 0, "selesai": 0, "menit": [], "tidak_ada": 0,
+                  "sibuk": 0, "menolak": 0, "menolak_oleh": defaultdict(int), "hari": set()}
            for k in KaryawanLapangan.objects.select_related("ketua")}
+    tim_tugas = defaultdict(list)
+    for a in SiapkanAnggota.objects.filter(tugas__in=tugas).values("tugas_id", "karyawan_id", "peran"):
+        tim_tugas[a["tugas_id"]].append(a)
     pelayan = defaultdict(lambda: {"tugas": 0, "sendiri": 0, "bukan_rek": 0, "menolak_dicatat": 0})
     for t in tugas.select_related("pengambil"):
         p = pelayan[t.ditugaskan_oleh or "-"]
@@ -370,9 +460,14 @@ def statistik(mulai, akhir):
         p["tugas"] += 1
         if not t.ikut_rekomendasi:
             p["bukan_rek"] += 1
-        if t.pengambil_id in per:
-            r = per[t.pengambil_id]
+        anggota = tim_tugas.get(t.pk) or ([{"karyawan_id": t.pengambil_id, "peran": "muat"}] if t.pengambil_id else [])
+        for a in anggota:
+            r = per.get(a["karyawan_id"])
+            if r is None:
+                continue
             r["tugas"] += 1
+            r["bagian"] += 1 / len(anggota)          # beban dibagi rata ke tim
+            r["antar"] += a["peran"] in ("antar", "sopir")
             r["hari"].add(timezone.localtime(t.ditugaskan_waktu).date())
             if t.status == "selesai" and t.selesai_waktu:
                 r["selesai"] += 1
@@ -392,6 +487,7 @@ def statistik(mulai, akhir):
         r["menit_tengah"] = round(sorted(r["menit"])[len(r["menit"]) // 2]) if r["menit"] else None
         r["menolak_oleh"] = sorted(r["menolak_oleh"].items(), key=lambda x: -x[1])
         r["jumlah_hari"] = len(r["hari"])
+        r["bagian"] = round(r["bagian"], 1)
         baris.append(r)
     baris.sort(key=lambda r: (-r["tugas"], r["k"].nama))
     angka = sorted(r["tugas"] for r in baris if r["k"].aktif)
@@ -414,8 +510,9 @@ def statistik(mulai, akhir):
 # ---------------------------------------------------------------------------
 
 
-def simpan_karyawan(pengguna, *, id=None, nama, aktif=True, catatan="", ketua=None):
-    """ketua: id akun PIC; None = tidak diubah (untuk ubah), "" = tanpa tim."""
+def simpan_karyawan(pengguna, *, id=None, nama, aktif=True, catatan="", ketua=None, bisa_nyetir=None,
+                    sopir_utama=None):
+    """ketua: id akun PIC; None = tidak diubah (untuk ubah), "" = tanpa tim. bisa_nyetir / sopir_utama: None = tetap."""
     from master.layanan.pembelian import penerima_boleh
     nama = rapikan_teks(nama)[:60]
     if not nama:
@@ -437,6 +534,12 @@ def simpan_karyawan(pengguna, *, id=None, nama, aktif=True, catatan="", ketua=No
             k.ketua = pic
         else:
             k.ketua = None
+    if bisa_nyetir is not None:
+        k.bisa_nyetir = bool(bisa_nyetir)
+    if sopir_utama is not None:
+        k.sopir_utama = bool(sopir_utama)
+    if k.sopir_utama:
+        k.bisa_nyetir = True                 # sopir utama pasti bisa nyetir
     k.save()
     return k
 
@@ -452,6 +555,22 @@ def pegang_lokasi(pic_id, lokasi_ids):
     Lokasi.objects.filter(pk__in=ids, aktif=True).update(pic=pic)
 
 
+def atur_pic_lokasi(lokasi_id, pic_id):
+    """Tabel Tim gudang: satu lokasi satu PIC (kosong = tanpa PIC)."""
+    from master.layanan.pembelian import penerima_boleh
+    l = Lokasi.objects.filter(pk=lokasi_id if str(lokasi_id or "").isdigit() else 0, aktif=True).first()
+    if l is None:
+        raise Tolak("Lokasi tidak ditemukan.")
+    pic = None
+    if str(pic_id or "").isdigit():
+        pic = {u.pk: u for u in penerima_boleh()}.get(int(pic_id))
+        if pic is None:
+            raise Tolak("PIC harus karyawan yang memakai aplikasi gudang.")
+    l.pic = pic
+    l.save(update_fields=["pic"])
+    return l
+
+
 def tim_per_pic():
     """Kartu Tim gudang: [{pic, lokasi, rak (PIC per rak), anak}] + karyawan tanpa tim."""
     from master.layanan.pembelian import penerima_boleh
@@ -463,5 +582,11 @@ def tim_per_pic():
     kartu = [{"pic": u, "lokasi": [l for l in lokasi if l.pic_id == u.pk], "rak": [r for r in rak if r.pic_id == u.pk],
               "anak": [k for k in karyawan if k.ketua_id == u.pk]} for u in pics]
     ada = {u.pk for u in pics}
+    anak = {u.pk: sum(1 for k in karyawan if k.ketua_id == u.pk) for u in pics}
+    for l in lokasi:
+        l.jumlah_anak = anak.get(l.pic_id, 0)
+        l.rak_pic_lain = sorted({r.pic.first_name or r.pic.username for r in rak
+                                 if r.tempat_id == l.pk and r.pic_id != l.pic_id})
     return {"kartu": kartu, "tanpa_tim": [k for k in karyawan if k.ketua_id not in ada], "lokasi": lokasi,
+            "pics": pics, "karyawan": sorted(karyawan, key=lambda k: k.nama.lower()),
             "nonaktif": list(KaryawanLapangan.objects.filter(aktif=False))}
