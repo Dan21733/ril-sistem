@@ -1,6 +1,6 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Transaksi · DB Toko{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}" data-kembali-akar>‹ Beranda</a>{% endblock %}
 {% block judul_kecil %}Transaksi · {{ judul_periode }}{% endblock %}
 {% block gaya %}<style>
 .x-navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}

@@ -20,6 +20,10 @@ class MenuHpTest(Dasar):
         self.assertEqual(r.status_code, 200)
         for teks in ("Piutang &amp; pesanan", "PO &amp; barang datang", "Setelan", "Buka master"):
             self.assertContains(r, teks)
+        # Catat pembelian pindah dari tab bawah ke Menu (12 Nov 2026).
+        self.assertContains(r, reverse("hp:input") + "?mode=datang")
+        self.assertContains(r, reverse("hp:input") + "?mode=pesan")
+        self.assertNotContains(self.client.get(reverse("hp:beranda")), f'href="{reverse("hp:input")}"')
         # Yang sudah ada di Beranda tidak diulang di Menu.
         for url in ("hp:transaksi", "hp:transfer", "hp:kas", "hp:biaya"):
             self.assertNotContains(r, f'href="{reverse(url)}"')

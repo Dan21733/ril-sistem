@@ -1,4 +1,5 @@
 {% extends "hp/base.html" %}{% load master_tags %}
+{% block akar %} data-akar="Beranda"{% endblock %}
 {% block judul %}Beranda · DB Toko{% endblock %}
 {% block judul_kecil %}{{ toko_hp.nama }}{% endblock %}
 {% block kiri %}{% if toko_hp %}<button type="button" class="pil" data-buka-lembar="lembar-toko" aria-label="Toko: {{ toko_hp.nama }}. Ganti toko">
@@ -29,19 +30,20 @@
     <div class="besar">{{ jual.omzet|rupiah }}</div>
     <div class="ket">{{ jual.nota }} nota{% if jual.banding is not None %} · <span class="{% if jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if jual.banding >= 0 %}naik {{ jual.banding }}{% else %}turun {{ jual.banding|stringformat:"d"|slice:"1:" }}{% endif %}%</span> dibanding {{ pembanding }}{% endif %}</div>
   </a>
-  {% if kas_hari %}<a class="sel" href="{% url 'hp:kas' %}"><div class="utama"><div class="nama">Tunai di laci</div>
-    <div class="sub">{% if kas_hari.buka %}<span class="naik">Kas dibuka {{ kas_hari.dibuka_waktu|date:"H.i" }}</span>{% elif kas_hari.terakhir_hari_ini %}Kas sudah ditutup {{ kas_hari.ditutup_waktu|date:"H.i" }}{% else %}<span class="turun">Kas belum dibuka</span>{% endif %}</div></div>
-    <span class="nilai" style="color:var(--teks)">{% if kas_hari.buka %}<b>{{ kas_hari.seharusnya|rupiah }}</b>{% else %}–{% endif %}</span></a>
-  {% else %}<div class="sel"><div class="utama"><div class="nama">Tunai</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.cash|rupiah }}</b></span></div>{% endif %}
+  {# Baris di bawah total = rincian penjualan per cara bayar; yang Rp0 tidak ditampilkan. Rincian lengkap di Transaksi. #}
+  {% if jual.per_metode.cash %}<div class="sel"><div class="utama"><div class="nama">Tunai</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.cash|rupiah }}</b></span></div>{% endif %}
   {% if jual.per_metode.jumlah_transfer %}<a class="sel panah" href="{% url 'hp:transfer' %}?p={{ p }}{% if p == 'tanggal' %}&dari={{ awal|date:'Y-m-d' }}&sampai={{ akhir|date:'Y-m-d' }}{% endif %}"><div class="utama"><div class="nama">Transfer</div>
     <div class="sub">{{ jual.per_metode.jumlah_transfer }} nota{% if bukti_ringkas.belum %} · <span class="turun">{{ bukti_ringkas.belum }} bukti belum dicek</span>{% elif bukti_ringkas.bukti %} · <span class="naik">semua bukti dicek</span>{% endif %}{% if bukti_ringkas.tanpa_bukti %} · {{ bukti_ringkas.tanpa_bukti }} tanpa bukti{% endif %}</div></div>
-    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></a>
-  {% else %}<div class="sel"><div class="utama"><div class="nama">Transfer</div></div>
-    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></div>{% endif %}
-  <div class="sel"><div class="utama"><div class="nama">EDC</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.edc|rupiah }}</b></span></div>
+    <span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.bank_transfer|rupiah }}</b></span></a>{% endif %}
+  {% if jual.per_metode.edc %}<div class="sel"><div class="utama"><div class="nama">EDC</div></div><span class="nilai" style="color:var(--teks)"><b>{{ jual.per_metode.edc|rupiah }}</b></span></div>{% endif %}
 </div>
+{% if kas_hari %}
+<div class="grup" style="margin-top:12px"><a class="sel" href="{% url 'hp:kas' %}"><div class="utama"><div class="nama">Kas laci</div>
+  <div class="sub">{% if kas_hari.buka %}<span class="naik">Dibuka {{ kas_hari.dibuka_waktu|date:"H.i" }}</span> · termasuk modal{% elif kas_hari.terakhir_hari_ini %}Sudah ditutup {{ kas_hari.ditutup_waktu|date:"H.i" }}{% else %}<span class="turun">Kas belum dibuka</span>{% endif %}</div></div>
+  <span class="nilai" style="color:var(--teks)">{% if kas_hari.buka %}<b>{{ kas_hari.seharusnya|rupiah }}</b>{% else %}–{% endif %}</span></a></div>
+{% endif %}
 {% elif kas_hari %}
-<div class="grup"><a class="sel" href="{% url 'hp:kas' %}"><div class="utama"><div class="nama">Tunai di laci</div></div><span class="nilai">{% if kas_hari.buka %}{{ kas_hari.seharusnya|rupiah }}{% else %}–{% endif %}</span></a></div>
+<div class="grup"><a class="sel" href="{% url 'hp:kas' %}"><div class="utama"><div class="nama">Kas laci</div></div><span class="nilai">{% if kas_hari.buka %}{{ kas_hari.seharusnya|rupiah }}{% else %}–{% endif %}</span></a></div>
 {% endif %}
 
 {% include "hp/_acc.html" with semua=False %}

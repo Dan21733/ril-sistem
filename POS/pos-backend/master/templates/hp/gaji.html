@@ -1,7 +1,7 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Gaji · DB Toko{% endblock %}
 {% block judul_kecil %}Gaji{% endblock %}
-{% block kiri %}<a href="{% url 'hp:menu' %}">‹ Menu</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:menu' %}" data-kembali-akar>‹ Menu</a>{% endblock %}
 {% block gaya %}<style>
 .kartu-gaji{padding:14px 16px;position:relative}
 .kartu-gaji+.kartu-gaji::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:.5px solid var(--garis)}

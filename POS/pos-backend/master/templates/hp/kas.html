@@ -1,7 +1,7 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Kas laci · DB Toko{% endblock %}
 {% block judul_kecil %}Kas laci{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}" data-kembali-akar>‹ Beranda</a>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">Kas laci</h1>
 <p class="anak-judul">{{ toko.nama }}</p>

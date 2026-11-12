@@ -1,4 +1,5 @@
 {% extends "hp/base.html" %}{% load master_tags %}
+{% block akar %} data-akar="Menu"{% endblock %}
 {% block judul %}Menu · DB Toko{% endblock %}
 {% block judul_kecil %}Menu{% endblock %}
 {% block gaya %}<style>
@@ -8,6 +9,14 @@
 <h1 class="judul-besar">Menu</h1>
 {# Hanya yang tidak selalu ada di Beranda (transaksi, transfer, kas, biaya sudah ada di sana). #}
 
+{% if not simpel and 'pembelian' in hak %}
+<div class="kepala-grup"><h2>Catat</h2></div>
+<div class="grup">
+  <a class="sel panah" href="{% url 'hp:input' %}?mode=datang"><div class="ikon-sel" style="background:#248A3D">✎</div><div class="utama"><div class="nama">Nota supplier datang</div><div class="sub">Stok, modal, hutang langsung masuk</div></div></a>
+  <a class="sel panah" href="{% url 'hp:input' %}?mode=pesan"><div class="ikon-sel" style="background:#FF9500">⇡</div><div class="utama"><div class="nama">Pesan barang ke supplier</div><div class="sub">Jadi PO, dicatat gudang saat datang</div></div></a>
+</div>
+<div class="kepala-grup"><h2>Lainnya</h2></div>
+{% endif %}
 {% if not simpel and 'piutang' in hak or not simpel and 'pembelian' in hak or 'gaji' in hak or opname_ulang %}
 <div class="grup" style="margin-top:12px">
   {% if not simpel and 'piutang' in hak %}<a class="sel panah" href="{% url 'hp:piutang' %}"><div class="ikon-sel" style="background:#5856D6">⏱</div><div class="utama"><div class="nama">Piutang &amp; pesanan</div><div class="sub">DP, invoice, titip barang</div></div></a>{% endif %}

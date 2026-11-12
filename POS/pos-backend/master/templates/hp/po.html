@@ -1,7 +1,7 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}PO · DB Toko{% endblock %}
 {% block judul_kecil %}Pesanan ke supplier{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:menu' %}" data-kembali-akar>‹ Menu</a>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">PO dipesan</h1>
 <div class="kepala-grup"><h2>Belum ditugaskan</h2><span class="redup kecil">tidak muncul di gudang</span></div>

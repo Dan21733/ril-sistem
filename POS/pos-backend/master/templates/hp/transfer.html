@@ -1,7 +1,7 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Bukti transfer · DB Toko{% endblock %}
 {% block judul_kecil %}Bukti transfer{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}?p={{ p }}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}?p={{ p }}" data-kembali-akar>‹ Beranda</a>{% endblock %}
 {% block gaya %}<style>
 .bt-foto{display:flex;gap:10px;overflow-x:auto;padding:4px 16px 12px}
 .bt-foto figure{margin:0;flex:none;width:132px}

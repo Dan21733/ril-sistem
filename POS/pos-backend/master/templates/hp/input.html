@@ -1,4 +1,5 @@
 {% extends "hp/base.html" %}{% load master_tags %}
+{% block kiri %}<a href="{% url 'hp:menu' %}" data-kembali-akar>‹ Menu</a>{% endblock %}
 {% block judul %}Catat pembelian · DB Toko{% endblock %}
 {% block judul_kecil %}Catat pembelian{% endblock %}
 {% block gaya %}<style>
@@ -24,12 +25,13 @@
   <button type="button" data-mode="pesan">Pesan dulu</button>
 </div>
 <p class="anak-judul" id="ket-mode"></p>
+<p class="ket-grup" style="margin:-6px 4px 12px">Tanggal selalu hari ini. Kalau perlu tanggal lain, ubah dari master.</p>
 
 <form id="f-beli" data-cari="{% url 'master:pembelian_cari' %}" data-kirim="{% url 'hp:input_beli' %}">
   <input type="hidden" name="mode" value="datang">
   <div class="grup">
     <label class="isian"><span>Distributor</span><select name="supplier" required><option value="">Pilih</option>{% for s in supplier %}<option value="{{ s.id }}" data-pkp="{{ s.pkp|yesno:'1,' }}">{{ s.nama_lengkap }}</option>{% endfor %}</select></label>
-    <label class="isian"><span>Tanggal</span><input type="date" name="tanggal" value="{{ hari_ini|date:'Y-m-d' }}" required></label>
+    <div class="isian"><span>Tanggal</span><span class="redup" style="flex:1;text-align:right">Hari ini, {{ hari_ini|date:"j M" }}</span></div>
     <label class="isian" data-datang><span>No. nota</span><input name="nomor_faktur" placeholder="opsional"></label>
     <label class="isian" data-datang><span>Jatuh tempo</span><input type="date" name="jatuh_tempo"></label>
   </div>
@@ -159,6 +161,7 @@ f.addEventListener('submit', async e => {
   tombol.disabled = false;
 });
 let awal = 'datang'; try { awal = localStorage.getItem('hp-catat-mode') === 'pesan' ? 'pesan' : 'datang'; } catch (_) {}
+const dariMenu = new URLSearchParams(location.search).get('mode'); if (dariMenu === 'pesan' || dariMenu === 'datang') awal = dariMenu;
 pakaiMode(awal);
 </script>
 {% endblock %}

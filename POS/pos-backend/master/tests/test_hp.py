@@ -215,6 +215,11 @@ class HpTest(Dasar):
         self.assertEqual(r.status_code, 400)
         self.assertEqual(Pembelian.objects.count(), 2)            # yang gagal tidak meninggalkan PO kosong
         self.assertEqual(self.client.post(url, {"mode": "pesan", "supplier": sup.id, "tanggal": hari, "baris": "[]"}).status_code, 400)
+        # Dari HP tanggal selalu hari ini, walau yang dikirim tanggal lain (tanggal lain diubah dari master).
+        r = self.client.post(url, {"mode": "pesan", "supplier": sup.id, "tanggal": "2020-01-05",
+                                   "baris": json.dumps([{"id": cat.id, "jumlah": 1, "harga": 30000}])})
+        self.assertTrue(r.json()["ok"], r.json())
+        self.assertEqual(Pembelian.objects.get(nomor=r.json()["nomor"]).tanggal_pesan, timezone.localdate())
 
     def test_tugas_hitung_dan_pindah_dari_hp(self):
         from master.models import Lokasi

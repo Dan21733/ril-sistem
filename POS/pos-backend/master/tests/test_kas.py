@@ -250,7 +250,7 @@ class KasMasterTest(_KasDasar):
                              content_type="application/json")
         self.assertTrue(r.json()["ok"], r.json())
         s = KasSesi.objects.get()
-        self.assertContains(self.client.get("/hp/"), "Tunai di laci")
+        self.assertContains(self.client.get("/hp/"), "Kas laci")
         r = self.client.post("/hp/kas/", {"aksi": "tutup", "sesi_id": str(s.id), "diambil": 100000,
                                           "uang_sisa": 0}, content_type="application/json")
         self.assertTrue(r.json()["ok"], r.json())

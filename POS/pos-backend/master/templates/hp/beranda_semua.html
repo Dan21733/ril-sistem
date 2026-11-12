@@ -1,4 +1,5 @@
 {% extends "hp/base.html" %}{% load master_tags %}
+{% block akar %} data-akar="Beranda"{% endblock %}
 {% block judul %}Semua toko · DB Toko{% endblock %}
 {% block judul_kecil %}Semua toko{% endblock %}
 {% block kiri %}<button type="button" class="pil" data-buka-lembar="lembar-toko" aria-label="Semua toko. Ganti toko"><span class="pil-nama">Semua toko</span><span class="panah-bawah"></span></button>{% endblock %}
@@ -27,12 +28,12 @@ details.toko .isi-toko{background:var(--kartu2);border-top:.5px solid var(--gari
     <div class="sub">{% if d.jual %}{{ d.jual.nota }} nota{% if d.jual.banding is not None %} · <span class="{% if d.jual.banding >= 0 %}naik{% else %}turun{% endif %}">{% if d.jual.banding >= 0 %}naik {{ d.jual.banding }}{% else %}turun {{ d.jual.banding|stringformat:"d"|slice:"1:" }}{% endif %}%</span>{% endif %}{% endif %}{% if d.status %}{% if d.jual %} · {% endif %}{{ d.status }}{% endif %}</div></div>
     {% if d.jual %}<b class="nilai" style="color:var(--teks);font-size:19px">{{ d.jual.omzet|rupiah }}</b>{% endif %}<span class="buka"></span></summary>
   <div class="isi-toko">
-    {% if d.kas %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Tunai di laci</div>
-      <div class="sub">{% if d.kas.buka %}Kas dibuka {{ d.kas.dibuka_waktu|date:"H.i" }}{% elif d.kas.terakhir_hari_ini %}Kas sudah ditutup{% else %}Kas belum dibuka{% endif %}</div></div>
-      <span class="nilai">{% if d.kas.buka %}{{ d.kas.seharusnya|rupiah }}{% else %}–{% endif %}</span></div>
-    {% elif d.jual %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Tunai</div></div><span class="nilai">{{ d.jual.per_metode.cash|rupiah }}</span></div>{% endif %}
-    {% if d.jual %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Transfer</div>{% if d.jual.per_metode.jumlah_transfer %}<div class="sub">{{ d.jual.per_metode.jumlah_transfer }} bukti</div>{% endif %}</div><span class="nilai">{{ d.jual.per_metode.bank_transfer|rupiah }}</span></div>
-    <div class="sel"><div class="utama"><div class="nama" style="font-size:15px">EDC</div></div><span class="nilai">{{ d.jual.per_metode.edc|rupiah }}</span></div>{% endif %}
+    {% if d.jual.per_metode.cash %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Tunai</div></div><span class="nilai">{{ d.jual.per_metode.cash|rupiah }}</span></div>{% endif %}
+    {% if d.jual.per_metode.jumlah_transfer %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Transfer</div><div class="sub">{{ d.jual.per_metode.jumlah_transfer }} nota</div></div><span class="nilai">{{ d.jual.per_metode.bank_transfer|rupiah }}</span></div>{% endif %}
+    {% if d.jual.per_metode.edc %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">EDC</div></div><span class="nilai">{{ d.jual.per_metode.edc|rupiah }}</span></div>{% endif %}
+    {% if d.kas %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">Kas laci</div>
+      <div class="sub">{% if d.kas.buka %}Dibuka {{ d.kas.dibuka_waktu|date:"H.i" }} · termasuk modal{% elif d.kas.terakhir_hari_ini %}Sudah ditutup{% else %}Kas belum dibuka{% endif %}</div></div>
+      <span class="nilai">{% if d.kas.buka %}{{ d.kas.seharusnya|rupiah }}{% else %}–{% endif %}</span></div>{% endif %}
     <form method="post" action="{% url 'hp:pilih_toko' %}">{% csrf_token %}<input type="hidden" name="toko" value="{{ d.t.id }}"><input type="hidden" name="next" value="{% url 'hp:beranda' %}">
       <button class="sel" style="width:100%;border:0;background:none;color:var(--tint);font-weight:600;font-size:16px;cursor:pointer">Buka {{ d.t.nama }} ›</button></form>
   </div>

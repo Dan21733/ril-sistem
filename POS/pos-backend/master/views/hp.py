@@ -680,7 +680,7 @@ def input_(request):
     from master.layanan.faktur import MAKS_FOTO
     hak = hak_pengguna(request.user)
     return _tampil(request, "hp/input.html", {
-        "tab": "input", "hak_beli": "ubah_stok" in hak, "hari_ini": timezone.localdate(),
+        "tab": "", "hak_beli": "ubah_stok" in hak, "hari_ini": timezone.localdate(),
         "supplier": Supplier.objects.filter(aktif=True).order_by("nama"), "lokasi": svc_lokasi.pilihan(),
         "maks_foto": MAKS_FOTO, "mode_ppn": Pembelian.MODE_PPN,
     })
@@ -709,9 +709,11 @@ def input_beli(request):
     if not isinstance(baris, list) or not baris:
         return _jawab(False, "Tambahkan minimal satu barang.", 400)
     datang = d.get("mode") == "datang"
+    # Dari HP tanggal selalu hari ini; tanggal lain diubah dari master.
+    hari_ini = timezone.localdate().isoformat()
     try:
         with transaction.atomic():
-            po = svc.buat(request.user, supplier_id=d.get("supplier"), tanggal_pesan=d.get("tanggal"),
+            po = svc.buat(request.user, supplier_id=d.get("supplier"), tanggal_pesan=hari_ini,
                           catatan=d.get("catatan") or "", toko=toko_aktif(request))
             for b in baris:
                 if not isinstance(b, dict):
@@ -719,8 +721,8 @@ def input_beli(request):
                 svc.tambah_baris(po, varian_id=b.get("id"), jumlah=b.get("jumlah"), harga=b.get("harga"))
             svc.tambah_foto(request.user, po, request.FILES.getlist("foto"))
             if datang:
-                isi = {"mode_ppn": d.get("mode_ppn") or po.mode_ppn, "tanggal_terima": d.get("tanggal"),
-                       "tanggal_faktur": d.get("tanggal"), "nomor_faktur": d.get("nomor_faktur") or "",
+                isi = {"mode_ppn": d.get("mode_ppn") or po.mode_ppn, "tanggal_terima": hari_ini,
+                       "tanggal_faktur": hari_ini, "nomor_faktur": d.get("nomor_faktur") or "",
                        "jatuh_tempo": d.get("jatuh_tempo") or "", "ongkir": d.get("ongkir") or "",
                        "lokasi_semua": d.get("lokasi") or ""}
                 for pb in po.baris.all():

@@ -1,7 +1,7 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Biaya toko · DB Toko{% endblock %}
 {% block judul_kecil %}Biaya toko{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}" data-kembali-akar>‹ Beranda</a>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">Biaya toko</h1>
 <p class="anak-judul">{{ toko.nama }} · {{ awal|date:"F Y" }}</p>

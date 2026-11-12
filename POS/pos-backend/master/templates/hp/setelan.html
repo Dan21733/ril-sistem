@@ -1,6 +1,6 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Setelan · DB Toko{% endblock %}
-{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:menu' %}" data-kembali-akar>‹ Menu</a>{% endblock %}
 {% block judul_kecil %}Setelan{% endblock %}
 {% block gaya %}<style>
 .profil{display:flex;align-items:center;gap:14px;padding:14px 16px}
@@ -38,6 +38,9 @@
     <button type="button" data-aksen="ungu" style="background:#8944AB" aria-label="Ungu"></button>
     <button type="button" data-aksen="merah-muda" style="background:#D30F45" aria-label="Merah muda"></button>
   </div>
+</div>
+<div class="grup" style="margin-top:12px">
+  <label class="isian"><span style="width:auto;flex:1">Ciutkan bilah bawah saat menggulir</span><input type="checkbox" class="saklar" id="saklar-ciut"></label>
 </div>
 <p class="ket-grup">Tersimpan di perangkat ini saja.</p>
 
@@ -84,6 +87,9 @@ document.getElementById('tema').addEventListener('click', e => { const b = e.tar
 document.getElementById('aksen').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
   b.dataset.aksen ? akar.dataset.aksen = b.dataset.aksen : delete akar.dataset.aksen; simpan('hp-aksen', b.dataset.aksen); tandai(); });
 tandai();
+const ciut = document.getElementById('saklar-ciut');
+try { ciut.checked = localStorage.getItem('hp-tab-ciut') !== '0'; } catch (_) { ciut.checked = true; }
+ciut.addEventListener('change', () => { simpan('hp-tab-ciut', ciut.checked ? '' : '0'); kabar(ciut.checked ? 'Bilah bawah menciut saat menggulir.' : 'Bilah bawah selalu tampil.'); });
 document.getElementById('mode-hp').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b || b.classList.contains('aktif')) return;
   try { const d = await kirim("{% url 'hp:mode' %}", {mode: b.dataset.mode}); kabar(d.pesan);
     document.querySelectorAll('#mode-hp button').forEach(x => x.classList.toggle('aktif', x === b)); setTimeout(() => location.reload(), 600); }
