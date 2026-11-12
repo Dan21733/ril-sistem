@@ -235,3 +235,107 @@ input[inputmode='numeric'] {
     transition: none;
   }
 }
+
+
+/*
+ * Warna tablet (Ril, 2026-11-12): 8 pilihan per tablet supaya karyawan mengenali tabletnya.
+ * Hanya warna aksen yang berubah; merah/kuning/hijau status tetap sama. "toska" = bawaan di atas.
+ */
+[data-warna='biru'] {
+  --pos-accent: #1d6fd6;
+  --pos-accent-hover: #1659ad;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(29, 111, 214, 0.14);
+}
+
+[data-theme='dark'][data-warna='biru'] {
+  --pos-accent: #60a5fa;
+  --pos-accent-hover: #3b8ff0;
+  --pos-accent-contrast: #04162e;
+  --pos-accent-soft: rgba(96, 165, 250, 0.2);
+}
+
+[data-warna='navy'] {
+  --pos-accent: #1e3a8a;
+  --pos-accent-hover: #172f70;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(30, 58, 138, 0.14);
+}
+
+[data-theme='dark'][data-warna='navy'] {
+  --pos-accent: #93b4ff;
+  --pos-accent-hover: #7aa0f7;
+  --pos-accent-contrast: #0b1633;
+  --pos-accent-soft: rgba(147, 180, 255, 0.2);
+}
+
+[data-warna='ungu'] {
+  --pos-accent: #6d28d9;
+  --pos-accent-hover: #5b21b6;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(109, 40, 217, 0.14);
+}
+
+[data-theme='dark'][data-warna='ungu'] {
+  --pos-accent: #a78bfa;
+  --pos-accent-hover: #8b5cf6;
+  --pos-accent-contrast: #1a0b3d;
+  --pos-accent-soft: rgba(167, 139, 250, 0.2);
+}
+
+[data-warna='pink'] {
+  --pos-accent: #c2185b;
+  --pos-accent-hover: #9e1249;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(194, 24, 91, 0.14);
+}
+
+[data-theme='dark'][data-warna='pink'] {
+  --pos-accent: #f472b6;
+  --pos-accent-hover: #ec4899;
+  --pos-accent-contrast: #2a0716;
+  --pos-accent-soft: rgba(244, 114, 182, 0.2);
+}
+
+[data-warna='jingga'] {
+  --pos-accent: #c2410c;
+  --pos-accent-hover: #9a3412;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(194, 65, 12, 0.14);
+}
+
+[data-theme='dark'][data-warna='jingga'] {
+  --pos-accent: #fb923c;
+  --pos-accent-hover: #f97316;
+  --pos-accent-contrast: #2a1003;
+  --pos-accent-soft: rgba(251, 146, 60, 0.2);
+}
+
+[data-warna='cokelat'] {
+  --pos-accent: #8a5a3b;
+  --pos-accent-hover: #6f4630;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(138, 90, 59, 0.14);
+}
+
+[data-theme='dark'][data-warna='cokelat'] {
+  --pos-accent: #d6a77a;
+  --pos-accent-hover: #c48e5d;
+  --pos-accent-contrast: #2a1708;
+  --pos-accent-soft: rgba(214, 167, 122, 0.2);
+}
+
+[data-warna='abu'] {
+  --pos-accent: #475569;
+  --pos-accent-hover: #334155;
+  --pos-accent-contrast: #ffffff;
+  --pos-accent-soft: rgba(71, 85, 105, 0.14);
+}
+
+[data-theme='dark'][data-warna='abu'] {
+  --pos-accent: #cbd5e1;
+  --pos-accent-hover: #b4c0cf;
+  --pos-accent-contrast: #0f172a;
+  --pos-accent-soft: rgba(203, 213, 225, 0.2);
+}
+

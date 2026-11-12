@@ -86,6 +86,66 @@ export function getPrintBridgeUrl() {
  * `/health` maupun `/print/health`, jadi alamat bridge boleh berupa root host
  * (mis. http://10.0.0.5:9101) atau alamat same-origin berprefix (`/print`).
  */
+/*
+ * Ril (aplikasi tablet toko, 2026-11-12): kalau halaman kasir dibuka di dalam Ril, nota
+ * dikirim langsung dari tablet ke printer LAN tanpa penghubung cetak. Ril yang memegang
+ * alamat printer dan mencarinya lagi kalau printer pindah IP. Jawaban datang lewat
+ * `window.__rilJawab(id, hasil)` supaya layar tidak membeku saat Ril mencari printer.
+ */
+const rilMenunggu = new Map()
+let rilNomor = 0
+
+export function rilTablet() {
+  const ril = globalThis.RilTablet
+  if (!ril || typeof ril.cetakNanti !== 'function') {
+    return null
+  }
+  try {
+    return typeof ril.bisaCetak !== 'function' || ril.bisaCetak() ? ril : null
+  } catch {
+    return null
+  }
+}
+
+function panggilRil(metode, args, batasMs) {
+  return new Promise((resolve) => {
+    const ril = rilTablet()
+    if (!ril) {
+      resolve(null)
+      return
+    }
+    if (!globalThis.__rilJawab) {
+      globalThis.__rilJawab = (id, hasil) => {
+        const selesai = rilMenunggu.get(id)
+        if (selesai) {
+          rilMenunggu.delete(id)
+          selesai(hasil)
+        }
+      }
+    }
+    rilNomor += 1
+    const id = `ril-${rilNomor}`
+    rilMenunggu.set(id, resolve)
+    setTimeout(() => {
+      if (rilMenunggu.delete(id)) resolve(null)
+    }, batasMs)
+    try {
+      ril[metode](id, ...args)
+    } catch {
+      rilMenunggu.delete(id)
+      resolve(null)
+    }
+  })
+}
+
+function keBase64(bytes) {
+  let teks = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    teks += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
+  }
+  return globalThis.btoa(teks)
+}
+
 export function getPrintBridgeHealthUrl(url = getPrintBridgeUrl()) {
   return `${String(url).replace(/\/+$/, '')}/health`
 }
@@ -117,6 +177,27 @@ export async function checkPrintBridgeHealth({
   fetchImpl = globalThis.fetch,
   checkedAt = new Date().toISOString(),
 } = {}) {
+  if (rilTablet()) {
+    const body = await panggilRil('statusNanti', [], 30000)
+    const base = {
+      printerStatus: body?.printer_status ?? null,
+      printerAddress: body?.printer ?? '',
+      printerName: body?.printer_name ?? '',
+      bridgeVersion: 'Ril',
+      jobsSeen: 0,
+      checkedAt,
+      url: 'Ril',
+    }
+    if (body?.printer_status === 'ok') {
+      return { ...base, state: PRINTER_HEALTH_STATE.CONNECTED, detail: body.printer_detail || '' }
+    }
+    return {
+      ...base,
+      state: PRINTER_HEALTH_STATE.PRINTER_UNREACHABLE,
+      detail: body?.printer_detail || 'Printer tidak menjawab. Cek printer menyala dan kabel LAN-nya.',
+    }
+  }
+
   const healthUrl = getPrintBridgeHealthUrl(url)
 
   if (typeof fetchImpl !== 'function') {
@@ -252,6 +333,17 @@ export async function sendPrintJob({
     throw new PrintBridgeError('Pekerjaan cetak tanpa ID tidak boleh dikirim.', {
       status: 0,
       retryable: false,
+    })
+  }
+
+  if (rilTablet()) {
+    const hasil = await panggilRil('cetakNanti', [String(jobId), keBase64(toBody(bytes))], 45000)
+    if (hasil?.ok) {
+      return { ok: true, status: 200, duplicate: Boolean(hasil.duplicate) }
+    }
+    throw new PrintBridgeError(hasil?.pesan || 'Ril tidak menjawab saat mencetak.', {
+      status: 0,
+      retryable: hasil ? hasil.retryable !== false : true,
     })
   }
 

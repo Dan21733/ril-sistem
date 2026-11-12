@@ -5,6 +5,16 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 
+/* Warna tablet dari Ril (menu pemilik). Di luar Ril: warna bawaan. */
+try {
+  const warna = globalThis.RilTablet?.tema?.()
+  if (warna) {
+    document.documentElement.dataset.warna = String(warna)
+  }
+} catch {
+  /* bukan di dalam Ril */
+}
+
 const app = createApp(App)
 
 app.use(createPinia())
