@@ -222,3 +222,21 @@ class PiutangKasirTest(Dasar):
         r = self.api.get("/api/piutang/?tab=invoice", HTTP_X_APPROVER_PIN="111111")
         self.assertEqual([x["acc_status"] for x in r.data["hasil"]], ["ditolak"])
 
+    def test_cod_semua_dibawa_pulang_ongkir_ikut_hapus(self, _):
+        from pos.models import RefundEvent, RefundEventDetail
+        r, t = self._nota({"dibayar": 0, "status_barang": "antar"}, bayar=0)
+        Transactions.objects.filter(sync_id=t["sync_id"]).update(phone_no="081277773333", shipping_amount=5000,
+                                                                 total_amount=9500)
+        svc.sinkron_kasir()
+        p = Piutang.objects.get(kasir_sync_id=t["sync_id"])
+        Piutang.objects.filter(pk=p.pk).update(total=9500)
+        rid = uuid.uuid4()
+        RefundEvent.objects.create(refund_id=rid, sync_id=t["sync_id"], transaction_id=t["transaction_id"],
+                                   event_type="return", reason="COD dibawa pulang", refund_method="cash", refund_amount=0,
+                                   approver_worker_id="ID001", device_code="T01", created_at=timezone.now())
+        RefundEventDetail.objects.create(refund_id=rid, item_name="Palu", variant="Kecil", quantity=3,
+                                         unit_price=1500, subtotal=4500)
+        svc.sinkron_kasir()
+        p.refresh_from_db()
+        self.assertEqual((p.potongan_retur, p.sisa, p.lunas), (9500, 0, True))   # barang 4.500 + ongkir 5.000
+

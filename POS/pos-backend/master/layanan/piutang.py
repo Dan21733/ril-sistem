@@ -613,12 +613,23 @@ def _terapkan_retur():
     for e in events:
         per_nota[e.sync_id].append(e)
     n = 0
+    from pos.models import Transactions
     for p in p_kasir.filter(kasir_sync_id__in=list(per_nota)):
-        harga = {(d.item_name, d.variant): (d.subtotal / d.quantity if d.quantity else 0)
-                 for d in TransactionDetail.objects.filter(sync_id=p.kasir_sync_id)}
+        detail = list(TransactionDetail.objects.filter(sync_id=p.kasir_sync_id))
+        harga = {(d.item_name, d.variant): (d.subtotal / d.quantity if d.quantity else 0) for d in detail}
         ids = [e.refund_id for e in per_nota[p.kasir_sync_id]]
-        potongan = round(sum(harga.get((d.item_name, d.variant), 0) * d.quantity
-                             for d in RefundEventDetail.objects.filter(refund_id__in=ids)))
+        kembali_brg = list(RefundEventDetail.objects.filter(refund_id__in=ids))
+        potongan = round(sum(harga.get((d.item_name, d.variant), 0) * d.quantity for d in kembali_brg))
+        # COD yang SEMUA barangnya dibawa pulang: ongkir ikut dihapus (keputusan pemilik 12 Nov 2026).
+        if p.jenis == "cod":
+            jual = defaultdict(int)
+            for d in detail:
+                jual[(d.item_name, d.variant)] += d.quantity
+            for d in kembali_brg:
+                jual[(d.item_name, d.variant)] -= d.quantity
+            if jual and all(n <= 0 for n in jual.values()):
+                ongkir = Transactions.objects.filter(sync_id=p.kasir_sync_id).values_list("shipping_amount", flat=True).first()
+                potongan += int(ongkir or 0)
         kembali = sum(int(e.refund_amount or 0) for e in per_nota[p.kasir_sync_id])
         if (potongan, kembali) == (p.potongan_retur, p.uang_kembali):
             continue
