@@ -926,6 +926,8 @@ class Tiket(models.Model):
     lingkup = models.CharField(max_length=300, blank=True, default="")
     dibuka_oleh = models.CharField(max_length=150)
     dibuka_waktu = models.DateTimeField(auto_now_add=True)
+    # Tugas terjadwal (12 Nov 2026): disiapkan pemilik hari ini untuk besok/lusa. Kosong = mulai saat dibuka.
+    mulai = models.DateTimeField(null=True, blank=True)
     batas = models.DateTimeField()
     status = models.CharField(max_length=10, choices=STATUS, default="terbuka", db_index=True)
     catatan_admin = models.CharField(max_length=500, blank=True, default="")
@@ -946,8 +948,13 @@ class Tiket(models.Model):
         return timezone.now() >= self.batas
 
     @property
+    def belum_mulai(self):
+        from django.utils import timezone
+        return bool(self.mulai) and self.status == "terbuka" and timezone.now() < self.mulai
+
+    @property
     def bisa_diisi(self):
-        return self.status == "terbuka" and not self.lewat_batas
+        return self.status == "terbuka" and not self.lewat_batas and not self.belum_mulai
 
     @property
     def bisa_diputus(self):

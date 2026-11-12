@@ -58,12 +58,19 @@
   <p class="ket-grup">Tidak memilih apa pun = semua barang{% if jenis == 'hitung' %} aktif di lokasi itu{% endif %}.</p>
   {% endif %}
 
-  <div class="kepala-grup"><h2>Batas waktu</h2></div>
+  {# Tugas bisa disiapkan dari sekarang untuk besok/lusa (12 Nov 2026); mulai jam 08.00. #}
+  <div class="kepala-grup"><h2>Mulai</h2></div>
+  <div class="seg">
+    <label><input type="radio" name="mulai" value="0" checked><span>Sekarang</span></label>
+    <label><input type="radio" name="mulai" value="1"><span>Besok 08.00</span></label>
+    <label><input type="radio" name="mulai" value="2"><span>Lusa 08.00</span></label>
+  </div>
+  <div class="kepala-grup"><h2>Lama dikerjakan</h2></div>
   <div class="seg">
     <label><input type="radio" name="jam" value="2"><span>2 jam</span></label>
     <label><input type="radio" name="jam" value="4" checked><span>4 jam</span></label>
     <label><input type="radio" name="jam" value="8"><span>8 jam</span></label>
-    <label><input type="radio" name="jam" value="24"><span>Besok</span></label>
+    <label><input type="radio" name="jam" value="24"><span>1 hari</span></label>
   </div>
   <button class="tombol penuh" type="submit" style="margin:10px 0 24px" {% if not karyawan %}disabled{% endif %}>Kirim tugas</button>
 </form>

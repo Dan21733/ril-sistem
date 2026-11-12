@@ -56,13 +56,26 @@
   </div></div>
 
   <div class="tb-langkah"><div class="tb-no">4</div><div class="tb-isi">
-    <div class="tb-tanya">Sampai kapan?</div>
+    {% comment %}Kapan (12 Nov 2026): tugas bisa disiapkan sekarang untuk besok/lusa. Tanggal lain lewat tombol berkalender
+       yang tampilannya sama dengan pilihan lain (input bawaan browser tak terlihat, menutupi tombol).{% endcomment %}
+    <div class="tb-tanya">Kapan?</div>
+    <div class="tb-sub" style="margin-top:0">Mulai</div>
+    <div class="tb-pilihan" id="tb-mulai">
+      <button type="button" class="tb-chip aktif" data-hari="0">Sekarang</button>
+      <button type="button" class="tb-chip" data-hari="1">Besok 08.00</button>
+      <button type="button" class="tb-chip" data-hari="2">Lusa 08.00</button>
+      <label class="tb-chip tb-tanggal">📅 <span data-label>Tanggal lain</span> <span class="redup">▾</span><input type="datetime-local" id="tb-mulai-isi" aria-label="Waktu mulai"></label>
+      <input type="hidden" name="mulai" id="tb-mulai-kirim">
+    </div>
+    <div class="tb-sub">Sampai</div>
     <div class="tb-pilihan" id="tb-waktu">
       <button type="button" class="tb-chip" data-jam="1">1 jam</button>
       <button type="button" class="tb-chip" data-jam="2">2 jam</button>
-      <button type="button" class="tb-chip" data-jam="4">4 jam</button>
-      <button type="button" class="tb-chip" data-besok="12">Besok jam 12</button>
-      <input type="datetime-local" id="tb-batas" value="{{ batas_awal }}" required aria-label="Batas waktu"><input type="hidden" name="batas" id="tb-batas-kirim">
+      <button type="button" class="tb-chip aktif" data-jam="4">4 jam</button>
+      <button type="button" class="tb-chip" data-sore="17">Sampai jam 17</button>
+      <button type="button" class="tb-chip" data-besok="12">Esoknya jam 12</button>
+      <label class="tb-chip tb-tanggal">📅 <span data-label>Tanggal lain</span> <span class="redup">▾</span><input type="datetime-local" id="tb-batas" value="{{ batas_awal }}" required aria-label="Batas waktu"></label>
+      <input type="hidden" name="batas" id="tb-batas-kirim">
     </div>
   </div></div>
 
@@ -96,7 +109,8 @@
 .tb-cek:has(input:checked)::before{background:var(--aksen);border-color:var(--aksen);box-shadow:inset 0 0 0 3px var(--kartu)}
 .tb-chip.mati{opacity:.4;cursor:not-allowed}
 .tb-chip[hidden],[data-bagian][hidden],.pm-kartu[hidden]{display:none}
-#tb-batas{width:auto;padding:9px 12px;font-size:16px}
+.tb-tanggal{overflow:hidden}
+.tb-tanggal input{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:auto!important;cursor:pointer;border:0;padding:0}
 .tb-ringkas{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:6px;padding:14px 16px;border-radius:10px;background:var(--latar)}
 #tb-ringkas{font-size:16px;flex:1;min-width:240px}
 .tb-kirim{font-size:17px;padding:12px 26px}
@@ -211,26 +225,58 @@
     p.saring();
   }
 
-  // ---------- batas waktu ----------
-  const batas = document.getElementById('tb-batas');
+  // ---------- mulai & batas waktu ----------
+  // Pilihan "Sampai" dihitung dari waktu mulai, jadi "4 jam" pada tugas besok = besok 08.00-12.00.
+  const batas = document.getElementById('tb-batas'), mulaiIsi = document.getElementById('tb-mulai-isi');
   const duaDigit = n => String(n).padStart(2, '0');
   const keInput = d => d.getFullYear() + '-' + duaDigit(d.getMonth() + 1) + '-' + duaDigit(d.getDate()) + 'T' + duaDigit(d.getHours()) + ':' + duaDigit(d.getMinutes());
-  document.getElementById('tb-waktu').addEventListener('click', e => {
-    const b = e.target.closest('.tb-chip'); if (!b) return;
-    const d = new Date();
-    if (b.dataset.jam) d.setTime(d.getTime() + b.dataset.jam * 3600e3);
-    else { d.setDate(d.getDate() + 1); d.setHours(+b.dataset.besok, 0, 0, 0); }
-    batas.value = keInput(d); tandaiWaktu(b); ringkas();
+  const teksTanggal = d => d.toLocaleDateString('id-ID', {weekday: 'short', day: 'numeric', month: 'short'}) + ', ' + d.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'});
+  let pilihSampai = document.querySelector('#tb-waktu .tb-chip.aktif');
+  function waktuMulai(){ return mulaiIsi.value ? new Date(mulaiIsi.value) : new Date(); }
+  function tandai(wadah, aktif){
+    $$('#' + wadah + ' .tb-chip').forEach(c => c.classList.toggle('aktif', c === aktif));
+    const tgl = document.querySelector('#' + wadah + ' .tb-tanggal');
+    if (aktif !== tgl) tgl.querySelector('[data-label]').textContent = 'Tanggal lain';
+  }
+  function hitungSampai(){
+    if (!pilihSampai || pilihSampai.classList.contains('tb-tanggal')) return;
+    const d = waktuMulai(), b = pilihSampai.dataset;
+    if (b.jam) d.setTime(d.getTime() + b.jam * 3600e3);
+    else if (b.sore) { d.setHours(+b.sore, 0, 0, 0); if (d <= waktuMulai()) d.setDate(d.getDate() + 1); }
+    else { d.setDate(d.getDate() + 1); d.setHours(+b.besok, 0, 0, 0); }
+    batas.value = keInput(d);
+  }
+  document.getElementById('tb-mulai').addEventListener('click', e => {
+    const b = e.target.closest('.tb-chip[data-hari]'); if (!b) return;
+    const n = +b.dataset.hari;
+    if (n === 0) mulaiIsi.value = '';
+    else { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(8, 0, 0, 0); mulaiIsi.value = keInput(d); }
+    tandai('tb-mulai', b); hitungSampai(); ringkas();
   });
-  function tandaiWaktu(aktif){ $$('#tb-waktu .tb-chip').forEach(c => c.classList.toggle('aktif', c === aktif)); }
-  batas.addEventListener('input', () => { tandaiWaktu(null); ringkas(); });
+  mulaiIsi.addEventListener('input', () => {
+    const lbl = mulaiIsi.closest('.tb-tanggal');
+    if (mulaiIsi.value) { tandai('tb-mulai', lbl); lbl.querySelector('[data-label]').textContent = teksTanggal(new Date(mulaiIsi.value)); }
+    else tandai('tb-mulai', document.querySelector('#tb-mulai [data-hari="0"]'));
+    hitungSampai(); ringkas();
+  });
+  document.getElementById('tb-waktu').addEventListener('click', e => {
+    const b = e.target.closest('.tb-chip:not(.tb-tanggal)'); if (!b) return;
+    pilihSampai = b; tandai('tb-waktu', b); hitungSampai(); ringkas();
+  });
+  batas.addEventListener('input', () => {
+    const lbl = batas.closest('.tb-tanggal'); pilihSampai = lbl; tandai('tb-waktu', lbl);
+    if (batas.value) lbl.querySelector('[data-label]').textContent = teksTanggal(new Date(batas.value));
+    ringkas();
+  });
+  hitungSampai();
   function teksBatas(){
     if (!batas.value) return '';
     const d = new Date(batas.value), menit = Math.round((d - new Date()) / 60000);
     const hari = d.toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'short'});
     const jam = d.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'});
     const sisa = menit <= 0 ? 'sudah lewat!' : menit < 60 ? menit + ' menit lagi' : menit < 1440 ? Math.round(menit / 60) + ' jam lagi' : Math.round(menit / 1440) + ' hari lagi';
-    return hari + ' jam ' + jam + ' (' + sisa + ')';
+    const awal = mulaiIsi.value ? 'mulai ' + teksTanggal(new Date(mulaiIsi.value)) + ', ' : '';
+    return awal + 'sampai ' + hari + ' jam ' + jam + ' (' + sisa + ')';
   }
 
   // ---------- ringkasan ----------
@@ -260,7 +306,7 @@
     const nama = o.textContent.trim(), lingkup = lingkupTeks();
     el.textContent = '';
     const b = document.createElement('b'); b.textContent = nama;
-    el.append(b, ' akan ' + NAMA_JENIS[jenis()] + (lingkup ? ' — ' + lingkup : '') + ', sampai ' + teksBatas() + '.');
+    el.append(b, ' akan ' + NAMA_JENIS[jenis()] + (lingkup ? ' — ' + lingkup : '') + ', ' + teksBatas() + '.');
   }
 
   form.addEventListener('change', e => {
@@ -282,8 +328,10 @@
       p.nilai().forEach(v => { const i = document.createElement('input'); i.type = 'hidden'; i.name = nama; i.value = v; i.dataset.terbuat = '1'; form.append(i); });
     });
     // kirim dengan zona waktu perangkat ini, supaya "2 jam lagi" tetap 2 jam lagi di server
-    const off = -new Date(batas.value).getTimezoneOffset(), tanda = off >= 0 ? '+' : '-';
-    document.getElementById('tb-batas-kirim').value = batas.value + tanda + duaDigit(Math.floor(Math.abs(off) / 60)) + ':' + duaDigit(Math.abs(off) % 60);
+    const denganZona = v => { const off = -new Date(v).getTimezoneOffset(), tanda = off >= 0 ? '+' : '-';
+      return v + tanda + duaDigit(Math.floor(Math.abs(off) / 60)) + ':' + duaDigit(Math.abs(off) % 60); };
+    document.getElementById('tb-batas-kirim').value = denganZona(batas.value);
+    document.getElementById('tb-mulai-kirim').value = mulaiIsi.value ? denganZona(mulaiIsi.value) : '';
     const tujuan = document.getElementById('tb-tujuan');
     if (!tujuan.value.trim()){   // pesan kosong: judul pendek; rincian lingkup tetap tersimpan terpisah
       const j = jenis();

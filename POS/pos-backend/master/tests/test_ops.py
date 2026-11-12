@@ -324,6 +324,31 @@ class TiketBarangTest(Dasar):
         with self.assertRaises(Tolak):  # akun master tanpa aplikasi gudang
             svc_tiket.buka(self.admin, untuk=self.finance, tujuan="x", hak=PEMILIK, batas=timezone.now() + timedelta(hours=1))
 
+    def test_tugas_terjadwal_besok(self):
+        """Tugas disiapkan hari ini untuk besok (12 Nov 2026): terlihat sebagai tugas berikutnya, belum bisa diisi."""
+        besok = timezone.now() + timedelta(days=1)
+        with self.assertRaisesMessage(Tolak, "setelah tugas dimulai"):
+            svc_tiket.buka(self.admin, untuk=self.sari, tujuan="x", hak=PEMILIK, jenis="barang", izin=["alias"],
+                           kategori=["Cat"], mulai=besok, batas=besok - timedelta(hours=1))
+        t = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="Alias besok", hak=PEMILIK, jenis="barang",
+                           izin=["alias"], kategori=["Cat"], mulai=besok, batas=besok + timedelta(hours=4))
+        self.assertTrue(t.belum_mulai)
+        self.assertFalse(t.bisa_diisi)
+        with self.assertRaisesMessage(Tolak, "baru mulai"):
+            svc_tiket._harus_bisa_diisi(self.sari, t)
+        self.client.force_login(self.sari)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "Tugas berikutnya")
+        self.assertContains(r, "Alias besok")
+        self.assertNotContains(self.client.get(reverse("gudang:riwayat")), "Alias besok")
+        Tiket.objects.filter(pk=t.pk).update(mulai=timezone.now() - timedelta(minutes=1))
+        t.refresh_from_db()
+        self.assertTrue(t.bisa_diisi)
+        # Mulai yang sudah lewat dianggap mulai sekarang.
+        t2 = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="y", hak=PEMILIK, jenis="barang", izin=["alias"],
+                            kategori=["Cat"], mulai=timezone.now() - timedelta(hours=1), batas=timezone.now() + timedelta(hours=1))
+        self.assertIsNone(t2.mulai)
+
     def test_riwayat_tugas_di_tab_sendiri(self):
         lama = svc_tiket.buka(self.admin, untuk=self.sari, tujuan="Alias lama", hak=PEMILIK, jenis="barang",
                               izin=["alias"], batas=timezone.now() + timedelta(hours=1))

@@ -12,7 +12,7 @@
   {% for t in isi %}<a class="sel" href="{% url 'hp:tugas_detail' t.id %}">
     <div class="utama"><div class="nama">#{{ t.id }} · {{ t.tujuan }}</div>
       <div class="sub">{{ t.untuk.first_name|default:t.untuk.username }} · {{ t.get_jenis_display|default:t.jenis }}{% if t.jumlah is not None %} · {{ t.jumlah }} usulan{% endif %} · batas {{ t.batas|date:"d M H:i" }}</div></div>
-    {% if t.status == 'dikirim' %}<span class="lencana tint">ACC</span>{% elif t.status == 'selesai' %}<span class="lencana hijau">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="lencana merah">{{ t.get_status_display }}</span>{% elif t.lewat_batas %}<span class="lencana kuning">Lewat</span>{% endif %}
+    {% if t.status == 'dikirim' %}<span class="lencana tint">ACC</span>{% elif t.status == 'selesai' %}<span class="lencana hijau">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="lencana merah">{{ t.get_status_display }}</span>{% elif t.lewat_batas %}<span class="lencana kuning">Lewat</span>{% elif t.belum_mulai %}<span class="lencana">{{ t.mulai|date:"D H.i" }}</span>{% endif %}
   </a>{% empty %}<div class="kosong">Tidak ada.</div>{% endfor %}
 </div>
 {% endif %}{% endfor %}

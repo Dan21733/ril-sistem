@@ -265,6 +265,7 @@ def tiket_daftar(request, baru=False):
             untuk = get_user_model().objects.filter(pk=request.POST.get("untuk") or 0, is_active=True).first()
             t = svc_tiket.buka(request.user, untuk=untuk, tujuan=request.POST.get("tujuan"),
                                lingkup=request.POST.get("lingkup"), batas=request.POST.get("batas"), hak=hak,
+                               mulai=request.POST.get("mulai") or None,
                                jenis=request.POST.get("jenis") or "lokasi", izin=request.POST.getlist("izin"),
                                kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"),
                                lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"),

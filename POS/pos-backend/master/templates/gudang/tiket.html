@@ -23,6 +23,12 @@
 <div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
 {% endif %}
 </div>
+{% if terjadwal %}
+<h3 style="margin:18px 0 8px">Tugas berikutnya</h3>
+<div class="daftar">{% for t in terjadwal %}<div class="brs"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>
+  <span class="redup kecil">{% if t.jenis == 'barang' %}{{ t.izin_teks }} · {{ t.lingkup_teks }}{% elif t.jenis == 'hitung' %}Hitung stok {{ t.lingkup_teks }}{% else %}Pindah stok dan rak{% endif %}</span></div>
+  <span class="label">Mulai {{ t.mulai|date:"l, d M H:i" }}</span></div>{% endfor %}</div>
+{% endif %}
 {% if akan_datang %}
 <h3 style="margin:18px 0 8px">Akan datang ke areamu</h3>
 <div class="daftar">{% for a in akan_datang %}<details class="brs" style="display:block"><summary><b>{{ a.po.nomor }}</b> <span class="redup kecil">diterima {{ a.penerima }} · {{ a.barang|length }} barang areamu</span></summary>

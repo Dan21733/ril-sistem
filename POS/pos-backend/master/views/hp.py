@@ -602,9 +602,16 @@ def tugas_baru(request):
     if request.method == "POST":
         untuk = get_user_model().objects.filter(pk=request.POST.get("untuk") or 0, is_active=True).first()
         jam = request.POST.get("jam") or "4"
+        hari = request.POST.get("mulai") or "0"
         try:
-            batas = timezone.now() + timedelta(hours=int(jam)) if jam.isdigit() else None
+            mulai = None
+            if hari in ("1", "2"):
+                from datetime import datetime, time as jam_
+                tgl = timezone.localdate() + timedelta(days=int(hari))
+                mulai = timezone.make_aware(datetime.combine(tgl, jam_(8, 0)))
+            batas = (mulai or timezone.now()) + timedelta(hours=int(jam)) if jam.isdigit() else None
             t = svc_tiket.buka(request.user, untuk=untuk, tujuan=request.POST.get("tujuan"), batas=batas, hak=hak,
+                               mulai=mulai,
                                jenis=jenis, izin=request.POST.getlist("izin"), lingkup=request.POST.get("lingkup") or "",
                                kategori=request.POST.getlist("kategori"), brand=request.POST.getlist("brand"),
                                lokasi=request.POST.get("lokasi"), rak=request.POST.getlist("rak"))

@@ -17,7 +17,7 @@
 <p class="anak-judul">{{ t.tujuan }}</p>
 <div class="grup">
   <div class="sel"><div class="utama">Untuk</div><span class="nilai">{{ t.untuk.first_name|default:t.untuk.username }}</span></div>
-  <div class="sel"><div class="utama">Status</div><span class="nilai">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% elif t.status == 'terbuka' %}Sedang dikerjakan{% else %}{{ t.get_status_display }}{% endif %}</span></div>
+  <div class="sel"><div class="utama">Status</div><span class="nilai">{% if t.status == 'terbuka' and t.lewat_batas %}Lewat batas{% elif t.belum_mulai %}Terjadwal, mulai {{ t.mulai|date:"D d M, H:i" }}{% elif t.status == 'terbuka' %}Sedang dikerjakan{% else %}{{ t.get_status_display }}{% endif %}</span></div>
   <div class="sel"><div class="utama">Batas</div><span class="nilai">{{ t.batas|date:"d M Y, H:i" }}</span></div>
   {% if ringkas.izin %}<div class="sel"><div class="utama">Boleh</div><span class="nilai" style="white-space:normal">{{ ringkas.izin|join:", " }}</span></div>{% endif %}
   {% for judul, isi, kosong in ringkas.lingkup %}<div class="sel"><div class="utama">{{ judul }}</div><span class="nilai" style="white-space:normal;max-width:65%">{% if isi %}{{ isi|join:", " }}{% else %}{{ kosong }}{% endif %}</span></div>{% endfor %}

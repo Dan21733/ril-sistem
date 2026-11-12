@@ -322,7 +322,8 @@ def tiket(request):
     semua = _tiket_saya(request.user, 40)
     return render(request, "gudang/tiket.html", {
         "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
-        "ada_riwayat": any(not t.bisa_diisi for t in semua),
+        "terjadwal": sorted([t for t in semua if t.belum_mulai], key=lambda t: t.mulai),
+        "ada_riwayat": any(not t.bisa_diisi and not t.belum_mulai for t in semua),
         "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
         "akan_datang": svc.akan_datang(request.user, toko) if ("gudang_datang" in hak and toko) else [],
         "boleh_buka_dus": "gudang_buka_dus" in hak,
@@ -351,7 +352,7 @@ def riwayat(request):
     from master.akun.akses import hak_pengguna
     if not hak_pengguna(request.user) & HAK_TUGAS:
         return render(request, "gudang/kosong.html", {"menu": "riwayat"})
-    lain = [t for t in _tiket_saya(request.user, 120) if not t.bisa_diisi][:80]
+    lain = [t for t in _tiket_saya(request.user, 120) if not t.bisa_diisi and not t.belum_mulai][:80]
     return render(request, "gudang/riwayat.html", {"menu": "riwayat", "lain": lain})
 
 

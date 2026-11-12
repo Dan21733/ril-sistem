@@ -56,8 +56,21 @@ def peringatan_pic(t):
 # ---------------------------------------------------------------------------
 
 
+def _waktu(teks, label):
+    if teks in (None, ""):
+        return None
+    if isinstance(teks, str):
+        try:
+            teks = datetime.fromisoformat(teks.strip())
+        except ValueError:
+            raise Tolak(f"{label} tidak terbaca.") from None
+    if timezone.is_naive(teks):
+        teks = timezone.make_aware(teks, timezone.get_current_timezone())
+    return teks
+
+
 def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izin=None, kategori=(), brand=(),
-         lokasi=None, rak=(), sesi=None, varian=()):
+         lokasi=None, rak=(), sesi=None, varian=(), mulai=None):
     """Buka tiket. Jenis "lokasi" (pindah stok/rak) atau "barang" (usul harga, alias, aktif)."""
     from master.akun.akses import hak_pengguna
     from master.layanan import tiket_barang
@@ -97,22 +110,20 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
             raise Tolak("Sesi opname itu sudah ditutup.")
     elif sesi is not None:
         raise Tolak("Sesi opname hanya untuk tugas hitung stok.")
-    if isinstance(batas, str):
-        try:
-            batas = datetime.fromisoformat(batas.strip())
-        except ValueError:
-            raise Tolak("Batas waktu tidak terbaca.") from None
+    batas = _waktu(batas, "Batas waktu")
     if batas is None:
         raise Tolak("Isi batas waktu.")
-    if timezone.is_naive(batas):
-        batas = timezone.make_aware(batas, timezone.get_current_timezone())
-    if batas <= timezone.now():
-        raise Tolak("Batas waktu harus di masa depan.")
+    mulai = _waktu(mulai, "Waktu mulai")
+    if mulai is not None and mulai <= timezone.now():
+        mulai = None                          # mulai sekarang
+    if batas <= (mulai or timezone.now()):
+        raise Tolak("Batas waktu harus setelah tugas dimulai." if mulai else "Batas waktu harus di masa depan.")
     t = Tiket.objects.create(untuk=untuk, tujuan=tujuan, lingkup=rapikan_teks(lingkup)[:300],
                              dibuka_oleh=pengguna.username, batas=batas, jenis=jenis, izin=izin_bersih, saring=saring,
-                             sesi=sesi)
+                             sesi=sesi, mulai=mulai)
+    waktu = (f"mulai {timezone.localtime(mulai):%d-%m %H:%M} " if mulai else "") + f"sampai {timezone.localtime(batas):%d-%m %H:%M}"
     layanan.catat(pengguna, aksi="tambah", objek="tiket", kolom="tiket",
-                  baru=f"Tiket #{t.id} untuk {untuk.username} sampai {timezone.localtime(batas):%d-%m %H:%M}: {tujuan}")
+                  baru=f"Tiket #{t.id} untuk {untuk.username} {waktu}: {tujuan}")
     return t
 
 
@@ -203,6 +214,8 @@ def _harus_bisa_diisi(pengguna, t):
         raise Tolak("Tiket ini bukan untuk akun ini.")
     if t.status != "terbuka":
         raise Tolak("Tiket ini sudah dikirim atau ditutup.")
+    if t.belum_mulai:
+        raise Tolak(f"Tugas ini baru mulai {timezone.localtime(t.mulai):%A %d %b, %H.%M}.")
     if t.lewat_batas:
         raise Tolak("Batas waktu tiket ini sudah lewat. Minta pemilik membuka tiket baru.")
 

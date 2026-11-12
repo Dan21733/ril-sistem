@@ -21,7 +21,7 @@
     <td>{{ t.untuk.first_name|default:t.untuk.username }}</td>
     <td class="kecil" style="white-space:nowrap">{{ t.batas|date:"d M Y H:i" }}</td>
     <td class="angka">{{ t.jumlah_usulan }}</td>
-    <td>{% if t.status == 'terbuka' and t.lewat_batas %}<span class="label awas">Lewat batas</span>{% elif t.status == 'dikirim' %}<span class="label awas">Menunggu ACC</span>{% elif t.status == 'selesai' %}<span class="label baik">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="label bahaya">{{ t.get_status_display }}</span>{% else %}<span class="label netral">Dikerjakan</span>{% endif %}</td></tr>
+    <td>{% if t.status == 'terbuka' and t.lewat_batas %}<span class="label awas">Lewat batas</span>{% elif t.status == 'dikirim' %}<span class="label awas">Menunggu ACC</span>{% elif t.status == 'selesai' %}<span class="label baik">Selesai</span>{% elif t.status == 'ditolak' or t.status == 'batal' %}<span class="label bahaya">{{ t.get_status_display }}</span>{% elif t.belum_mulai %}<span class="label">Terjadwal {{ t.mulai|date:"D d M H:i" }}</span>{% else %}<span class="label netral">Dikerjakan</span>{% endif %}</td></tr>
   {% endfor %}
 </table></div>
 {% else %}<p class="redup kecil">{{ kosong }}</p>{% endif %}

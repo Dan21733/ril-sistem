@@ -172,6 +172,14 @@ class HpTest(Dasar):
         self.assertTrue(r.json()["ok"], r.json())
         self.assertEqual(Item.objects.get(item_name="Cat Avian", variant="Putih 1kg").max_price, 48000)
         self.assertEqual(Tiket.objects.get(pk=t.pk).status, "selesai")
+        # Tugas untuk lusa: mulai lusa 08.00, batas 4 jam dari mulai.
+        self.client.post(reverse("hp:tugas_baru"), {"untuk": sari.id, "tujuan": "Harga lusa", "izin": ["harga"],
+                                                    "kategori": ["Cat"], "jam": "4", "mulai": "2"})
+        t2 = Tiket.objects.get(tujuan="Harga lusa")
+        mulai = timezone.localtime(t2.mulai)
+        self.assertEqual((mulai.date(), mulai.hour), (timezone.localdate() + timedelta(days=2), 8))
+        self.assertEqual(t2.batas - t2.mulai, timedelta(hours=4))
+        self.assertContains(self.client.get(reverse("hp:tugas_detail", args=[t2.id])), "Terjadwal")
 
     def test_tugas_baru_tanpa_karyawan_gagal_rapi(self):
         r = self.client.post(reverse("hp:tugas_baru"), {"tujuan": "x", "izin": ["harga"], "jam": "4"})
