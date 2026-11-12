@@ -18,22 +18,25 @@ class MenuHpTest(Dasar):
     def test_lanjutan_bawaan(self):
         r = self.client.get(reverse("hp:menu"))
         self.assertEqual(r.status_code, 200)
-        for teks in ("Transaksi", "Bukti transfer", "Kas", "Biaya toko", "PO &amp; barang datang", "Setelan", "Buka master"):
+        for teks in ("Piutang &amp; pesanan", "PO &amp; barang datang", "Setelan", "Buka master"):
             self.assertContains(r, teks)
+        # Yang sudah ada di Beranda tidak diulang di Menu.
+        for url in ("hp:transaksi", "hp:transfer", "hp:kas", "hp:biaya"):
+            self.assertNotContains(r, f'href="{reverse(url)}"')
         b = self.client.get(reverse("hp:beranda"))
         self.assertContains(b, reverse("hp:tugas"))
         self.assertContains(b, reverse("hp:menu"))
-        # Transaksi pindah ke dalam Menu: tab Menu menyala di halaman transaksi.
+        # Transaksi dibuka dari Beranda: tab Beranda yang menyala.
         t = self.client.get(reverse("hp:transaksi"))
-        self.assertContains(t, f'href="{reverse("hp:menu")}" class="aktif"')
+        self.assertContains(t, f'href="{reverse("hp:beranda")}" class="aktif"')
 
     def test_simpel_hanya_tampilan(self):
         r = self._mode("simpel")
         self.assertEqual(r.json()["ok"], True)
         self.assertEqual(SetelanHp.objects.get(user=self.admin).mode, "simpel")
         m = self.client.get(reverse("hp:menu"))
-        self.assertContains(m, "Transaksi")
-        self.assertNotContains(m, "Biaya toko")
+        self.assertContains(m, "Setelan")
+        self.assertNotContains(m, "Piutang &amp; pesanan")
         self.assertNotContains(m, "Buka master")
         b = self.client.get(reverse("hp:beranda"))
         self.assertNotContains(b, reverse("hp:tugas"))

@@ -375,7 +375,7 @@ def transaksi(request):
         hari[-1]["nota"].append(n)
         hari[-1]["total"] += n["total_amount"]
     return _tampil(request, "hp/transaksi.html", {
-        "tab": "menu", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
+        "tab": "beranda", "periode": PERIODE, "p": kode, "judul_periode": judul, "awal": awal, "akhir": akhir,
         "judul_pendek": _judul_pendek(kode, awal, akhir),
         "hari_ini": timezone.localdate(), "satu_hari": awal == akhir, "hari": hari, "jumlah_nota": len(nota),
         "terpotong": len(nota) > BATAS, "batas": BATAS, "kembali": kembali,

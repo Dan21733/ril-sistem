@@ -6,43 +6,20 @@
 </style>{% endblock %}
 {% block isi %}
 <h1 class="judul-besar">Menu</h1>
+{# Hanya yang tidak selalu ada di Beranda (transaksi, transfer, kas, biaya sudah ada di sana). #}
 
-<div class="kepala-grup"><h2>Penjualan</h2></div>
-<div class="grup">
-  {% if 'laporan' in hak %}
-  <a class="sel panah" href="{% url 'hp:transaksi' %}"><div class="ikon-sel" style="background:#34C759">₨</div><div class="utama"><div class="nama">Transaksi</div><div class="sub">Nota per hari, per kasir</div></div></a>
-  <a class="sel panah" href="{% url 'hp:transfer' %}"><div class="ikon-sel" style="background:#2F6FB0">↗</div><div class="utama"><div class="nama">Bukti transfer</div><div class="sub">Cocokkan dengan mutasi rekening</div></div></a>
-  {% endif %}
-  {% if not simpel and 'piutang' in hak %}
-  <a class="sel panah" href="{% url 'hp:piutang' %}"><div class="ikon-sel" style="background:#5856D6">⏱</div><div class="utama"><div class="nama">Piutang pelanggan</div><div class="sub">DP, invoice, titip barang</div></div></a>
-  {% endif %}
-</div>
-
-{% if not simpel %}
-{% if 'kas' in hak or 'biaya' in hak or 'gaji' in hak %}
-<div class="kepala-grup"><h2>Uang toko</h2></div>
-<div class="grup">
-  {% if 'kas' in hak %}<a class="sel panah" href="{% url 'hp:kas' %}"><div class="ikon-sel" style="background:#FF9500">▤</div><div class="utama"><div class="nama">Kas</div><div class="sub">Buka-tutup kas, uang keluar</div></div></a>{% endif %}
-  {% if 'biaya' in hak %}<a class="sel panah" href="{% url 'hp:biaya' %}"><div class="ikon-sel" style="background:#FF3B30">−</div><div class="utama"><div class="nama">Biaya toko</div><div class="sub">Catat pengeluaran, lihat bulan ini</div></div></a>{% endif %}
+{% if not simpel and 'piutang' in hak or not simpel and 'pembelian' in hak or 'gaji' in hak or opname_ulang %}
+<div class="grup" style="margin-top:12px">
+  {% if not simpel and 'piutang' in hak %}<a class="sel panah" href="{% url 'hp:piutang' %}"><div class="ikon-sel" style="background:#5856D6">⏱</div><div class="utama"><div class="nama">Piutang &amp; pesanan</div><div class="sub">DP, invoice, titip barang</div></div></a>{% endif %}
+  {% if not simpel and 'pembelian' in hak %}<a class="sel panah" href="{% url 'hp:po' %}"><div class="ikon-sel" style="background:#8E5A2B">⇣</div><div class="utama"><div class="nama">PO &amp; barang datang</div><div class="sub">Tugaskan penerima, ACC barang datang</div></div></a>{% endif %}
   {% if 'gaji' in hak %}<a class="sel panah" href="{% url 'hp:gaji' %}"><div class="ikon-sel" style="background:#30B0C7">₲</div><div class="utama"><div class="nama">Gaji karyawan</div><div class="sub">Jatuh tempo, tandai sudah dibayar</div></div></a>{% endif %}
-</div>
-{% endif %}
-
-{% if 'pembelian' in hak or 'opname' in hak %}
-<div class="kepala-grup"><h2>Barang &amp; gudang</h2></div>
-<div class="grup">
-  {% if 'pembelian' in hak %}<a class="sel panah" href="{% url 'hp:po' %}"><div class="ikon-sel" style="background:#8E5A2B">⇣</div><div class="utama"><div class="nama">PO &amp; barang datang</div><div class="sub">Tugaskan penerima, ACC barang datang</div></div></a>{% endif %}
   {% if opname_ulang %}<a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="ikon-sel" style="background:#7E57C2">#</div><div class="utama"><div class="nama">Hitung ulang opname</div><div class="sub">baris menunggu dihitung ulang</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a>{% endif %}
 </div>
 {% endif %}
-{% elif opname_ulang %}
-<div class="grup" style="margin-top:12px"><a class="sel panah" href="{% url 'hp:opname_ulang' %}"><div class="ikon-sel" style="background:#7E57C2">#</div><div class="utama"><div class="nama">Hitung ulang opname</div></div><span class="nilai"><span class="lencana merah">{{ opname_ulang }}</span></span></a></div>
-{% endif %}
 
-<div class="kepala-grup"><h2>Akun</h2></div>
-<div class="grup">
+<div class="grup" style="margin-top:12px">
   <a class="sel panah" href="{% url 'hp:setelan' %}"><div class="ikon-sel" style="background:#8E8E93">⚙</div><div class="utama"><div class="nama">Setelan</div><div class="sub">Tampilan {{ simpel|yesno:"simpel,lanjutan" }}, Face ID, notifikasi</div></div></a>
-  {% if not simpel %}<a class="sel panah" href="{% url 'master:dashboard' %}"><div class="ikon-sel" style="background:#3A3A3C">⌘</div><div class="utama"><div class="nama">Buka master</div><div class="sub">Tampilan lengkap</div></div></a>{% endif %}
+  {% if not simpel %}<a class="sel panah" href="{% url 'master:dashboard' %}"><div class="ikon-sel" style="background:#3A3A3C">⌘</div><div class="utama"><div class="nama">Buka master</div><div class="sub">Tampilan lengkap (paling enak di PC/iPad)</div></div></a>{% endif %}
 </div>
 <div style="height:16px"></div>
 {% endblock %}

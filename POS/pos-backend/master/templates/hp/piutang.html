@@ -2,7 +2,8 @@
 {% block judul %}Piutang · DB Toko{% endblock %}
 {% block judul_kecil %}Piutang & pesanan{% endblock %}
 {% block gaya %}<style>
-.tab-p{display:flex;gap:6px;overflow-x:auto;margin:4px 0 12px;padding-bottom:2px}
+.tab-p{display:flex;gap:6px;overflow-x:auto;margin:4px 0 12px;padding-bottom:2px;scrollbar-width:none}
+.tab-p::-webkit-scrollbar{display:none}
 .tab-p a{flex:none;padding:8px 14px;border-radius:999px;background:var(--kartu);color:var(--teks);font-size:15px;font-weight:600;box-shadow:var(--bayang);border:1px solid var(--garis)}
 .tab-p a.aktif{background:var(--tint);color:#fff;border-color:var(--tint)}
 .tab-p .n{margin-left:6px;font-size:12px;opacity:.75}
@@ -22,3 +23,8 @@
 </div>
 <div style="height:16px"></div>
 {% endblock %}
+
+{% block skrip %}<script>
+/* Pindah tab tidak menambah riwayat: tombol kembali Android langsung ke halaman sebelumnya. */
+document.querySelectorAll('.tab-p a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); location.replace(a.href); }));
+</script>{% endblock %}

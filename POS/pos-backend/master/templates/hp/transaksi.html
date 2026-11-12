@@ -1,6 +1,6 @@
 {% extends "hp/base.html" %}{% load master_tags %}
 {% block judul %}Transaksi · DB Toko{% endblock %}
-{% block kiri %}<a href="{% url 'hp:menu' %}">‹ Menu</a>{% endblock %}
+{% block kiri %}<a href="{% url 'hp:beranda' %}">‹ Beranda</a>{% endblock %}
 {% block judul_kecil %}Transaksi · {{ judul_periode }}{% endblock %}
 {% block gaya %}<style>
 .x-navhari{display:flex;align-items:center;gap:8px;margin:0 0 14px}
@@ -14,7 +14,8 @@ details.nota[open]>summary{background:var(--isi)}
 .isi-nota .b{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:.5px solid var(--garis)}
 .isi-nota .b:first-child{border-top:0}
 .isi-nota .b span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
-.metode{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:10px}
+.metode{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:10px;scrollbar-width:none}
+.metode::-webkit-scrollbar{display:none}
 .metode div{background:var(--kartu);border-radius:12px;padding:8px 12px;flex:none;box-shadow:var(--bayang)}
 .metode b{display:block;font-size:16px}.metode span{font-size:12px;color:var(--teks2)}
 </style>{% endblock %}
