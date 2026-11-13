@@ -18,7 +18,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
-from master.models import Opname, OpnameBaris, VarianInfo
+from master.models import Opname, OpnameBaris, OpnameRak, VarianInfo
 
 
 def _toko(toko):
@@ -80,6 +80,164 @@ def simpan_hitungan(pengguna, data, toko=None, lokasi=None, tiket=None, boleh=No
     return len(isian)
 
 
+# ---------------------------------------------------------------------------
+# Hitung + posisi rak dari tablet (13 Nov 2026)
+# ---------------------------------------------------------------------------
+
+BATAS_KIRIM = 400
+
+
+def kode_rak_baru(teks):
+    """Kode rak yang diketik karyawan: huruf/angka/strip, huruf besar, maks 20."""
+    import re
+    kode = re.sub(r"\s+", "", str(teks or "")).upper()[:20]
+    if kode and not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-/]*", kode):
+        raise Tolak(f"Kode rak \"{teks}\" hanya boleh huruf, angka, titik, strip.")
+    return kode
+
+
+def _hitung_ulang(b):
+    """Total baris = jumlah semua rak. Baris tanpa rincian rak lagi dihapus."""
+    total = sum(b.per_rak.values_list("jumlah", flat=True))
+    if not b.per_rak.exists():
+        b.delete()
+        return None
+    OpnameBaris.objects.filter(pk=b.pk).update(hitung=total, waktu_hitung=timezone.now())
+    return total
+
+
+def simpan_entri(pengguna, t, entri):
+    """Antrian tablet untuk tugas hitung (bukan sesi). Tiap entri {kunci, varian, rak, jumlah | hapus}.
+
+    Hitungan per (barang, rak) ditimpa kalau diketik ulang. Stok sistem diambil diam-diam saat barang itu
+    PERTAMA kali dihitung di tugas ini; selisih yang diterapkan saat ACC = total semua rak - stok itu.
+    """
+    from master.layanan.lokasi import stok_di
+    from master.layanan.satuan import baca_qty
+    from master.layanan.sesi_opname import rak_lokasi
+    from master.layanan.tiket import _harus_bisa_diisi
+    from master.models import Rak
+    _harus_bisa_diisi(pengguna, t)
+    if not isinstance(entri, list) or len(entri) > BATAS_KIRIM:
+        raise Tolak("Isi kiriman tidak terbaca.")
+    lokasi, toko = lokasi_tugas(t), t_toko(t)
+    boleh = set(lingkup_tugas(t).values_list("id", flat=True))
+    rak_sini = {r.kode: r for r in rak_lokasi(lokasi)}
+    ids = {int(e.get("varian")) for e in entri if isinstance(e, dict) and str(e.get("varian", "")).isdigit()}
+    varian = VarianInfo.objects.in_bulk(ids)
+    ok, gagal = [], []
+    with transaction.atomic():
+        op = draf(pengguna, toko=toko, lokasi=lokasi, tiket=t)
+        punya_stok = op.toko.stok_di_kasir
+        for e in entri:
+            kunci = str((e or {}).get("kunci", ""))[:80] if isinstance(e, dict) else ""
+            try:
+                if not isinstance(e, dict) or not str(e.get("varian", "")).isdigit():
+                    raise Tolak("Barang tidak dikenal.")
+                v = varian.get(int(e["varian"]))
+                if v is None or not v.aktif:
+                    raise Tolak("Barang tidak ditemukan atau sudah nonaktif.")
+                if v.pk not in boleh:
+                    raise Tolak(f"{v.item_name} di luar lingkup tugas ini.")
+                kode = kode_rak_baru(e.get("rak"))
+                rak, rak_baru = rak_sini.get(kode), ""
+                if kode and rak is None:
+                    if Rak.objects.filter(pk=kode).exists():
+                        raise Tolak(f"Rak {kode} ada di lokasi lain, bukan di {lokasi.nama if lokasi else 'Toko'}.")
+                    rak_baru = kode
+                b = OpnameBaris.objects.filter(opname=op, varian=v).first()
+                if b is not None and not b.per_rak.exists():
+                    # Hitungan lama (sebelum ada rincian rak): jadikan baris "tanpa rak".
+                    OpnameRak.objects.create(baris=b, rak=None, jumlah=b.hitung, waktu=b.waktu_hitung)
+                saring = {"rak": rak, "rak_baru": rak_baru}
+                if e.get("hapus"):
+                    if b is not None:
+                        b.per_rak.filter(**saring).delete()
+                        _hitung_ulang(b)
+                else:
+                    jumlah = baca_qty(e.get("jumlah"), v, nama=v.item_name)
+                    if jumlah < 0:
+                        raise Tolak("Jumlah tidak boleh minus.")
+                    if b is None:
+                        b = OpnameBaris.objects.create(
+                            opname=op, varian=v, item_name=v.item_name, variant=v.variant, hitung=0,
+                            stok_saat_hitung=(stok_di(v, op.lokasi) or 0) if punya_stok else 0,
+                            waktu_hitung=timezone.now())
+                    OpnameRak.objects.update_or_create(baris=b, **saring, defaults={"jumlah": jumlah,
+                                                                                   "waktu": timezone.now()})
+                    _hitung_ulang(b)
+                ok.append(kunci)
+            except Tolak as tolak:
+                gagal.append({"kunci": kunci, "pesan": str(tolak)})
+    return {"ok": ok, "gagal": gagal}
+
+
+def hitungan_tablet(t):
+    """Hitungan tugas ini untuk tablet: [{varian, rak (kode), jumlah}]. Baris lama tanpa rincian = tanpa rak."""
+    op = Opname.objects.filter(tiket=t).first()
+    if op is None:
+        return []
+    hasil = []
+    for b in op.baris.prefetch_related("per_rak__rak"):
+        rincian = list(b.per_rak.all())
+        if not rincian:
+            hasil.append({"varian": b.varian_id, "rak": "", "jumlah": b.hitung})
+        hasil += [{"varian": b.varian_id, "rak": r.kode, "jumlah": r.jumlah} for r in rincian]
+    return hasil
+
+
+def perbarui_posisi(t):
+    """Perbarui posisi rak di tugas ini? Dicentang pemilik saat membuat tugas (bawaan nyala)."""
+    if t is None or t.sesi_id:
+        return False                     # sesi opname mengatur rak sendiri saat sesi di-ACC
+    return bool((t.saring or {}).get("posisi", True))
+
+
+def _terapkan_posisi(pengguna, op, baris):
+    """Rak barang dari hasil hitung tugas ini (hanya untuk lokasi tugas ini).
+
+    Rak utama tetap kalau masih ada hitungannya, atau kalau rak utamanya di lokasi lain. Kalau rak utama di
+    lokasi ini tapi barangnya tidak ditemukan di sana lagi, rak utama pindah ke rak dengan jumlah terbanyak.
+    Rak tambahan di lokasi ini diganti dengan hasil hitung; rak tambahan di lokasi lain tidak disentuh.
+    Rak baru yang diketik karyawan dibuat di lokasi tugas.
+    """
+    from master.models import Rak, VarianRak
+    lokasi = lokasi_tugas(op.tiket) if op.tiket_id else op.lokasi
+    lokasi_id = lokasi.pk if lokasi else None
+    ditempatkan = 0
+    for b in baris:
+        per = {}
+        for r in b.per_rak.select_related("rak"):
+            if r.jumlah <= 0 or not r.kode:
+                continue
+            if r.rak_id is None:
+                rak, baru = Rak.objects.get_or_create(pk=r.rak_baru, defaults={"nama": r.rak_baru, "tempat": lokasi})
+                if baru:
+                    layanan.catat(pengguna, aksi="tambah", objek="rak", kolom="rak", baru=r.rak_baru,
+                                  catatan=f"Dari hitung tugas #{op.tiket_id}")
+                r.rak = rak
+                OpnameRak.objects.filter(pk=r.pk).update(rak=rak)
+            per[r.rak.kode] = per.get(r.rak.kode, 0) + r.jumlah
+        if not per:
+            continue
+        v = VarianInfo.objects.select_related("rak").get(pk=b.varian_id)
+        utama = v.rak_id
+        rak_utama_di_sini = bool(v.rak_id and v.rak and v.rak.tempat_id in (lokasi_id, None))
+        if utama not in per and (utama is None or rak_utama_di_sini):
+            utama = max(per, key=lambda k: (per[k], k))
+        if utama != v.rak_id:
+            VarianInfo.objects.filter(pk=v.pk).update(rak_id=utama)
+            layanan.catat(pengguna, objek="varian", kolom="rak", lama=v.rak_id or "", baru=utama,
+                          catatan=f"{v.item_name} / {v.variant}: posisi dari hitung tugas #{op.tiket_id}")
+        VarianRak.objects.filter(varian=v, rak__tempat_id=lokasi_id).exclude(rak_id__in=list(per)).delete()
+        for kode in per:
+            if kode != utama:
+                VarianRak.objects.get_or_create(varian=v, rak_id=kode)
+        VarianRak.objects.filter(varian=v, rak_id=utama).delete()
+        ditempatkan += 1
+    return ditempatkan
+
+
 def hapus_baris(pengguna, baris_id):
     OpnameBaris.objects.filter(pk=baris_id, opname__status="draf", opname__dibuat_oleh=pengguna.username).delete()
 
@@ -105,7 +263,7 @@ def ajukan(pengguna, catatan="", toko=None, lokasi=None, tiket=None, dihitung_ol
 def rincian(op):
     """Baris opname dengan stok sekarang, stok sesudah ACC, dan nilai selisihnya (untuk pemilik)."""
     from master.layanan.lokasi import stok_di
-    baris = list(op.baris.select_related("varian__rak"))
+    baris = list(op.baris.select_related("varian__rak").prefetch_related("per_rak__rak"))
     barang = {(b["item_name"], b["variant"]): b for b in Item.objects.filter(
         item_name__in={x.item_name for x in baris}).values("item_name", "variant", "in_stock", "cost_amount")}
     for x in baris:
@@ -118,6 +276,8 @@ def rincian(op):
         modal = x.varian.modal_rata if x.varian.modal_rata is not None else b.get("cost_amount")
         x.nilai_selisih = x.selisih * modal if modal is not None else None
         x.nilai_hitung = x.hitung * modal if modal is not None else None
+        x.rincian_rak = [{"kode": r.kode or "", "jumlah": r.jumlah, "baru": r.rak_id is None and bool(r.rak_baru)}
+                         for r in x.per_rak.all()]
     return baris
 
 
@@ -142,6 +302,8 @@ def acc(pengguna, op, pilih, *, hak):
                             + (f". {b.catatan}" if b.catatan else ""))
             b.diterapkan = True
             b.save(update_fields=["diterapkan"])
+        if perbarui_posisi(op.tiket):
+            _terapkan_posisi(pengguna, op, [b for b in op.baris.all() if b.id in pilih])
         op.status = "disetujui"
         op.diputus_oleh, op.diputus_waktu = pengguna.username, timezone.now()
         op.save()

@@ -30,7 +30,8 @@ def detail(request, opname_id):
         try:
             if request.POST.get("aksi") == "acc":
                 svc.acc(request.user, op, request.POST.getlist("pilih"), hak=hak_pengguna(request.user))
-                messages.success(request, "Opname di-ACC. Stok sudah disesuaikan dan tercatat di riwayat stok.")
+                messages.success(request, "Opname di-ACC. Stok sudah disesuaikan dan tercatat di riwayat stok."
+                                 + (" Posisi rak barang ikut diperbarui." if op.tiket_id and svc.perbarui_posisi(op.tiket) else ""))
             elif request.POST.get("aksi") == "tolak":
                 svc.tolak(request.user, op, request.POST.get("alasan"), hak=hak_pengguna(request.user))
                 messages.info(request, "Opname ditolak.")
@@ -42,6 +43,7 @@ def detail(request, opname_id):
     return render(request, "master/opname_detail.html", {
         "menu": "opname", "op": op, "baris": baris, "jumlah_beda": len(beda),
         "punya_stok": op.toko is None or op.toko.stok_di_kasir,
+        "pindah_rak": svc.perbarui_posisi(op.tiket) if op.tiket_id else False,
         "nilai_hitung": sum(b.nilai_hitung or 0 for b in baris),
         "nilai_selisih": sum(b.nilai_selisih or 0 for b in beda),
     })

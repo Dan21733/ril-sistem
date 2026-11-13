@@ -167,69 +167,25 @@ def hitung(request):
 
 @perlu("gudang_hitung")
 def tiket_hitung(request, tiket_id):
-    """Tugas hitung: lokasi dan lingkup (rak/kategori) dari pemilik, tanpa stok sistem (hitung buta)."""
-    t = get_object_or_404(Tiket.objects.select_related("sesi"), pk=tiket_id, untuk=request.user, jenis="hitung")
-    if t.sesi_id:
-        return _sesi_hitung(request, t)
-    lokasi = opname.lokasi_tugas(t)
-    toko = opname.t_toko(t)
-    lingkup = opname.lingkup_tugas(t)
-    cari = layanan.rapikan_teks(request.GET.get("q"))
-    rak = request.GET.get("rak", "")
-    if request.method == "POST":
-        aksi = request.POST.get("aksi")
-        try:
-            from master.layanan.tiket import _harus_bisa_diisi
-            _harus_bisa_diisi(request.user, t)
-            if aksi == "simpan":
-                n = opname.simpan_hitungan(request.user, request.POST, toko=toko, lokasi=lokasi, tiket=t,
-                                           boleh=set(lingkup.values_list("id", flat=True)))
-                messages.success(request, f"{n} hitungan tersimpan.")
-            elif aksi == "hapus":
-                opname.hapus_baris(request.user, request.POST.get("id"))
-            elif aksi == "kirim":
-                op = opname.kirim_tugas(request.user, t, request.POST.get("catatan"),
-                                        dihitung_oleh=request.POST.get("dihitung_oleh", ""))
-                messages.success(request, f"Hitungan tugas #{t.id} dikirim ({op.baris.count()} barang). Stok berubah setelah pemilik ACC.")
-                return redirect("gudang:tiket")
-        except Tolak as tolak:
-            messages.error(request, str(tolak))
-        return redirect(request.get_full_path())
-    op = Opname.objects.filter(tiket=t).first()
-    sudah = list(op.baris.select_related("varian__rak")) if op else []
-    terisi = {b.varian_id: b for b in sudah}
-    rak_lingkup = (t.saring or {}).get("rak") or []
-    daftar_rak = Rak.objects.filter(kode__in=rak_lingkup) if rak_lingkup else (
-        Rak.objects.filter(tempat=lokasi) if lokasi and lokasi.jenis == "gudang" else Rak.objects.all())
-    mencari = len(cari) >= 2 or bool(rak) or bool(rak_lingkup) or bool((t.saring or {}).get("kategori"))
-    hasil, terpotong = ([], False)
-    if mencari and t.bisa_diisi:
-        hasil, terpotong = _cari_varian(cari, rak, qs=lingkup)
-        for v in hasil:
-            v.terisi = terisi.get(v.id)
-    return render(request, "gudang/tiket_hitung.html", {
-        "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
-        "cari": cari, "rak": rak, "daftar_rak": daftar_rak, "hasil": hasil, "terpotong": terpotong,
-        "sudah": sudah, "mencari": mencari,
-    })
+    """Tugas hitung di tablet: daftar barang dimuat sekali, isian dikirim berupa antrian JSON.
 
-
-def _sesi_hitung(request, t):
-    """Tugas bagian sesi opname: daftar barang dimuat ke tablet sekali; isian dikirim berupa antrian JSON.
-
-    Tanpa sinyal tetap bisa cari, pilih rak, dan mengetik; antrian terkirim saat sinyal kembali.
-    Stok sistem tidak pernah dikirim ke halaman ini (hitungan buta).
+    Berlaku untuk tugas sesi opname (toko tutup) dan tugas hitung biasa (toko buka). Tanpa sinyal tetap bisa
+    cari, pilih rak, dan mengetik; antrian terkirim saat sinyal kembali. Stok sistem tidak pernah dikirim ke
+    halaman ini (hitungan buta). Tugas biasa boleh mengetik kode rak baru; raknya dibuat saat ACC.
     """
     import json
 
     from django.http import JsonResponse
 
     from master.layanan import sesi_opname as svc_sesi
+    t = get_object_or_404(Tiket.objects.select_related("sesi"), pk=tiket_id, untuk=request.user, jenis="hitung")
     if request.method == "POST":
         if request.content_type == "application/json":
             try:
                 isi = json.loads(request.body or b"{}")
-                hasil = svc_sesi.simpan(request.user, t, isi.get("entri"))
+                entri = isi.get("entri")
+                hasil = svc_sesi.simpan(request.user, t, entri) if t.sesi_id else \
+                    opname.simpan_entri(request.user, t, entri)
             except (ValueError, AttributeError):
                 return JsonResponse({"pesan": "Isi kiriman tidak terbaca."}, status=400)
             except Tolak as tolak:
@@ -237,8 +193,13 @@ def _sesi_hitung(request, t):
             return JsonResponse(hasil)
         try:
             if request.POST.get("aksi") == "kirim":
-                n = svc_sesi.kirim(request.user, t, request.POST.get("dihitung_oleh", ""))
-                messages.success(request, f"Tugas #{t.id} dikirim ({n} hitungan). Terima kasih.")
+                if t.sesi_id:
+                    n = svc_sesi.kirim(request.user, t, request.POST.get("dihitung_oleh", ""))
+                    messages.success(request, f"Tugas #{t.id} dikirim ({n} hitungan). Terima kasih.")
+                else:
+                    op = opname.kirim_tugas(request.user, t, dihitung_oleh=request.POST.get("dihitung_oleh", ""))
+                    messages.success(request, f"Tugas #{t.id} dikirim ({op.baris.count()} barang). "
+                                              "Stok dan rak berubah setelah pemilik ACC.")
                 return redirect("gudang:tiket")
         except Tolak as tolak:
             messages.error(request, str(tolak))
@@ -247,8 +208,10 @@ def _sesi_hitung(request, t):
     return render(request, "gudang/sesi_hitung.html", {
         "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
         "barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
-        "hitungan": svc_sesi.hitungan_tugas(t),
+        "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
         "daftar_rak": [{"kode": r.kode, "nama": r.nama} for r in svc_sesi.rak_lokasi(lokasi)],
+        "boleh_rak_baru": not t.sesi_id,
+        "pindah_rak": not t.sesi_id and opname.perbarui_posisi(t),
     })
 
 

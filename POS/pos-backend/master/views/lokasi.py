@@ -263,7 +263,7 @@ def tiket_daftar(request, baru=False):
     if request.method == "POST":
         try:
             untuk = get_user_model().objects.filter(pk=request.POST.get("untuk") or 0, is_active=True).first()
-            t = svc_tiket.buka(request.user, untuk=untuk, tujuan=request.POST.get("tujuan"),
+            t = svc_tiket.buka(request.user, posisi=request.POST.get("posisi", "1") != "0", untuk=untuk, tujuan=request.POST.get("tujuan"),
                                lingkup=request.POST.get("lingkup"), batas=request.POST.get("batas"), hak=hak,
                                mulai=request.POST.get("mulai") or None,
                                jenis=request.POST.get("jenis") or "lokasi", izin=request.POST.getlist("izin"),

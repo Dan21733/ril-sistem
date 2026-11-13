@@ -47,6 +47,11 @@
       <div class="tb-sub">Kategori</div>
       <div class="pemilih" data-nama="kategori" data-satuan="kategori">{% for k in daftar_kategori %}<button type="button" class="pm-kartu" data-nilai="{{ k }}">{{ k }}</button>{% endfor %}</div>
       <p class="kecil redup" style="margin:8px 0 0">Kalau rak dan kategori sama-sama dipilih, yang dihitung barang di rak itu <b>atau</b> kategori itu. Hasilnya masuk Stok opname untuk kamu ACC.</p>
+      <div data-posisi>
+        <input type="hidden" name="posisi" value="0">
+        <label class="tb-chip tb-cek" style="margin-top:10px"><input type="checkbox" name="posisi" value="1" checked>Perbarui posisi rak barang</label>
+        <p class="kecil redup" style="margin:6px 0 0">Karyawan mencatat rak tempat tiap barang dihitung (satu barang bisa di 2 rak). Dicentang: saat kamu ACC, rak barang ikut dipindah sesuai hitungan, dan rak baru yang diketik karyawan dibuat. Tidak dicentang: rak hanya dicatat.</p>
+      </div>
     </div>
 
     <div data-bagian="lokasi" hidden>
@@ -348,6 +353,13 @@
   });
   aturJenis();
   $$('#tb-waktu .tb-chip')[2].click();   // bawaan: 4 jam dari sekarang (jam perangkat ini)
+})();
+(() => {
+  // Tugas dalam sesi opname: posisi rak diatur di halaman sesi, jadi pilihan ini disembunyikan.
+  const sesi = document.querySelector('input[name=sesi]'), pos = document.querySelector('[data-posisi]');
+  if (!sesi || !pos) return;
+  const atur = () => { pos.hidden = sesi.checked; };
+  sesi.addEventListener('change', atur); atur();
 })();
 </script>
 {% else %}

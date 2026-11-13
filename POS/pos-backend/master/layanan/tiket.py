@@ -70,7 +70,7 @@ def _waktu(teks, label):
 
 
 def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izin=None, kategori=(), brand=(),
-         lokasi=None, rak=(), sesi=None, varian=(), mulai=None):
+         lokasi=None, rak=(), sesi=None, varian=(), mulai=None, posisi=True):
     """Buka tiket. Jenis "lokasi" (pindah stok/rak) atau "barang" (usul harga, alias, aktif)."""
     from master.akun.akses import hak_pengguna
     from master.layanan import tiket_barang
@@ -108,6 +108,9 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
                                           .values_list("pk", flat=True)))
         if sesi is not None and sesi.status != "buka":
             raise Tolak("Sesi opname itu sudah ditutup.")
+        if sesi is None:
+            # Tugas biasa: rak yang dicatat saat menghitung memperbarui posisi barang saat ACC (bisa dimatikan).
+            saring["posisi"] = bool(posisi)
     elif sesi is not None:
         raise Tolak("Sesi opname hanya untuk tugas hitung stok.")
     batas = _waktu(batas, "Batas waktu")

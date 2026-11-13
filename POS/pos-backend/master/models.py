@@ -627,6 +627,28 @@ class OpnameBaris(models.Model):
         return self.hitung - self.stok_saat_hitung
 
 
+
+class OpnameRak(models.Model):
+    """Rincian hitungan satu barang per rak dalam tugas hitung (13 Nov 2026).
+
+    Barang yang sama bisa di beberapa rak (mis. A3 = 10, B1 = 5). `OpnameBaris.hitung` = jumlah semua rak;
+    selisih stok tetap dihitung dari baris itu. Rak yang belum terdaftar diketik karyawan (`rak_baru`) dan
+    dibuat saat pemilik ACC (kalau posisi diperbarui).
+    """
+    baris = models.ForeignKey(OpnameBaris, on_delete=models.CASCADE, related_name="per_rak")
+    rak = models.ForeignKey("Rak", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    rak_baru = models.CharField(max_length=20, blank=True, default="")
+    jumlah = models.IntegerField()
+    waktu = models.DateTimeField()
+
+    class Meta:
+        db_table = "master_opname_rak"
+        ordering = ["id"]
+
+    @property
+    def kode(self):
+        return self.rak.kode if self.rak_id and self.rak else self.rak_baru
+
 class Transfer(models.Model):
     """Pindah barang antar toko. Dua toko bisa beda pemilik, jadi nilainya
     (dengan modal) dicatat sebagai saldo antar toko."""

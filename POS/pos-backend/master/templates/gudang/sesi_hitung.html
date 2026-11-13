@@ -12,20 +12,31 @@
 .sh-gagal{color:var(--bahaya);font-size:12px}
 .daftar .brs input.angka{width:110px;min-height:46px}
 .sh-filter{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}
-.sh-filter button.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.sh-filter button.aktif,.sh-urut button.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.sh-rakbaru[hidden]{display:none}.sh-rakbaru{display:flex;gap:8px;margin-top:8px}.sh-rakbaru input{flex:1;min-height:44px;font-size:16px;text-transform:uppercase}
+.sh-urut{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
+.sh-grup{background:var(--latar-2,#f1efe9);font-weight:600;font-size:13px;padding:6px 12px;display:flex;justify-content:space-between}
+.sh-k .nama{min-width:0}.sh-k .chip-rak{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--aksen-lembut,#e8eefc);color:var(--aksen);margin-left:6px;white-space:nowrap}
+.sh-k input.angka{width:84px;min-height:40px}.sh-k .hapus{min-width:40px;min-height:40px;border:0;background:none;color:var(--bahaya);font-size:20px;cursor:pointer}
+.sh-k .baru{color:var(--awas)}
 </style>
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
-  <span class="redup kecil">{{ t.sesi.nama }} · <b>{{ lingkup_teks }}</b> · sampai {{ t.batas|date:"d M H:i" }}</span></div>
+  <span class="redup kecil">{% if t.sesi_id %}{{ t.sesi.nama }} · {% endif %}<b>{{ lingkup_teks }}</b> · sampai {{ t.batas|date:"d M H:i" }}</span></div>
 
 {% if t.bisa_diisi %}
 <div class="sh-kepala">
   <div class="sh-baris">
     <select class="sh-rak" id="rak" aria-label="Rak tempat menghitung">
       <option value="">Tanpa rak / tidak tahu</option>
-      {% for r in daftar_rak %}<option value="{{ r.kode }}">Rak {{ r.kode }}{% if r.nama %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+      {% for r in daftar_rak %}<option value="{{ r.kode }}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+      {% if boleh_rak_baru %}<option value="__baru">+ Rak baru…</option>{% endif %}
     </select>
     <span class="sh-status" id="status">Tersimpan</span>
   </div>
+  {% if boleh_rak_baru %}<div class="sh-rakbaru" id="rakbaru" hidden>
+    <input type="text" id="rakbaru-kode" maxlength="20" placeholder="Kode rak baru, mis. C3" autocomplete="off" aria-label="Kode rak baru">
+    <button type="button" class="tombol utama" id="rakbaru-ok">Pakai</button><button type="button" class="tombol" id="rakbaru-batal">Batal</button>
+  </div>{% endif %}
   <div class="sh-baris" style="margin-top:8px">
     <input class="sh-cari" type="search" id="cari" placeholder="Cari barang: nama, varian, merek" autocomplete="off" aria-label="Cari barang">
   </div>
@@ -34,13 +45,23 @@
     <button type="button" class="tombol kecil" data-saring="rak">Sudah dihitung di rak ini (<span id="n-rak">0</span>)</button>
   </div>
 </div>
-<p class="redup kecil" style="margin:4px 0 8px">Pilih rak tempat kamu berdiri, lalu ketik jumlah barang di rak itu. Barang yang sama di rak lain diketik lagi setelah ganti rak; semuanya dijumlah. Sinyal hilang tidak apa-apa: angka tersimpan di tablet dan terkirim sendiri.</p>
+<p class="redup kecil" style="margin:4px 0 8px">Pilih rak tempat kamu berdiri, lalu ketik jumlah barang di rak itu. Barang yang sama di rak lain diketik lagi setelah ganti rak; semuanya dijumlah. Sinyal hilang tidak apa-apa: angka tersimpan di tablet dan terkirim sendiri.
+{% if boleh_rak_baru %}Raknya belum ada? Pilih <b>+ Rak baru…</b>; rak dibuat saat pemilik ACC.{% endif %}
+{% if pindah_rak %}<b>Setelah ACC, posisi rak barang ikut diperbarui sesuai hitungan ini.</b>{% elif not t.sesi_id %}Rak hanya dicatat; posisi barang tidak dipindah.{% endif %}</p>
 <div id="gagal" class="pesan error" hidden></div>
 <div class="daftar" id="hasil"></div>
 <p class="redup kecil" id="ket-hasil"></p>
 
-<h3>Sudah dihitung (<span id="n-semua">0</span>)</h3>
+<h3 id="judul-sudah">Sudah dihitung · <span id="n-barang">0</span> barang<span id="n-tempat" class="redup kecil"></span></h3>
+<div class="sh-urut" role="group" aria-label="Urutkan daftar">
+  <span class="redup kecil">Urut:</span>
+  <button type="button" class="tombol kecil" data-urut="rak">Rak</button>
+  <button type="button" class="tombol kecil" data-urut="az">A–Z</button>
+  <button type="button" class="tombol kecil" data-urut="kat">Kategori</button>
+  <button type="button" class="tombol kecil" data-urut="merek">Merek</button>
+</div>
 <div class="daftar" id="sudah"></div>
+<p class="redup kecil" id="ket-sudah">Belum ada. Barang yang kamu isi masuk ke sini, bisa diubah atau dihapus.</p>
 
 <form method="post" class="alat" id="form-kirim" style="margin-top:14px" data-tanya="Kirim hitungan tugas ini ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
   <input type="text" name="dihitung_oleh" required maxlength="200" placeholder="Dihitung oleh (mis. Andi, Budi)" aria-label="Dihitung oleh" value="{{ request.user.first_name|default:'' }}">
@@ -50,8 +71,10 @@
 {{ hitungan|json_script:"data-hitungan" }}
 <script>
 (() => {
-  const TIKET = {{ t.id }}, KUNCI = 'sesi-hitung-' + TIKET, KUNCI_RAK = KUNCI + '-rak';
-  const barang = JSON.parse(document.getElementById('data-barang').textContent);
+  const TIKET = {{ t.id }}, KUNCI = 'sesi-hitung-' + TIKET, KUNCI_RAK = KUNCI + '-rak', KUNCI_URUT = 'hitung-urut';
+  const RAK_DIKENAL = new Set([...document.querySelectorAll('#rak option')].map(o => o.value));
+  // Tugas biasa: hanya barang dalam lingkup tugas (server menolak yang di luar). Sesi: semua barang.
+  const barang = JSON.parse(document.getElementById('data-barang').textContent).filter(b => {{ t.sesi_id|yesno:"true,false" }} || b.l);
   const perId = new Map(barang.map(b => [b.i, b]));
   const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const $ = id => document.getElementById(id);
@@ -72,9 +95,22 @@
   Object.values(antri).forEach(e => e.hapus ? hitung.delete(e.kunci) : hitung.set(e.kunci, e.jumlah));
 
   const rakSel = $('rak');
-  rakSel.value = bacaLokal(KUNCI_RAK, '');
-  if (rakSel.value !== bacaLokal(KUNCI_RAK, '')) rakSel.value = '';
-  let saring = '';
+  // Rak baru (diketik karyawan, belum ada di master): tambahkan ke pilihan, ditandai "baru".
+  function tambahRak(kode){
+    if ([...rakSel.options].some(o => o.value === kode)) return;
+    const o = document.createElement('option'); o.value = kode; o.textContent = 'Rak ' + kode + ' · baru (dibuat saat ACC)';
+    const akhir = rakSel.querySelector('option[value="__baru"]'); rakSel.insertBefore(o, akhir);
+  }
+  const KUNCI_RAKBARU = KUNCI + '-rakbaru';
+  const rakBaruSimpan = new Set(bacaLokal(KUNCI_RAKBARU, []));
+  [...hitung.keys()].map(k => k.split('|')[1]).filter(r => r && !RAK_DIKENAL.has(r)).forEach(r => rakBaruSimpan.add(r));
+  [...rakBaruSimpan].sort().forEach(tambahRak);
+  let rakTadi = bacaLokal(KUNCI_RAK, '');
+  rakSel.value = rakTadi;
+  if (rakSel.value !== rakTadi) rakSel.value = '';
+  rakTadi = rakSel.value;
+  let saring = '', urut = bacaLokal(KUNCI_URUT, 'rak');
+  const rakBaru = r => r && !RAK_DIKENAL.has(r);
 
   const normal = s => (s || '').toLowerCase();
   const nama = b => b.n + (b.v ? ' / ' + b.v : '');
@@ -128,26 +164,49 @@
     $('n-rak').textContent = barang.filter(b => hitung.has(kunci(b.i, rakSel.value))).length;
   }
 
+  // Keranjang: semua yang sudah dihitung, bisa diurutkan per rak / A-Z / kategori / merek; tiap baris bisa diubah/dihapus.
   function tampilSudah(){
+    const isi = [], baris2 = [];
+    for (const [k, n] of hitung){ const [v, r] = k.split('|'); const b = perId.get(+v); if (b) baris2.push({b, r, n}); }
+    const grup = x => urut === 'rak' ? (x.r ? 'Rak ' + x.r + (rakBaru(x.r) ? ' (baru)' : '') : 'Tanpa rak')
+      : urut === 'kat' ? (x.b.c || 'Tanpa kategori') : urut === 'merek' ? (x.b.b || 'Tanpa merek')
+      : ((x.b.n || '?').trim()[0] || '?').toUpperCase();
     const per = new Map();
-    for (const [k, n] of hitung){ const [v, r] = k.split('|'); if (!per.has(r)) per.set(r, []); per.get(r).push([perId.get(+v), n]); }
-    const isi = [];
-    [...per.keys()].sort().forEach(r => {
-      const kepala = document.createElement('div'); kepala.className = 'brs'; kepala.style.background = '#f1efe9';
-      kepala.innerHTML = '<b></b>'; kepala.firstChild.textContent = r ? 'Rak ' + r : 'Tanpa rak'; isi.push(kepala);
-      per.get(r).filter(([b]) => b).sort((a, b) => a[0].nama.localeCompare(b[0].nama)).forEach(([b, n]) => {
-        const d = document.createElement('div'); d.className = 'brs';
-        const nm = document.createElement('div'); nm.className = 'nama'; nm.textContent = nama(b);
-        const j = document.createElement('b'); j.textContent = n + (b.s ? ' ' + b.s : '');
-        d.append(nm, j); isi.push(d);
+    baris2.forEach(x => { const g = grup(x); if (!per.has(g)) per.set(g, []); per.get(g).push(x); });
+    const akhirKah = g => /^Tanpa /.test(g);
+    [...per.keys()].sort((a, b) => (akhirKah(a) - akhirKah(b)) || a.localeCompare(b, 'id', {numeric: true})).forEach(g => {
+      const xs = per.get(g).sort((a, b) => a.b.nama.localeCompare(b.b.nama) || a.r.localeCompare(b.r, 'id', {numeric: true}));
+      const kepala = document.createElement('div'); kepala.className = 'sh-grup';
+      const a = document.createElement('span'); a.textContent = g;
+      const c = document.createElement('span'); c.className = 'redup'; c.textContent = new Set(xs.map(x => x.b.i)).size + ' barang';
+      kepala.append(a, c); isi.push(kepala);
+      xs.forEach(({b, r, n}) => {
+        const d = document.createElement('div'); d.className = 'brs sh-k';
+        const nm = document.createElement('div'); nm.className = 'nama';
+        const bb = document.createElement('b'); bb.textContent = nama(b); nm.append(bb);
+        if (urut !== 'rak'){ const ch = document.createElement('span'); ch.className = 'chip-rak' + (rakBaru(r) ? ' baru' : ''); ch.textContent = r ? 'Rak ' + r : 'Tanpa rak'; nm.append(ch); }
+        const sub = [urut !== 'merek' ? b.b : '', urut !== 'kat' ? b.c : '', b.r && b.r !== r ? 'biasa di rak ' + b.r : ''].filter(Boolean).join(' · ');
+        if (sub){ const s2 = document.createElement('div'); s2.className = 'redup kecil'; s2.textContent = sub; nm.append(s2); }
+        const g2 = gagal[kunci(b.i, r)]; if (g2){ const x = document.createElement('div'); x.className = 'sh-gagal'; x.textContent = g2; nm.append(x); }
+        const inp = document.createElement('input'); inp.className = 'angka'; inp.type = 'text'; inp.value = n;
+        inp.inputMode = b.k > 1 ? 'decimal' : 'numeric'; inp.setAttribute('aria-label', 'Ubah jumlah ' + nama(b) + (r ? ' rak ' + r : ''));
+        inp.addEventListener('change', () => { const v = inp.value.trim(); if (v === '') { inp.value = n; return; } ubah(b, v, r); });
+        const h = document.createElement('button'); h.type = 'button'; h.className = 'hapus'; h.textContent = '×';
+        h.setAttribute('aria-label', 'Hapus ' + nama(b) + (r ? ' rak ' + r : ''));
+        h.addEventListener('click', () => { ubah(b, '', r); tampil(); });
+        d.append(nm, inp, h); isi.push(d);
       });
     });
     $('sudah').replaceChildren(...isi);
-    $('n-semua').textContent = hitung.size;
+    const nBarang = new Set(baris2.map(x => x.b.i)).size;
+    $('n-barang').textContent = nBarang;
+    $('n-tempat').textContent = baris2.length > nBarang ? ` · ${baris2.length} tempat` : '';
+    $('ket-sudah').hidden = baris2.length > 0;
+    document.querySelectorAll('[data-urut]').forEach(x => x.classList.toggle('aktif', x.dataset.urut === urut));
   }
 
-  function ubah(b, nilai){
-    const r = rakSel.value, k = kunci(b.i, r);
+  function ubah(b, nilai, r = rakSel.value){
+    const k = kunci(b.i, r);
     if (nilai !== '' && !(b.k > 1 ? /^\d+([.,]\d+)?$/ : /^\d+$/).test(nilai)){ kabar('Isi angka saja' + (b.k > 1 ? ', mis. 12,5.' : '.'), true); return; }
     delete gagal[k];
     if (nilai === ''){
@@ -158,8 +217,10 @@
     }
     simpanLokal(KUNCI, antri);
     tandai(); tampilSudah(); angka();
-    const brs = document.querySelector(`#hasil input[data-varian="${b.i}"]`);
-    if (brs) brs.closest('.brs').classList.toggle('terisi', nilai !== '');
+    if (r === rakSel.value){
+      const brs = document.querySelector(`#hasil input[data-varian="${b.i}"]`);
+      if (brs){ brs.value = nilai; brs.closest('.brs').classList.toggle('terisi', nilai !== ''); }
+    }
     clearTimeout(ubah.t); ubah.t = setTimeout(kirim, 700);
   }
 
@@ -197,7 +258,27 @@
   }
 
   $('cari').addEventListener('input', () => { clearTimeout(tampil.t); tampil.t = setTimeout(tampil, 150); });
-  rakSel.addEventListener('change', () => { simpanLokal(KUNCI_RAK, rakSel.value); tampil(); });
+  rakSel.addEventListener('change', () => {
+    if (rakSel.value === '__baru'){
+      rakSel.value = rakTadi; $('rakbaru').hidden = false; $('rakbaru-kode').value = ''; $('rakbaru-kode').focus(); return;
+    }
+    rakTadi = rakSel.value; simpanLokal(KUNCI_RAK, rakSel.value); tampil();
+  });
+  if ($('rakbaru')){
+    const pakai = () => {
+      const kode = $('rakbaru-kode').value.replace(/\s+/g, '').toUpperCase();
+      if (!kode) { $('rakbaru-kode').focus(); return; }
+      if (!/^[A-Z0-9][A-Z0-9.\-/]*$/.test(kode)) { kabar('Kode rak hanya huruf, angka, titik, strip.', true); return; }
+      tambahRak(kode); rakBaruSimpan.add(kode); simpanLokal(KUNCI_RAKBARU, [...rakBaruSimpan]); rakSel.value = kode; rakTadi = kode; simpanLokal(KUNCI_RAK, kode);
+      $('rakbaru').hidden = true; tampil(); $('cari').focus();
+    };
+    $('rakbaru-ok').addEventListener('click', pakai);
+    $('rakbaru-kode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pakai(); } });
+    $('rakbaru-batal').addEventListener('click', () => { $('rakbaru').hidden = true; });
+  }
+  document.querySelectorAll('[data-urut]').forEach(t => t.addEventListener('click', () => {
+    urut = t.dataset.urut; simpanLokal(KUNCI_URUT, urut); tampilSudah();
+  }));
   document.querySelectorAll('[data-saring]').forEach(t => t.addEventListener('click', () => {
     saring = saring === t.dataset.saring ? '' : t.dataset.saring;
     document.querySelectorAll('[data-saring]').forEach(x => x.classList.toggle('aktif', x.dataset.saring === saring));

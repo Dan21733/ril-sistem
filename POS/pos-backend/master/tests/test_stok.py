@@ -298,12 +298,14 @@ class OpnameTest(Dasar):
         url = reverse("gudang:tiket_hitung", args=[t.id])
         id_kecil = self.info("Palu", "Kecil").id
         r = self.client.get(url)
-        self.assertContains(r, "Palu / Kecil")
+        self.assertContains(r, '"n": "Palu", "v": "Kecil"')
         self.assertNotContains(r, "in_stock")
-        r = self.client.post(url, {"aksi": "simpan", f"hitung_{id_kecil}": "6", "hitung_999999": ""}, follow=True)
-        self.assertContains(r, "1 hitungan tersimpan")
-        self.assertContains(r, "sudah dihitung: 6")
-        self.assertNotContains(r, ">10<")     # stok sistem tidak tampil
+        self.assertNotContains(r, '"10"')     # stok sistem tidak tampil
+        r = self.client.post(url, json.dumps({"entri": [{"kunci": "x", "varian": id_kecil, "rak": "", "jumlah": "6"},
+                                                        {"kunci": "y", "varian": 999999, "rak": "", "jumlah": "1"}]}),
+                             content_type="application/json")
+        self.assertEqual(r.json()["ok"], ["x"])
+        self.assertContains(self.client.get(url), '"jumlah": 6')
         # "Dihitung oleh" wajib diisi (teks bebas).
         self.client.post(url, {"aksi": "kirim", "catatan": "rak A", "dihitung_oleh": " "})
         t.refresh_from_db()
@@ -314,7 +316,9 @@ class OpnameTest(Dasar):
         op = Opname.objects.get()
         self.assertEqual((op.tiket_id, op.status, op.dihitung_oleh), (t.id, "diajukan", "Andi, Budi"))
         # setelah dikirim tidak bisa diubah
-        self.client.post(url, {"aksi": "simpan", f"hitung_{id_kecil}": "1"})
+        r = self.client.post(url, json.dumps({"entri": [{"kunci": "z", "varian": id_kecil, "rak": "", "jumlah": "1"}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 409)
         self.assertEqual(op.baris.get().hitung, 6)
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("master:dashboard")), "Opname menunggu ACC")
@@ -438,7 +442,7 @@ class GudangTest(Dasar):
         self.assertIn("TK-01", isi)
         self.assertNotIn('value="10"', isi)       # jumlah pesanan tidak ditampilkan (terima buta)
         isi = self._bersih(self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?q=palu"))
-        self.assertIn("Palu / Kecil", isi)
+        self.assertIn('"n": "Palu", "v": "Kecil"', isi)
         self._bersih(self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?rak=TK-01"))
         self.assertIn("Semen / Sak", self._bersih(self.client.get(reverse("gudang:buka_dus"))))
 

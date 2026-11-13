@@ -190,12 +190,19 @@ class LokasiAlurTest(Dasar):
         r = self.client.get(url)
         self.assertContains(r, "di Gudang A")
         self.assertContains(r, "Kecil")
-        self.assertNotContains(r, "Besar")      # di luar rak yang ditugaskan
-        self.assertNotContains(r, ">7<")        # stok sistem tidak tampil
-        self.client.post(url, {"aksi": "simpan", f"hitung_{info.id}": "7", f"hitung_{self.info('Palu', 'Besar').id}": "2"})
+        self.assertNotContains(r, '"in_stock"')  # stok sistem tidak dikirim ke tablet
+        self.assertNotContains(r, "Sistem")
+        besar = self.info("Palu", "Besar")
+        r = self.client.post(url, json.dumps({"entri": [
+            {"kunci": "a", "varian": info.id, "rak": "TK-01", "jumlah": "7"},
+            {"kunci": "b", "varian": besar.id, "rak": "TK-01", "jumlah": "2"}]}), content_type="application/json")
+        d = r.json()
+        self.assertEqual(d["ok"], ["a"])
+        self.assertIn("di luar lingkup", d["gagal"][0]["pesan"])     # di luar rak yang ditugaskan
         from master.models import Opname
         op = Opname.objects.get(status="draf")
         self.assertEqual((op.lokasi, op.tiket_id, op.baris.count()), (self.ga, t.id, 1))
+        self.assertEqual(op.baris.get().stok_saat_hitung, 7)
 
     def test_stok_ditutup_di_kasir_selama_tugas_hitung(self):
         from datetime import timedelta
@@ -513,3 +520,110 @@ class AmbilSelisihTest(Dasar):
         self.assertEqual(ga["nilai_kurang"], 3 * 800)
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("master:laporan_selisih")), "Cek stok acak #")
+
+
+class HitungPosisiTest(Dasar):
+    """Tugas hitung biasa mencatat rak tiap hitungan; ACC memperbarui posisi rak (13 Nov 2026)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from master.layanan import lokasi
+        cls.toko = lokasi.lokasi_toko()
+        cls.ga = lokasi.simpan_lokasi(cls.admin, hak=SEMUA_HAK, kode="GA", nama="Gudang A")
+        Group.objects.get_or_create(name="Gudang")
+        Rak.objects.create(kode="GA-1", nama="GA-1", tempat=cls.ga)
+        Rak.objects.create(kode="GA-2", nama="GA-2", tempat=cls.ga)
+
+    def setUp(self):
+        from master.layanan import lokasi
+        self.kecil = self.info("Palu", "Kecil")              # total 10
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="GA-1")
+        lokasi.pindah(self.admin, self.kecil, dari=self.toko, ke=self.ga, jumlah=7, hak=SEMUA_HAK)
+
+    def _tugas(self, **kw):
+        from datetime import timedelta
+        from master.layanan import tiket
+        return tiket.buka(self.admin, untuk=self.gudang, tujuan="hitung gudang A", jenis="hitung", hak=SEMUA_HAK,
+                          batas=timezone.now() + timedelta(hours=1), lokasi=self.ga.id, **kw)
+
+    def _kirim(self, t, entri):
+        self.client.force_login(self.gudang)
+        r = self.client.post(reverse("gudang:tiket_hitung", args=[t.id]), json.dumps({"entri": entri}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        return r.json()
+
+    def test_satu_barang_dua_rak_dijumlah_dan_bisa_dikoreksi(self):
+        from master.layanan import opname
+        t = self._tugas()
+        self.assertTrue(t.saring["posisi"])
+        d = self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "3"},
+                            {"kunci": "2", "varian": self.kecil.id, "rak": "ga-9", "jumlah": "5"}])
+        self.assertEqual(d["gagal"], [])
+        b = t.opname.baris.get()
+        self.assertEqual((b.hitung, b.stok_saat_hitung), (8, 7))
+        self.assertEqual(sorted((r.kode, r.jumlah, r.rak_id) for r in b.per_rak.all()),
+                         [("GA-1", 3, "GA-1"), ("GA-9", 5, None)])
+        # Koreksi: ketik ulang menimpa, hapus mengurangi.
+        self._kirim(t, [{"kunci": "3", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "4"}])
+        self._kirim(t, [{"kunci": "4", "varian": self.kecil.id, "rak": "GA-9", "hapus": True}])
+        b.refresh_from_db()
+        self.assertEqual(b.hitung, 4)
+        self.assertEqual(opname.hitungan_tablet(t), [{"varian": self.kecil.id, "rak": "GA-1", "jumlah": 4}])
+        self._kirim(t, [{"kunci": "5", "varian": self.kecil.id, "rak": "GA-1", "hapus": True}])
+        self.assertFalse(t.opname.baris.exists())
+
+    def test_rak_lokasi_lain_ditolak(self):
+        Rak.objects.filter(kode="TK-01").update(tempat=self.toko)
+        d = self._kirim(self._tugas(), [{"kunci": "1", "varian": self.kecil.id, "rak": "TK-01", "jumlah": "3"}])
+        self.assertIn("lokasi lain", d["gagal"][0]["pesan"])
+
+    def test_acc_memindah_rak_dan_membuat_rak_baru(self):
+        from master.layanan import opname
+        from master.layanan.lokasi import rincian
+        from master.models import VarianRak
+        VarianRak.objects.create(varian=self.kecil, rak_id="GA-2")          # rak tambahan lama, tidak ditemukan lagi
+        VarianRak.objects.create(varian=self.kecil, rak_id="TK-01")         # di lokasi lain: tidak disentuh
+        t = self._tugas()
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-9", "jumlah": "6"},
+                        {"kunci": "2", "varian": self.kecil.id, "rak": "", "jumlah": "1"}])
+        op = opname.kirim_tugas(self.gudang, t, dihitung_oleh="Andi")
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:opname_detail", args=[op.id]))
+        self.assertContains(r, "Posisi rak ikut diperbarui saat ACC")
+        self.assertContains(r, "GA-9</b> <span")
+        opname.acc(self.admin, op, [b.id for b in op.baris.all()], hak=SEMUA_HAK)
+        self.kecil.refresh_from_db()
+        self.assertEqual(rincian(self.kecil)[self.ga.id], 7)                 # 6 + 1 = 7, tidak ada selisih
+        self.assertEqual(Rak.objects.get(kode="GA-9").tempat, self.ga)       # rak baru dibuat di lokasi tugas
+        self.assertEqual(self.kecil.rak_id, "GA-9")                          # GA-1 kosong -> pindah
+        self.assertEqual(set(VarianRak.objects.filter(varian=self.kecil).values_list("rak_id", flat=True)), {"TK-01"})
+
+    def test_rak_utama_tetap_kalau_masih_ada(self):
+        from master.layanan import opname
+        from master.models import VarianRak
+        t = self._tugas()
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "2"},
+                        {"kunci": "2", "varian": self.kecil.id, "rak": "GA-2", "jumlah": "5"}])
+        op = opname.kirim_tugas(self.gudang, t, dihitung_oleh="Andi")
+        opname.acc(self.admin, op, [b.id for b in op.baris.all()], hak=SEMUA_HAK)
+        self.kecil.refresh_from_db()
+        self.assertEqual(self.kecil.rak_id, "GA-1")
+        self.assertEqual(list(VarianRak.objects.filter(varian=self.kecil).values_list("rak_id", flat=True)), ["GA-2"])
+
+    def test_tanpa_posisi_rak_hanya_dicatat(self):
+        from master.layanan import opname
+        t = self._tugas(posisi=False)
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-9", "jumlah": "7"}])
+        op = opname.kirim_tugas(self.gudang, t, dihitung_oleh="Andi")
+        opname.acc(self.admin, op, [b.id for b in op.baris.all()], hak=SEMUA_HAK)
+        self.kecil.refresh_from_db()
+        self.assertEqual(self.kecil.rak_id, "GA-1")
+        self.assertFalse(Rak.objects.filter(kode="GA-9").exists())
+
+    def test_form_tugas_menyimpan_pilihan_posisi(self):
+        from master.models import Tiket
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:tiket_baru"))
+        self.assertContains(r, "Perbarui posisi rak barang")

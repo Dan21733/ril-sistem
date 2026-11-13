@@ -7,6 +7,7 @@
 {% if op.status == "disetujui" %}<div class="pesan success">Disetujui {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}.</div>
 {% elif op.status == "ditolak" %}<div class="pesan warning">Ditolak {{ op.diputus_oleh }}, {{ op.diputus_waktu|date:"d M Y H:i" }}: {{ op.catatan_putusan }}</div>{% endif %}
 
+{% if op.tiket_id and not op.tiket.sesi_id %}<p class="kecil {% if pindah_rak %}{% else %}redup{% endif %}" style="margin:0 0 10px">{% if pindah_rak %}📍 <b>Posisi rak ikut diperbarui saat ACC</b> (hanya baris yang dicentang): rak utama pindah ke tempat barang paling banyak dihitung kalau rak lamanya kosong, rak tambahan di lokasi ini diganti, rak <span style="color:var(--awas)">baru</span> dibuat.{% else %}Rak hanya dicatat di tugas ini; posisi barang tidak diubah saat ACC.{% endif %}</p>{% endif %}
 {% if not punya_stok %}
 <div class="pesan info">{{ op.toko.nama }} belum punya kasir, jadi tidak ada stok sistem untuk dibandingkan. Hitungan ini dicatat sebagai stok awal toko itu; ACC tidak mengubah stok apa pun.</div>
 <div class="kisi" style="margin-bottom:18px">
@@ -16,7 +17,7 @@
 <form method="post" data-tanya="Catat hitungan ini sebagai stok awal {{ op.toko.nama }}?">{% csrf_token %}<input type="hidden" name="aksi" value="acc">
 <div class="gulir"><table>
   <tr><th>Barang</th><th>Varian</th><th>Rak</th><th class="angka">Hitungan</th><th class="angka">Nilai</th><th>Catatan</th></tr>
-  {% for b in baris %}<tr><td>{{ b.varian.item_name }}<input type="hidden" name="pilih" value="{{ b.id }}"></td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
+  {% for b in baris %}<tr><td>{{ b.varian.item_name }}<input type="hidden" name="pilih" value="{{ b.id }}"></td><td>{{ b.varian.variant|varian }}</td><td>{% include "master/_opname_rak.html" %}</td>
     <td class="angka"><b>{{ b.hitung|qty:b.varian }}</b></td><td class="angka">{% if b.nilai_hitung is None %}<span class="redup">modal kosong</span>{% else %}{{ b.nilai_hitung|ribuan }}{% endif %}</td><td>{{ b.catatan }}</td></tr>{% endfor %}
 </table></div>
 {% if op.status == "diajukan" %}<div style="margin-top:14px"><button class="tombol utama" type="submit">Catat sebagai stok awal</button></div>{% endif %}
@@ -35,7 +36,7 @@
     {% if op.status == "diajukan" %}<th class="angka">Stok sekarang</th><th class="angka">Jadi</th>{% else %}<th>Diterapkan</th>{% endif %}<th class="angka">Nilai selisih</th><th>Catatan</th></tr>
   {% for b in baris %}
   <tr>{% if op.status == "diajukan" %}<td><input type="checkbox" name="pilih" value="{{ b.id }}" checked style="width:20px;height:20px;accent-color:var(--aksen)"></td>{% endif %}
-    <td>{{ b.varian.item_name }}</td><td>{{ b.varian.variant|varian }}</td><td>{{ b.varian.rak_id|default:"-" }}</td>
+    <td>{{ b.varian.item_name }}</td><td>{{ b.varian.variant|varian }}</td><td>{% include "master/_opname_rak.html" %}</td>
     <td class="angka redup">{{ b.stok_saat_hitung|qty:b.varian }}</td><td class="angka"><b>{{ b.hitung|qty:b.varian }}</b></td>
     <td class="angka" style="color:{% if b.selisih < 0 %}var(--bahaya){% elif b.selisih > 0 %}var(--baik){% endif %}">{% if b.selisih > 0 %}+{% endif %}{{ b.selisih|qty:b.varian }}</td>
     {% if op.status == "diajukan" %}<td class="angka redup">{{ b.stok_sekarang }}</td><td class="angka"><b>{{ b.stok_jadi }}</b></td>
