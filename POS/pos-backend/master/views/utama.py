@@ -1039,6 +1039,41 @@ def rak(request):
                 layanan.catat(request.user, aksi="tambah" if dibuat else "ubah", objek="rak",
                               kolom="rak", baru=f"{kode} - {nama}")
                 messages.success(request, f"Rak {kode} tersimpan.")
+        elif aksi == "bertingkat":
+            # Rak bertingkat sekaligus (13 Nov 2026): kode dasar TK1 + 6 tingkat -> TK1-1 ... TK1-6.
+            # Kode yang sudah ada dilewati, jadi bisa juga untuk menambah tingkat rak yang sudah ada.
+            import re
+            from master.layanan.pembelian import penerima_boleh
+            from master.models import Lokasi
+            dasar = re.sub(r"\s+", "", kode or "").upper()
+            nama = layanan.rapikan_teks(request.POST.get("nama"))
+            tingkat = int(request.POST.get("tingkat") or 0) if str(request.POST.get("tingkat") or "").isdigit() else 0
+            if not dasar or not nama:
+                messages.error(request, "Kode dasar dan nama rak wajib diisi.")
+            elif not 1 <= tingkat <= 30:
+                messages.error(request, "Jumlah tingkat 1 sampai 30.")
+            elif len(f"{dasar}-{tingkat}") > 20:
+                messages.error(request, "Kode dasar terlalu panjang (kode rak maksimal 20 karakter).")
+            else:
+                tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
+                pic = {u.pk: u for u in penerima_boleh()}.get(int(request.POST.get("pic") or 0)
+                                                               if (request.POST.get("pic") or "").isdigit() else 0)
+                ada = set(Rak.objects.filter(kode__in=[f"{dasar}-{i}" for i in range(1, tingkat + 1)])
+                          .values_list("kode", flat=True))
+                baru = [Rak(kode=f"{dasar}-{i}", nama=nama, tempat=tempat, pic=pic,
+                            langsung=request.POST.get("langsung") == "1",
+                            lokasi=layanan.rapikan_teks(request.POST.get("lokasi")),
+                            keterangan=layanan.rapikan_teks(request.POST.get("keterangan")))
+                        for i in range(1, tingkat + 1) if f"{dasar}-{i}" not in ada]
+                Rak.objects.bulk_create(baru)
+                if baru:
+                    layanan.catat(request.user, aksi="tambah", objek="rak", kolom="rak",
+                                  baru=f"{baru[0].kode} s/d {baru[-1].kode} - {nama}")
+                    messages.success(request, f"{len(baru)} rak dibuat: {baru[0].kode} sampai {baru[-1].kode}."
+                                     + (f" {len(ada)} sudah ada, dilewati." if ada else ""))
+                else:
+                    messages.info(request, f"Semua rak {dasar}-1 sampai {dasar}-{tingkat} sudah ada.")
+                return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}")
         elif aksi == "langsung_lokasi":
             # Semua rak di satu lokasi sekaligus (mis. semua rak Toko = display, tidak disiapkan).
             nilai = request.POST.get("nilai") == "1"

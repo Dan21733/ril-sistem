@@ -95,6 +95,17 @@ class LokasiTest(Dasar):
         r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
                              {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.gb.id})
         self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}", fetch_redirect_response=False)
+        # Rak bertingkat sekaligus: TK1 x 3 -> TK1-1..TK1-3; tambah jadi 5 hanya membuat TK1-4, TK1-5.
+        self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "tk1", "tingkat": "3",
+                                                 "nama": "Rak Toko Kanan", "tempat": self.toko.id})
+        self.assertEqual(sorted(Rak.objects.filter(kode__startswith="TK1-").values_list("kode", flat=True)),
+                         ["TK1-1", "TK1-2", "TK1-3"])
+        r = self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "TK1", "tingkat": "5",
+                                                     "nama": "Rak Toko Kanan", "tempat": self.toko.id}, follow=True)
+        self.assertContains(r, "2 rak dibuat: TK1-4 sampai TK1-5. 3 sudah ada, dilewati.")
+        self.assertEqual(Rak.objects.get(kode="TK1-5").tempat, self.toko)
+        self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "X", "tingkat": "31", "nama": "x"})
+        self.assertFalse(Rak.objects.filter(kode__startswith="X-").exists())
 
     def test_jalan_ke_pindah_dari_daftar_barang_dan_stok_kosong(self):
         self.client.force_login(self.admin)
