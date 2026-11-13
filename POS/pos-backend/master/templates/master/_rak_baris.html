@@ -1,0 +1,18 @@
+{% load master_tags %}<tr{% if anak %} data-anak="{{ anak }}" hidden{% endif %}>
+    {% if 'kelola_rak' in hak %}
+    <td style="white-space:nowrap"><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td>
+    <td><input type="text" name="nama" value="{{ r.nama }}" form="rak-{{ r.no }}" required></td>
+    <td><select name="tempat" form="rak-{{ r.no }}" style="min-width:150px" aria-label="Lokasi rak {{ r.kode }}"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if r.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
+    <td><select name="pic" form="rak-{{ r.no }}" style="min-width:140px" aria-label="PIC rak {{ r.kode }}"><option value="">ikut lokasi{% if r.tempat.pic %} ({{ r.tempat.pic.first_name|default:r.tempat.pic.username }}){% endif %}</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if r.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
+    <td style="text-align:center"><input type="checkbox" name="langsung" value="1" form="rak-{{ r.no }}" {% if r.langsung %}checked{% endif %} aria-label="Rak {{ r.kode }} langsung"></td>
+    <td><input type="text" name="lokasi" value="{{ r.lokasi }}" form="rak-{{ r.no }}"></td>
+    <td><input type="text" name="keterangan" value="{{ r.keterangan }}" form="rak-{{ r.no }}"></td>
+    <td class="angka">{{ r.jumlah|ribuan }}</td>
+    <td style="white-space:nowrap">
+      <form method="post" id="rak-{{ r.no }}" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil" type="submit">Simpan</button></form>
+      {% if not r.jumlah %}<form method="post" style="display:inline" data-tanya="Hapus rak {{ r.kode }}?">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}
+    </td>
+    {% else %}
+    <td style="white-space:nowrap"><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td><td>{{ r.nama }}</td><td>{{ r.tempat.nama|default:"-" }}</td><td>{% if r.pic %}{{ r.pic.first_name|default:r.pic.username }}{% elif r.tempat.pic %}<span class="redup">{{ r.tempat.pic.first_name|default:r.tempat.pic.username }}</span>{% else %}-{% endif %}</td><td>{{ r.langsung|yesno:"ya," }}</td><td>{{ r.lokasi }}</td><td>{{ r.keterangan }}</td><td class="angka">{{ r.jumlah|ribuan }}</td>
+    {% endif %}
+  </tr>

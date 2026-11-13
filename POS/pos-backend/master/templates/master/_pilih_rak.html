@@ -1,0 +1,214 @@
+{% comment %}
+Pemilih rak (13 Nov 2026). Mengganti <select data-pilih-rak> yang isinya rak dengan tombol + panel:
+rak dikelompokkan per lokasi, lalu per kode dasar ("AT3-1-4" = kode dasar AT3-1, tingkat 4), satu baris per
+kode dasar dengan tombol tingkat. Select aslinya tetap ada (tersembunyi) dan tetap yang dikirim/dibaca kode lain;
+memilih di panel = mengisi select + memicu "change".
+Opsi rak diberi data-r; opsi lain (kosong, "Semua", "Belum ada", "+ Rak baru…") tampil sebagai tombol di atas.
+data-tempat = nama lokasi, data-nama = nama rak (keduanya boleh kosong).
+Kode lain yang mengubah isi/nilai select lewat JS memanggil window.pilihRak.segarkan(select).
+{% endcomment %}
+<style>
+.pr-tombol{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:40px;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;color:var(--teks);text-align:left;cursor:pointer}
+.pr-tombol::after{content:"▾";color:var(--redup);font-size:12px}
+.pr-tombol .pr-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td .pr-tombol.sel{border-color:transparent;background:transparent;min-height:36px;padding:6px 8px}
+tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat);background:#fff}
+.pr-tombol.simpan{background:var(--baik-lembut)!important}.pr-tombol.gagal{background:var(--bahaya-lembut)!important;border-color:var(--bahaya)!important}
+.pr-panel{position:absolute;z-index:60;width:min(560px,94vw);max-height:min(70vh,560px);overflow:auto;background:#fff;border:1px solid var(--garis-kuat);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:10px}
+.pr-panel.lembar{position:fixed;left:0;right:0;bottom:0;width:auto;max-height:78vh;border-radius:14px 14px 0 0;padding:12px 12px max(12px,env(safe-area-inset-bottom))}
+.pr-latar{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.25)}
+.pr-panel input.pr-cari{width:100%;min-height:42px;font-size:16px;margin:0 0 8px}
+.pr-baris{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.pr-panel button{font:inherit;border:1px solid var(--garis-kuat);background:#fff;border-radius:8px;min-height:40px;min-width:44px;padding:6px 12px;cursor:pointer;color:var(--teks)}
+.pr-panel button.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.pr-panel .pr-tab button{min-height:34px;font-size:14px}
+.pr-grup{display:grid;grid-template-columns:minmax(90px,max-content) 1fr;gap:6px 12px;align-items:center;padding:6px 0;border-top:1px solid var(--garis)}
+.pr-grup .pr-nama{font-weight:600;line-height:1.2}.pr-grup .pr-nama small{display:block;font-weight:400;color:var(--redup);font-size:12px}
+.pr-grup .pr-tingkat{display:flex;flex-wrap:wrap;gap:6px}
+.pr-kosong{color:var(--redup);padding:10px 2px}
+</style>
+<script>
+(() => {
+  if (window.pilihRak) return;
+  const POLA = /^(.+?)[-.](\d+)$/;
+  const alami = (a, b) => String(a).localeCompare(String(b), 'id', {numeric: true, sensitivity: 'base'});
+  let panel = null, latar = null, sasaran = null;
+
+  function opsi(sel){
+    const rak = [], lain = [];
+    [...sel.options].forEach(o => {
+      if (o.dataset.r !== undefined) rak.push({kode: o.value, nama: o.dataset.nama || '', tempat: o.dataset.tempat || '', o});
+      else lain.push(o);
+    });
+    return {rak, lain};
+  }
+
+  function label(sel){
+    const o = sel.options[sel.selectedIndex];
+    if (!o) return '-';
+    return o.dataset.r !== undefined ? (o.dataset.label || o.value) : o.textContent.trim();
+  }
+
+  function segarkan(sel){
+    const t = sel.nextElementSibling;
+    if (!t || !t.classList.contains('pr-tombol')) return;
+    t.querySelector('.pr-lbl').textContent = label(sel);
+    t.disabled = sel.disabled;
+  }
+
+  function pasang(sel){
+    if (sel.dataset.prSiap) { if (!(sel.nextElementSibling || {}).classList?.contains('pr-tombol')) delete sel.dataset.prSiap; else return; }
+    sel.dataset.prSiap = '1';
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = 'pr-tombol' + (sel.classList.contains('sel') ? ' sel' : '') + (sel.className.match(/\bsh-rak\b/) ? ' sh-rak' : '');
+    t.setAttribute('aria-haspopup', 'dialog');
+    t.setAttribute('aria-label', sel.getAttribute('aria-label') || 'Pilih rak');
+    const w = sel.getBoundingClientRect().width;
+    if (w > 0 && !sel.classList.contains('sh-rak')) t.style.width = Math.max(w, 110) + 'px';
+    const s = document.createElement('span'); s.className = 'pr-lbl'; t.append(s);
+    sel.style.display = 'none';
+    sel.after(t);
+    segarkan(sel);
+    sel.addEventListener('change', () => segarkan(sel));
+    // Umpan balik simpan/gagal dari penyimpan .sel ikut tampil di tombol.
+    new MutationObserver(() => ['simpan', 'gagal'].forEach(k => t.classList.toggle(k, sel.classList.contains(k))))
+      .observe(sel, {attributes: true, attributeFilter: ['class']});
+  }
+
+  function tutup(){
+    if (panel) panel.remove(); if (latar) latar.remove();
+    panel = latar = null;
+    if (sasaran) { const t = sasaran.nextElementSibling; sasaran = null; if (t) t.focus(); }
+  }
+
+  function pilih(sel, nilai){
+    sel.value = nilai;
+    tutup();
+    sel.dispatchEvent(new Event('change', {bubbles: true}));
+    segarkan(sel);
+  }
+
+  function buka(sel){
+    tutup();
+    sasaran = sel;
+    const {rak, lain} = opsi(sel);
+    const tempatList = [...new Set(rak.map(r => r.tempat))];
+    const kini = rak.find(r => r.kode === sel.value);
+    let tab = kini ? kini.tempat : (tempatList[0] ?? '');
+    const sempit = innerWidth < 640;
+    panel = document.createElement('div');
+    panel.className = 'pr-panel' + (sempit ? ' lembar' : '');
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Pilih rak');
+    // Isi panel digambar ulang saat tab diklik; jangan sampai klik itu dianggap klik di luar panel.
+    panel.addEventListener('click', e => e.stopPropagation());
+    if (sempit) { latar = document.createElement('div'); latar.className = 'pr-latar'; latar.addEventListener('click', tutup); document.body.append(latar); }
+
+    const cari = document.createElement('input');
+    cari.type = 'search'; cari.className = 'pr-cari'; cari.placeholder = 'Cari kode atau nama rak'; cari.autocomplete = 'off';
+    const atas = document.createElement('div'); atas.className = 'pr-baris';
+    lain.forEach(o => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = o.textContent.trim() || '-';
+      if (o.value === sel.value) b.classList.add('aktif');
+      b.addEventListener('click', () => pilih(sel, o.value)); atas.append(b);
+    });
+    const tabs = document.createElement('div'); tabs.className = 'pr-baris pr-tab';
+    const isi = document.createElement('div');
+    panel.append(...(rak.length > 8 ? [cari] : []), ...(lain.length ? [atas] : []), ...(tempatList.length > 1 ? [tabs] : []), isi);
+
+    function gambarTab(){
+      tabs.replaceChildren(...tempatList.map(tp => {
+        const b = document.createElement('button'); b.type = 'button';
+        b.textContent = (tp || 'Tanpa lokasi') + ' · ' + rak.filter(r => r.tempat === tp).length;
+        b.classList.toggle('aktif', tp === tab && !cari.value.trim());
+        b.addEventListener('click', () => { tab = tp; cari.value = ''; gambar(); });
+        return b;
+      }));
+    }
+
+    function gambar(){
+      gambarTab();
+      const q = cari.value.trim().toLowerCase();
+      const daftar = q ? rak.filter(r => (r.kode + ' ' + r.nama + ' ' + r.tempat).toLowerCase().includes(q))
+                       : rak.filter(r => r.tempat === tab);
+      const grup = new Map(), tunggal = [];
+      daftar.forEach(r => {
+        const m = r.kode.match(POLA);
+        if (!m) { tunggal.push(r); return; }
+        const k = (q && tempatList.length > 1 ? r.tempat + '\u0000' : '') + m[1];
+        if (!grup.has(k)) grup.set(k, {dasar: m[1], tempat: r.tempat, item: []});
+        grup.get(k).item.push({...r, t: m[2]});
+      });
+      // Kode dasar dengan satu tingkat saja digabung ke "Rak lain" supaya tidak satu baris per rak.
+      [...grup].forEach(([k, g]) => { if (g.item.length === 1) { tunggal.push(g.item[0]); grup.delete(k); } });
+      const baris = [];
+      [...grup.values()].sort((a, b) => alami(a.dasar, b.dasar)).forEach(g => {
+        const d = document.createElement('div'); d.className = 'pr-grup';
+        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = g.dasar;
+        const namaUnik = [...new Set(g.item.map(x => x.nama).filter(Boolean))];
+        const sub = [namaUnik.length === 1 ? namaUnik[0] : '', q && tempatList.length > 1 ? (g.tempat || 'Tanpa lokasi') : ''].filter(Boolean).join(' · ');
+        if (sub) { const s = document.createElement('small'); s.textContent = sub; n.append(s); }
+        const tk = document.createElement('div'); tk.className = 'pr-tingkat';
+        g.item.sort((a, b) => a.t - b.t).forEach(x => {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = x.t;
+          b.title = x.kode + (x.nama && namaUnik.length !== 1 ? ' · ' + x.nama : '');
+          b.setAttribute('aria-label', 'Rak ' + x.kode);
+          if (x.kode === sel.value) b.classList.add('aktif');
+          b.addEventListener('click', () => pilih(sel, x.kode)); tk.append(b);
+        });
+        d.append(n, tk); baris.push(d);
+      });
+      if (tunggal.length) {
+        const d = document.createElement('div'); d.className = 'pr-grup';
+        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = grup.size ? 'Rak lain' : 'Rak';
+        const tk = document.createElement('div'); tk.className = 'pr-tingkat';
+        tunggal.sort((a, b) => alami(a.kode, b.kode)).forEach(x => {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = x.kode; b.title = x.nama;
+          if (x.kode === sel.value) b.classList.add('aktif');
+          b.addEventListener('click', () => pilih(sel, x.kode)); tk.append(b);
+        });
+        d.append(n, tk); baris.push(d);
+      }
+      if (!baris.length) { const k = document.createElement('div'); k.className = 'pr-kosong'; k.textContent = q ? 'Tidak ada rak yang cocok.' : 'Belum ada rak di sini.'; baris.push(k); }
+      isi.replaceChildren(...baris);
+    }
+    cari.addEventListener('input', gambar);
+    cari.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const tombol = isi.querySelectorAll('.pr-tingkat button');
+      if (tombol.length === 1) tombol[0].click();
+    });
+    gambar();
+    document.body.append(panel);
+    if (!sempit) {
+      const t = sel.nextElementSibling.getBoundingClientRect();
+      const lebar = panel.offsetWidth, tinggi = panel.offsetHeight;
+      let x = t.left + scrollX, y = t.bottom + scrollY + 4;
+      if (t.left + lebar > innerWidth - 8) x = Math.max(8, innerWidth - lebar - 8) + scrollX;
+      if (t.bottom + tinggi > innerHeight - 8 && t.top - tinggi > 8) y = t.top + scrollY - tinggi - 4;
+      panel.style.left = x + 'px'; panel.style.top = y + 'px';
+      if (rak.length > 8) cari.focus();
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('.pr-tombol');
+    if (t) { const sel = t.previousElementSibling; if (sel && sel.tagName === 'SELECT') { e.preventDefault(); panel && sasaran === sel ? tutup() : buka(sel); } return; }
+    if (panel && !panel.contains(e.target)) tutup();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel) { e.stopPropagation(); tutup(); } }, true);
+  addEventListener('resize', () => { if (panel && !panel.classList.contains('lembar')) tutup(); });
+
+  const semua = akar => (akar.querySelectorAll ? akar : document).querySelectorAll('select[data-pilih-rak]').forEach(pasang);
+  window.pilihRak = {segarkan, pasang, semua};
+  const mulai = () => {
+    semua(document);
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.matches('select[data-pilih-rak]')) pasang(n); else semua(n);
+    }))).observe(document.body, {childList: true, subtree: true});
+  };
+  document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', mulai) : mulai();
+})();
+</script>

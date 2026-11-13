@@ -7,6 +7,10 @@
 .tab-rak a .n{opacity:.7;margin-left:4px;font-weight:400}
 .kepala-rak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
 .kepala-rak form{display:flex;gap:6px;align-items:center;margin:0}
+tr.grup-rak td{background:#faf8f4}
+.buka-grup{border:0;background:none;font:inherit;color:var(--aksen);cursor:pointer;padding:6px 4px;min-height:36px}
+.buka-grup .panah{display:inline-block;transition:transform .15s}.buka-grup[aria-expanded=true] .panah{transform:rotate(90deg)}
+tr[data-anak] td:first-child{padding-left:26px}
 </style>
 <p class="sub">Lokasi penyimpanan barang. {{ total_rak|ribuan }} rak · {{ tanpa_rak|ribuan }} varian <a href="{% url 'master:barang' %}?rak=-">belum punya rak</a>.</p>
 {% if tab %}<nav class="tab-rak" aria-label="Lokasi">{% for t in tab %}<a class="tombol kecil {% if aktif and t.kunci == aktif.kunci %}aktif{% endif %}" href="?lokasi={{ t.kunci }}">{{ t.nama }}<span class="n">{{ t.n }}</span></a>{% endfor %}</nav>{% endif %}
@@ -21,29 +25,48 @@
 </div>{% endif %}
 <div class="gulir"><table>
   <tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>PIC</th><th title="Barang display: tidak masuk daftar Siapkan">Langsung</th><th>Catatan lokasi</th><th>Keterangan</th><th class="angka">Varian</th>{% if 'kelola_rak' in hak %}<th></th>{% endif %}</tr>
-  {% for r in daftar %}
-  <tr>
+  {% for e in daftar %}
+  {% if e.grup %}
+  <tr class="grup-rak" data-grup="{{ e.grup }}">
+    <td style="white-space:nowrap"><button type="button" class="buka-grup" aria-expanded="false" aria-label="Buka tingkat rak {{ e.grup }}"><span class="panah">▸</span> <b>{{ e.grup }}</b></button></td>
     {% if 'kelola_rak' in hak %}
-    <td style="white-space:nowrap"><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td>
-    <td><input type="text" name="nama" value="{{ r.nama }}" form="rak-{{ forloop.counter }}" required></td>
-    <td><select name="tempat" form="rak-{{ forloop.counter }}" style="min-width:150px" aria-label="Lokasi rak {{ r.kode }}"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if r.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
-    <td><select name="pic" form="rak-{{ forloop.counter }}" style="min-width:140px" aria-label="PIC rak {{ r.kode }}"><option value="">ikut lokasi{% if r.tempat.pic %} ({{ r.tempat.pic.first_name|default:r.tempat.pic.username }}){% endif %}</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if r.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
-    <td style="text-align:center"><input type="checkbox" name="langsung" value="1" form="rak-{{ forloop.counter }}" {% if r.langsung %}checked{% endif %} aria-label="Rak {{ r.kode }} langsung"></td>
-    <td><input type="text" name="lokasi" value="{{ r.lokasi }}" form="rak-{{ forloop.counter }}"></td>
-    <td><input type="text" name="keterangan" value="{{ r.keterangan }}" form="rak-{{ forloop.counter }}"></td>
-    <td class="angka">{{ r.jumlah|ribuan }}</td>
-    <td style="white-space:nowrap">
-      <form method="post" id="rak-{{ forloop.counter }}" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil" type="submit">Simpan</button></form>
-      {% if not r.jumlah %}<form method="post" style="display:inline" data-tanya="Hapus rak {{ r.kode }}?">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}
-    </td>
+    <td><input type="text" name="nama" value="{{ e.nama }}" form="grup-{{ e.grup }}" {% if not e.nama %}placeholder="nama beda-beda"{% endif %} aria-label="Nama semua tingkat {{ e.grup }}"></td>
+    <td><select name="tempat" form="grup-{{ e.grup }}" style="min-width:150px" aria-label="Lokasi semua tingkat {{ e.grup }}">{% if e.tempat_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if e.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
+    <td><select name="pic" form="grup-{{ e.grup }}" style="min-width:140px" aria-label="PIC semua tingkat {{ e.grup }}">{% if e.pic_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if e.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
+    <td style="text-align:center"><select name="langsung" form="grup-{{ e.grup }}" style="width:auto" aria-label="Langsung semua tingkat {{ e.grup }}">{% if e.langsung_campur %}<option value="__tetap" selected>campur</option>{% endif %}<option value="1" {% if e.langsung and not e.langsung_campur %}selected{% endif %}>ya</option><option value="0" {% if not e.langsung and not e.langsung_campur %}selected{% endif %}>tidak</option></select></td>
+    <td colspan="2" class="redup kecil">{{ e.rak|length }} tingkat · diubah di sini berlaku untuk semua tingkat</td>
+    <td class="angka">{{ e.jumlah|ribuan }}</td>
+    <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} tingkat {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form></td>
     {% else %}
-    <td style="white-space:nowrap"><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td><td>{{ r.nama }}</td><td>{{ r.tempat.nama|default:"-" }}</td><td>{% if r.pic %}{{ r.pic.first_name|default:r.pic.username }}{% elif r.tempat.pic %}<span class="redup">{{ r.tempat.pic.first_name|default:r.tempat.pic.username }}</span>{% else %}-{% endif %}</td><td>{{ r.langsung|yesno:"ya," }}</td><td>{{ r.lokasi }}</td><td>{{ r.keterangan }}</td><td class="angka">{{ r.jumlah|ribuan }}</td>
+    <td>{{ e.nama }}</td><td colspan="5" class="redup kecil">{{ e.rak|length }} tingkat</td><td class="angka">{{ e.jumlah|ribuan }}</td>
     {% endif %}
   </tr>
+  {% for r in e.rak %}{% include "master/_rak_baris.html" with anak=e.grup %}{% endfor %}
+  {% else %}
+  {% for r in e.rak %}{% include "master/_rak_baris.html" with anak="" %}{% endfor %}
+  {% endif %}
   {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.</td></tr>
   {% endfor %}
 </table></div>
 {% if 'kelola_rak' in hak %}
+<script>
+(() => {
+  // Rak bertingkat dilipat; yang dibuka diingat selama tab browser terbuka. ?buka=AT3-1 membuka satu grup.
+  const KUNCI = 'rak-buka';
+  let buka = new Set(); try { buka = new Set(JSON.parse(sessionStorage.getItem(KUNCI) || '[]')); } catch (e) {}
+  const q = new URLSearchParams(location.search).get('buka'); if (q) buka.add(q);
+  const atur = (g, nyala) => {
+    document.querySelectorAll(`tr[data-anak="${CSS.escape(g)}"]`).forEach(tr => tr.hidden = !nyala);
+    const b = document.querySelector(`tr[data-grup="${CSS.escape(g)}"] .buka-grup`); if (b) b.setAttribute('aria-expanded', nyala);
+    nyala ? buka.add(g) : buka.delete(g);
+    try { sessionStorage.setItem(KUNCI, JSON.stringify([...buka])); } catch (e) {}
+  };
+  document.querySelectorAll('tr.grup-rak').forEach(tr => {
+    const g = tr.dataset.grup; atur(g, buka.has(g));
+    tr.querySelector('.buka-grup').addEventListener('click', () => atur(g, !buka.has(g)));
+  });
+})();
+</script>
 <h3>Tambah rak bertingkat</h3>
 <form method="post" class="kartu baris" id="form-tingkat">{% csrf_token %}<input type="hidden" name="aksi" value="bertingkat">
   <div style="width:120px"><label>Kode dasar</label><input type="text" name="kode" maxlength="16" required placeholder="TK1" style="text-transform:uppercase"></div>

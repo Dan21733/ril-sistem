@@ -26,9 +26,9 @@
 {% if t.bisa_diisi %}
 <div class="sh-kepala">
   <div class="sh-baris">
-    <select class="sh-rak" id="rak" aria-label="Rak tempat menghitung">
+    <select data-pilih-rak class="sh-rak" id="rak" aria-label="Rak tempat menghitung">
       <option value="">Tanpa rak / tidak tahu</option>
-      {% for r in daftar_rak %}<option value="{{ r.kode }}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+      {% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-label="Rak {{ r.kode }}" data-tempat="{% if rak_tugas %}{% if r.kode in rak_tugas %}Rak tugas ini{% else %}Rak lain{% endif %}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
       {% if boleh_rak_baru %}<option value="__baru">+ Rak baru…</option>{% endif %}
     </select>
     <span class="sh-status" id="status">Tersimpan</span>
@@ -99,6 +99,8 @@
   function tambahRak(kode){
     if ([...rakSel.options].some(o => o.value === kode)) return;
     const o = document.createElement('option'); o.value = kode; o.textContent = 'Rak ' + kode + ' · baru (dibuat saat ACC)';
+    o.dataset.r = ''; o.dataset.label = 'Rak ' + kode + ' (baru)'; o.dataset.nama = 'baru, dibuat saat ACC';
+    const tabAwal = rakSel.querySelector('option[data-r]'); if (tabAwal && tabAwal.dataset.tempat) o.dataset.tempat = tabAwal.dataset.tempat;
     const akhir = rakSel.querySelector('option[value="__baru"]'); rakSel.insertBefore(o, akhir);
   }
   const KUNCI_RAKBARU = KUNCI + '-rakbaru';
@@ -260,7 +262,7 @@
   $('cari').addEventListener('input', () => { clearTimeout(tampil.t); tampil.t = setTimeout(tampil, 150); });
   rakSel.addEventListener('change', () => {
     if (rakSel.value === '__baru'){
-      rakSel.value = rakTadi; $('rakbaru').hidden = false; $('rakbaru-kode').value = ''; $('rakbaru-kode').focus(); return;
+      rakSel.value = rakTadi; if (window.pilihRak) pilihRak.segarkan(rakSel); $('rakbaru').hidden = false; $('rakbaru-kode').value = ''; $('rakbaru-kode').focus(); return;
     }
     rakTadi = rakSel.value; simpanLokal(KUNCI_RAK, rakSel.value); tampil();
   });
@@ -270,7 +272,7 @@
       if (!kode) { $('rakbaru-kode').focus(); return; }
       if (!/^[A-Z0-9][A-Z0-9.\-/]*$/.test(kode)) { kabar('Kode rak hanya huruf, angka, titik, strip.', true); return; }
       tambahRak(kode); rakBaruSimpan.add(kode); simpanLokal(KUNCI_RAKBARU, [...rakBaruSimpan]); rakSel.value = kode; rakTadi = kode; simpanLokal(KUNCI_RAK, kode);
-      $('rakbaru').hidden = true; tampil(); $('cari').focus();
+      $('rakbaru').hidden = true; if (window.pilihRak) pilihRak.segarkan(rakSel); tampil(); $('cari').focus();
     };
     $('rakbaru-ok').addEventListener('click', pakai);
     $('rakbaru-kode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pakai(); } });

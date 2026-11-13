@@ -28,7 +28,7 @@
     <td><input type="text" data-k="max_price" class="uang" inputmode="numeric" autocomplete="off"></td>
     {% if 'ubah_modal' in hak %}<td><input type="text" data-k="cost_amount" class="uang" inputmode="numeric" autocomplete="off"></td>{% endif %}
     <td><input type="text" data-k="in_stock" class="uang" inputmode="numeric" autocomplete="off" value="0"></td>
-    <td><select data-k="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}">{{ r.kode }}</option>{% endfor %}</select></td>
+    <td><select data-pilih-rak data-k="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}</option>{% endfor %}</select></td>
     <td><button type="button" class="tombol kecil" data-hapus-baris title="Hapus baris">×</button></td>
   </tr>
 </template>

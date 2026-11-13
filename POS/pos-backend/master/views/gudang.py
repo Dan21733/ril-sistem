@@ -205,11 +205,15 @@ def tiket_hitung(request, tiket_id):
             messages.error(request, str(tolak))
         return redirect("gudang:tiket_hitung", t.id)
     lokasi = opname.lokasi_tugas(t)
+    rak_tugas = set((t.saring or {}).get("rak") or [])
     return render(request, "gudang/sesi_hitung.html", {
         "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
         "barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
         "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
-        "daftar_rak": [{"kode": r.kode, "nama": r.nama} for r in svc_sesi.rak_lokasi(lokasi)],
+        # Rak lingkup tugas didahulukan (tab "Rak tugas ini" di pemilih rak), sisanya di "Rak lain".
+        "daftar_rak": sorted(({"kode": r.kode, "nama": r.nama} for r in svc_sesi.rak_lokasi(lokasi)),
+                             key=lambda r: r["kode"] not in rak_tugas),
+        "rak_tugas": rak_tugas,
         "boleh_rak_baru": not t.sesi_id,
         "pindah_rak": not t.sesi_id and opname.perbarui_posisi(t),
     })

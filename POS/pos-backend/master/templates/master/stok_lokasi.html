@@ -8,7 +8,7 @@
 <form method="get" class="kartu baris" style="margin-bottom:18px">
   <div style="flex:2;min-width:220px"><label>Cari nama, varian, brand, atau alias</label><input type="search" name="q" value="{{ g.q }}"></div>
   <div style="flex:1;min-width:160px"><label>Kategori</label><select name="kategori"><option value="">Semua</option>{% for k in daftar_kategori %}<option {% if g.kategori == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
-  <div style="min-width:150px"><label>Rak</label><select name="rak"><option value="">Semua</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}{% if r.tempat %} ({{ r.tempat.kode }}){% endif %}</option>{% endfor %}</select></div>
+  <div style="min-width:150px"><label>Rak</label><select data-pilih-rak name="rak"><option value="">Semua</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}" {% if g.rak == r.kode %}selected{% endif %}>{{ r.kode }}{% if r.tempat %} ({{ r.tempat.kode }}){% endif %}</option>{% endfor %}</select></div>
   <div style="min-width:160px"><label>Ada stok di</label><select name="lokasi"><option value="">Semua</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if g.lokasi == l.id|stringformat:"s" %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
   <div style="min-width:170px"><label>Keadaan toko</label><select name="toko"><option value="">Semua</option>
     <option value="minus" {% if g.toko == "minus" %}selected{% endif %}>Toko minus</option>

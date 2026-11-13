@@ -85,7 +85,7 @@ class LokasiTest(Dasar):
         # Halaman rak per lokasi (13 Nov 2026): satu lokasi sekali tampil, simpan pindah ke tab lokasi barunya.
         r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
                              {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.toko.id})
-        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.toko.id}", fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.toko.id}&buka=TK", fetch_redirect_response=False)
         r = self.client.get(reverse("master:rak") + f"?lokasi={self.toko.id}")
         self.assertContains(r, "Rak Toko Kanan")
         self.assertNotContains(r, "Rak Hardware")
@@ -94,7 +94,7 @@ class LokasiTest(Dasar):
         self.assertNotContains(r, "Rak Toko Kanan")
         r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
                              {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.gb.id})
-        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}", fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}&buka=TK", fetch_redirect_response=False)
         # Rak bertingkat sekaligus: TK1 x 3 -> TK1-1..TK1-3; tambah jadi 5 hanya membuat TK1-4, TK1-5.
         self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "tk1", "tingkat": "3",
                                                  "nama": "Rak Toko Kanan", "tempat": self.toko.id})
@@ -104,6 +104,15 @@ class LokasiTest(Dasar):
                                                      "nama": "Rak Toko Kanan", "tempat": self.toko.id}, follow=True)
         self.assertContains(r, "2 rak dibuat: TK1-4 sampai TK1-5. 3 sudah ada, dilewati.")
         self.assertEqual(Rak.objects.get(kode="TK1-5").tempat, self.toko)
+        # Rak bertingkat tampil dikelompokkan, dan bisa diubah sekaligus.
+        r = self.client.get(reverse("master:rak") + f"?lokasi={self.toko.id}")
+        self.assertContains(r, 'data-grup="TK1"')
+        self.assertContains(r, 'data-anak="TK1"', count=5)
+        self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}", {
+            "aksi": "simpan_grup", "kode": "TK1", "kode_grup": [f"TK1-{i}" for i in range(1, 6)],
+            "nama": "Rak Dekat Tangga", "tempat": "__tetap", "pic": "__tetap", "langsung": "1"})
+        self.assertEqual(set(Rak.objects.filter(kode__startswith="TK1-").values_list("nama", "langsung", "tempat_id")),
+                         {("Rak Dekat Tangga", True, self.toko.id)})
         self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "X", "tingkat": "31", "nama": "x"})
         self.assertFalse(Rak.objects.filter(kode__startswith="X-").exists())
 
