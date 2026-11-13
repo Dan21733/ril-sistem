@@ -1004,13 +1004,19 @@ def kelompok(request, kolom):
 # ---------------------------------------------------------------------------
 
 
+def _urut_kode(r):
+    """R2 sebelum R11, TK1-2 sebelum TK1-10."""
+    import re
+    return [(0, int(x), "") if x.isdigit() else (1, 0, x.lower()) for x in re.split(r"(\d+)", r.kode) if x]
+
+
 @perlu()
 def rak(request):
     hak = hak_pengguna(request.user)
     if request.method == "POST":
         if "kelola_rak" not in hak:
             messages.error(request, "Akun ini tidak boleh mengelola rak.")
-            return redirect("master:rak")
+            return redirect(request.get_full_path())
         aksi = request.POST.get("aksi")
         kode = layanan.rapikan_teks(request.POST.get("kode"))
         if aksi == "simpan":
@@ -1047,14 +1053,37 @@ def rak(request):
                 objek.delete()
                 layanan.catat(request.user, aksi="hapus", objek="rak", kolom="rak", lama=kode)
                 messages.success(request, f"Rak {kode} dihapus.")
-        return redirect("master:rak")
+        if aksi == "simpan" and kode:
+            # Rak dipindah ke lokasi lain: ikut pindah ke tab lokasi itu supaya kelihatan tersimpan.
+            r = Rak.objects.filter(kode=kode).first()
+            if r is not None:
+                return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}")
+        return redirect(request.get_full_path())
 
     from master.models import Lokasi
     from master.layanan.pembelian import penerima_boleh
-    daftar = Rak.objects.select_related("tempat__pic", "pic").annotate(jumlah=Count("varian", filter=Q(varian__sampah__isnull=True)))
+    # Per lokasi (13 Nov 2026): satu tabel panjang berisi semua rak terlalu panjang; tampil satu lokasi sekaligus.
+    semua = Rak.objects.select_related("tempat__pic", "pic").annotate(jumlah=Count("varian", filter=Q(varian__sampah__isnull=True)))
+    per_lokasi = dict(Rak.objects.values_list("tempat_id").annotate(n=Count("kode")).values_list("tempat_id", "n"))
+    daftar_lokasi = list(Lokasi.objects.filter(aktif=True))
+    tab = [{"kunci": str(l.id), "lokasi": l, "nama": l.nama, "n": per_lokasi.get(l.id, 0)} for l in daftar_lokasi]
+    if per_lokasi.get(None):
+        tab.append({"kunci": "tanpa", "lokasi": None, "nama": "Tanpa lokasi", "n": per_lokasi[None]})
+    kunci_ada = {t["kunci"] for t in tab}
+    pilih = request.GET.get("lokasi") or ""
+    if pilih not in kunci_ada:
+        pilih = next((t["kunci"] for t in tab if t["n"]), tab[0]["kunci"] if tab else "")
+    aktif = next((t for t in tab if t["kunci"] == pilih), None)
+    if aktif is None:
+        daftar = semua.none()
+    elif aktif["lokasi"] is None:
+        daftar = semua.filter(tempat__isnull=True)
+    else:
+        daftar = semua.filter(tempat=aktif["lokasi"])
     return render(request, "master/rak.html", {
-        "menu": "rak", "daftar": daftar, "daftar_lokasi": Lokasi.objects.filter(aktif=True), "daftar_pic": penerima_boleh(),
+        "menu": "rak", "daftar": sorted(daftar, key=_urut_kode), "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
         "tanpa_rak": VarianInfo.objects.filter(rak__isnull=True, sampah__isnull=True).count(),
+        "tab": tab, "aktif": aktif, "total_rak": sum(per_lokasi.values()),
     })
 
 

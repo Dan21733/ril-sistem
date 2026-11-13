@@ -2,7 +2,23 @@
 {% block judul %}Rak{% endblock %}
 {% block isi %}
 <h2>Rak</h2>
-<p class="sub">Lokasi penyimpanan barang. {{ tanpa_rak|ribuan }} varian <a href="{% url 'master:barang' %}?rak=-">belum punya rak</a>.</p>
+<style>
+.tab-rak{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}.tab-rak a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.tab-rak a .n{opacity:.7;margin-left:4px;font-weight:400}
+.kepala-rak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.kepala-rak form{display:flex;gap:6px;align-items:center;margin:0}
+</style>
+<p class="sub">Lokasi penyimpanan barang. {{ total_rak|ribuan }} rak · {{ tanpa_rak|ribuan }} varian <a href="{% url 'master:barang' %}?rak=-">belum punya rak</a>.</p>
+{% if tab %}<nav class="tab-rak" aria-label="Lokasi">{% for t in tab %}<a class="tombol kecil {% if aktif and t.kunci == aktif.kunci %}aktif{% endif %}" href="?lokasi={{ t.kunci }}">{{ t.nama }}<span class="n">{{ t.n }}</span></a>{% endfor %}</nav>{% endif %}
+{% if aktif %}<div class="kepala-rak">
+  <b>{{ aktif.nama }}</b>
+  {% if aktif.lokasi %}<span class="redup kecil">PIC lokasi: {% if aktif.lokasi.pic %}{{ aktif.lokasi.pic.first_name|default:aktif.lokasi.pic.username }}{% else %}belum ada{% endif %}</span>
+  {% if 'kelola_rak' in hak and aktif.n %}<form method="post" data-tanya="Ubah semua rak di {{ aktif.nama }}?">{% csrf_token %}<input type="hidden" name="aksi" value="langsung_lokasi"><input type="hidden" name="tempat" value="{{ aktif.lokasi.id }}">
+    <span class="redup kecil">Semua rak di sini:</span>
+    <button class="tombol kecil" type="submit" name="nilai" value="1">Jadikan langsung</button>
+    <button class="tombol kecil" type="submit" name="nilai" value="0">Jadikan disiapkan</button>
+  </form>{% endif %}{% else %}<span class="redup kecil">Pilih lokasinya di kolom Lokasi, lalu Simpan.</span>{% endif %}
+</div>{% endif %}
 <div class="gulir"><table>
   <tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>PIC</th><th title="Barang display: tidak masuk daftar Siapkan">Langsung</th><th>Catatan lokasi</th><th>Keterangan</th><th class="angka">Varian</th>{% if 'kelola_rak' in hak %}<th></th>{% endif %}</tr>
   {% for r in daftar %}
@@ -10,7 +26,7 @@
     {% if 'kelola_rak' in hak %}
     <td><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td>
     <td><input type="text" name="nama" value="{{ r.nama }}" form="rak-{{ forloop.counter }}" required></td>
-    <td><select name="tempat" form="rak-{{ forloop.counter }}"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if r.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
+    <td><select name="tempat" form="rak-{{ forloop.counter }}" style="min-width:150px" aria-label="Lokasi rak {{ r.kode }}"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if r.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
     <td><select name="pic" form="rak-{{ forloop.counter }}" style="min-width:140px" aria-label="PIC rak {{ r.kode }}"><option value="">ikut lokasi{% if r.tempat.pic %} ({{ r.tempat.pic.first_name|default:r.tempat.pic.username }}){% endif %}</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if r.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
     <td style="text-align:center"><input type="checkbox" name="langsung" value="1" form="rak-{{ forloop.counter }}" {% if r.langsung %}checked{% endif %} aria-label="Rak {{ r.kode }} langsung"></td>
     <td><input type="text" name="lokasi" value="{{ r.lokasi }}" form="rak-{{ forloop.counter }}"></td>
@@ -24,7 +40,7 @@
     <td><a href="{% url 'master:barang' %}?rak={{ r.kode|urlencode }}">{{ r.kode }}</a></td><td>{{ r.nama }}</td><td>{{ r.tempat.nama|default:"-" }}</td><td>{% if r.pic %}{{ r.pic.first_name|default:r.pic.username }}{% elif r.tempat.pic %}<span class="redup">{{ r.tempat.pic.first_name|default:r.tempat.pic.username }}</span>{% else %}-{% endif %}</td><td>{{ r.langsung|yesno:"ya," }}</td><td>{{ r.lokasi }}</td><td>{{ r.keterangan }}</td><td class="angka">{{ r.jumlah|ribuan }}</td>
     {% endif %}
   </tr>
-  {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada rak.</td></tr>
+  {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.</td></tr>
   {% endfor %}
 </table></div>
 {% if 'kelola_rak' in hak %}
@@ -32,18 +48,12 @@
 <form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
   <div style="width:120px"><label>Kode</label><input type="text" name="kode" maxlength="20" required></div>
   <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required></div>
-  <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+  <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
   <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
   <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
   <div style="width:160px"><label>Catatan lokasi</label><input type="text" name="lokasi"></div>
   <div style="flex:2;min-width:200px"><label>Keterangan</label><input type="text" name="keterangan"></div>
   <div><button class="tombol utama" type="submit">Tambah</button></div>
-</form>
-<h3>Semua rak di satu lokasi</h3>
-<form method="post" class="kartu baris" style="align-items:center">{% csrf_token %}<input type="hidden" name="aksi" value="langsung_lokasi">
-  <select name="tempat" required style="width:auto"><option value="">Pilih lokasi…</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select>
-  <button class="tombol kecil" type="submit" name="nilai" value="1">Jadikan langsung</button>
-  <button class="tombol kecil" type="submit" name="nilai" value="0">Jadikan disiapkan</button>
 </form>
 <p class="kecil redup"><b>Langsung</b> = barang display yang diambil pembeli/pelayan sendiri, tidak masuk daftar Siapkan (kecuali nota borongan, lihat Tim gudang). <b>PIC</b> kosong = ikut PIC lokasinya; isi kalau satu lokasi dipegang beberapa orang.</p>
 {% endif %}

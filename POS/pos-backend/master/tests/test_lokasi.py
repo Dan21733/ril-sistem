@@ -82,6 +82,19 @@ class LokasiTest(Dasar):
         self.client.post(reverse("master:rak"), {"aksi": "simpan", "kode": "TK-01", "nama": "Rak Hardware", "tempat": self.ga.id})
         self.assertEqual(Rak.objects.get(kode="TK-01").tempat, self.ga)
         self.assertContains(self.client.get(reverse("master:rak")), "Gudang A")
+        # Halaman rak per lokasi (13 Nov 2026): satu lokasi sekali tampil, simpan pindah ke tab lokasi barunya.
+        r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
+                             {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.toko.id})
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.toko.id}", fetch_redirect_response=False)
+        r = self.client.get(reverse("master:rak") + f"?lokasi={self.toko.id}")
+        self.assertContains(r, "Rak Toko Kanan")
+        self.assertNotContains(r, "Rak Hardware")
+        r = self.client.get(reverse("master:rak") + f"?lokasi={self.ga.id}")
+        self.assertContains(r, "Rak Hardware")
+        self.assertNotContains(r, "Rak Toko Kanan")
+        r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
+                             {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.gb.id})
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}", fetch_redirect_response=False)
 
     def test_jalan_ke_pindah_dari_daftar_barang_dan_stok_kosong(self):
         self.client.force_login(self.admin)
