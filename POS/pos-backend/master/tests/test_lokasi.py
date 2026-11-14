@@ -669,6 +669,22 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(d["hitungan"], [{"varian": self.kecil.id, "rak": "GA-1", "jumlah": 3}])
         self.assertNotIn("in_stock", r.content.decode())
 
+    def test_ganti_kode_rak_ditahan_selama_tugas_terbuka(self):
+        from master.layanan import opname, rak as svc_rak
+        from master.models import OpnameRak
+        for b in (1, 2):
+            Rak.objects.create(kode=f"K-{b}", nama="Rak K", tempat=self.ga, induk="K", baris=b, kolom=1)
+        t = self._tugas()
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "K-1", "jumlah": "3"}])
+        # rak 1 kolom ditambah kolom: kode K-1 jadi K-1-1, ditahan selama tablet masih bekerja
+        with self.assertRaisesMessage(Tolak, "kirim tugas itu dulu"):
+            svc_rak.ubah_ukuran(self.admin, induk="K", baris=2, kolom=2)
+        svc_rak.ubah_ukuran(self.admin, induk="K", baris=3, kolom=1)      # tambah baris saja: boleh
+        opname.kirim_tugas(self.gudang, t)
+        svc_rak.ubah_ukuran(self.admin, induk="K", baris=3, kolom=2)      # sudah dikirim: boleh, tanpa tunggu ACC
+        self.assertFalse(Rak.objects.filter(kode="K-1").exists())
+        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t).rak_id, "K-1-1")
+
     def test_ruangan_dan_area(self):
         from master.layanan import rak as svc_rak
         from master.models import Ruang

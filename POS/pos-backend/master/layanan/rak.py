@@ -165,8 +165,9 @@ def ubah_ukuran(pengguna, *, induk, baris, kolom, nama="", tempat=None, pic=None
                         + ". Pindahkan barangnya dulu, baru rak bisa diperkecil.")
     if ganti and _tugas_hitung_jalan([lama for lama, _ in ganti]):
         t = _tugas_hitung_jalan([lama for lama, _ in ganti])[0]
-        raise Tolak(f"Kode kotak rak {induk} perlu diganti (A-3 jadi A-3-1), tapi tugas hitung #{t.id} masih berjalan "
-                    "di lokasi ini. Tunggu tugas itu dikirim dan diputuskan dulu.")
+        raise Tolak(f"Kode kotak rak {induk} perlu diganti (A-3 jadi A-3-1), tapi tugas hitung #{t.id} masih dikerjakan "
+                    "di lokasi ini. Minta karyawan kirim tugas itu dulu (tidak perlu tunggu ACC), lalu ulangi. "
+                    "Hitungan yang sudah masuk ikut pindah ke kode baru.")
     kode_baru = [r.kode for r in rencana] + [b for _, b in ganti]
     lama_semua = {r.kode for r in ada}
     bentrok = set(Rak.objects.filter(kode__in=kode_baru).exclude(kode__in=lama_semua).values_list("kode", flat=True))
