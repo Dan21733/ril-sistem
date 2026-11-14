@@ -205,6 +205,10 @@ def tiket_hitung(request, tiket_id):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("gudang:tiket_hitung", t.id)
+    if request.GET.get("data") == "1":
+        # Tombol "Perbarui barang" di tablet: data terbaru tanpa memuat ulang halaman.
+        return JsonResponse({"barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
+                             "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t)})
     lokasi = opname.lokasi_tugas(t)
     rak_tugas = set((t.saring or {}).get("rak") or [])
     return render(request, "gudang/sesi_hitung.html", {

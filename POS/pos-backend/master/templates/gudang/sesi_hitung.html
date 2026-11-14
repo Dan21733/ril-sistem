@@ -44,6 +44,7 @@
   <div class="sh-filter">
     <button type="button" class="tombol kecil" data-saring="belum">Lingkupku belum dihitung (<span id="n-belum">0</span>)</button>
     <button type="button" class="tombol kecil" data-saring="rak">Sudah dihitung di rak ini (<span id="n-rak">0</span>)</button>
+    <button type="button" class="tombol kecil" id="segarkan" title="Ambil barang baru dari pemilik tanpa menghapus hitungan">↻ Perbarui barang</button>
   </div>
 </div>
 <p class="redup kecil" style="margin:4px 0 8px">Pilih rak tempat kamu berdiri, lalu ketik jumlah barang di rak itu. Barang yang sama di rak lain diketik lagi setelah ganti rak; semuanya dijumlah. Sinyal hilang tidak apa-apa: angka tersimpan di tablet dan terkirim sendiri.
@@ -256,6 +257,42 @@
   }
 
   let mengirim = false;
+  /*
+   * Perbarui daftar barang tanpa memuat ulang halaman (14 Nov 2026): barang yang baru ditambah pemilik ikut
+   * muncul. Hitungan diambil lagi dari server lalu antrean yang belum terkirim ditimpakan, jadi tidak ada yang hilang.
+   * Otomatis juga saat tablet dibuka lagi setelah lebih dari 10 menit.
+   */
+  let terakhirSegar = Date.now();
+  async function segarkanBarang(diam){
+    const tombol = $('segarkan'); tombol.disabled = true;
+    try {
+      const r = await fetch(location.pathname + '?data=1', {credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+      if (!r.ok) throw new Error(String(r.status));
+      const d = await r.json();
+      const sebelum = barang.length;
+      barang.length = 0;
+      d.barang.filter(b => {{ t.sesi_id|yesno:"true,false" }} || b.l).forEach(b => {
+        b.cari = normal([b.n, b.v, b.b, b.c, b.a, b.r].join(' ')); b.nama = normal(b.n); barang.push(b);
+      });
+      perId.clear(); barang.forEach(b => perId.set(b.i, b));
+      hitung.clear();
+      d.hitungan.forEach(h => hitung.set(kunci(h.varian, h.rak), teks(h.jumlah, perId.get(h.varian))));
+      Object.values(antri).forEach(e => e.hapus ? hitung.delete(e.kunci) : hitung.set(e.kunci, e.jumlah));
+      terakhirSegar = Date.now();
+      tampil();
+      const tambah = barang.length - sebelum;
+      if (!diam || tambah > 0) kabar(`Daftar barang diperbarui: ${barang.length} barang` + (tambah > 0 ? `, ${tambah} baru.` : '.'));
+    } catch (e) {
+      if (!diam) kabar('Belum bisa memperbarui daftar barang. Cek sinyal lalu coba lagi.', true);
+    } finally {
+      tombol.disabled = false;
+    }
+  }
+  $('segarkan').addEventListener('click', () => segarkanBarang(false));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - terakhirSegar > 10 * 60 * 1000) segarkanBarang(true);
+  });
+
   async function kirim(){
     const entri = Object.values(antri).slice(0, 400);
     if (!entri.length || mengirim) { tandai(); return; }

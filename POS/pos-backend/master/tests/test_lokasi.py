@@ -660,6 +660,15 @@ class HitungPosisiTest(Dasar):
         self._kirim(t, [{"kunci": "5", "varian": self.kecil.id, "rak": "GA-1", "hapus": True}])
         self.assertFalse(t.opname.baris.exists())
 
+    def test_perbarui_barang_tanpa_muat_ulang(self):
+        t = self._tugas()
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "3"}])
+        r = self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?data=1")
+        d = r.json()
+        self.assertIn(self.kecil.id, [b["i"] for b in d["barang"]])
+        self.assertEqual(d["hitungan"], [{"varian": self.kecil.id, "rak": "GA-1", "jumlah": 3}])
+        self.assertNotIn("in_stock", r.content.decode())
+
     def test_rak_lokasi_lain_ditolak(self):
         Rak.objects.filter(kode="TK-01").update(tempat=self.toko)
         d = self._kirim(self._tugas(), [{"kunci": "1", "varian": self.kecil.id, "rak": "TK-01", "jumlah": "3"}])
