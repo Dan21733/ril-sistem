@@ -19,6 +19,7 @@
 .sh-k .nama{min-width:0}.sh-k .chip-rak{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--aksen-lembut,#e8eefc);color:var(--aksen);margin-left:6px;white-space:nowrap}
 .sh-k input.angka{width:84px;min-height:40px}.sh-k .hapus{min-width:40px;min-height:40px;border:0;background:none;color:var(--bahaya);font-size:20px;cursor:pointer}
 .sh-k .baru{color:var(--awas)}
+.sh-k .pindah{min-height:40px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;font-size:13px;padding:0 10px;cursor:pointer;white-space:nowrap}
 </style>
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
   <span class="redup kecil">{% if t.sesi_id %}{{ t.sesi.nama }} · {% endif %}<b>{{ lingkup_teks }}</b> · sampai {{ t.batas|date:"d M H:i" }}</span></div>
@@ -215,7 +216,10 @@
         const h = document.createElement('button'); h.type = 'button'; h.className = 'hapus'; h.textContent = '×';
         h.setAttribute('aria-label', 'Hapus ' + nama(b) + (r ? ' rak ' + r : ''));
         h.addEventListener('click', () => { ubah(b, '', r); tampil(); });
-        d.append(nm, inp, h); isi.push(d);
+        const pd = document.createElement('button'); pd.type = 'button'; pd.className = 'pindah'; pd.textContent = 'Pindah rak';
+        pd.setAttribute('aria-label', 'Pindahkan hitungan ' + nama(b) + ' ke rak lain');
+        pd.addEventListener('click', () => pindahRak(b, r, d));
+        d.append(nm, inp, pd, h); isi.push(d);
       });
     });
     $('sudah').replaceChildren(...isi);
@@ -225,6 +229,40 @@
     $('n-tempat').textContent = semuaId.length > nBarang ? ` · ${semuaId.length} tempat` : '';
     $('ket-sudah').hidden = semuaN > 0;
     document.querySelectorAll('[data-urut]').forEach(x => x.classList.toggle('aktif', x.dataset.urut === urut));
+  }
+
+  /*
+   * Salah rak (14 Nov 2026): hitungan dipindah ke rak lain tanpa mengetik ulang. Kalau di rak tujuan barang ini
+   * sudah dihitung, jumlahnya digabung. Memakai pemilih rak yang sama (denah, ruangan, kotak).
+   */
+  let pindahSel = null;
+  function pindahRak(b, dari, baris){
+    if (pindahSel) { pindahSel.nextElementSibling?.remove(); pindahSel.remove(); }
+    const s = document.createElement('select'); s.setAttribute('data-pilih-rak', ''); s.setAttribute('aria-label', 'Rak tujuan');
+    s.dataset.lokasi = rakSel.dataset.lokasi || '';
+    [...rakSel.options].filter(o => o.value !== '__baru').forEach(o => s.append(o.cloneNode(true)));
+    s.value = dari;
+    const wadah = document.createElement('span'); wadah.style.cssText = 'position:absolute;visibility:hidden;width:1px;height:1px;overflow:hidden';
+    baris.style.position = 'relative'; wadah.append(s); baris.append(wadah); pindahSel = s;
+    if (!window.pilihRak) return;
+    window.pilihRak.pasang(s);
+    s.addEventListener('change', () => {
+      const ke = s.value;
+      if (ke === dari) return;
+      const n = hitung.get(kunci(b.i, dari));
+      const ada = hitung.get(kunci(b.i, ke));
+      const angkaK = t => parseFloat(String(t).replace(',', '.')) || 0;
+      let jadi = n;
+      if (ada !== undefined) {
+        const tot = angkaK(ada) + angkaK(n);
+        jadi = b.k > 1 ? String(Math.round(tot * 1000) / 1000).replace('.', ',') : String(Math.round(tot));
+      }
+      ubah(b, '', dari); ubah(b, jadi, ke); tampil();
+      const nmRak = ke ? (rakSel.querySelector(`option[value="${CSS.escape(ke)}"]`)?.dataset.label || 'Rak ' + ke) : 'Tanpa rak';
+      kabar(`${nama(b)} dipindah ke ${nmRak}` + (ada !== undefined ? ` (digabung, jadi ${jadi}).` : '.'));
+    });
+    // Ditunda: klik tombol "Pindah rak" yang sedang berjalan jangan sampai langsung menutup panelnya lagi.
+    setTimeout(() => s.nextElementSibling.click(), 0);
   }
 
   function ubah(b, nilai, r = rakSel.value){
