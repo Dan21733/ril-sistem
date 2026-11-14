@@ -135,6 +135,29 @@ class LokasiTest(Dasar):
         from master.layanan import rak as svc_rak
         self.assertEqual(svc_rak.label(a32), "Rak A · baris 3 · kolom 2")
         self.assertEqual(svc_rak.label(Rak.objects.get(kode="TK1-2")), "Rak TK1 · baris 2")
+        # Ubah ukuran rak yang sudah ada: TK1 (5 baris x 1 kolom, kode TK1-n) jadi 5 x 2.
+        from master.models import VarianRak
+        v = self.info("Palu", "Kecil")
+        VarianInfo.objects.filter(pk=v.pk).update(rak_id="TK1-2")
+        VarianRak.objects.create(varian=v, rak_id="TK1-3")
+        r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
+                             {"aksi": "ukuran", "kode": "TK1", "baris": "5", "kolom": "2"}, follow=True)
+        self.assertContains(r, "Rak TK1: 5 kotak baru, 5 kode diganti")
+        self.assertFalse(Rak.objects.filter(kode="TK1-2").exists())
+        v.refresh_from_db()
+        self.assertEqual(v.rak_id, "TK1-2-1")                                   # barangnya ikut kode baru
+        self.assertTrue(VarianRak.objects.filter(varian=v, rak_id="TK1-3-1").exists())
+        self.assertEqual(Rak.objects.get(kode="TK1-2-1").nama, "Rak Dekat Tangga")
+        self.assertTrue(Rak.objects.filter(kode="TK1-5-2", baris=5, kolom=2, tempat=self.toko).exists())
+        # diperkecil: kotak berisi barang tidak boleh hilang
+        r = self.client.post(reverse("master:rak"), {"aksi": "ukuran", "kode": "TK1", "baris": "1", "kolom": "1"}, follow=True)
+        self.assertContains(r, "masih berisi barang atau hitungan: TK1-2-1, TK1-3-1")
+        self.assertEqual(Rak.objects.filter(induk="TK1").count(), 10)
+        # diperkecil yang kosong saja: 5 x 1 -> kode kembali pendek, barang tetap ikut
+        r = self.client.post(reverse("master:rak"), {"aksi": "ukuran", "kode": "TK1", "baris": "5", "kolom": "1"}, follow=True)
+        self.assertContains(r, "5 kotak kosong dihapus")
+        v.refresh_from_db()
+        self.assertEqual(v.rak_id, "TK1-2")
         # form tugas memilih satu rak utuh ("induk:A"), diuraikan jadi semua kotaknya
         from datetime import timedelta
         from master.layanan import opname, tiket

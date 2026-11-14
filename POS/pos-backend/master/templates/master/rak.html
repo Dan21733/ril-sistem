@@ -19,6 +19,7 @@ tr[data-anak] td:first-child{padding-left:26px}
 .gambar-rak .kosong{border-style:dashed;background:none}
 .gambar-rak .lantai{grid-column:2 / -1;border-top:3px solid var(--garis-kuat);font-size:11px;color:var(--redup);text-align:center;padding-top:2px}
 #pratinjau-rak{margin:8px 0 0}
+.ukuran-rak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0}.ukuran-rak label{display:flex;gap:6px;align-items:center;font-size:14px}.ukuran-rak input{width:56px}
 </style>
 <p class="sub">Lokasi penyimpanan barang. {{ total_rak|ribuan }} rak · {{ tanpa_rak|ribuan }} varian <a href="{% url 'master:barang' %}?rak=-">belum punya rak</a>.</p>
 {% if tab %}<nav class="tab-rak" aria-label="Lokasi">{% for t in tab %}<a class="tombol kecil {% if aktif and t.kunci == aktif.kunci %}aktif{% endif %}" href="?lokasi={{ t.kunci }}">{{ t.nama }}<span class="n">{{ t.n }}</span></a>{% endfor %}</nav>{% endif %}
@@ -51,6 +52,12 @@ tr[data-anak] td:first-child{padding-left:26px}
   </tr>
   <tr data-anak="{{ e.grup }}" hidden><td colspan="9" style="padding-left:26px">
     <div class="kecil redup">Tampak depan rak {{ e.grup }}: baris 1 paling bawah, kolom 1 paling kiri. Angka kecil = jumlah varian; ketuk kotak untuk melihat barangnya.</div>
+    {% if 'kelola_rak' in hak %}<form method="post" class="ukuran-rak" data-tanya="Ubah ukuran rak {{ e.grup }}? Kotak kosong di luar ukuran baru akan dihapus.">{% csrf_token %}<input type="hidden" name="aksi" value="ukuran"><input type="hidden" name="kode" value="{{ e.grup }}">
+      <label>Baris <input type="text" name="baris" value="{{ e.n_baris }}" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" required></label>
+      <label>Kolom <input type="text" name="kolom" value="{{ e.n_kolom }}" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" required></label>
+      <button class="tombol kecil" type="submit">Ubah ukuran</button>
+      <span class="kecil redup">Kode, barang, dan hitungan di kotak yang ada ikut terbawa.</span>
+    </form>{% endif %}
     <div class="gambar-rak" style="grid-template-columns:auto repeat({{ e.n_kolom }}, minmax(62px, 1fr))">
       {% for b in e.kotak %}<div class="sb">B{{ b.baris }}</div>{% for k in b.isi %}{% if k %}<a href="{% url 'master:barang' %}?rak={{ k.kode|urlencode }}" class="{% if k.jumlah %}isi{% endif %}" title="{{ k.kode }}"><b>{{ k.kode }}</b><span>{{ k.jumlah }} varian</span></a>{% else %}<div class="kosong redup kecil">-</div>{% endif %}{% endfor %}{% endfor %}
       <div class="sb"></div><div class="lantai">lantai</div>

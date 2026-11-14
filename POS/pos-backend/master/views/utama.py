@@ -1089,6 +1089,20 @@ def rak(request):
             else:
                 messages.info(request, f"Semua kotak rak {induk} sudah ada.")
             return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}&buka={induk}")
+        elif aksi == "ukuran":
+            # Ubah ukuran rak yang sudah ada (14 Nov 2026): tambah/kurangi baris dan kolom.
+            angka = lambda n: int(request.POST.get(n)) if str(request.POST.get(n) or "").isdigit() else 0
+            try:
+                h = svc_rak.ubah_ukuran(request.user, induk=kode, baris=angka("baris"), kolom=angka("kolom"), kurangi=True)
+            except Tolak as tolak:
+                messages.error(request, str(tolak))
+            else:
+                bagian = [f"{len(h['dibuat'])} kotak baru" if h["dibuat"] else "",
+                          f"{len(h['diganti'])} kode diganti (mis. {h['diganti'][0][0]} jadi {h['diganti'][0][1]}; barangnya ikut)"
+                          if h["diganti"] else "",
+                          f"{len(h['dihapus'])} kotak kosong dihapus" if h["dihapus"] else ""]
+                messages.success(request, f"Rak {kode}: " + (", ".join(b for b in bagian if b) or "ukurannya sudah sama") + ".")
+            return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
         elif aksi == "simpan_grup":
             # Satu rak bertingkat sekaligus: nama/lokasi/PIC/langsung untuk semua tingkatnya.
             from master.layanan.pembelian import penerima_boleh

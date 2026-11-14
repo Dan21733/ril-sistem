@@ -221,6 +221,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
       }
       if (!baris.length) { const k = document.createElement('div'); k.className = 'pr-kosong'; k.textContent = q ? 'Tidak ada rak yang cocok.' : 'Belum ada rak di sini.'; baris.push(k); }
       isi.replaceChildren(...baris);
+      posisikan();
     }
     cari.addEventListener('input', gambar);
     cari.addEventListener('keydown', e => {
@@ -231,15 +232,40 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     });
     gambar();
     document.body.append(panel);
-    if (!sempit) {
-      const t = sel.nextElementSibling.getBoundingClientRect();
-      const lebar = panel.offsetWidth, tinggi = panel.offsetHeight;
-      let x = t.left + scrollX, y = t.bottom + scrollY + 4;
-      if (t.left + lebar > innerWidth - 8) x = Math.max(8, innerWidth - lebar - 8) + scrollX;
-      if (t.bottom + tinggi > innerHeight - 8 && t.top - tinggi > 8) y = t.top + scrollY - tinggi - 4;
-      panel.style.left = x + 'px'; panel.style.top = y + 'px';
-      if (rak.length > 8) cari.focus();
+    posisikan();
+    // Di tablet keyboard tidak dibuka otomatis; di PC langsung bisa mengetik.
+    if (!sempit && rak.length > 8 && !matchMedia('(pointer: coarse)').matches) cari.focus();
+  }
+
+  /*
+   * Letak panel mengikuti layar yang terlihat (visualViewport). Saat keyboard tablet muncul, layar yang
+   * terlihat mengecil: lembar bawah naik di atas keyboard dan panel melayang digeser supaya tetap terlihat.
+   * Dulu panel ditutup saat ukuran layar berubah, jadi menyentuh kotak cari (keyboard muncul) menutup
+   * panel, dan di posisi tegak lembar tertutup keyboard (QA tablet 14 Nov 2026).
+   */
+  function posisikan(){
+    if (!panel || !sasaran) return;
+    const vv = window.visualViewport;
+    const vh = vv ? vv.height : innerHeight, vAtas = vv ? vv.offsetTop : 0;
+    if (panel.classList.contains('lembar')) {
+      panel.style.bottom = Math.max(0, Math.round(innerHeight - vh - vAtas)) + 'px';
+      panel.style.maxHeight = Math.round(vh * 0.85) + 'px';
+      return;
     }
+    const tombol = sasaran.nextElementSibling;
+    if (!tombol) return;
+    const t = tombol.getBoundingClientRect();
+    panel.style.maxHeight = '';
+    const lebar = panel.offsetWidth, bawah = vAtas + vh;
+    let tinggi = panel.offsetHeight;
+    if (tinggi > vh - 16) { panel.style.maxHeight = Math.max(160, vh - 16) + 'px'; tinggi = panel.offsetHeight; }
+    let x = t.left;
+    if (x + lebar > innerWidth - 8) x = Math.max(8, innerWidth - lebar - 8);
+    let y = t.bottom + 4;
+    if (y + tinggi > bawah - 8) {
+      y = (t.top - tinggi - 4 >= vAtas + 8) ? t.top - tinggi - 4 : Math.max(vAtas + 8, bawah - 8 - tinggi);
+    }
+    panel.style.left = (x + scrollX) + 'px'; panel.style.top = (y + scrollY) + 'px';
   }
 
   document.addEventListener('click', e => {
@@ -248,7 +274,11 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     if (panel && !panel.contains(e.target)) tutup();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel) { e.stopPropagation(); tutup(); } }, true);
-  addEventListener('resize', () => { if (panel && !panel.classList.contains('lembar')) tutup(); });
+  addEventListener('resize', posisikan);
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', posisikan);
+    visualViewport.addEventListener('scroll', posisikan);
+  }
 
   const semua = akar => (akar.querySelectorAll ? akar : document).querySelectorAll('select[data-pilih-rak]').forEach(pasang);
   window.pilihRak = {segarkan, pasang, semua};
