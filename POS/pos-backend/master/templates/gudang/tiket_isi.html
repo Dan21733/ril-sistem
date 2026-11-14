@@ -8,7 +8,7 @@
 {% if boleh_pindah %}<details class="kartu"><summary><b>Pindah sekaligus (satu rak atau satu kategori)</b></summary>
 <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="massal">
   <div class="dua">
-    <div><label>Rak</label><select data-pilih-rak name="rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>Rak</label><select data-pilih-rak name="rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
     <div><label>atau kategori</label><select name="kategori"><option value="">-</option>{% for k in daftar_kategori %}<option>{{ k }}</option>{% endfor %}</select></div>
   </div>
   <div class="dua" style="margin-top:10px">
@@ -23,7 +23,7 @@
 {% if boleh_rak %}<details class="kartu"><summary><b>Pindahkan satu rak ke lokasi lain</b> (tanpa stok)</summary>
 <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="rak_lokasi">
   <div class="dua">
-    <div><label>Rak</label><select data-pilih-rak name="rak" required>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>Rak</label><select data-pilih-rak name="rak" required>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
     <div><label>Ke</label><select name="ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
   </div>
   <div style="margin-top:10px"><button class="tombol" type="submit">Tambah ke usulan</button></div>
@@ -42,7 +42,7 @@
       <input type="text" name="jumlah" inputmode="{% if v|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="jumlah{% if v|berkoma %} ({{ v|nama_satuan }}){% endif %}" style="width:90px" required>
       <button class="tombol kecil" type="submit">Usulkan pindah</button></form>{% endif %}
     {% if boleh_rak %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="rak"><input type="hidden" name="varian_id" value="{{ v.id }}">
-      <select data-pilih-rak name="rak" style="flex:1"><option value="">tanpa rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}" {% if v.rak_id == r.kode %}selected{% endif %}>rak {{ r.kode }}</option>{% endfor %}</select>
+      <select data-pilih-rak name="rak" style="flex:1"><option value="">tanpa rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}" {% if v.rak_id == r.kode %}selected{% endif %}>rak {{ r.kode }}</option>{% endfor %}</select>
       <button class="tombol kecil" type="submit">Usulkan ganti rak</button></form>{% endif %}
   </div>{% endfor %}</div>
 {% if terpotong %}<p class="redup kecil">Hanya 80 barang pertama yang tampil. Persempit pencariannya.</p>{% endif %}

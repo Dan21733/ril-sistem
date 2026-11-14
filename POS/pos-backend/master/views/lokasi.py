@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from pos.models import Item
 
+from master.layanan import rak as svc_rak
 from master.layanan.satuan import baca_qty
 from master.layanan import inti as layanan
 from master.layanan import lokasi as svc
@@ -294,7 +295,7 @@ def tiket_daftar(request, baru=False):
             "menu": "tiket", "admin": admin, "izin_barang": Tiket.IZIN_BARANG,
             "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami),
             "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True).distinct() if b}, key=kunci_alami),
-            "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
+            "pilihan_lokasi": svc.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"), "pilihan_rak": svc_rak.pilihan_tugas(),
             "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
             "sesi_buka": _sesi_dari("buka"), "sesi_pilih": request.GET.get("sesi", ""),
         })

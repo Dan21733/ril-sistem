@@ -53,7 +53,7 @@
   {% if jenis == 'barang' %}
   <div class="grup pilih-banyak" data-daftar="brand" hidden>{% for k in daftar_brand %}<label data-cari="{{ k|lower }}"><input type="checkbox" name="brand" value="{{ k }}">{{ k }}</label>{% endfor %}</div>
   {% else %}
-  <div class="grup pilih-banyak" data-daftar="rak" hidden>{% for r in daftar_rak %}<label data-cari="{{ r.kode|lower }} {{ r.nama|lower }}"><input type="checkbox" name="rak" value="{{ r.kode }}">{{ r.kode }} <span class="redup">{{ r.nama }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</span></label>{% empty %}<div class="kosong">Belum ada rak.</div>{% endfor %}</div>
+  <div class="grup pilih-banyak" data-daftar="rak" hidden>{% for r in pilihan_rak %}<label data-cari="{{ r.kode|lower }} {{ r.nama|lower }}"><input type="checkbox" name="rak" value="{{ r.nilai }}">{% if r.n > 1 %}Rak {% endif %}{{ r.kode }} <span class="redup">{{ r.nama }}{% if r.n > 1 %} · {{ r.n }} kotak{% endif %}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</span></label>{% empty %}<div class="kosong">Belum ada rak.</div>{% endfor %}</div>
   {% endif %}
   <p class="ket-grup">Tidak memilih apa pun = semua barang{% if jenis == 'hitung' %} aktif di lokasi itu{% endif %}.</p>
   {% endif %}

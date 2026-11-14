@@ -16,6 +16,7 @@ from django.views.decorators.http import require_POST
 
 from pos.models import Item, Transactions
 
+from master.layanan import rak as svc_rak
 from master.layanan import excel
 from master.layanan import supplier as svc_supplier
 from master.layanan import inti as layanan
@@ -1004,44 +1005,38 @@ def kelompok(request, kolom):
 # ---------------------------------------------------------------------------
 
 
-def _urut_kode(r):
-    """R2 sebelum R11, TK1-2 sebelum TK1-10."""
-    import re
-    return [(0, int(x), "") if x.isdigit() else (1, 0, x.lower()) for x in re.split(r"(\d+)", r.kode) if x]
-
-
 def _kelompok_rak(daftar):
-    """Rak bertingkat (AT3-1-1, AT3-1-2, ...) dikelompokkan per kode dasar (AT3-1); rak tunggal tetap sendiri.
+    """Rak baris x kolom dikelompokkan per rak induk (A-1-1 .. A-6-4 = rak A); rak tunggal tetap sendiri.
 
-    Hasil: [{"grup": "AT3-1", "rak": [...], "nama", "tempat_id", "pic_id", "langsung", "jumlah"} | {"rak": [r]}].
+    Hasil: [{"grup": "A", "rak": [...], "nama", "tempat_id", "pic_id", "langsung", "jumlah", "kotak"} | {"grup": None, "rak": [r]}].
+    "kotak" = baris dari atas ke bawah, tiap baris daftar kolom (None kalau kotak itu tidak ada) untuk gambar rak.
     """
-    import re
     urut, per = [], {}
     for i, r in enumerate(daftar, 1):
         r.no = i
-        m = re.match(r"^(.+?)[-.](\d+)$", r.kode)
-        dasar = m.group(1) if m else None
-        if dasar is None:
+        if not r.induk:
             urut.append({"grup": None, "rak": [r]})
-        elif dasar in per:
-            per[dasar]["rak"].append(r)
+        elif r.induk in per:
+            per[r.induk]["rak"].append(r)
         else:
-            per[dasar] = {"grup": dasar, "rak": [r]}
-            urut.append(per[dasar])
-    hasil = []
+            per[r.induk] = {"grup": r.induk, "rak": [r]}
+            urut.append(per[r.induk])
     for e in urut:
         rs = e["rak"]
-        if e["grup"] and len(rs) == 1:
-            e = {"grup": None, "rak": rs}
         if e["grup"]:
             sama = lambda f: len({f(r) for r in rs}) == 1
+            n_baris = max(r.baris or 1 for r in rs)
+            n_kolom = max(r.kolom or 1 for r in rs)
+            posisi = {(r.baris or 1, r.kolom or 1): r for r in rs}
             e.update(nama=rs[0].nama if sama(lambda r: r.nama) else "",
                      tempat_id=rs[0].tempat_id if sama(lambda r: r.tempat_id) else "__tetap",
                      pic_id=rs[0].pic_id if sama(lambda r: r.pic_id) else "__tetap",
                      langsung=all(r.langsung for r in rs), langsung_campur=not sama(lambda r: r.langsung),
-                     jumlah=sum(r.jumlah for r in rs), kode=[r.kode for r in rs])
-        hasil.append(e)
-    return hasil
+                     jumlah=sum(r.jumlah for r in rs), kode=[r.kode for r in rs],
+                     n_baris=n_baris, n_kolom=n_kolom, n_kotak=len(rs),
+                     kotak=[{"baris": b, "isi": [posisi.get((b, k)) for k in range(1, n_kolom + 1)]}
+                            for b in range(n_baris, 0, -1)])
+    return urut
 
 
 @perlu()
@@ -1073,41 +1068,27 @@ def rak(request):
                 layanan.catat(request.user, aksi="tambah" if dibuat else "ubah", objek="rak",
                               kolom="rak", baru=f"{kode} - {nama}")
                 messages.success(request, f"Rak {kode} tersimpan.")
-        elif aksi == "bertingkat":
-            # Rak bertingkat sekaligus (13 Nov 2026): kode dasar TK1 + 6 tingkat -> TK1-1 ... TK1-6.
-            # Kode yang sudah ada dilewati, jadi bisa juga untuk menambah tingkat rak yang sudah ada.
-            import re
+        elif aksi in ("grid", "bertingkat"):
+            # Rak baris x kolom sekaligus (14 Nov 2026; menggantikan "bertingkat" 13 Nov, yang = 1 kolom).
             from master.layanan.pembelian import penerima_boleh
             from master.models import Lokasi
-            dasar = re.sub(r"\s+", "", kode or "").upper()
-            nama = layanan.rapikan_teks(request.POST.get("nama"))
-            tingkat = int(request.POST.get("tingkat") or 0) if str(request.POST.get("tingkat") or "").isdigit() else 0
-            if not dasar or not nama:
-                messages.error(request, "Kode dasar dan nama rak wajib diisi.")
-            elif not 1 <= tingkat <= 30:
-                messages.error(request, "Jumlah tingkat 1 sampai 30.")
-            elif len(f"{dasar}-{tingkat}") > 20:
-                messages.error(request, "Kode dasar terlalu panjang (kode rak maksimal 20 karakter).")
+            angka = lambda n, bawaan=0: int(request.POST.get(n)) if str(request.POST.get(n) or "").isdigit() else bawaan
+            tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
+            pic = {u.pk: u for u in penerima_boleh()}.get(angka("pic"))
+            try:
+                baru, ada = svc_rak.buat(request.user, induk=kode, nama=request.POST.get("nama"),
+                                         baris=angka("baris") or angka("tingkat"), kolom=angka("kolom", 1),
+                                         tempat=tempat, pic=pic, langsung=request.POST.get("langsung") == "1")
+            except Tolak as tolak:
+                messages.error(request, str(tolak))
+                return redirect(request.get_full_path())
+            induk = svc_rak.kode_induk(kode)
+            if baru:
+                messages.success(request, f"Rak {induk}: {len(baru)} kotak dibuat ({baru[0].kode} sampai {baru[-1].kode})."
+                                 + (f" {ada} kotak sudah ada, dilewati." if ada else ""))
             else:
-                tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
-                pic = {u.pk: u for u in penerima_boleh()}.get(int(request.POST.get("pic") or 0)
-                                                               if (request.POST.get("pic") or "").isdigit() else 0)
-                ada = set(Rak.objects.filter(kode__in=[f"{dasar}-{i}" for i in range(1, tingkat + 1)])
-                          .values_list("kode", flat=True))
-                baru = [Rak(kode=f"{dasar}-{i}", nama=nama, tempat=tempat, pic=pic,
-                            langsung=request.POST.get("langsung") == "1",
-                            lokasi=layanan.rapikan_teks(request.POST.get("lokasi")),
-                            keterangan=layanan.rapikan_teks(request.POST.get("keterangan")))
-                        for i in range(1, tingkat + 1) if f"{dasar}-{i}" not in ada]
-                Rak.objects.bulk_create(baru)
-                if baru:
-                    layanan.catat(request.user, aksi="tambah", objek="rak", kolom="rak",
-                                  baru=f"{baru[0].kode} s/d {baru[-1].kode} - {nama}")
-                    messages.success(request, f"{len(baru)} rak dibuat: {baru[0].kode} sampai {baru[-1].kode}."
-                                     + (f" {len(ada)} sudah ada, dilewati." if ada else ""))
-                else:
-                    messages.info(request, f"Semua rak {dasar}-1 sampai {dasar}-{tingkat} sudah ada.")
-                return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}")
+                messages.info(request, f"Semua kotak rak {induk} sudah ada.")
+            return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}&buka={induk}")
         elif aksi == "simpan_grup":
             # Satu rak bertingkat sekaligus: nama/lokasi/PIC/langsung untuk semua tingkatnya.
             from master.layanan.pembelian import penerima_boleh
@@ -1150,9 +1131,7 @@ def rak(request):
             # Rak dipindah ke lokasi lain: ikut pindah ke tab lokasi itu supaya kelihatan tersimpan.
             r = Rak.objects.filter(kode=kode).first()
             if r is not None:
-                import re
-                m = re.match(r"^(.+?)[-.](\d+)$", r.kode)
-                return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}" + (f"&buka={m.group(1)}" if m else ""))
+                return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}" + (f"&buka={r.induk}" if r.induk else ""))
         return redirect(request.get_full_path())
 
     from master.models import Lokasi
@@ -1176,7 +1155,7 @@ def rak(request):
     else:
         daftar = semua.filter(tempat=aktif["lokasi"])
     return render(request, "master/rak.html", {
-        "menu": "rak", "daftar": _kelompok_rak(sorted(daftar, key=_urut_kode)), "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
+        "menu": "rak", "daftar": _kelompok_rak(sorted(daftar, key=svc_rak.urut)), "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
         "tanpa_rak": VarianInfo.objects.filter(rak__isnull=True, sampah__isnull=True).count(),
         "tab": tab, "aktif": aktif, "total_rak": sum(per_lokasi.values()),
     })

@@ -127,6 +127,12 @@ class Rak(models.Model):
     # Rak "langsung": barang display yang dibawa pembeli sendiri, tidak masuk daftar Siapkan
     # (kecuali notanya besar, lihat pengaturan siapkan_min_baris).
     langsung = models.BooleanField(default=False)
+    # Rak baris x kolom (14 Nov 2026). Satu rak fisik (induk, mis. "A") dipecah jadi kotak-kotak; tiap kotak
+    # adalah satu baris tabel ini (kode A-3-2 = rak A, baris 3 dari bawah, kolom 2 dari kiri). Rak bertingkat
+    # lama (AT3-1-1, AT3-1-2, ...) = 1 kolom. Kosong semua = rak tunggal tanpa kotak.
+    induk = models.CharField(max_length=20, blank=True, default="", db_index=True)
+    baris = models.PositiveSmallIntegerField(null=True, blank=True)
+    kolom = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "master_rak"

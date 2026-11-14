@@ -177,6 +177,7 @@ def tiket_hitung(request, tiket_id):
 
     from django.http import JsonResponse
 
+    from master.layanan import rak as svc_rak
     from master.layanan import sesi_opname as svc_sesi
     t = get_object_or_404(Tiket.objects.select_related("sesi"), pk=tiket_id, untuk=request.user, jenis="hitung")
     if request.method == "POST":
@@ -211,8 +212,9 @@ def tiket_hitung(request, tiket_id):
         "barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
         "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
         # Rak lingkup tugas didahulukan (tab "Rak tugas ini" di pemilih rak), sisanya di "Rak lain".
-        "daftar_rak": sorted(({"kode": r.kode, "nama": r.nama} for r in svc_sesi.rak_lokasi(lokasi)),
-                             key=lambda r: r["kode"] not in rak_tugas),
+        "daftar_rak": [{"kode": r.kode, "nama": r.nama, "induk": r.induk, "baris": r.baris, "kolom": r.kolom,
+                        "label": svc_rak.label(r)}
+                       for r in sorted(svc_sesi.rak_lokasi(lokasi), key=lambda r: (r.kode not in rak_tugas, svc_rak.urut(r)))],
         "rak_tugas": rak_tugas,
         "boleh_rak_baru": not t.sesi_id,
         "pindah_rak": not t.sesi_id and opname.perbarui_posisi(t),

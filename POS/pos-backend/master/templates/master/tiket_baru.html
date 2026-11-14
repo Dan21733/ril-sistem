@@ -42,7 +42,7 @@
       <div class="tb-sub">Di mana?</div>
       <div class="tb-pilihan">{% for l in pilihan_lokasi %}<label class="tb-chip"><input type="radio" name="lokasi" value="{{ l.id }}" {% if forloop.first %}checked{% endif %}>{{ l.nama }}</label>{% endfor %}</div>
       <div class="tb-sub">Rak</div>
-      {% if daftar_rak %}<div class="pemilih" data-nama="rak" data-satuan="rak">{% for r in daftar_rak %}<button type="button" class="pm-kartu" data-nilai="{{ r.kode }}" data-tempat="{{ r.tempat_id|default:'' }}">{{ r.kode }}{% if r.nama %} <span class="redup">· {{ r.nama }}</span>{% endif %}</button>{% endfor %}</div>
+      {% if daftar_rak %}<div class="pemilih" data-nama="rak" data-satuan="rak">{% for r in pilihan_rak %}<button type="button" class="pm-kartu" data-nilai="{{ r.nilai }}" data-tempat="{{ r.tempat_id|default:'' }}">{% if r.n > 1 %}Rak {% endif %}{{ r.kode }}{% if r.nama %} <span class="redup">· {{ r.nama }}</span>{% endif %}{% if r.n > 1 %} <span class="redup">· {{ r.n }} kotak</span>{% endif %}</button>{% endfor %}</div>
       {% else %}<p class="kecil redup">Belum ada rak. Buat di menu <a href="{% url 'master:rak' %}">Rak</a>, atau pilih kategori saja.</p>{% endif %}
       <div class="tb-sub">Kategori</div>
       <div class="pemilih" data-nama="kategori" data-satuan="kategori">{% for k in daftar_kategori %}<button type="button" class="pm-kartu" data-nilai="{{ k }}">{{ k }}</button>{% endfor %}</div>

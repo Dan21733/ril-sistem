@@ -11,7 +11,7 @@
   dicatat. Saat ACC tidak ada stok yang diubah; angkanya jadi catatan stok
   awal untuk toko itu.
 """
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from pos.models import Item
@@ -365,12 +365,34 @@ def lingkup_tugas(t):
     return qs.filter(syarat) if syarat else qs
 
 
+def ringkas_rak(kode):
+    """Daftar kotak rak dipendekkan per rak induk: semua 42 kotak rak G -> "G (semua 42 kotak)"."""
+    from master.models import Rak
+    kode = list(kode)
+    ada = {r.kode: r for r in Rak.objects.filter(kode__in=kode)}
+    per, sendiri = {}, []
+    for k in kode:
+        r = ada.get(k)
+        (per.setdefault(r.induk, []) if r is not None and r.induk else sendiri).append(k)
+    total = dict(Rak.objects.filter(induk__in=list(per)).values_list("induk").annotate(n=models.Count("kode"))
+                 .values_list("induk", "n")) if per else {}
+    teks = []
+    for induk, isi in per.items():
+        if len(isi) == total.get(induk) and len(isi) > 1:
+            teks.append(f"{induk} (semua {len(isi)} kotak)")
+        elif len(isi) > 3:
+            teks.append(f"{induk}: {len(isi)} kotak")
+        else:
+            teks += isi
+    return ", ".join(teks + sendiri)
+
+
 def lingkup_teks(t):
     s = t.saring or {}
     l = lokasi_tugas(t)
     bagian = [f"di {l.nama}" if l else ""]
     if s.get("rak"):
-        bagian.append("rak " + ", ".join(s["rak"]))
+        bagian.append("rak " + ringkas_rak(s["rak"]))
     if s.get("kategori"):
         bagian.append("kategori " + ", ".join(s["kategori"]))
     if s.get("varian"):

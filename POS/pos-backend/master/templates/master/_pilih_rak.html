@@ -23,9 +23,15 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
 .pr-panel button.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
 .pr-panel .pr-tab button{min-height:34px;font-size:14px}
 .pr-grup{display:grid;grid-template-columns:minmax(90px,max-content) 1fr;gap:6px 12px;align-items:center;padding:6px 0;border-top:1px solid var(--garis)}
-.pr-grup .pr-nama{font-weight:600;line-height:1.2}.pr-grup .pr-nama small{display:block;font-weight:400;color:var(--redup);font-size:12px}
+.pr-nama{font-weight:600;line-height:1.2}.pr-nama small{display:block;font-weight:400;color:var(--redup);font-size:12px}
 .pr-grup .pr-tingkat{display:flex;flex-wrap:wrap;gap:6px}
 .pr-kosong{color:var(--redup);padding:10px 2px}
+.pr-grid-kepala{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--garis)}
+.pr-grid-kepala button.pr-buka{min-height:40px}
+.pr-kotak{display:grid;gap:5px;margin:2px 0 10px}
+.pr-kotak .sb{font-size:12px;color:var(--redup);display:flex;align-items:center;justify-content:center;min-width:26px}
+.pr-kotak button{min-width:0;padding:6px 4px}
+.pr-kotak .lantai{grid-column:2 / -1;border-top:3px solid var(--garis-kuat);font-size:11px;color:var(--redup);text-align:center}
 </style>
 <script>
 (() => {
@@ -37,7 +43,8 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
   function opsi(sel){
     const rak = [], lain = [];
     [...sel.options].forEach(o => {
-      if (o.dataset.r !== undefined) rak.push({kode: o.value, nama: o.dataset.nama || '', tempat: o.dataset.tempat || '', o});
+      if (o.dataset.r !== undefined) rak.push({kode: o.value, nama: o.dataset.nama || '', tempat: o.dataset.tempat || '',
+        induk: o.dataset.induk || '', baris: +(o.dataset.baris || 0), kolom: +(o.dataset.kolom || 0), o});
       else lain.push(o);
     });
     return {rak, lain};
@@ -96,6 +103,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     const tempatList = [...new Set(rak.map(r => r.tempat))];
     const kini = rak.find(r => r.kode === sel.value);
     let tab = kini ? kini.tempat : (tempatList[0] ?? '');
+    let bukaGrid = null;   // rak baris x kolom yang sedang dibuka di panel
     const sempit = innerWidth < 640;
     panel = document.createElement('div');
     panel.className = 'pr-panel' + (sempit ? ' lembar' : '');
@@ -121,7 +129,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         const b = document.createElement('button'); b.type = 'button';
         b.textContent = (tp || 'Tanpa lokasi') + ' · ' + rak.filter(r => r.tempat === tp).length;
         b.classList.toggle('aktif', tp === tab && !cari.value.trim());
-        b.addEventListener('click', () => { tab = tp; cari.value = ''; gambar(); });
+        b.addEventListener('click', () => { tab = tp; bukaGrid = null; cari.value = ''; gambar(); });
         return b;
       }));
     }
@@ -133,30 +141,72 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
                        : rak.filter(r => r.tempat === tab);
       const grup = new Map(), tunggal = [];
       daftar.forEach(r => {
-        const m = r.kode.match(POLA);
-        if (!m) { tunggal.push(r); return; }
-        const k = (q && tempatList.length > 1 ? r.tempat + '\u0000' : '') + m[1];
-        if (!grup.has(k)) grup.set(k, {dasar: m[1], tempat: r.tempat, item: []});
-        grup.get(k).item.push({...r, t: m[2]});
+        let dasar, b, k;
+        if (r.induk && r.baris) { dasar = r.induk; b = r.baris; k = r.kolom || 1; }
+        else { const m = r.kode.match(POLA); if (!m) { tunggal.push(r); return; } dasar = m[1]; b = +m[2]; k = 1; }
+        const kunciGrup = (q && tempatList.length > 1 ? r.tempat + '\u0000' : '') + dasar;
+        if (!grup.has(kunciGrup)) grup.set(kunciGrup, {kunci: kunciGrup, dasar, tempat: r.tempat, item: []});
+        grup.get(kunciGrup).item.push({...r, b, k});
       });
-      // Kode dasar dengan satu tingkat saja digabung ke "Rak lain" supaya tidak satu baris per rak.
+      // Rak dengan satu kotak saja digabung ke "Rak lain" supaya tidak satu baris per rak.
       [...grup].forEach(([k, g]) => { if (g.item.length === 1) { tunggal.push(g.item[0]); grup.delete(k); } });
+      const tombolRak = (x, teks) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = teks;
+        b.title = x.kode + (x.nama ? ' · ' + x.nama : ''); b.setAttribute('aria-label', 'Rak ' + x.kode);
+        if (x.kode === sel.value) b.classList.add('aktif');
+        b.addEventListener('click', () => pilih(sel, x.kode));
+        return b;
+      };
+      const judulGrup = g => {
+        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = 'Rak ' + g.dasar;
+        const namaUnik = [...new Set(g.item.map(x => x.nama).filter(Boolean))];
+        const nk = Math.max(...g.item.map(x => x.k)), nb = Math.max(...g.item.map(x => x.b));
+        const sub = [namaUnik.length === 1 ? namaUnik[0] : '', nk > 1 ? `${nb} baris × ${nk} kolom` : '',
+                     q && tempatList.length > 1 ? (g.tempat || 'Tanpa lokasi') : ''].filter(Boolean).join(' · ');
+        if (sub) { const s2 = document.createElement('small'); s2.textContent = sub; n.append(s2); }
+        return n;
+      };
+      const grids = [...grup.values()].filter(g => g.item.some(x => x.k > 1));
+      if (!bukaGrid) {
+        bukaGrid = new Set(grids.filter(g => g.item.some(x => x.kode === sel.value)).map(g => g.kunci));
+        if (grids.length === 1) bukaGrid.add(grids[0].kunci);
+      }
       const baris = [];
       [...grup.values()].sort((a, b) => alami(a.dasar, b.dasar)).forEach(g => {
-        const d = document.createElement('div'); d.className = 'pr-grup';
-        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = g.dasar;
-        const namaUnik = [...new Set(g.item.map(x => x.nama).filter(Boolean))];
-        const sub = [namaUnik.length === 1 ? namaUnik[0] : '', q && tempatList.length > 1 ? (g.tempat || 'Tanpa lokasi') : ''].filter(Boolean).join(' · ');
-        if (sub) { const s = document.createElement('small'); s.textContent = sub; n.append(s); }
-        const tk = document.createElement('div'); tk.className = 'pr-tingkat';
-        g.item.sort((a, b) => a.t - b.t).forEach(x => {
-          const b = document.createElement('button'); b.type = 'button'; b.textContent = x.t;
-          b.title = x.kode + (x.nama && namaUnik.length !== 1 ? ' · ' + x.nama : '');
-          b.setAttribute('aria-label', 'Rak ' + x.kode);
-          if (x.kode === sel.value) b.classList.add('aktif');
-          b.addEventListener('click', () => pilih(sel, x.kode)); tk.append(b);
-        });
-        d.append(n, tk); baris.push(d);
+        const nk = Math.max(...g.item.map(x => x.k));
+        if (nk === 1) {
+          // Rak 1 kolom (bertingkat): satu baris tombol nomor baris, 1 = paling bawah.
+          const d = document.createElement('div'); d.className = 'pr-grup';
+          const tk = document.createElement('div'); tk.className = 'pr-tingkat';
+          g.item.sort((a, b) => a.b - b.b).forEach(x => tk.append(tombolRak(x, String(x.b))));
+          d.append(judulGrup(g), tk); baris.push(d);
+          return;
+        }
+        // Rak baris x kolom: gambar tampak depan (baris teratas di atas, lantai di bawah), dibuka per rak.
+        const kepala = document.createElement('div'); kepala.className = 'pr-grid-kepala';
+        const buka = q || bukaGrid.has(g.kunci);
+        const t = document.createElement('button'); t.type = 'button'; t.className = 'pr-buka';
+        t.textContent = buka ? 'Tutup' : 'Pilih kotak ▸'; t.setAttribute('aria-expanded', buka);
+        t.addEventListener('click', () => { bukaGrid.has(g.kunci) ? bukaGrid.delete(g.kunci) : bukaGrid.add(g.kunci); gambar(); });
+        kepala.append(judulGrup(g), t); baris.push(kepala);
+        if (!buka) return;
+        const nb = Math.max(...g.item.map(x => x.b));
+        const pos = new Map(g.item.map(x => [x.b + ':' + x.k, x]));
+        const kotak = document.createElement('div'); kotak.className = 'pr-kotak';
+        kotak.style.gridTemplateColumns = `auto repeat(${nk}, minmax(44px, 1fr))`;
+        const sel2 = [document.createElement('div')]; sel2[0].className = 'sb';
+        for (let k = 1; k <= nk; k++) { const h = document.createElement('div'); h.className = 'sb'; h.textContent = 'K' + k; sel2.push(h); }
+        for (let b = nb; b >= 1; b--) {
+          const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = 'B' + b; sel2.push(sb);
+          for (let k = 1; k <= nk; k++) {
+            const x = pos.get(b + ':' + k);
+            if (x) sel2.push(tombolRak(x, b + '-' + k));
+            else { const e = document.createElement('div'); sel2.push(e); }
+          }
+        }
+        const kosong = document.createElement('div'); kosong.className = 'sb';
+        const lantai = document.createElement('div'); lantai.className = 'lantai'; lantai.textContent = 'lantai';
+        kotak.append(...sel2, kosong, lantai); baris.push(kotak);
       });
       if (tunggal.length) {
         const d = document.createElement('div'); d.className = 'pr-grup';
@@ -176,7 +226,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     cari.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      const tombol = isi.querySelectorAll('.pr-tingkat button');
+      const tombol = isi.querySelectorAll('.pr-tingkat button, .pr-kotak button');
       if (tombol.length === 1) tombol[0].click();
     });
     gambar();

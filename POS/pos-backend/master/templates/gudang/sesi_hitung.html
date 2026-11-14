@@ -28,7 +28,7 @@
   <div class="sh-baris">
     <select data-pilih-rak class="sh-rak" id="rak" aria-label="Rak tempat menghitung">
       <option value="">Tanpa rak / tidak tahu</option>
-      {% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-label="Rak {{ r.kode }}" data-tempat="{% if rak_tugas %}{% if r.kode in rak_tugas %}Rak tugas ini{% else %}Rak lain{% endif %}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+      {% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-label="{{ r.label }}" data-tempat="{% if rak_tugas %}{% if r.kode in rak_tugas %}Rak tugas ini{% else %}Rak lain{% endif %}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
       {% if boleh_rak_baru %}<option value="__baru">+ Rak baru…</option>{% endif %}
     </select>
     <span class="sh-status" id="status">Tersimpan</span>

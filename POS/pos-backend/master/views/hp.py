@@ -16,6 +16,7 @@ from django.views.decorators.http import require_POST
 
 from pos.models import Item, Worker
 
+from master.layanan import rak as svc_rak
 from master.akun.akses import hak_pengguna, perlu
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, kunci_alami
@@ -624,7 +625,7 @@ def tugas_baru(request):
         "izin": Tiket.IZIN_BARANG, "boleh_hitung": "opname" in hak,
         "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_brand": sorted({b for b in Item.objects.values_list("brand", flat=True).distinct() if b}, key=kunci_alami),
-        "lokasi": svc_lokasi.pilihan(), "daftar_rak": list(Rak.objects.select_related("tempat").order_by("kode")),
+        "lokasi": svc_lokasi.pilihan(), "daftar_rak": list(Rak.objects.select_related("tempat").order_by("kode")), "pilihan_rak": svc_rak.pilihan_tugas(),
     })
 
 

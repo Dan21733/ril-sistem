@@ -28,7 +28,7 @@
     <td class="angka"><input type="text" name="max_price" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Harga jual" aria-label="Harga jual"></td>
     {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak and not titipan %}<input type="text" name="cost_amount" form="form-varian-baru" class="uang-varian" inputmode="numeric" placeholder="Modal" aria-label="Modal">{% endif %}</td>{% endif %}
     <td class="angka redup">0</td>
-    <td><select data-pilih-rak name="kode_rak" form="form-varian-baru" aria-label="Rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></td>
+    <td><select data-pilih-rak name="kode_rak" form="form-varian-baru" aria-label="Rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></td>
     <td colspan="{% if 'hapus_barang' in hak %}2{% else %}1{% endif %}"><button class="tombol kecil utama" type="submit" form="form-varian-baru">Tambah</button></td>
   </tr>
   {% endif %}

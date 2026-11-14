@@ -100,7 +100,8 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
         if l is None:
             raise Tolak("Pilih lokasi yang dihitung.")
         rak_ada = set(Rak.objects.values_list("kode", flat=True))
-        saring = {"lokasi": l.pk, "rak": sorted({r for r in rak or [] if r in rak_ada}),
+        from master.layanan.rak import uraikan
+        saring = {"lokasi": l.pk, "rak": sorted({r for r in uraikan(rak) if r in rak_ada}),
                   "kategori": tiket_barang.bersihkan_saring(kategori, ())["kategori"]}
         if varian:
             # Hitung ulang barang tertentu (dari daftar "belum dihitung" sesi opname).

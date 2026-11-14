@@ -11,6 +11,14 @@ tr.grup-rak td{background:#faf8f4}
 .buka-grup{border:0;background:none;font:inherit;color:var(--aksen);cursor:pointer;padding:6px 4px;min-height:36px}
 .buka-grup .panah{display:inline-block;transition:transform .15s}.buka-grup[aria-expanded=true] .panah{transform:rotate(90deg)}
 tr[data-anak] td:first-child{padding-left:26px}
+.gambar-rak{display:inline-grid;gap:4px;align-items:stretch;margin:6px 0}
+.gambar-rak .sb{font-size:12px;color:var(--redup);display:flex;align-items:center;justify-content:center;min-width:28px}
+.gambar-rak a,.gambar-rak .kosong{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;min-height:44px;border:1px solid var(--garis-kuat);border-radius:6px;background:#fff;font-size:13px;line-height:1.2;text-decoration:none;color:var(--teks)}
+.gambar-rak a b{font-weight:600}.gambar-rak a span{font-size:11px;color:var(--redup)}
+.gambar-rak a.isi{background:var(--aksen-lembut,#fbeee6);border-color:var(--aksen)}
+.gambar-rak .kosong{border-style:dashed;background:none}
+.gambar-rak .lantai{grid-column:2 / -1;border-top:3px solid var(--garis-kuat);font-size:11px;color:var(--redup);text-align:center;padding-top:2px}
+#pratinjau-rak{margin:8px 0 0}
 </style>
 <p class="sub">Lokasi penyimpanan barang. {{ total_rak|ribuan }} rak · {{ tanpa_rak|ribuan }} varian <a href="{% url 'master:barang' %}?rak=-">belum punya rak</a>.</p>
 {% if tab %}<nav class="tab-rak" aria-label="Lokasi">{% for t in tab %}<a class="tombol kecil {% if aktif and t.kunci == aktif.kunci %}aktif{% endif %}" href="?lokasi={{ t.kunci }}">{{ t.nama }}<span class="n">{{ t.n }}</span></a>{% endfor %}</nav>{% endif %}
@@ -28,19 +36,26 @@ tr[data-anak] td:first-child{padding-left:26px}
   {% for e in daftar %}
   {% if e.grup %}
   <tr class="grup-rak" data-grup="{{ e.grup }}">
-    <td style="white-space:nowrap"><button type="button" class="buka-grup" aria-expanded="false" aria-label="Buka tingkat rak {{ e.grup }}"><span class="panah">▸</span> <b>{{ e.grup }}</b></button></td>
+    <td style="white-space:nowrap"><button type="button" class="buka-grup" aria-expanded="false" aria-label="Buka kotak rak {{ e.grup }}"><span class="panah">▸</span> <b>{{ e.grup }}</b></button></td>
     {% if 'kelola_rak' in hak %}
     <td><input type="text" name="nama" value="{{ e.nama }}" form="grup-{{ e.grup }}" {% if not e.nama %}placeholder="nama beda-beda"{% endif %} aria-label="Nama semua tingkat {{ e.grup }}"></td>
     <td><select name="tempat" form="grup-{{ e.grup }}" style="min-width:150px" aria-label="Lokasi semua tingkat {{ e.grup }}">{% if e.tempat_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if e.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
     <td><select name="pic" form="grup-{{ e.grup }}" style="min-width:140px" aria-label="PIC semua tingkat {{ e.grup }}">{% if e.pic_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if e.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
     <td style="text-align:center"><select name="langsung" form="grup-{{ e.grup }}" style="width:auto" aria-label="Langsung semua tingkat {{ e.grup }}">{% if e.langsung_campur %}<option value="__tetap" selected>campur</option>{% endif %}<option value="1" {% if e.langsung and not e.langsung_campur %}selected{% endif %}>ya</option><option value="0" {% if not e.langsung and not e.langsung_campur %}selected{% endif %}>tidak</option></select></td>
-    <td colspan="2" class="redup kecil">{{ e.rak|length }} tingkat · diubah di sini berlaku untuk semua tingkat</td>
+    <td colspan="2" class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · diubah di sini berlaku untuk semua kotak</td>
     <td class="angka">{{ e.jumlah|ribuan }}</td>
-    <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} tingkat {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form></td>
+    <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} kotak rak {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form></td>
     {% else %}
-    <td>{{ e.nama }}</td><td colspan="5" class="redup kecil">{{ e.rak|length }} tingkat</td><td class="angka">{{ e.jumlah|ribuan }}</td>
+    <td>{{ e.nama }}</td><td colspan="5" class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %}</td><td class="angka">{{ e.jumlah|ribuan }}</td>
     {% endif %}
   </tr>
+  <tr data-anak="{{ e.grup }}" hidden><td colspan="9" style="padding-left:26px">
+    <div class="kecil redup">Tampak depan rak {{ e.grup }}: baris 1 paling bawah, kolom 1 paling kiri. Angka kecil = jumlah varian; ketuk kotak untuk melihat barangnya.</div>
+    <div class="gambar-rak" style="grid-template-columns:auto repeat({{ e.n_kolom }}, minmax(62px, 1fr))">
+      {% for b in e.kotak %}<div class="sb">B{{ b.baris }}</div>{% for k in b.isi %}{% if k %}<a href="{% url 'master:barang' %}?rak={{ k.kode|urlencode }}" class="{% if k.jumlah %}isi{% endif %}" title="{{ k.kode }}"><b>{{ k.kode }}</b><span>{{ k.jumlah }} varian</span></a>{% else %}<div class="kosong redup kecil">-</div>{% endif %}{% endfor %}{% endfor %}
+      <div class="sb"></div><div class="lantai">lantai</div>
+    </div>
+  </td></tr>
   {% for r in e.rak %}{% include "master/_rak_baris.html" with anak=e.grup %}{% endfor %}
   {% else %}
   {% for r in e.rak %}{% include "master/_rak_baris.html" with anak="" %}{% endfor %}
@@ -48,7 +63,6 @@ tr[data-anak] td:first-child{padding-left:26px}
   {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.</td></tr>
   {% endfor %}
 </table></div>
-{% if 'kelola_rak' in hak %}
 <script>
 (() => {
   // Rak bertingkat dilipat; yang dibuka diingat selama tab browser terbuka. ?buka=AT3-1 membuka satu grup.
@@ -67,23 +81,42 @@ tr[data-anak] td:first-child{padding-left:26px}
   });
 })();
 </script>
-<h3>Tambah rak bertingkat</h3>
-<form method="post" class="kartu baris" id="form-tingkat">{% csrf_token %}<input type="hidden" name="aksi" value="bertingkat">
-  <div style="width:120px"><label>Kode dasar</label><input type="text" name="kode" maxlength="16" required placeholder="TK1" style="text-transform:uppercase"></div>
-  <div style="width:90px"><label>Tingkat</label><input type="text" name="tingkat" value="5" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2"></div>
-  <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required placeholder="mis. Rak kanan"></div>
+{% if 'kelola_rak' in hak %}
+<h3>Tambah rak</h3>
+<form method="post" class="kartu baris" id="form-tingkat">{% csrf_token %}<input type="hidden" name="aksi" value="grid">
+  <div style="width:110px"><label>Kode rak</label><input type="text" name="kode" maxlength="14" required placeholder="A" style="text-transform:uppercase" autocomplete="off"></div>
+  <div style="width:90px"><label>Baris</label><input type="text" name="baris" value="5" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" aria-describedby="contoh-tingkat"></div>
+  <div style="width:90px"><label>Kolom</label><input type="text" name="kolom" value="1" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" aria-describedby="contoh-tingkat"></div>
+  <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required placeholder="mis. Rak dekat tangga"></div>
   <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
   <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
   <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
   <div><button class="tombol utama" type="submit">Buat</button></div>
-  <p class="kecil redup" style="flex-basis:100%;margin:0" id="contoh-tingkat">Jadi: TK1-1, TK1-2, … TK1-5. <span>Kode yang sudah ada dilewati, jadi ini juga bisa untuk menambah tingkat.</span></p>
+  <div style="flex-basis:100%">
+    <p class="kecil redup" style="margin:0" id="contoh-tingkat"></p>
+    <div id="pratinjau-rak"></div>
+  </div>
 </form>
 <script>
 (() => {
-  const f = document.getElementById('form-tingkat'), c = document.getElementById('contoh-tingkat');
+  const f = document.getElementById('form-tingkat'), c = document.getElementById('contoh-tingkat'), g = document.getElementById('pratinjau-rak');
+  const angka = (v, maks) => Math.min(maks, Math.max(1, parseInt(v, 10) || 1));
   const tulis = () => {
-    const d = (f.kode.value.replace(/\s+/g, '') || 'TK1').toUpperCase(), n = Math.min(30, Math.max(1, +f.tingkat.value || 1));
-    c.firstChild.textContent = 'Jadi: ' + (n <= 3 ? [...Array(n)].map((_, i) => d + '-' + (i + 1)).join(', ') : `${d}-1, ${d}-2, … ${d}-${n}`) + '. ';
+    const d = (f.kode.value.replace(/\s+/g, '') || 'A').toUpperCase(), nb = angka(f.baris.value, 20), nk = angka(f.kolom.value, 20);
+    const kode = (b, k) => nk === 1 ? `${d}-${b}` : `${d}-${b}-${k}`;
+    c.textContent = `${nb * nk} kotak. Baris dihitung dari bawah (baris 1 = dekat lantai), kolom dari kiri saat menghadap rak. `
+      + `Contoh: ${kode(1, 1)} = ${nk === 1 ? `baris 1` : `baris 1 kolom 1`}. Kotak yang sudah ada dilewati, jadi ini juga untuk menambah baris/kolom.`;
+    const sel = [];
+    for (let b = nb; b >= 1; b--) {
+      const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = 'B' + b; sel.push(sb);
+      for (let k = 1; k <= nk; k++) { const x = document.createElement('a'); x.innerHTML = '<b></b>'; x.firstChild.textContent = kode(b, k); sel.push(x); }
+    }
+    const kosong = document.createElement('div'); kosong.className = 'sb';
+    const lantai = document.createElement('div'); lantai.className = 'lantai'; lantai.textContent = 'lantai';
+    const kotak = document.createElement('div'); kotak.className = 'gambar-rak';
+    kotak.style.gridTemplateColumns = `auto repeat(${nk}, minmax(62px, 1fr))`;
+    kotak.append(...sel, kosong, lantai);
+    g.replaceChildren(kotak);
   };
   f.addEventListener('input', tulis); tulis();
 })();
