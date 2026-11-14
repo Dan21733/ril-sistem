@@ -6,7 +6,7 @@ memilih di panel = mengisi select + memicu "change".
 Opsi rak diberi data-r; opsi lain (kosong, "Semua", "Belum ada", "+ Rak baru…") tampil sebagai tombol di atas.
 data-tempat = nama lokasi, data-nama = nama rak (keduanya boleh kosong).
 Kode lain yang mengubah isi/nilai select lewat JS memanggil window.pilihRak.segarkan(select).
-{% endcomment %}
+{% endcomment %}{% load master_tags %}{% denah_pemilih %}
 <style>
 .pr-tombol{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:40px;padding:8px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;color:var(--teks);text-align:left;cursor:pointer}
 .pr-tombol::after{content:"▾";color:var(--redup);font-size:12px}
@@ -26,6 +26,18 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
 .pr-nama{font-weight:600;line-height:1.2}.pr-nama small{display:block;font-weight:400;color:var(--redup);font-size:12px}
 .pr-grup .pr-tingkat{display:flex;flex-wrap:wrap;gap:6px}
 .pr-kosong{color:var(--redup);padding:10px 2px}
+.pr-panel .pr-ruang button{min-height:44px;font-weight:600}
+.pr-denah{display:grid;gap:3px;width:100%;max-width:440px;margin:2px auto 10px;background:var(--latar-2,#f1efe9);border:1px solid var(--garis-kuat);border-radius:8px;padding:4px;box-sizing:border-box}
+.pr-panel .pr-denah .pr-dk{min-width:0;min-height:0;padding:2px;font-size:12px;font-weight:600;line-height:1.1;overflow:hidden;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center}
+.pr-panel .pr-dk.dk-ruang{background:#fff;border:2px solid #6b6256;color:#3d362c}
+.pr-panel .pr-dk.dk-rak{background:#fdf3d7;border:2px solid #d4a514;color:#6b4f00}
+.pr-panel .pr-dk.dk-area{background:#e6f2ee;border:2px dashed #0f6e56;color:#085041}.pr-panel .pr-dk.dk-sementara{background:#fde8e8;border-color:#c0392b;color:#7a1d14}
+.pr-dk.dk-pintu{border:2px dotted #888;color:#666;background:#fff;font-weight:400}
+.pr-panel .pr-dk.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.pr-area{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:6px 0 10px}
+.pr-area button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:56px;border-style:dashed}
+.pr-area button small{color:var(--redup);font-size:12px}.pr-panel .pr-area button.pr-area-sementara{border-color:#c0392b}
+.pr-panel .pr-area button.aktif small{color:#fff}
 .pr-grid-kepala{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--garis)}
 .pr-grid-kepala button.pr-buka{min-height:40px}
 .pr-kotak{display:grid;gap:5px;margin:2px 0 10px}
@@ -37,6 +49,33 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
 (() => {
   if (window.pilihRak) return;
   const POLA = /^(.+?)[-.](\d+)$/;
+  let DENAH = null;
+  const denahData = () => {
+    if (DENAH === null) { try { DENAH = JSON.parse(document.getElementById('data-denah-rak').textContent); } catch (e) { DENAH = {}; } }
+    return DENAH;
+  };
+  // Denah dari atas (14 Nov 2026): kotak-kotak di petak kolom x baris; tinggi petak = lebar petak.
+  function gambarDenah(kolom, kotak, klik, aktif, rapat){
+    if (rapat) {
+      // Denah lokasi: buang petak kosong di pinggir supaya ruangan tampil sebesar mungkin.
+      const x0 = Math.min(...kotak.map(k => k.x)), y0 = Math.min(...kotak.map(k => k.y));
+      kotak = kotak.map(k => ({...k, x: k.x - x0, y: k.y - y0}));
+      kolom = Math.max(...kotak.map(k => k.x + k.w));
+    }
+    const baris = Math.max(1, ...kotak.map(k => k.y + k.h));
+    const peta = document.createElement('div'); peta.className = 'pr-denah';
+    peta.style.gridTemplateColumns = `repeat(${kolom}, 1fr)`; peta.style.gridTemplateRows = `repeat(${baris}, 1fr)`;
+    peta.style.aspectRatio = `${kolom} / ${baris}`;
+    kotak.forEach(k => {
+      const el = document.createElement(k.klik === false ? 'div' : 'button');
+      if (el.tagName === 'BUTTON') { el.type = 'button'; el.addEventListener('click', () => klik(k)); }
+      el.className = 'pr-dk ' + (k.kelas || '') + (aktif && aktif(k) ? ' aktif' : '');
+      el.style.gridColumn = `${k.x + 1} / span ${k.w}`; el.style.gridRow = `${k.y + 1} / span ${k.h}`;
+      el.textContent = k.nama;
+      peta.append(el);
+    });
+    return peta;
+  }
   const alami = (a, b) => String(a).localeCompare(String(b), 'id', {numeric: true, sensitivity: 'base'});
   let panel = null, latar = null, sasaran = null;
 
@@ -44,7 +83,8 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     const rak = [], lain = [];
     [...sel.options].forEach(o => {
       if (o.dataset.r !== undefined) rak.push({kode: o.value, nama: o.dataset.nama || '', tempat: o.dataset.tempat || '',
-        induk: o.dataset.induk || '', baris: +(o.dataset.baris || 0), kolom: +(o.dataset.kolom || 0), o});
+        induk: o.dataset.induk || '', baris: +(o.dataset.baris || 0), kolom: +(o.dataset.kolom || 0),
+        ruang: o.dataset.ruang || '', ruangUrut: o.dataset.ruangUrut === undefined || o.dataset.ruangUrut === '' ? 9999 : +o.dataset.ruangUrut, jenis: o.dataset.jenis || 'rak', lebar: +(o.dataset.lebar || 1), tinggi: +(o.dataset.tinggi || 1), o});
       else lain.push(o);
     });
     return {rak, lain};
@@ -104,6 +144,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     const kini = rak.find(r => r.kode === sel.value);
     let tab = kini ? kini.tempat : (tempatList[0] ?? '');
     let bukaGrid = null;   // rak baris x kolom yang sedang dibuka di panel
+    let ruangPilih = kini ? kini.ruang : null;   // ruangan yang sedang dibuka (null = pilih otomatis)
     const sempit = innerWidth < 640;
     panel = document.createElement('div');
     panel.className = 'pr-panel' + (sempit ? ' lembar' : '');
@@ -121,15 +162,17 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
       b.addEventListener('click', () => pilih(sel, o.value)); atas.append(b);
     });
     const tabs = document.createElement('div'); tabs.className = 'pr-baris pr-tab';
+    const tabsRuang = document.createElement('div'); tabsRuang.className = 'pr-baris pr-ruang';
+    const peta = document.createElement('div');
     const isi = document.createElement('div');
-    panel.append(...(rak.length > 8 ? [cari] : []), ...(lain.length ? [atas] : []), ...(tempatList.length > 1 ? [tabs] : []), isi);
+    panel.append(...(rak.length > 8 ? [cari] : []), ...(lain.length ? [atas] : []), ...(tempatList.length > 1 ? [tabs] : []), peta, tabsRuang, isi);
 
     function gambarTab(){
       tabs.replaceChildren(...tempatList.map(tp => {
         const b = document.createElement('button'); b.type = 'button';
         b.textContent = (tp || 'Tanpa lokasi') + ' · ' + rak.filter(r => r.tempat === tp).length;
         b.classList.toggle('aktif', tp === tab && !cari.value.trim());
-        b.addEventListener('click', () => { tab = tp; bukaGrid = null; cari.value = ''; gambar(); });
+        b.addEventListener('click', () => { tab = tp; bukaGrid = null; ruangPilih = null; cari.value = ''; gambar(); });
         return b;
       }));
     }
@@ -137,8 +180,32 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     function gambar(){
       gambarTab();
       const q = cari.value.trim().toLowerCase();
-      const daftar = q ? rak.filter(r => (r.kode + ' ' + r.nama + ' ' + r.tempat).toLowerCase().includes(q))
-                       : rak.filter(r => r.tempat === tab);
+      // Ruangan (14 Nov 2026): lokasi -> ruangan -> rak/area. Tanpa ruangan sama sekali = seperti dulu.
+      const diTab = rak.filter(r => r.tempat === tab);
+      const ruangList = [...new Set(diTab.map(r => r.ruang))];
+      const urutRuang = ru => (diTab.find(x => x.ruang === ru) || {}).ruangUrut ?? 9999;
+      const pakaiRuang = !q && ruangList.some(Boolean);
+      if (pakaiRuang && (ruangPilih === null || !ruangList.includes(ruangPilih))) ruangPilih = ruangList.filter(Boolean)[0] ?? '';
+      // Denah lokasi: ruangan yang sudah ditaruh di denah dipilih lewat gambar; sisanya lewat tombol.
+      const dl = (denahData() || {})[sel.dataset.lokasi || tab];
+      const diDenah = ru => !!(dl && ru && dl.ruang[ru] && dl.ruang[ru].w);
+      peta.replaceChildren();
+      if (pakaiRuang && ruangList.some(diDenah)) {
+        peta.append(gambarDenah(dl.ukuran[0], ruangList.filter(diDenah).map(ru => ({...dl.ruang[ru], nama: ru, ru, kelas: 'dk-ruang'})),
+          k => { ruangPilih = k.ru; bukaGrid = null; gambar(); }, k => k.ru === ruangPilih, true));
+      }
+      tabsRuang.hidden = !pakaiRuang;
+      tabsRuang.replaceChildren(...(pakaiRuang ? ruangList.filter(ru => !diDenah(ru)).sort((a, b) => (!a - !b) || (urutRuang(a) - urutRuang(b)) || alami(a, b)).map(ru => {
+        const b = document.createElement('button'); b.type = 'button';
+        b.textContent = (ru || 'Tanpa ruangan') + ' · ' + new Set(diTab.filter(x => x.ruang === ru).map(x => x.induk || x.kode)).size;
+        b.classList.toggle('aktif', ru === ruangPilih);
+        b.addEventListener('click', () => { ruangPilih = ru; bukaGrid = null; gambar(); });
+        return b;
+      }) : []));
+      const semuaCocok = q ? rak.filter(r => (r.kode + ' ' + r.nama + ' ' + r.tempat + ' ' + r.ruang).toLowerCase().includes(q))
+                           : diTab.filter(r => !pakaiRuang || r.ruang === ruangPilih);
+      const area = semuaCocok.filter(r => r.jenis !== 'rak');
+      const daftar = semuaCocok.filter(r => r.jenis === 'rak');
       const grup = new Map(), tunggal = [];
       daftar.forEach(r => {
         let dasar, b, k;
@@ -146,7 +213,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         else { const m = r.kode.match(POLA); if (!m) { tunggal.push(r); return; } dasar = m[1]; b = +m[2]; k = 1; }
         const kunciGrup = (q && tempatList.length > 1 ? r.tempat + '\u0000' : '') + dasar;
         if (!grup.has(kunciGrup)) grup.set(kunciGrup, {kunci: kunciGrup, dasar, tempat: r.tempat, item: []});
-        grup.get(kunciGrup).item.push({...r, b, k});
+        grup.get(kunciGrup).item.push({...r, b, k, lb: r.lebar || 1, tg: r.tinggi || 1});
       });
       // Rak dengan satu kotak saja digabung ke "Rak lain" supaya tidak satu baris per rak.
       [...grup].forEach(([k, g]) => { if (g.item.length === 1) { tunggal.push(g.item[0]); grup.delete(k); } });
@@ -160,20 +227,51 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
       const judulGrup = g => {
         const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = 'Rak ' + g.dasar;
         const namaUnik = [...new Set(g.item.map(x => x.nama).filter(Boolean))];
-        const nk = Math.max(...g.item.map(x => x.k)), nb = Math.max(...g.item.map(x => x.b));
+        const nk = Math.max(...g.item.map(x => x.k + x.lb - 1)), nb = Math.max(...g.item.map(x => x.b + x.tg - 1));
         const sub = [namaUnik.length === 1 ? namaUnik[0] : '', nk > 1 ? `${nb} baris × ${nk} kolom` : '',
                      q && tempatList.length > 1 ? (g.tempat || 'Tanpa lokasi') : ''].filter(Boolean).join(' · ');
         if (sub) { const s2 = document.createElement('small'); s2.textContent = sub; n.append(s2); }
         return n;
       };
-      const grids = [...grup.values()].filter(g => g.item.some(x => x.k > 1));
+      const grids = [...grup.values()].filter(g => g.item.some(x => x.k + x.lb - 1 > 1));
       if (!bukaGrid) {
         bukaGrid = new Set(grids.filter(g => g.item.some(x => x.kode === sel.value)).map(g => g.kunci));
         if (grids.length === 1) bukaGrid.add(grids[0].kunci);
       }
       const baris = [];
+      // Denah ruangan: rak (buka gambar kotaknya), area (langsung dipilih), pintu (penunjuk arah).
+      const dr = !q && pakaiRuang && dl && dl.ruang[ruangPilih];
+      if (dr && dr.blok && dr.blok.length) {
+        const kodeArea = new Set(area.map(x => x.kode));
+        const jenisArea = Object.fromEntries(area.map(x => [x.kode, x.jenis]));
+        const namaArea = Object.fromEntries(area.map(x => [x.kode, x.nama || x.kode]));
+        baris.push(gambarDenah(dl.ukuran_ruang[0], dr.blok.map(b => b.t === 'pintu' ? {...b, nama: 'pintu', kelas: 'dk-pintu', klik: false}
+          : b.t === 'area' || kodeArea.has(b.id) ? {...b, nama: namaArea[b.id] || b.id, kelas: 'dk-area dk-' + (jenisArea[b.id] || 'lantai')}
+          : {...b, nama: 'Rak ' + b.id, kelas: 'dk-rak'}),
+          k => {
+            if (k.kelas.includes('dk-area')) { pilih(sel, k.id); return; }
+            const g = [...grup.values()].find(g => g.dasar === k.id);
+            if (g && g.item.some(x => x.k + x.lb - 1 > 1)) { bukaGrid = new Set([g.kunci]); gambar(); }
+            setTimeout(() => { const t = [...isi.querySelectorAll('.pr-grid-kepala, .pr-grup')].find(e => e.textContent.startsWith('Rak ' + k.id));
+              if (t) t.scrollIntoView({block: 'start', behavior: 'smooth'}); }, 30);
+          },
+          k => (k.kelas || '').includes('dk-area') ? k.id === sel.value : (rak.find(x => x.kode === sel.value) || {}).induk === k.id));
+      }
+      if (area.length) {
+        const d = document.createElement('div'); d.className = 'pr-area';
+        area.sort((a, b) => (a.jenis === 'sementara') - (b.jenis === 'sementara') || alami(a.kode, b.kode)).forEach(x => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'pr-area-' + x.jenis;
+          const n = document.createElement('b'); n.textContent = x.nama || x.kode;
+          const k = document.createElement('small'); k.textContent = (x.jenis === 'sementara' ? 'Area sementara' : 'Area lantai')
+            + (q && x.ruang ? ' · ' + x.ruang : '');
+          b.append(n, k); b.setAttribute('aria-label', (x.jenis === 'sementara' ? 'Area sementara ' : 'Area lantai ') + (x.nama || x.kode));
+          if (x.kode === sel.value) b.classList.add('aktif');
+          b.addEventListener('click', () => pilih(sel, x.kode)); d.append(b);
+        });
+        baris.push(d);
+      }
       [...grup.values()].sort((a, b) => alami(a.dasar, b.dasar)).forEach(g => {
-        const nk = Math.max(...g.item.map(x => x.k));
+        const nk = Math.max(...g.item.map(x => x.k + x.lb - 1));
         if (nk === 1) {
           // Rak 1 kolom (bertingkat): satu baris tombol nomor baris, 1 = paling bawah.
           const d = document.createElement('div'); d.className = 'pr-grup';
@@ -190,22 +288,25 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         t.addEventListener('click', () => { bukaGrid.has(g.kunci) ? bukaGrid.delete(g.kunci) : bukaGrid.add(g.kunci); gambar(); });
         kepala.append(judulGrup(g), t); baris.push(kepala);
         if (!buka) return;
-        const nb = Math.max(...g.item.map(x => x.b));
-        const pos = new Map(g.item.map(x => [x.b + ':' + x.k, x]));
+        const nb = Math.max(...g.item.map(x => x.b + x.tg - 1));
+        // Letak eksplisit (CSS grid) supaya kotak gabungan (lebar/tinggi > 1) tampil seperti aslinya.
         const kotak = document.createElement('div'); kotak.className = 'pr-kotak';
         kotak.style.gridTemplateColumns = `auto repeat(${nk}, minmax(44px, 1fr))`;
-        const sel2 = [document.createElement('div')]; sel2[0].className = 'sb';
-        for (let k = 1; k <= nk; k++) { const h = document.createElement('div'); h.className = 'sb'; h.textContent = 'K' + k; sel2.push(h); }
+        const sel2 = [];
+        const taruh = (el, baris, kolom, tg = 1, lb = 1) => { el.style.gridRow = `${baris} / span ${tg}`; el.style.gridColumn = `${kolom} / span ${lb}`; sel2.push(el); };
+        for (let k = 1; k <= nk; k++) { const h = document.createElement('div'); h.className = 'sb'; h.textContent = 'K' + k; taruh(h, 1, k + 1); }
+        const tertutup = new Set();
+        g.item.forEach(x => {
+          for (let b = x.b; b < x.b + x.tg; b++) for (let k = x.k; k < x.k + x.lb; k++) tertutup.add(b + ':' + k);
+          const teks = x.tg > 1 || x.lb > 1 ? `${x.b}-${x.k} ▭` : `${x.b}-${x.k}`;
+          taruh(tombolRak(x, teks), nb - (x.b + x.tg - 1) + 2, x.k + 1, x.tg, x.lb);
+        });
         for (let b = nb; b >= 1; b--) {
-          const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = 'B' + b; sel2.push(sb);
-          for (let k = 1; k <= nk; k++) {
-            const x = pos.get(b + ':' + k);
-            if (x) sel2.push(tombolRak(x, b + '-' + k));
-            else { const e = document.createElement('div'); sel2.push(e); }
-          }
+          const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = 'B' + b; taruh(sb, nb - b + 2, 1);
+          for (let k = 1; k <= nk; k++) if (!tertutup.has(b + ':' + k)) taruh(document.createElement('div'), nb - b + 2, k + 1);
         }
-        const kosong = document.createElement('div'); kosong.className = 'sb';
-        const lantai = document.createElement('div'); lantai.className = 'lantai'; lantai.textContent = 'lantai';
+        const kosong = document.createElement('div'); kosong.className = 'sb'; kosong.style.gridRow = String(nb + 2);
+        const lantai = document.createElement('div'); lantai.className = 'lantai'; lantai.textContent = 'lantai'; lantai.style.gridRow = String(nb + 2);
         kotak.append(...sel2, kosong, lantai); baris.push(kotak);
       });
       if (tunggal.length) {

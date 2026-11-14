@@ -8,6 +8,9 @@
 .kepala-rak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
 .kepala-rak form{display:flex;gap:6px;align-items:center;margin:0}
 tr.grup-rak td{background:#faf8f4}
+tr.ruang-kepala td{background:var(--latar-2,#efebe3);padding:8px 12px;font-size:15px}
+.chip-jenis{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;background:#e6f2ee;color:#0b5b45}.chip-jenis.jenis-sementara{background:#fde8e8;color:#9b1c1c}
+.atur-ruang{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.atur-ruang form{display:flex;gap:6px;align-items:center;margin:0}.atur-ruang input{width:150px}
 .buka-grup{border:0;background:none;font:inherit;color:var(--aksen);cursor:pointer;padding:6px 4px;min-height:36px}
 .buka-grup .panah{display:inline-block;transition:transform .15s}.buka-grup[aria-expanded=true] .panah{transform:rotate(90deg)}
 tr[data-anak] td:first-child{padding-left:26px}
@@ -17,6 +20,8 @@ tr[data-anak] td:first-child{padding-left:26px}
 .gambar-rak a b{font-weight:600}.gambar-rak a span{font-size:11px;color:var(--redup)}
 .gambar-rak a.isi{background:var(--aksen-lembut,#fbeee6);border-color:var(--aksen)}
 .gambar-rak .kosong{border-style:dashed;background:none}
+.gambar-rak a.gabungan{border-width:2px}.gambar-rak.memilih a{cursor:pointer}.gambar-rak a.dipilih{outline:3px solid var(--aksen);outline-offset:-3px;background:var(--aksen-lembut,#fbeee6)}
+.form-gabung{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px}
 .gambar-rak .lantai{grid-column:2 / -1;border-top:3px solid var(--garis-kuat);font-size:11px;color:var(--redup);text-align:center;padding-top:2px}
 #pratinjau-rak{margin:8px 0 0}
 .ukuran-rak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0}.ukuran-rak label{display:flex;gap:6px;align-items:center;font-size:14px}.ukuran-rak input{width:56px}
@@ -31,10 +36,19 @@ tr[data-anak] td:first-child{padding-left:26px}
     <button class="tombol kecil" type="submit" name="nilai" value="1">Jadikan langsung</button>
     <button class="tombol kecil" type="submit" name="nilai" value="0">Jadikan disiapkan</button>
   </form>{% endif %}{% else %}<span class="redup kecil">Pilih lokasinya di kolom Lokasi, lalu Simpan.</span>{% endif %}
+</div>
+{% if aktif.lokasi %}<div class="atur-ruang">
+  <span class="redup kecil">Ruangan:</span>
+  {% for ru in daftar_ruang %}{% if 'kelola_rak' in hak %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="ruang_ubah"><input type="hidden" name="id" value="{{ ru.id }}"><input type="text" name="nama" value="{{ ru.nama }}" aria-label="Nama ruangan"><button class="tombol kecil" type="submit">Simpan</button></form><form method="post" data-tanya="Hapus ruangan {{ ru.nama }}? Rak di dalamnya tidak terhapus, hanya jadi tanpa ruangan.">{% csrf_token %}<input type="hidden" name="aksi" value="ruang_hapus"><input type="hidden" name="id" value="{{ ru.id }}"><button class="tombol kecil bahaya" type="submit" aria-label="Hapus ruangan {{ ru.nama }}">×</button></form>{% else %}<span class="tombol kecil">{{ ru.nama }}</span>{% endif %}{% empty %}<span class="redup kecil">belum ada.</span>{% endfor %}
+  {% if 'kelola_rak' in hak %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="ruang_tambah"><input type="hidden" name="tempat" value="{{ aktif.lokasi.id }}"><input type="text" name="nama" placeholder="mis. Ruangan 1" required aria-label="Nama ruangan baru"><button class="tombol kecil" type="submit">+ Ruangan</button></form>{% endif %}
+  {% if daftar_ruang and 'kelola_rak' in hak %}<a class="tombol kecil" href="{% url 'master:denah' aktif.lokasi.id %}">Susun denah ›</a>{% endif %}
 </div>{% endif %}
+{% endif %}
 <div class="gulir"><table>
-  <tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>PIC</th><th title="Barang display: tidak masuk daftar Siapkan">Langsung</th><th>Catatan lokasi</th><th>Keterangan</th><th class="angka">Varian</th>{% if 'kelola_rak' in hak %}<th></th>{% endif %}</tr>
-  {% for e in daftar %}
+  <tr><th>Kode</th><th>Nama</th><th>Lokasi</th><th>PIC</th><th title="Barang display: tidak masuk daftar Siapkan">Langsung</th><th>Ruangan</th><th>Keterangan</th><th class="angka">Varian</th>{% if 'kelola_rak' in hak %}<th></th>{% endif %}</tr>
+  {% for bg in bagian %}
+  <tr class="ruang-kepala"><td colspan="9"><b>{% if bg.ruang %}{{ bg.ruang.nama }}{% else %}Tanpa ruangan{% endif %}</b> <span class="redup kecil">· {{ bg.entri|length }} rak/area</span></td></tr>
+  {% for e in bg.entri %}
   {% if e.grup %}
   <tr class="grup-rak" data-grup="{{ e.grup }}">
     <td style="white-space:nowrap"><button type="button" class="buka-grup" aria-expanded="false" aria-label="Buka kotak rak {{ e.grup }}"><span class="panah">▸</span> <b>{{ e.grup }}</b></button></td>
@@ -43,7 +57,8 @@ tr[data-anak] td:first-child{padding-left:26px}
     <td><select name="tempat" form="grup-{{ e.grup }}" style="min-width:150px" aria-label="Lokasi semua tingkat {{ e.grup }}">{% if e.tempat_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if e.tempat_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>
     <td><select name="pic" form="grup-{{ e.grup }}" style="min-width:140px" aria-label="PIC semua tingkat {{ e.grup }}">{% if e.pic_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if e.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></td>
     <td style="text-align:center"><select name="langsung" form="grup-{{ e.grup }}" style="width:auto" aria-label="Langsung semua tingkat {{ e.grup }}">{% if e.langsung_campur %}<option value="__tetap" selected>campur</option>{% endif %}<option value="1" {% if e.langsung and not e.langsung_campur %}selected{% endif %}>ya</option><option value="0" {% if not e.langsung and not e.langsung_campur %}selected{% endif %}>tidak</option></select></td>
-    <td colspan="2" class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · diubah di sini berlaku untuk semua kotak</td>
+    <td><select name="ruang" form="grup-{{ e.grup }}" style="min-width:130px" aria-label="Ruangan rak {{ e.grup }}">{% if e.ruang_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}" {% if e.ruang_id == ru.id %}selected{% endif %}>{{ ru.nama }}</option>{% endfor %}</select></td>
+    <td class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · diubah di sini berlaku untuk semua kotak</td>
     <td class="angka">{{ e.jumlah|ribuan }}</td>
     <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} kotak rak {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form></td>
     {% else %}
@@ -58,15 +73,24 @@ tr[data-anak] td:first-child{padding-left:26px}
       <button class="tombol kecil" type="submit">Ubah ukuran</button>
       <span class="kecil redup">Kode, barang, dan hitungan di kotak yang ada ikut terbawa.</span>
     </form>{% endif %}
-    <div class="gambar-rak" style="grid-template-columns:auto repeat({{ e.n_kolom }}, minmax(62px, 1fr))">
-      {% for b in e.kotak %}<div class="sb">B{{ b.baris }}</div>{% for k in b.isi %}{% if k %}<a href="{% url 'master:barang' %}?rak={{ k.kode|urlencode }}" class="{% if k.jumlah %}isi{% endif %}" title="{{ k.kode }}"><b>{{ k.kode }}</b><span>{{ k.jumlah }} varian</span></a>{% else %}<div class="kosong redup kecil">-</div>{% endif %}{% endfor %}{% endfor %}
-      <div class="sb"></div><div class="lantai">lantai</div>
+    <div class="gambar-rak" data-rak="{{ e.grup }}" style="grid-template-columns:auto repeat({{ e.n_kolom }}, minmax(62px, 1fr));grid-template-rows:repeat({{ e.n_baris }}, minmax(44px, auto)) auto">
+      {% for l in e.sel.label %}<div class="sb" style="grid-row:{{ l.baris_css }};grid-column:1">{{ l.teks }}</div>{% endfor %}
+      {% for x in e.sel.kotak %}{% if x.r %}<a href="{% url 'master:barang' %}?rak={{ x.r.kode|urlencode }}" data-kotak="{{ x.r.kode }}" data-gabung="{% if x.gabung %}1{% endif %}" class="{% if x.r.jumlah %}isi{% endif %}{% if x.gabung %} gabungan{% endif %}" title="{{ x.r.kode }}" style="grid-row:{{ x.baris_css }} / span {{ x.tinggi }};grid-column:{{ x.kolom_css }} / span {{ x.lebar }}"><b>{{ x.r.kode }}</b><span>{{ x.r.jumlah }} varian</span></a>{% else %}<div class="kosong redup kecil" style="grid-row:{{ x.baris_css }};grid-column:{{ x.kolom_css }}">-</div>{% endif %}{% endfor %}
+      <div class="lantai" style="grid-row:{{ e.n_baris|add:1 }}">lantai</div>
     </div>
+    {% if 'kelola_rak' in hak %}<form method="post" class="form-gabung" data-rak="{{ e.grup }}">{% csrf_token %}<input type="hidden" name="kode" value="{{ e.grup }}">
+      <button type="button" class="tombol kecil mulai-gabung">Gabung / pisah kotak</button>
+      <span class="redup kecil petunjuk" hidden>Ketuk kotak yang mau digabung (harus bersebelahan, membentuk persegi panjang). Ketuk satu kotak gabungan untuk memisahkannya.</span>
+      <button type="submit" name="aksi" value="gabung" class="tombol kecil utama tombol-gabung" hidden>Gabung</button>
+      <button type="submit" name="aksi" value="pisah" class="tombol kecil tombol-pisah" hidden>Pisah</button>
+      <button type="button" class="tombol kecil batal-gabung" hidden>Batal</button>
+    </form>{% endif %}
   </td></tr>
   {% for r in e.rak %}{% include "master/_rak_baris.html" with anak=e.grup %}{% endfor %}
   {% else %}
   {% for r in e.rak %}{% include "master/_rak_baris.html" with anak="" %}{% endfor %}
   {% endif %}
+  {% endfor %}
   {% empty %}<tr><td colspan="9" class="redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.</td></tr>
   {% endfor %}
 </table></div>
@@ -82,6 +106,34 @@ tr[data-anak] td:first-child{padding-left:26px}
     nyala ? buka.add(g) : buka.delete(g);
     try { sessionStorage.setItem(KUNCI, JSON.stringify([...buka])); } catch (e) {}
   };
+  // Gabung / pisah kotak (14 Nov 2026): mode pilih di gambar rak; kotak dicentang lalu dikirim sebagai daftar.
+  document.querySelectorAll('.form-gabung').forEach(f => {
+    const g = document.querySelector(`.gambar-rak[data-rak="${CSS.escape(f.dataset.rak)}"]`);
+    if (!g) return;
+    const $f = s => f.querySelector(s);
+    const pilih = new Set();
+    const segar = () => {
+      f.querySelectorAll('input[name=kotak]').forEach(i => i.remove());
+      pilih.forEach(k => { const i = document.createElement('input'); i.type = 'hidden'; i.name = 'kotak'; i.value = k; f.append(i); });
+      const satuGabungan = pilih.size === 1 && g.querySelector(`[data-kotak="${CSS.escape([...pilih][0])}"]`).dataset.gabung;
+      $f('.tombol-gabung').hidden = pilih.size < 2; $f('.tombol-gabung').textContent = `Gabung ${pilih.size} kotak`;
+      $f('.tombol-pisah').hidden = !satuGabungan;
+      g.querySelectorAll('[data-kotak]').forEach(a => a.classList.toggle('dipilih', pilih.has(a.dataset.kotak)));
+    };
+    const mode = nyala => {
+      g.classList.toggle('memilih', nyala); pilih.clear(); segar();
+      $f('.mulai-gabung').hidden = nyala; $f('.petunjuk').hidden = !nyala; $f('.batal-gabung').hidden = !nyala;
+    };
+    $f('.mulai-gabung').addEventListener('click', () => mode(true));
+    $f('.batal-gabung').addEventListener('click', () => mode(false));
+    g.addEventListener('click', e => {
+      if (!g.classList.contains('memilih')) return;
+      const a = e.target.closest('[data-kotak]'); if (!a) return;
+      e.preventDefault();
+      pilih.has(a.dataset.kotak) ? pilih.delete(a.dataset.kotak) : pilih.add(a.dataset.kotak);
+      segar();
+    });
+  });
   document.querySelectorAll('tr.grup-rak').forEach(tr => {
     const g = tr.dataset.grup; atur(g, buka.has(g));
     tr.querySelector('.buka-grup').addEventListener('click', () => atur(g, !buka.has(g)));
@@ -96,6 +148,7 @@ tr[data-anak] td:first-child{padding-left:26px}
   <div style="width:90px"><label>Kolom</label><input type="text" name="kolom" value="1" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" aria-describedby="contoh-tingkat"></div>
   <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required placeholder="mis. Rak dekat tangga"></div>
   <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+  <div style="width:150px"><label>Ruangan</label><select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}">{{ ru.nama }}</option>{% endfor %}</select></div>
   <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
   <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
   <div><button class="tombol utama" type="submit">Buat</button></div>
@@ -128,14 +181,16 @@ tr[data-anak] td:first-child{padding-left:26px}
   f.addEventListener('input', tulis); tulis();
 })();
 </script>
-<h3>Tambah satu rak</h3>
+<h3>Tambah satu rak / area</h3>
+<p class="kecil redup" style="margin:-4px 0 8px"><b>Area lantai</b> = tumpukan yang posisinya berubah-ubah (mis. keramik): cukup satu per ruangan atau per sisi. <b>Area sementara</b> = tempat barang baru yang belum sempat disusun.</p>
 <form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
-  <div style="width:120px"><label>Kode</label><input type="text" name="kode" maxlength="20" required></div>
+  <div style="width:150px"><label>Jenis</label><select name="jenis"><option value="rak">Rak</option><option value="lantai">Area lantai</option><option value="sementara">Area sementara</option></select></div>
+  <div style="width:120px"><label>Kode</label><input type="text" name="kode" maxlength="20" required placeholder="mis. R2-KIRI"></div>
   <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required></div>
   <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
   <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
   <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
-  <div style="width:160px"><label>Catatan lokasi</label><input type="text" name="lokasi"></div>
+  <div style="width:150px"><label>Ruangan</label><select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}">{{ ru.nama }}</option>{% endfor %}</select></div>
   <div style="flex:2;min-width:200px"><label>Keterangan</label><input type="text" name="keterangan"></div>
   <div><button class="tombol utama" type="submit">Tambah</button></div>
 </form>

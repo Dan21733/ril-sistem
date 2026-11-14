@@ -28,7 +28,7 @@
     <td><input type="text" data-k="max_price" class="uang" inputmode="numeric" autocomplete="off"></td>
     {% if 'ubah_modal' in hak %}<td><input type="text" data-k="cost_amount" class="uang" inputmode="numeric" autocomplete="off"></td>{% endif %}
     <td><input type="text" data-k="in_stock" class="uang" inputmode="numeric" autocomplete="off" value="0"></td>
-    <td><select data-pilih-rak data-k="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}</option>{% endfor %}</select></td>
+    <td><select data-pilih-rak data-k="kode_rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}</option>{% endfor %}</select></td>
     <td><button type="button" class="tombol kecil" data-hapus-baris title="Hapus baris">×</button></td>
   </tr>
 </template>

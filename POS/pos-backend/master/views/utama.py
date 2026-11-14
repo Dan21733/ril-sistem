@@ -332,7 +332,7 @@ def barang_daftar(request):
         "daftar_kategori": sorted(set(milik.values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(milik.values_list("brand", flat=True).distinct()), key=kunci_alami),
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
-        "daftar_rak": Rak.objects.select_related("tempat"),
+        "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "toko_titipan": toko_kini if titipan.adalah_titipan(toko_kini) else None,
     })
@@ -417,7 +417,7 @@ def barang_baru(request):
     return render(request, "master/_barang_baru.html", {
         "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True).distinct() if k}, key=kunci_alami),
-        "daftar_rak": Rak.objects.select_related("tempat"),
+        "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
     })
 
 
@@ -646,7 +646,7 @@ def item_detail(request, item_id, panel=False):
         "ada_terjual": any(b["terjual"] for b in barang),
         "daftar_kategori": sorted(set(milik_item.values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(milik_item.values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.select_related("tempat"),
+        "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
         "log_item": Log.objects.filter(item_name=item_info.item_name)[:15] if "lihat_log" in hak else [],
         "pemasok": pemasok.untuk_barang(item_info, hak) if pemasok.boleh_lihat(hak) else None,
         "daftar_supplier": Supplier.objects.filter(aktif=True) if pemasok.boleh_lihat(hak) else [],
@@ -702,7 +702,7 @@ def harga(request):
         "param": param or request.POST,
         "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.select_related("tempat"),
+        "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
         "daftar_masalah": masalah.aturan_untuk(hak),
         "kolom_massal": [(k, layanan.KOLOM_VARIAN[k][0]) for k in layanan.KOLOM_HARGA
                          if layanan.KOLOM_VARIAN[k][2] in hak],
@@ -734,7 +734,7 @@ def stok(request):
         "jumlah_menipis": semua.filter(stock_alert__isnull=False, in_stock__lte=F("stock_alert"), in_stock__gt=0).count(),
         "daftar_kategori": sorted(set(_milik(request).values_list("category", flat=True).distinct()), key=kunci_alami),
         "daftar_brand": sorted(set(_milik(request).values_list("brand", flat=True).distinct()), key=kunci_alami),
-        "daftar_rak": Rak.objects.select_related("tempat"),
+        "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
         "daftar_jenis": layanan.JENIS_MUTASI.items(),
         "pilihan_lokasi": svc_lokasi.pilihan() if Lokasi.objects.filter(jenis="gudang", aktif=True).exists() else [],
     })
@@ -1005,6 +1005,22 @@ def kelompok(request, kolom):
 # ---------------------------------------------------------------------------
 
 
+def _sel_gambar(rs, n_baris, n_kolom):
+    """Letak tiap kotak di gambar tampak depan (CSS grid): baris teratas di atas, kolom 1 = kolom grid 2.
+    Kotak gabungan memakai span; sel yang tidak ditempati kotak mana pun digambar kosong."""
+    from master.layanan.rak import _sel
+    tertutup, hasil = set(), []
+    for r in rs:
+        b, k = r.baris or 1, r.kolom or 1
+        tertutup.update(_sel(r))
+        hasil.append({"r": r, "baris_css": n_baris - (b + r.tinggi - 1) + 1, "kolom_css": k + 1,
+                      "tinggi": r.tinggi, "lebar": r.lebar, "gabung": r.tinggi > 1 or r.lebar > 1})
+    kosong = [{"r": None, "baris_css": n_baris - b + 1, "kolom_css": k + 1, "tinggi": 1, "lebar": 1}
+              for b in range(1, n_baris + 1) for k in range(1, n_kolom + 1) if (b, k) not in tertutup]
+    label = [{"teks": f"B{b}", "baris_css": n_baris - b + 1} for b in range(1, n_baris + 1)]
+    return {"kotak": hasil + kosong, "label": label}
+
+
 def _kelompok_rak(daftar):
     """Rak baris x kolom dikelompokkan per rak induk (A-1-1 .. A-6-4 = rak A); rak tunggal tetap sendiri.
 
@@ -1025,17 +1041,17 @@ def _kelompok_rak(daftar):
         rs = e["rak"]
         if e["grup"]:
             sama = lambda f: len({f(r) for r in rs}) == 1
-            n_baris = max(r.baris or 1 for r in rs)
-            n_kolom = max(r.kolom or 1 for r in rs)
+            n_baris = max((r.baris or 1) + r.tinggi - 1 for r in rs)
+            n_kolom = max((r.kolom or 1) + r.lebar - 1 for r in rs)
             posisi = {(r.baris or 1, r.kolom or 1): r for r in rs}
             e.update(nama=rs[0].nama if sama(lambda r: r.nama) else "",
                      tempat_id=rs[0].tempat_id if sama(lambda r: r.tempat_id) else "__tetap",
                      pic_id=rs[0].pic_id if sama(lambda r: r.pic_id) else "__tetap",
+                     ruang_id=rs[0].ruang_id if sama(lambda r: r.ruang_id) else "__tetap",
                      langsung=all(r.langsung for r in rs), langsung_campur=not sama(lambda r: r.langsung),
                      jumlah=sum(r.jumlah for r in rs), kode=[r.kode for r in rs],
                      n_baris=n_baris, n_kolom=n_kolom, n_kotak=len(rs),
-                     kotak=[{"baris": b, "isi": [posisi.get((b, k)) for k in range(1, n_kolom + 1)]}
-                            for b in range(n_baris, 0, -1)])
+                     sel=_sel_gambar(rs, n_baris, n_kolom))
     return urut
 
 
@@ -1060,7 +1076,10 @@ def rak(request):
                 tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
                 pic = {u.pk: u for u in penerima_boleh()}.get(int(request.POST.get("pic") or 0)
                                                                if (request.POST.get("pic") or "").isdigit() else 0)
-                _, dibuat = Rak.objects.update_or_create(kode=kode, defaults={
+                ubah_lain = {"ruang": svc_rak.ruang_untuk(tempat, request.POST.get("ruang"))}
+                if request.POST.get("jenis") in dict(Rak.JENIS):
+                    ubah_lain["jenis"] = request.POST.get("jenis")
+                _, dibuat = Rak.objects.update_or_create(kode=kode, defaults={**ubah_lain,
                     "nama": nama, "tempat": tempat, "pic": pic, "langsung": request.POST.get("langsung") == "1",
                     "lokasi": layanan.rapikan_teks(request.POST.get("lokasi")),
                     "keterangan": layanan.rapikan_teks(request.POST.get("keterangan")),
@@ -1075,6 +1094,7 @@ def rak(request):
             angka = lambda n, bawaan=0: int(request.POST.get(n)) if str(request.POST.get(n) or "").isdigit() else bawaan
             tempat = Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first()
             pic = {u.pk: u for u in penerima_boleh()}.get(angka("pic"))
+            ruang = svc_rak.ruang_untuk(tempat, request.POST.get("ruang"))
             try:
                 baru, ada = svc_rak.buat(request.user, induk=kode, nama=request.POST.get("nama"),
                                          baris=angka("baris") or angka("tingkat"), kolom=angka("kolom", 1),
@@ -1083,6 +1103,8 @@ def rak(request):
                 messages.error(request, str(tolak))
                 return redirect(request.get_full_path())
             induk = svc_rak.kode_induk(kode)
+            if ruang is not None:
+                Rak.objects.filter(induk=induk, tempat=tempat).update(ruang=ruang)
             if baru:
                 messages.success(request, f"Rak {induk}: {len(baru)} kotak dibuat ({baru[0].kode} sampai {baru[-1].kode})."
                                  + (f" {ada} kotak sudah ada, dilewati." if ada else ""))
@@ -1103,6 +1125,17 @@ def rak(request):
                           f"{len(h['dihapus'])} kotak kosong dihapus" if h["dihapus"] else ""]
                 messages.success(request, f"Rak {kode}: " + (", ".join(b for b in bagian if b) or "ukurannya sudah sama") + ".")
             return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
+        elif aksi in ("gabung", "pisah"):
+            try:
+                if aksi == "gabung":
+                    jangkar = svc_rak.gabung(request.user, request.POST.getlist("kotak"))
+                    messages.success(request, f"Kotak digabung jadi {jangkar}.")
+                else:
+                    n = svc_rak.pisah(request.user, request.POST.get("kotak"))
+                    messages.success(request, f"Kotak dipisah lagi jadi {n} kotak.")
+            except Tolak as tolak:
+                messages.error(request, str(tolak))
+            return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
         elif aksi == "simpan_grup":
             # Satu rak bertingkat sekaligus: nama/lokasi/PIC/langsung untuk semua tingkatnya.
             from master.layanan.pembelian import penerima_boleh
@@ -1119,6 +1152,12 @@ def rak(request):
             if request.POST.get("pic") != "__tetap":
                 ubah["pic"] = {u.pk: u for u in penerima_boleh()}.get(
                     int(request.POST.get("pic") or 0) if (request.POST.get("pic") or "").isdigit() else 0)
+            if request.POST.get("ruang") != "__tetap" and "ruang" in request.POST:
+                contoh = Rak.objects.filter(kode__in=kode_grup).select_related("tempat").first()
+                tempat_baru = ubah.get("tempat", contoh.tempat if contoh else None)
+                ubah["ruang"] = svc_rak.ruang_untuk(tempat_baru, request.POST.get("ruang"))
+            elif "tempat" in ubah:
+                ubah["ruang"] = None          # pindah lokasi: ruangan lama tidak berlaku
             n = Rak.objects.filter(kode__in=kode_grup).update(**ubah) if kode_grup else 0
             layanan.catat(request.user, aksi="ubah", objek="rak", kolom="rak",
                           baru=f"{kode} ({n} tingkat): " + ", ".join(sorted(ubah)))
@@ -1127,6 +1166,23 @@ def rak(request):
                 t = ubah["tempat"]
                 return redirect(f"{reverse('master:rak')}?lokasi={t.pk if t else 'tanpa'}&buka={kode}")
             return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
+        elif aksi in ("ruang_tambah", "ruang_ubah", "ruang_hapus"):
+            from master.models import Lokasi, Ruang
+            try:
+                if aksi == "ruang_tambah":
+                    r = svc_rak.tambah_ruang(request.user, Lokasi.objects.filter(pk=request.POST.get("tempat") or 0).first(),
+                                             request.POST.get("nama"))
+                    messages.success(request, f"Ruangan {r.nama} ditambahkan. Pilih ruangannya di tiap rak.")
+                else:
+                    r = get_object_or_404(Ruang, pk=request.POST.get("id") or 0)
+                    if aksi == "ruang_ubah":
+                        svc_rak.ubah_ruang(request.user, r, request.POST.get("nama"))
+                        messages.success(request, "Nama ruangan tersimpan.")
+                    else:
+                        n = svc_rak.hapus_ruang(request.user, r)
+                        messages.success(request, f"Ruangan dihapus. {n} rak jadi tanpa ruangan (raknya tidak terhapus).")
+            except Tolak as tolak:
+                messages.error(request, str(tolak))
         elif aksi == "langsung_lokasi":
             # Semua rak di satu lokasi sekaligus (mis. semua rak Toko = display, tidak disiapkan).
             nilai = request.POST.get("nilai") == "1"
@@ -1168,8 +1224,17 @@ def rak(request):
         daftar = semua.filter(tempat__isnull=True)
     else:
         daftar = semua.filter(tempat=aktif["lokasi"])
+    from master.models import Ruang
+    daftar_ruang = list(Ruang.objects.filter(lokasi=aktif["lokasi"])) if aktif and aktif["lokasi"] else []
+    entri = _kelompok_rak(sorted(daftar.select_related("ruang"), key=svc_rak.urut))
+    # Dikelompokkan per ruangan (urutan ruangan), "Tanpa ruangan" paling akhir.
+    bagian = [{"ruang": ru, "entri": [e for e in entri if e["rak"][0].ruang_id == ru.id]} for ru in daftar_ruang]
+    tanpa = [e for e in entri if not e["rak"][0].ruang_id or e["rak"][0].ruang_id not in {ru.id for ru in daftar_ruang}]
+    if tanpa:
+        bagian.append({"ruang": None, "entri": tanpa})
     return render(request, "master/rak.html", {
-        "menu": "rak", "daftar": _kelompok_rak(sorted(daftar, key=svc_rak.urut)), "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
+        "bagian": bagian, "daftar_ruang": daftar_ruang,
+        "menu": "rak", "daftar": entri, "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
         "tanpa_rak": VarianInfo.objects.filter(rak__isnull=True, sampah__isnull=True).count(),
         "tab": tab, "aktif": aktif, "total_rak": sum(per_lokasi.values()),
     })

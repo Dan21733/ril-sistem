@@ -70,7 +70,7 @@ def batal(pengguna, sesi, *, hak):
 
 def rak_lokasi(lokasi):
     """Rak yang bisa dipilih di satu lokasi: rak lokasi itu + rak lama yang belum diberi lokasi."""
-    return list(Rak.objects.filter(Q(tempat=lokasi) | Q(tempat__isnull=True)).order_by("kode"))
+    return list(Rak.objects.filter(Q(tempat=lokasi) | Q(tempat__isnull=True)).select_related("ruang").order_by("kode"))
 
 
 def barang_tablet(t):

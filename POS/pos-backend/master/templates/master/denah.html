@@ -1,0 +1,138 @@
+{% extends "master/base.html" %}
+{% block judul %}Denah {{ lokasi.nama }}{% endblock %}
+{% block isi %}
+<style>
+.dn-tab{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}.dn-tab a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
+.dn-kerja{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.dn-palet{width:230px;display:flex;flex-direction:column;gap:6px}
+.dn-palet button{display:flex;justify-content:space-between;align-items:center;gap:6px;text-align:left;min-height:42px;padding:6px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;cursor:pointer}
+.dn-palet button.aktif{outline:3px solid var(--aksen);outline-offset:-2px}
+.dn-palet button small{color:var(--redup);font-size:12px}.dn-palet button.sudah small{color:#0b5b45}
+.dn-kanvas{position:relative;display:inline-grid;gap:0;background-color:#fff;background-image:linear-gradient(var(--garis) 1px,transparent 1px),linear-gradient(90deg,var(--garis) 1px,transparent 1px);border:1px solid var(--garis-kuat);touch-action:none;user-select:none}
+.dn-blok{display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-weight:600;border:2px solid;border-radius:6px;overflow:hidden;padding:2px;cursor:pointer;line-height:1.15}
+.dn-blok.t-ruang{background:#f6f3ee;border-color:#6b6256;color:#3d362c}
+.dn-blok.t-rak{background:#fdf3d7;border-color:#d4a514;color:#6b4f00}
+.dn-blok.t-area{background:#e6f2ee;border-color:#0f6e56;color:#085041;border-style:dashed}
+.dn-blok.j-sementara{background:#fde8e8;border-color:#c0392b;color:#7a1d14}
+.dn-blok.t-pintu{background:#fff;border-color:#888;color:#555;border-style:dotted}
+.dn-blok.aktif{box-shadow:0 0 0 3px var(--aksen)}
+.dn-pratinjau{border:2px dashed var(--aksen);background:rgba(184,92,40,.12);border-radius:6px;pointer-events:none}
+</style>
+<h2>Denah {{ lokasi.nama }}</h2>
+<p class="sub">Dilihat dari atas. Pilih ruangan/rak di kiri, lalu <b>tarik kotak</b> di denah untuk menaruhnya (tarik ulang untuk memindah). Hanya penunjuk arah: stok dan kode rak tidak berubah.</p>
+<nav class="dn-tab" aria-label="Bagian denah">
+  <a class="tombol kecil {% if not ruang_pilih %}aktif{% endif %}" href="?">Letak ruangan</a>
+  {% for ru in daftar_ruang %}<a class="tombol kecil {% if ruang_pilih and ruang_pilih.id == ru.id %}aktif{% endif %}" href="?ruang={{ ru.id }}">Isi {{ ru.nama }}</a>{% endfor %}
+  <a class="tombol kecil" href="{% url 'master:rak' %}?lokasi={{ lokasi.id }}">‹ Kembali ke Rak</a>
+</nav>
+<div class="dn-kerja">
+  <div class="dn-palet" id="palet" aria-label="Yang bisa ditaruh"></div>
+  <div>
+    <div class="dn-kanvas" id="kanvas" role="application" aria-label="Denah, tarik untuk menaruh kotak"></div>
+    <div class="baris" style="margin-top:10px;gap:8px;display:flex;flex-wrap:wrap;align-items:center">
+      <button class="tombol utama" type="button" id="simpan">Simpan denah</button>
+      <button class="tombol" type="button" id="lepas" hidden>Lepas dari denah</button>
+      <span class="kecil redup" id="ket">{% if ruang_pilih %}Pintu boleh lebih dari satu. Rak yang belum masuk ruangan ini: atur ruangannya dulu di halaman Rak.{% else %}Bagian bawah denah = sisi depan/jalan masuk.{% endif %}</span>
+    </div>
+  </div>
+</div>
+{{ data|json_script:"data-denah" }}
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById('data-denah').textContent);
+  const kanvas = document.getElementById('kanvas'), palet = document.getElementById('palet');
+  const SEL = Math.max(22, Math.min(34, Math.floor(Math.min(720, innerWidth - 300) / D.kolom)));
+  kanvas.style.gridTemplateColumns = `repeat(${D.kolom}, ${SEL}px)`;
+  kanvas.style.gridTemplateRows = `repeat(${D.baris}, ${SEL}px)`;
+  kanvas.style.backgroundSize = `${SEL}px ${SEL}px`;
+  const kunci = x => x.t + ':' + x.id;
+  const barang = D.barang.slice();
+  if (D.mode === 'ruang') barang.push({t: 'pintu', id: '', nama: 'Pintu'});
+  const letak = new Map();
+  let nPintu = 0;
+  D.letak.forEach(x => letak.set(x.t === 'pintu' ? 'pintu:' + (nPintu++) : kunci(x), {...x}));
+  let pilih = barang[0] ? kunci(barang[0]) : null, berubah = false;
+
+  const nama = k => { if (k.startsWith('pintu:')) return 'Pintu'; const b = barang.find(x => kunci(x) === k); return b ? b.nama : k; };
+  const jenis = k => { const b = barang.find(x => kunci(x) === k); return b ? b.jenis || '' : ''; };
+
+  function gambarPalet(){
+    palet.replaceChildren(...barang.map(b => {
+      const k = kunci(b), el = document.createElement('button'); el.type = 'button';
+      const sudah = b.t === 'pintu' ? [...letak.keys()].filter(x => x.startsWith('pintu:')).length : letak.has(k);
+      const n = document.createElement('span'); n.textContent = b.nama;
+      const s = document.createElement('small'); s.textContent = b.t === 'pintu' ? (sudah ? sudah + ' di denah' : 'tarik untuk tambah') : (sudah ? '✓ di denah' : 'belum');
+      el.append(n, s); el.classList.toggle('sudah', !!sudah);
+      el.classList.toggle('aktif', b.t === 'pintu' ? pilih === 'pintu:baru' : pilih === k);
+      el.addEventListener('click', () => { pilih = b.t === 'pintu' ? 'pintu:baru' : k; gambar(); });
+      return el;
+    }));
+  }
+
+  function gambar(){
+    gambarPalet();
+    const isi = [];
+    letak.forEach((r, k) => {
+      const el = document.createElement('div');
+      el.className = `dn-blok t-${r.t}` + (jenis(k) ? ' j-' + jenis(k) : '') + (k === pilih ? ' aktif' : '');
+      el.style.gridColumn = `${r.x + 1} / span ${r.w}`; el.style.gridRow = `${r.y + 1} / span ${r.h}`;
+      el.textContent = nama(k); el.dataset.k = k;
+      isi.push(el);
+    });
+    kanvas.replaceChildren(...isi);
+    document.getElementById('lepas').hidden = !(pilih && letak.has(pilih));
+  }
+
+  // Tarik kotak: titik awal -> titik akhir (sel). Ketuk kotak yang ada = pilih kotak itu.
+  let awal = null, pratinjau = null;
+  const sel = e => {
+    const b = kanvas.getBoundingClientRect();
+    return {x: Math.max(0, Math.min(D.kolom - 1, Math.floor((e.clientX - b.left) / SEL))),
+            y: Math.max(0, Math.min(D.baris - 1, Math.floor((e.clientY - b.top) / SEL)))};
+  };
+  const kotak = (a, b) => ({x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1});
+  kanvas.addEventListener('pointerdown', e => {
+    const blok = e.target.closest('.dn-blok');
+    if (blok && blok.dataset.k !== pilih) { pilih = blok.dataset.k; gambar(); return; }
+    if (!pilih) return;
+    awal = sel(e); kanvas.setPointerCapture(e.pointerId);
+    pratinjau = document.createElement('div'); pratinjau.className = 'dn-pratinjau'; kanvas.append(pratinjau);
+    const r = kotak(awal, awal); pratinjau.style.gridColumn = `${r.x + 1} / span 1`; pratinjau.style.gridRow = `${r.y + 1} / span 1`;
+  });
+  kanvas.addEventListener('pointermove', e => {
+    if (!awal || !pratinjau) return;
+    const r = kotak(awal, sel(e));
+    pratinjau.style.gridColumn = `${r.x + 1} / span ${r.w}`; pratinjau.style.gridRow = `${r.y + 1} / span ${r.h}`;
+  });
+  kanvas.addEventListener('pointerup', e => {
+    if (!awal) return;
+    const r = kotak(awal, sel(e)); awal = null;
+    if (pratinjau) { pratinjau.remove(); pratinjau = null; }
+    let k = pilih;
+    if (k === 'pintu:baru') { k = 'pintu:' + (nPintu++); }
+    const t = k.split(':')[0], id = k.slice(t.length + 1);
+    letak.set(k, {t, id: t === 'pintu' ? '' : (t === 'ruang' ? +id : id), ...r});
+    if (t !== 'pintu') {
+      // otomatis pindah ke yang belum ditaruh berikutnya
+      const berikut = barang.find(b => b.t !== 'pintu' && !letak.has(kunci(b)));
+      pilih = berikut ? kunci(berikut) : k;
+    } else pilih = 'pintu:baru';
+    berubah = true; gambar();
+  });
+  document.getElementById('lepas').addEventListener('click', () => { letak.delete(pilih); berubah = true; gambar(); });
+
+  document.getElementById('simpan').addEventListener('click', async () => {
+    const isi = [...letak.values()];
+    const body = D.mode === 'ruang' ? {blok: isi}
+      : {ruang: [...D.barang.map(b => letak.get(kunci(b)) ? {id: b.id, ...letak.get(kunci(b))} : {id: b.id, hapus: true})]};
+    const r = await fetch(location.href, {method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+      body: JSON.stringify(body)});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { berubah = false; kabar('Denah tersimpan.'); } else kabar(d.pesan || 'Denah belum tersimpan.', true);
+  });
+  addEventListener('beforeunload', e => { if (berubah) { e.preventDefault(); e.returnValue = ''; } });
+  gambar();
+})();
+</script>
+{% endblock %}

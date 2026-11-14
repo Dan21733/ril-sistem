@@ -114,6 +114,31 @@ class Lokasi(models.Model):
         return self.nama
 
 
+class Ruang(models.Model):
+    """Ruangan di dalam satu lokasi (14 Nov 2026), mis. "Ruangan 1", "Depan 2", "Ruang keramik".
+
+    Hanya untuk POSISI: stok tetap dihitung per lokasi, jadi memindah barang antar ruangan tidak perlu
+    transfer/ACC. x/y/w/h = letak ruangan di denah lokasi (dilihat dari atas); `denah` = susunan rak dan area
+    di dalam ruangan (lihat layanan/denah.py).
+    """
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.CASCADE, related_name="ruang")
+    nama = models.CharField(max_length=60)
+    urutan = models.IntegerField(default=0)
+    x = models.PositiveSmallIntegerField(null=True, blank=True)
+    y = models.PositiveSmallIntegerField(null=True, blank=True)
+    w = models.PositiveSmallIntegerField(null=True, blank=True)
+    h = models.PositiveSmallIntegerField(null=True, blank=True)
+    denah = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "master_ruang"
+        ordering = ["urutan", "nama"]
+        constraints = [models.UniqueConstraint(fields=["lokasi", "nama"], name="ruang_unik_per_lokasi")]
+
+    def __str__(self):
+        return self.nama
+
+
 class Rak(models.Model):
     kode = models.CharField(max_length=20, primary_key=True)
     nama = models.CharField(max_length=100)
@@ -133,6 +158,14 @@ class Rak(models.Model):
     induk = models.CharField(max_length=20, blank=True, default="", db_index=True)
     baris = models.PositiveSmallIntegerField(null=True, blank=True)
     kolom = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Ruangan & jenis tempat (14 Nov 2026). "lantai" = area tumpukan (mis. keramik, posisinya berubah-ubah),
+    # "sementara" = tempat barang baru yang belum disusun. Kotak rak yang digabung: lebar (kolom) x tinggi (baris),
+    # dihitung dari kotak kiri-bawah ini.
+    JENIS = [("rak", "Rak"), ("lantai", "Area lantai"), ("sementara", "Area sementara")]
+    ruang = models.ForeignKey(Ruang, null=True, blank=True, on_delete=models.SET_NULL, related_name="rak")
+    jenis = models.CharField(max_length=10, choices=JENIS, default="rak")
+    lebar = models.PositiveSmallIntegerField(default=1)
+    tinggi = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
         db_table = "master_rak"

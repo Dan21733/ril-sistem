@@ -11,7 +11,7 @@ from django.db import transaction
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak
-from master.models import Rak
+from master.models import Rak, Ruang
 
 BATAS_BARIS = 20
 BATAS_KOLOM = 20
@@ -28,6 +28,64 @@ def kode_induk(teks):
 
 def kode_kotak(induk, baris, kolom, satu_kolom):
     return f"{induk}-{baris}" if satu_kolom else f"{induk}-{baris}-{kolom}"
+
+
+def _sel(r):
+    """Semua (baris, kolom) yang ditempati satu kotak; kotak gabungan menempati lebih dari satu."""
+    b0, k0 = r.baris or 1, r.kolom or 1
+    return [(b, k) for b in range(b0, b0 + max(r.tinggi, 1)) for k in range(k0, k0 + max(r.lebar, 1))]
+
+
+def gabung(pengguna, kode):
+    """Gabung kotak-kotak bersebelahan satu rak jadi satu kotak (tingkat tanpa sekat / tanpa papan).
+
+    Kotak yang dipilih harus membentuk persegi panjang penuh. Yang dipakai kotak kiri-bawah (kodenya tetap);
+    kotak lain dihapus, jadi harus kosong (tidak ada barang/hitungan yang menunjuk ke sana).
+    """
+    kotak = list(Rak.objects.filter(kode__in=list(kode)))
+    if len(kotak) < 2:
+        raise Tolak("Pilih minimal 2 kotak yang bersebelahan.")
+    induk = {r.induk for r in kotak}
+    if len(induk) != 1 or not next(iter(induk)):
+        raise Tolak("Kotak yang digabung harus dari satu rak yang sama.")
+    sel = [p for r in kotak for p in _sel(r)]
+    if len(sel) != len(set(sel)):
+        raise Tolak("Ada kotak yang tumpang tindih.")
+    bs, ks = [b for b, _ in sel], [k for _, k in sel]
+    tinggi, lebar = max(bs) - min(bs) + 1, max(ks) - min(ks) + 1
+    if tinggi * lebar != len(sel):
+        raise Tolak("Kotak yang dipilih harus membentuk persegi panjang penuh (tanpa lubang).")
+    jangkar = next(r for r in kotak if (r.baris or 1, r.kolom or 1) == (min(bs), min(ks)))
+    lain = [r for r in kotak if r.pk != jangkar.pk]
+    isi = sorted(_dipakai([r.kode for r in lain]))
+    if isi:
+        raise Tolak("Kotak ini masih berisi barang atau hitungan: " + ", ".join(isi[:6])
+                    + ". Pindahkan barangnya ke " + jangkar.kode + " dulu, baru bisa digabung.")
+    with transaction.atomic():
+        Rak.objects.filter(pk__in=[r.pk for r in lain]).delete()
+        Rak.objects.filter(pk=jangkar.pk).update(lebar=lebar, tinggi=tinggi)
+        layanan.catat(pengguna, aksi="ubah", objek="rak", kolom="rak",
+                      baru=f"{jangkar.kode}: gabung {len(kotak)} kotak ({tinggi} baris x {lebar} kolom)")
+    return jangkar.kode
+
+
+def pisah(pengguna, kode):
+    """Kebalikan gabung: kotak gabungan dipecah lagi jadi kotak-kotak biasa (kotak baru kosong)."""
+    r = Rak.objects.filter(pk=kode).first()
+    if r is None or (r.lebar <= 1 and r.tinggi <= 1):
+        raise Tolak("Kotak ini bukan kotak gabungan.")
+    satu = r.kode == f"{r.induk}-{r.baris}"            # rak 1 kolom memakai kode pendek A-3
+    baru = [Rak(kode=kode_kotak(r.induk, b, k, satu), nama=r.nama, tempat_id=r.tempat_id, ruang_id=r.ruang_id,
+                pic_id=r.pic_id, langsung=r.langsung, jenis=r.jenis, induk=r.induk, baris=b, kolom=k)
+            for b, k in _sel(r) if (b, k) != (r.baris or 1, r.kolom or 1)]
+    bentrok = set(Rak.objects.filter(kode__in=[x.kode for x in baru]).values_list("kode", flat=True))
+    if bentrok:
+        raise Tolak("Kode sudah dipakai: " + ", ".join(sorted(bentrok)[:5]))
+    with transaction.atomic():
+        Rak.objects.filter(pk=r.pk).update(lebar=1, tinggi=1)
+        Rak.objects.bulk_create(baru)
+        layanan.catat(pengguna, aksi="ubah", objek="rak", kolom="rak", baru=f"{r.kode}: dipisah jadi {len(baru) + 1} kotak")
+    return len(baru) + 1
 
 
 def _referensi():
@@ -88,13 +146,18 @@ def ubah_ukuran(pengguna, *, induk, baris, kolom, nama="", tempat=None, pic=None
     if len(kode_kotak(induk, max(baris, 1), lebar, satu)) > 20:
         raise Tolak("Kode rak terlalu panjang (kode kotak maksimal 20 karakter).")
     posisi = {(r.baris or 1, r.kolom or 1): r for r in ada}
+    tertutup = {p for r in ada for p in _sel(r)}           # termasuk sel yang tertutup kotak gabungan
+    lewat = [r for r in ada if kurangi and (r.baris or 1) <= baris and (r.kolom or 1) <= kolom
+             and ((r.baris or 1) + r.tinggi - 1 > baris or (r.kolom or 1) + r.lebar - 1 > kolom)]
+    if lewat:
+        raise Tolak(f"Kotak gabungan {lewat[0].kode} melewati ukuran baru. Pisahkan dulu kotaknya.")
     hapus = [r for (b, k), r in posisi.items() if kurangi and (b > baris or k > kolom)]
     tetap = [r for r in ada if r not in hapus]
     ganti = [(r.kode, kode_kotak(induk, r.baris or 1, r.kolom or 1, satu)) for r in tetap
              if r.kode != kode_kotak(induk, r.baris or 1, r.kolom or 1, satu)]
     rencana = [Rak(kode=kode_kotak(induk, b, k, satu), nama=nama, tempat=tempat, pic=pic, langsung=langsung,
                    induk=induk, baris=b, kolom=k)
-               for b in range(1, baris + 1) for k in range(1, kolom + 1) if (b, k) not in posisi]
+               for b in range(1, baris + 1) for k in range(1, kolom + 1) if (b, k) not in tertutup]
     if hapus:
         isi = sorted(_dipakai([r.kode for r in hapus]))
         if isi:
@@ -172,3 +235,56 @@ def uraikan(nilai):
     if induk:
         kode += list(Rak.objects.filter(induk__in=induk).values_list("kode", flat=True))
     return kode
+
+
+# ---------------------------------------------------------------------------
+# Ruangan (14 Nov 2026): pengelompokan posisi di dalam lokasi. Stok tetap per lokasi.
+# ---------------------------------------------------------------------------
+
+def tambah_ruang(pengguna, lokasi, nama):
+    nama = layanan.rapikan_teks(nama)[:60]
+    if lokasi is None:
+        raise Tolak("Pilih lokasinya dulu.")
+    if not nama:
+        raise Tolak("Nama ruangan wajib diisi, mis. Ruangan 1.")
+    if Ruang.objects.filter(lokasi=lokasi, nama__iexact=nama).exists():
+        raise Tolak(f"Ruangan {nama} sudah ada di {lokasi.nama}.")
+    r = Ruang.objects.create(lokasi=lokasi, nama=nama, urutan=Ruang.objects.filter(lokasi=lokasi).count())
+    layanan.catat(pengguna, aksi="tambah", objek="ruang", kolom="ruang", baru=f"{lokasi.nama}: {nama}")
+    return r
+
+
+def ubah_ruang(pengguna, ruang, nama):
+    nama = layanan.rapikan_teks(nama)[:60]
+    if not nama:
+        raise Tolak("Nama ruangan wajib diisi.")
+    if Ruang.objects.filter(lokasi=ruang.lokasi, nama__iexact=nama).exclude(pk=ruang.pk).exists():
+        raise Tolak(f"Ruangan {nama} sudah ada.")
+    lama, ruang.nama = ruang.nama, nama
+    ruang.save(update_fields=["nama"])
+    layanan.catat(pengguna, objek="ruang", kolom="nama", lama=lama, baru=nama)
+
+
+def hapus_ruang(pengguna, ruang):
+    """Rak di dalamnya tidak ikut terhapus; hanya jadi "tanpa ruangan"."""
+    n = ruang.rak.count()
+    layanan.catat(pengguna, aksi="hapus", objek="ruang", kolom="ruang", lama=f"{ruang.lokasi.nama}: {ruang.nama}",
+                  catatan=f"{n} rak jadi tanpa ruangan")
+    ruang.delete()
+    return n
+
+
+def ruang_untuk(tempat, ruang_id):
+    """Ruangan yang dipilih di form, hanya kalau memang ruangan di lokasi rak itu."""
+    if not str(ruang_id or "").isdigit() or tempat is None:
+        return None
+    return Ruang.objects.filter(pk=int(ruang_id), lokasi=tempat).first()
+
+
+def label_lengkap(r):
+    """Untuk tombol di tablet: "Ruangan 1 · Rak A · baris 3 · kolom 2" / "Ruangan 2 · Area keramik"."""
+    if r.jenis != "rak":
+        dasar = r.nama or r.kode
+    else:
+        dasar = label(r)
+    return f"{r.ruang.nama} · {dasar}" if r.ruang_id and r.ruang else dasar

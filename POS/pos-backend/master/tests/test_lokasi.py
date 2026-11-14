@@ -669,6 +669,100 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(d["hitungan"], [{"varian": self.kecil.id, "rak": "GA-1", "jumlah": 3}])
         self.assertNotIn("in_stock", r.content.decode())
 
+    def test_ruangan_dan_area(self):
+        from master.layanan import rak as svc_rak
+        from master.models import Ruang
+        self.client.force_login(self.admin)
+        url = reverse("master:rak") + f"?lokasi={self.ga.id}"
+        self.client.post(url, {"aksi": "ruang_tambah", "tempat": self.ga.id, "nama": "Ruangan 1"})
+        self.client.post(url, {"aksi": "ruang_tambah", "tempat": self.ga.id, "nama": "Ruang keramik"})
+        r = self.client.post(url, {"aksi": "ruang_tambah", "tempat": self.ga.id, "nama": "ruangan 1"}, follow=True)
+        self.assertContains(r, "sudah ada")
+        r1, rk = Ruang.objects.get(nama="Ruangan 1"), Ruang.objects.get(nama="Ruang keramik")
+        # rak baris x kolom langsung masuk ruangan; area lantai & sementara lewat form satu rak
+        self.client.post(url, {"aksi": "grid", "kode": "A", "baris": "2", "kolom": "2", "nama": "Rak A",
+                               "tempat": self.ga.id, "ruang": r1.id})
+        self.client.post(url, {"aksi": "simpan", "kode": "RK-KIRI", "nama": "Keramik sisi kiri", "jenis": "lantai",
+                               "tempat": self.ga.id, "ruang": rk.id})
+        self.client.post(url, {"aksi": "simpan", "kode": "R1-TEMP", "nama": "Barang baru", "jenis": "sementara",
+                               "tempat": self.ga.id, "ruang": r1.id})
+        self.assertEqual(set(Rak.objects.filter(ruang=r1).values_list("kode", flat=True)),
+                         {"A-1-1", "A-1-2", "A-2-1", "A-2-2", "R1-TEMP"})
+        area = Rak.objects.get(kode="RK-KIRI")
+        self.assertEqual((area.jenis, area.ruang), ("lantai", rk))
+        self.assertEqual(svc_rak.label_lengkap(area), "Ruang keramik · Keramik sisi kiri")
+        self.assertEqual(svc_rak.label_lengkap(Rak.objects.get(kode="A-2-1")), "Ruangan 1 · Rak A · baris 2 · kolom 1")
+        r = self.client.get(url)
+        self.assertContains(r, "<b>Ruangan 1</b>")
+        self.assertContains(r, "Area sementara")
+        # ruangan lokasi lain tidak bisa dipakai
+        self.client.post(url, {"aksi": "simpan", "kode": "GA-1", "nama": "GA-1", "tempat": self.toko.id, "ruang": r1.id})
+        self.assertIsNone(Rak.objects.get(kode="GA-1").ruang)
+        # hapus ruangan: raknya tetap ada
+        self.client.post(url, {"aksi": "ruang_hapus", "id": r1.id})
+        self.assertTrue(Rak.objects.filter(kode="A-1-1", ruang__isnull=True).exists())
+
+    def test_gabung_dan_pisah_kotak(self):
+        from master.layanan import rak as svc_rak
+        svc_rak.buat(self.admin, induk="B", nama="Rak B", baris=3, kolom=3, tempat=self.ga)
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="B-1-2")
+        # barang di kotak yang akan hilang: ditolak
+        with self.assertRaises(Tolak):
+            svc_rak.gabung(self.admin, ["B-1-1", "B-1-2"])
+        with self.assertRaises(Tolak):                                # bukan persegi panjang
+            svc_rak.gabung(self.admin, ["B-2-1", "B-3-2"])
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:rak") + f"?lokasi={self.ga.id}",
+                             {"aksi": "gabung", "kode": "B", "kotak": ["B-2-1", "B-2-2", "B-3-1", "B-3-2"]}, follow=True)
+        self.assertContains(r, "Kotak digabung jadi B-2-1.")
+        b21 = Rak.objects.get(kode="B-2-1")
+        self.assertEqual((b21.lebar, b21.tinggi), (2, 2))
+        self.assertFalse(Rak.objects.filter(kode__in=["B-2-2", "B-3-1", "B-3-2"]).exists())
+        self.assertContains(r, 'grid-row:1 / span 2;grid-column:2 / span 2')     # gambar: baris 3-2, kolom 1-2
+        # ubah ukuran tidak membuat ulang sel yang tertutup kotak gabungan
+        svc_rak.ubah_ukuran(self.admin, induk="B", baris=3, kolom=3)
+        self.assertFalse(Rak.objects.filter(kode="B-3-2").exists())
+        with self.assertRaises(Tolak):                                # gabungan melewati ukuran baru
+            svc_rak.ubah_ukuran(self.admin, induk="B", baris=2, kolom=3, kurangi=True)
+        self.client.post(reverse("master:rak"), {"aksi": "pisah", "kode": "B", "kotak": "B-2-1"})
+        self.assertEqual(Rak.objects.filter(induk="B").count(), 9)
+        b21.refresh_from_db()
+        self.assertEqual((b21.lebar, b21.tinggi), (1, 1))
+
+    def test_denah(self):
+        from master.layanan import rak as svc_rak
+        from master.models import Ruang
+        r1 = svc_rak.tambah_ruang(self.admin, self.ga, "Ruangan 1")
+        svc_rak.tambah_ruang(self.admin, self.ga, "Ruangan 2")
+        svc_rak.buat(self.admin, induk="C", nama="Rak C", baris=2, kolom=2, tempat=self.ga)
+        Rak.objects.filter(induk="C").update(ruang=r1)
+        Rak.objects.create(kode="R1-TEMP", nama="Barang baru", tempat=self.ga, ruang=r1, jenis="sementara")
+        self.client.force_login(self.admin)
+        url = reverse("master:denah", args=[self.ga.id])
+        self.assertContains(self.client.get(url), "Letak ruangan")
+        r = self.client.post(url, json.dumps({"ruang": [{"id": r1.id, "x": 0, "y": 0, "w": 10, "h": 8}]}),
+                             content_type="application/json")
+        self.assertEqual(r.json(), {"ok": True})
+        r1.refresh_from_db()
+        self.assertEqual((r1.x, r1.y, r1.w, r1.h), (0, 0, 10, 8))
+        r = self.client.post(url, json.dumps({"ruang": [{"id": r1.id, "x": 20, "y": 0, "w": 10, "h": 8}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 409)                                  # keluar batas
+        url_r = url + f"?ruang={r1.id}"
+        self.assertContains(self.client.get(url_r), "Rak C")
+        r = self.client.post(url_r, json.dumps({"blok": [
+            {"t": "rak", "id": "C", "x": 0, "y": 2, "w": 2, "h": 6}, {"t": "area", "id": "R1-TEMP", "x": 10, "y": 2, "w": 3, "h": 3},
+            {"t": "pintu", "id": "", "x": 6, "y": 15, "w": 3, "h": 1}]}), content_type="application/json")
+        self.assertEqual(r.json(), {"ok": True})
+        self.assertEqual(len(Ruang.objects.get(pk=r1.pk).denah["blok"]), 3)
+        r = self.client.post(url_r, json.dumps({"blok": [{"t": "rak", "id": "GA-1", "x": 0, "y": 0, "w": 1, "h": 1}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 409)                                  # rak bukan isi ruangan ini
+        # pemilih rak di halaman mana pun membawa data denah
+        r = self.client.get(reverse("master:barang"))
+        self.assertContains(r, 'id="data-denah-rak"')
+        self.assertContains(r, '"Ruangan 1": {"x": 0, "y": 0, "w": 10, "h": 8')
+
     def test_rak_lokasi_lain_ditolak(self):
         Rak.objects.filter(kode="TK-01").update(tempat=self.toko)
         d = self._kirim(self._tugas(), [{"kunci": "1", "varian": self.kecil.id, "rak": "TK-01", "jumlah": "3"}])

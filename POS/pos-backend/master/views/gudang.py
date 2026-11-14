@@ -217,7 +217,8 @@ def tiket_hitung(request, tiket_id):
         "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
         # Rak lingkup tugas didahulukan (tab "Rak tugas ini" di pemilih rak), sisanya di "Rak lain".
         "daftar_rak": [{"kode": r.kode, "nama": r.nama, "induk": r.induk, "baris": r.baris, "kolom": r.kolom,
-                        "label": svc_rak.label(r)}
+                        "ruang": r.ruang.nama if r.ruang_id else "", "ruang_urut": r.ruang.urutan if r.ruang_id else "", "jenis": r.jenis, "lebar": r.lebar,
+                        "tinggi": r.tinggi, "label": svc_rak.label_lengkap(r)}
                        for r in sorted(svc_sesi.rak_lokasi(lokasi), key=lambda r: (r.kode not in rak_tugas, svc_rak.urut(r)))],
         "rak_tugas": rak_tugas,
         "boleh_rak_baru": not t.sesi_id,
@@ -443,7 +444,7 @@ def tiket_isi(request, tiket_id):
         "lihat_stok": lihat_stok, "gudang": gudang,
         "boleh_pindah": "ops_tiket_pindah" in hak, "boleh_rak": "ops_tiket_rak" in hak,
         "baris": t.baris.select_related("varian", "rak", "dari", "ke"),
-        "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": Rak.objects.select_related("tempat"),
+        "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
         "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True).distinct()), key=kunci_alami),
     })
 

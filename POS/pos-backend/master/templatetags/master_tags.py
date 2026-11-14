@@ -122,3 +122,19 @@ def nama_satuan(x):
 def metode_bayar(kode):
     from master.layanan.laporan import label_metode
     return label_metode(kode)
+
+
+@register.simple_tag
+def denah_pemilih():
+    """JSON denah untuk pemilih rak (lihat layanan/denah.py). Kosong kalau belum ada ruangan."""
+    import json
+
+    from django.utils.html import format_html
+    from django.utils.safestring import mark_safe
+
+    from master.layanan.denah import data_pemilih
+    data = data_pemilih()
+    if not data:
+        return ""
+    teks = json.dumps(data).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    return format_html('<script type="application/json" id="data-denah-rak">{}</script>', mark_safe(teks))
