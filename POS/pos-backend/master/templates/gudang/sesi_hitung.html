@@ -22,6 +22,7 @@
 </style>
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
   <span class="redup kecil">{% if t.sesi_id %}{{ t.sesi.nama }} · {% endif %}<b>{{ lingkup_teks }}</b> · sampai {{ t.batas|date:"d M H:i" }}</span></div>
+{% if t.catatan_putusan and t.status == "terbuka" %}<div class="pesan info">{{ t.catatan_putusan }} Angka yang sudah kamu hitung masih ada di bawah; tambah atau koreksi, lalu kirim lagi.</div>{% endif %}
 
 {% if t.bisa_diisi %}
 <div class="sh-kepala">
@@ -53,6 +54,7 @@
 <p class="redup kecil" id="ket-hasil"></p>
 
 <h3 id="judul-sudah">Sudah dihitung · <span id="n-barang">0</span> barang<span id="n-tempat" class="redup kecil"></span></h3>
+<p class="kecil" id="saring-sudah" hidden></p>
 <div class="sh-urut" role="group" aria-label="Urutkan daftar">
   <span class="redup kecil">Urut:</span>
   <button type="button" class="tombol kecil" data-urut="rak">Rak</button>
@@ -169,7 +171,23 @@
   // Keranjang: semua yang sudah dihitung, bisa diurutkan per rak / A-Z / kategori / merek; tiap baris bisa diubah/dihapus.
   function tampilSudah(){
     const isi = [], baris2 = [];
-    for (const [k, n] of hitung){ const [v, r] = k.split('|'); const b = perId.get(+v); if (b) baris2.push({b, r, n}); }
+    // Kotak cari ikut menyaring daftar ini (14 Nov 2026): cek ulang "sanpolo" tanpa menggulir 60 barang.
+    const kata = normal($('cari').value).split(/\s+/).filter(Boolean);
+    let semuaN = 0;
+    for (const [k, n] of hitung){
+      const [v, r] = k.split('|'); const b = perId.get(+v); if (!b) continue;
+      semuaN++;
+      if (kata.length && !kata.every(w => b.cari.includes(w))) continue;
+      baris2.push({b, r, n});
+    }
+    const ket = $('saring-sudah');
+    ket.hidden = !kata.length;
+    if (kata.length) {
+      ket.replaceChildren(`Cocok dengan "${$('cari').value.trim()}": ${baris2.length} dari ${semuaN} hitungan. `);
+      const a = document.createElement('a'); a.href = '#'; a.textContent = 'Tampilkan semua';
+      a.addEventListener('click', e => { e.preventDefault(); $('cari').value = ''; tampil(); });
+      ket.append(a);
+    }
     const grup = x => urut === 'rak' ? (x.r ? 'Rak ' + x.r + (rakBaru(x.r) ? ' (baru)' : '') : 'Tanpa rak')
       : urut === 'kat' ? (x.b.c || 'Tanpa kategori') : urut === 'merek' ? (x.b.b || 'Tanpa merek')
       : ((x.b.n || '?').trim()[0] || '?').toUpperCase();
@@ -200,10 +218,11 @@
       });
     });
     $('sudah').replaceChildren(...isi);
-    const nBarang = new Set(baris2.map(x => x.b.i)).size;
+    const semuaId = [...hitung.keys()].map(k => +k.split('|')[0]).filter(i => perId.has(i));
+    const nBarang = new Set(semuaId).size;
     $('n-barang').textContent = nBarang;
-    $('n-tempat').textContent = baris2.length > nBarang ? ` · ${baris2.length} tempat` : '';
-    $('ket-sudah').hidden = baris2.length > 0;
+    $('n-tempat').textContent = semuaId.length > nBarang ? ` · ${semuaId.length} tempat` : '';
+    $('ket-sudah').hidden = semuaN > 0;
     document.querySelectorAll('[data-urut]').forEach(x => x.classList.toggle('aktif', x.dataset.urut === urut));
   }
 

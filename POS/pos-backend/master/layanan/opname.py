@@ -11,6 +11,8 @@
   dicatat. Saat ACC tidak ada stok yang diubah; angkanya jadi catatan stok
   awal untuk toko itu.
 """
+from datetime import timedelta
+
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -327,6 +329,33 @@ def tolak(pengguna, op, alasan, *, hak):
     _tutup_tiket(op, "ditolak", pengguna, alasan)
     layanan.catat(pengguna, objek="opname", kolom="status", lama="Menunggu ACC", baru="Ditolak",
                   catatan=f"Opname #{op.id}: {alasan}")
+
+
+def kembalikan_tugas(pengguna, op, *, hak, jam=4, alasan=""):
+    """Cek ulang (14 Nov 2026): hitungan yang sudah dikirim dikembalikan ke karyawan, lengkap dengan angkanya.
+
+    Opname kembali jadi draf dan tugasnya terbuka lagi (batas diperpanjang), jadi karyawan bisa menambah,
+    mengoreksi, dan mencatat rak, lalu mengirim lagi. Stok sistem saat pertama dihitung tetap dipakai sebagai
+    patokan selisih, jadi penjualan selama tugas berjalan tetap aman.
+    """
+    if "opname" not in hak:
+        raise Tolak("Akun ini tidak boleh memutuskan opname.")
+    t = op.tiket
+    if t is None or t.sesi_id:
+        raise Tolak("Hanya hitungan dari tugas hitung biasa yang bisa dicek ulang.")
+    if op.status != "diajukan" or t.status not in ("dikirim", "terbuka"):
+        raise Tolak("Opname ini sudah diputuskan.")
+    alasan = rapikan_teks(alasan)[:300]
+    with transaction.atomic():
+        op.status = "draf"
+        op.save(update_fields=["status"])
+        t.status = "terbuka"
+        t.batas = max(t.batas, timezone.now() + timedelta(hours=jam))
+        t.catatan_putusan = ("Cek ulang: " + alasan) if alasan else "Cek ulang dari pemilik."
+        t.save(update_fields=["status", "batas", "catatan_putusan"])
+        layanan.catat(pengguna, objek="opname", kolom="status", lama="Menunggu ACC", baru="Cek ulang",
+                      catatan=f"Opname #{op.id} dikembalikan ke tugas #{t.id}" + (f": {alasan}" if alasan else ""))
+    return t
 
 
 def _tutup_tiket(op, status, pengguna, alasan=""):

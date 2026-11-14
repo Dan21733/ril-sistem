@@ -685,6 +685,34 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(self.kecil.rak_id, "GA-1")
         self.assertFalse(Rak.objects.filter(kode="GA-9").exists())
 
+    def test_cek_ulang_mengembalikan_tugas_dengan_angkanya(self):
+        from master.layanan import opname
+        from master.models import Tiket
+        t = self._tugas()
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "3"}])
+        op = opname.kirim_tugas(self.gudang, t, dihitung_oleh="Andi")
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:opname_detail", args=[op.id]),
+                             {"aksi": "cek_ulang", "jam": "4", "alasan": "isi raknya juga"}, follow=True)
+        self.assertContains(r, f"Tugas #{t.id} dibuka lagi")
+        t.refresh_from_db(); op.refresh_from_db()
+        self.assertEqual((t.status, op.status), ("terbuka", "draf"))
+        self.assertTrue(t.bisa_diisi)
+        # karyawan melihat catatan + angka lamanya, menambah rak lain, lalu kirim lagi
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:tiket_hitung", args=[t.id]))
+        self.assertContains(r, "Cek ulang: isi raknya juga")
+        self.assertContains(r, '"jumlah": 3')
+        self._kirim(t, [{"kunci": "2", "varian": self.kecil.id, "rak": "GA-2", "jumlah": "4"}])
+        op2 = opname.kirim_tugas(self.gudang, t, dihitung_oleh="Andi")
+        self.assertEqual(op2.pk, op.pk)
+        self.assertEqual(op2.baris.get().hitung, 7)
+        self.assertEqual(op2.baris.get().stok_saat_hitung, 7)       # patokan stok tetap dari hitungan pertama
+        # yang sudah diputuskan tidak bisa dikembalikan
+        opname.acc(self.admin, op2, [b.id for b in op2.baris.all()], hak=SEMUA_HAK)
+        with self.assertRaises(Tolak):
+            opname.kembalikan_tugas(self.admin, op2, hak=SEMUA_HAK)
+
     def test_form_tugas_menyimpan_pilihan_posisi(self):
         from master.models import Tiket
         self.client.force_login(self.admin)

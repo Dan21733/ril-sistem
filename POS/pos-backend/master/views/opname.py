@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from master.layanan.toko import saring as saring_toko
 from master.layanan import opname as svc
@@ -32,6 +33,13 @@ def detail(request, opname_id):
                 svc.acc(request.user, op, request.POST.getlist("pilih"), hak=hak_pengguna(request.user))
                 messages.success(request, "Opname di-ACC. Stok sudah disesuaikan dan tercatat di riwayat stok."
                                  + (" Posisi rak barang ikut diperbarui." if op.tiket_id and svc.perbarui_posisi(op.tiket) else ""))
+            elif request.POST.get("aksi") == "cek_ulang":
+                jam = int(request.POST.get("jam") or 4) if str(request.POST.get("jam") or "").isdigit() else 4
+                t = svc.kembalikan_tugas(request.user, op, hak=hak_pengguna(request.user), jam=min(max(jam, 1), 72),
+                                         alasan=request.POST.get("alasan", ""))
+                messages.success(request, f"Tugas #{t.id} dibuka lagi untuk karyawan, angka yang sudah dihitung tetap ada. "
+                                          f"Batas: {timezone.localtime(t.batas):%d %b %H.%M}.")
+                return redirect("master:opname")
             elif request.POST.get("aksi") == "tolak":
                 svc.tolak(request.user, op, request.POST.get("alasan"), hak=hak_pengguna(request.user))
                 messages.info(request, "Opname ditolak.")

@@ -49,6 +49,15 @@
 </form>
 
 {% endif %}
+{% if op.status == "diajukan" and op.tiket_id and not op.tiket.sesi_id %}
+<details class="lipat"><summary>Cek ulang: kembalikan ke karyawan</summary>
+<form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="cek_ulang">
+  <p class="kecil redup" style="flex-basis:100%;margin:0">Tugas #{{ op.tiket_id }} dibuka lagi di tablet <b>dengan semua angka yang sudah dihitung</b>. Karyawan bisa menambah, mengoreksi, dan mencatat rak, lalu mengirim lagi. Stok tidak berubah sampai kamu ACC.</p>
+  <div style="flex:1;min-width:240px"><label>Catatan untuk karyawan (boleh kosong)</label><input type="text" name="alasan" placeholder="mis. tolong isi raknya juga"></div>
+  <div style="width:150px"><label>Waktu tambahan</label><select name="jam"><option value="2">2 jam</option><option value="4" selected>4 jam</option><option value="8">8 jam</option><option value="24">sampai besok</option></select></div>
+  <div><button class="tombol" type="submit">Kembalikan</button></div>
+</form></details>
+{% endif %}
 {% if op.status == "diajukan" %}
 <details class="lipat"><summary>Tolak semuanya</summary>
 <form method="post" class="kartu baris">{% csrf_token %}<input type="hidden" name="aksi" value="tolak">
