@@ -10,6 +10,7 @@
     <td class="angka">{{ r.jumlah|ribuan }}</td>
     <td style="white-space:nowrap">
       <form method="post" id="rak-{{ r.no }}" style="display:inline">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil" type="submit">Simpan</button></form>
+      {% if not r.induk %}<form method="post" style="display:inline" data-ganti-kode="{{ r.kode }}">{% csrf_token %}<input type="hidden" name="aksi" value="ganti_kode"><input type="hidden" name="kode" value="{{ r.kode }}"><input type="hidden" name="baru"><button class="tombol kecil" type="submit">Ganti kode</button></form>{% endif %}
       {% if not r.jumlah %}<form method="post" style="display:inline" data-tanya="Hapus rak {{ r.kode }}?">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="kode" value="{{ r.kode }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}
     </td>
     {% else %}

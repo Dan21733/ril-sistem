@@ -1125,6 +1125,18 @@ def rak(request):
                           f"{len(h['dihapus'])} kotak kosong dihapus" if h["dihapus"] else ""]
                 messages.success(request, f"Rak {kode}: " + (", ".join(b for b in bagian if b) or "ukurannya sudah sama") + ".")
             return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
+        elif aksi == "ganti_kode":
+            # Kode rak salah ketik (15 Nov 2026): kotak, barang, hitungan, dan denah ikut ke kode baru.
+            try:
+                peta = svc_rak.ganti_kode(request.user, kode, request.POST.get("baru"))
+            except Tolak as tolak:
+                messages.error(request, str(tolak))
+                return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}")
+            r = Rak.objects.filter(kode=peta[0][1]).first()
+            baru = r.induk or r.kode
+            rinci = f": {len(peta)} kotak (mis. {peta[0][0]} jadi {peta[0][1]})" if r.induk else ""
+            messages.success(request, f"Kode {kode} diganti jadi {baru}{rinci}. Barang, hitungan, dan denahnya ikut.")
+            return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}" + (f"&buka={r.induk}" if r.induk else ""))
         elif aksi in ("gabung", "pisah"):
             try:
                 if aksi == "gabung":

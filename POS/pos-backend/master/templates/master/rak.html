@@ -60,7 +60,8 @@ tr[data-anak] td:first-child{padding-left:26px}
     <td><select name="ruang" form="grup-{{ e.grup }}" style="min-width:130px" aria-label="Ruangan rak {{ e.grup }}">{% if e.ruang_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}" {% if e.ruang_id == ru.id %}selected{% endif %}>{{ ru.nama }}</option>{% endfor %}</select></td>
     <td class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · diubah di sini berlaku untuk semua kotak</td>
     <td class="angka">{{ e.jumlah|ribuan }}</td>
-    <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} kotak rak {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form></td>
+    <td style="white-space:nowrap"><form method="post" id="grup-{{ e.grup }}" style="display:inline" data-tanya="Simpan untuk semua {{ e.rak|length }} kotak rak {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}<button class="tombol kecil" type="submit">Simpan semua</button></form>
+      <form method="post" style="display:inline" data-ganti-kode="{{ e.grup }}" data-contoh="{{ e.kode.0 }}" data-n="{{ e.rak|length }}">{% csrf_token %}<input type="hidden" name="aksi" value="ganti_kode"><input type="hidden" name="kode" value="{{ e.grup }}"><input type="hidden" name="baru"><button class="tombol kecil" type="submit">Ganti kode</button></form></td>
     {% else %}
     <td>{{ e.nama }}</td><td colspan="5" class="redup kecil">{{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %}</td><td class="angka">{{ e.jumlah|ribuan }}</td>
     {% endif %}
@@ -95,6 +96,15 @@ tr[data-anak] td:first-child{padding-left:26px}
   {% endfor %}
 </table></div>
 <script>
+// Ganti kode rak yang salah ketik (15 Nov 2026): tanya kode baru, kotak/barang/hitungan/denah ikut.
+document.addEventListener('submit', e => {
+  const f = e.target; if (!f.matches || !f.matches('form[data-ganti-kode]')) return;
+  const lama = f.dataset.gantiKode, n = +(f.dataset.n || 1), contoh = f.dataset.contoh || '';
+  const pesan = n > 1
+    ? `Ganti kode rak ${lama}?\nSemua ${n} kotak ikut berganti (mis. ${contoh} jadi BARU${contoh.slice(lama.length)}). Barang, hitungan, dan denah ikut pindah.`
+    : `Ganti kode ${lama}?\nBarang, hitungan, dan denah ikut pindah ke kode baru.`;
+  tanyaKirim(e, pesan, {ya: 'Ganti kode', isian: 'Kode baru', nilai: lama}, v => { f.querySelector('[name=baru]').value = v; });
+});
 (() => {
   // Rak bertingkat dilipat; yang dibuka diingat selama tab browser terbuka. ?buka=AT3-1 membuka satu grup.
   const KUNCI = 'rak-buka';

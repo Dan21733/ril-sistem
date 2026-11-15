@@ -685,6 +685,52 @@ class HitungPosisiTest(Dasar):
         self.assertFalse(Rak.objects.filter(kode="K-1").exists())
         self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t).rak_id, "K-1-1")
 
+    def test_ganti_kode_rak(self):
+        from master.layanan import opname, rak as svc_rak
+        from master.models import Log, OpnameRak, Ruang, Tiket
+        r1 = svc_rak.tambah_ruang(self.admin, self.ga, "Ruangan 1")
+        svc_rak.buat(self.admin, induk="C", nama="Rak C", baris=2, kolom=2, tempat=self.ga)
+        Rak.objects.filter(induk="C").update(ruang=r1)
+        svc_rak.gabung(self.admin, ["C-2-1", "C-2-2"])
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="C-1-1")
+        Ruang.objects.filter(pk=r1.pk).update(denah={"blok": [{"t": "rak", "id": "C", "x": 0, "y": 0, "w": 2, "h": 4}]})
+        t = self._tugas(rak=["C-1-1", "GA-2"])
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "C-1-1", "jumlah": "3"}])
+        with self.assertRaisesMessage(Tolak, "kirim tugasnya dulu"):     # tugas masih dikerjakan
+            svc_rak.ganti_kode(self.admin, "C", "TK4")
+        opname.kirim_tugas(self.gudang, t)
+        Rak.objects.create(kode="E-1-1", nama="E", tempat=self.ga, induk="E", baris=1, kolom=1)
+        with self.assertRaisesMessage(Tolak, "sudah dipakai"):
+            svc_rak.ganti_kode(self.admin, "C", "E")
+        with self.assertRaisesMessage(Tolak, "kotak rak C"):            # kotak di dalam grid tidak diganti sendiri
+            svc_rak.ganti_kode(self.admin, "C-1-1", "X")
+        # lewat halaman Rak
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("master:rak"), {"aksi": "ganti_kode", "kode": "C", "baru": "tk4"}, follow=True)
+        self.assertContains(r, "Kode C diganti jadi TK4: 3 kotak (mis. C-1-1 jadi TK4-1-1)")
+        self.assertFalse(Rak.objects.filter(induk="C").exists())
+        self.assertEqual(set(Rak.objects.filter(induk="TK4").values_list("kode", flat=True)), {"TK4-1-1", "TK4-1-2", "TK4-2-1"})
+        gab = Rak.objects.get(kode="TK4-2-1")
+        self.assertEqual((gab.lebar, gab.ruang_id, gab.tempat_id, gab.nama), (2, r1.id, self.ga.id, "Rak C"))
+        self.assertEqual(VarianInfo.objects.get(pk=self.kecil.pk).rak_id, "TK4-1-1")
+        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t).rak_id, "TK4-1-1")
+        self.assertEqual(Tiket.objects.get(pk=t.pk).saring["rak"], ["TK4-1-1", "GA-2"])
+        self.assertEqual(Ruang.objects.get(pk=r1.pk).denah["blok"][0]["id"], "TK4")
+        self.assertTrue(Log.objects.filter(kolom="kode", lama="C", baru="TK4").exists())
+        # rak tunggal
+        svc_rak.ganti_kode(self.admin, "GA-2", "GA-02")
+        self.assertEqual(Rak.objects.get(kode="GA-02").tempat_id, self.ga.id)
+        self.assertFalse(Rak.objects.filter(kode="GA-2").exists())
+
+    def test_ubah_ukuran_ganti_kode_ruangan_tetap(self):
+        from master.layanan import rak as svc_rak
+        r1 = svc_rak.tambah_ruang(self.admin, self.ga, "Ruangan 1")
+        for b in (1, 2):
+            Rak.objects.create(kode=f"K-{b}", nama="Rak K", tempat=self.ga, induk="K", baris=b, kolom=1, ruang=r1)
+        svc_rak.ubah_ukuran(self.admin, induk="K", baris=2, kolom=2)
+        self.assertEqual(set(Rak.objects.filter(induk="K").values_list("kode", "ruang_id")),
+                         {("K-1-1", r1.id), ("K-2-1", r1.id), ("K-1-2", r1.id), ("K-2-2", r1.id)})
+
     def test_ruangan_dan_area(self):
         from master.layanan import rak as svc_rak
         from master.models import Ruang
