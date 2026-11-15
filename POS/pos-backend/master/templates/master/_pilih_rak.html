@@ -33,6 +33,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
 .pr-panel .pr-dk.dk-rak{background:#fdf3d7;border:2px solid #d4a514;color:#6b4f00}
 .pr-panel .pr-dk.dk-area{background:#e6f2ee;border:2px dashed #0f6e56;color:#085041}.pr-panel .pr-dk.dk-sementara{background:#fde8e8;border-color:#c0392b;color:#7a1d14}
 .pr-dk.dk-pintu{border:2px dotted #888;color:#666;background:#fff;font-weight:400}
+.pr-dk.dk-tanda{border:2px solid #7b8590;color:#38414a;background:#eef0f2;font-weight:500}
 .pr-panel .pr-dk.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
 .pr-area{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:6px 0 10px}
 .pr-area button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:56px;border-style:dashed}
@@ -239,13 +240,14 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         if (grids.length === 1) bukaGrid.add(grids[0].kunci);
       }
       const baris = [];
-      // Denah ruangan: rak (buka gambar kotaknya), area (langsung dipilih), pintu (penunjuk arah).
+      // Denah ruangan: rak (buka gambar kotaknya), area (langsung dipilih), pintu & penanda (penunjuk arah).
       const dr = !q && pakaiRuang && dl && dl.ruang[ruangPilih];
       if (dr && dr.blok && dr.blok.length) {
         const kodeArea = new Set(area.map(x => x.kode));
         const jenisArea = Object.fromEntries(area.map(x => [x.kode, x.jenis]));
         const namaArea = Object.fromEntries(area.map(x => [x.kode, x.nama || x.kode]));
         baris.push(gambarDenah(dl.ukuran_ruang[0], dr.blok.map(b => b.t === 'pintu' ? {...b, nama: 'pintu', kelas: 'dk-pintu', klik: false}
+          : b.t === 'tanda' ? {...b, nama: b.nama || '', kelas: 'dk-tanda', klik: false}
           : b.t === 'area' || kodeArea.has(b.id) ? {...b, nama: namaArea[b.id] || b.id, kelas: 'dk-area dk-' + (jenisArea[b.id] || 'lantai')}
           : {...b, nama: 'Rak ' + b.id, kelas: 'dk-rak'}),
           k => {
@@ -255,7 +257,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
             setTimeout(() => { const t = [...isi.querySelectorAll('.pr-grid-kepala, .pr-grup')].find(e => e.textContent.startsWith('Rak ' + k.id));
               if (t) t.scrollIntoView({block: 'start', behavior: 'smooth'}); }, 30);
           },
-          k => (k.kelas || '').includes('dk-area') ? k.id === sel.value : (rak.find(x => x.kode === sel.value) || {}).induk === k.id));
+          k => k.klik === false ? false : (k.kelas || '').includes('dk-area') ? k.id === sel.value : (rak.find(x => x.kode === sel.value) || {}).induk === k.id));
       }
       if (area.length) {
         const d = document.createElement('div'); d.className = 'pr-area';

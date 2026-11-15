@@ -4,6 +4,7 @@
 <style>
 .dn-tab{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}.dn-tab a.aktif{background:var(--aksen);border-color:var(--aksen);color:#fff}
 .dn-kerja{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.dn-kanan{flex:1 1 0}
 .dn-palet{width:230px;display:flex;flex-direction:column;gap:6px}
 .dn-palet button{display:flex;justify-content:space-between;align-items:center;gap:6px;text-align:left;min-height:42px;padding:6px 10px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;cursor:pointer}
 .dn-palet button.aktif{outline:3px solid var(--aksen);outline-offset:-2px}
@@ -15,6 +16,9 @@
 .dn-blok.t-area{background:#e6f2ee;border-color:#0f6e56;color:#085041;border-style:dashed}
 .dn-blok.j-sementara{background:#fde8e8;border-color:#c0392b;color:#7a1d14}
 .dn-blok.t-pintu{background:#fff;border-color:#888;color:#555;border-style:dotted}
+.dn-blok.t-tanda{background:#eef0f2;border-color:#7b8590;color:#38414a}
+.dn-nama{display:flex;flex-direction:column;gap:4px;margin-top:4px;padding:8px;border:1px dashed var(--garis-kuat);border-radius:8px;background:#fff}
+.dn-nama input{font:inherit;padding:6px 8px;border:1px solid var(--garis-kuat);border-radius:6px}
 .dn-blok.aktif{box-shadow:0 0 0 3px var(--aksen)}
 .dn-pratinjau{border:2px dashed var(--aksen);background:rgba(184,92,40,.12);border-radius:6px;pointer-events:none}
 </style>
@@ -26,13 +30,20 @@
   <a class="tombol kecil" href="{% url 'master:rak' %}?lokasi={{ lokasi.id }}">‹ Kembali ke Rak</a>
 </nav>
 <div class="dn-kerja">
-  <div class="dn-palet" id="palet" aria-label="Yang bisa ditaruh"></div>
-  <div>
+  <div class="dn-palet">
+    <div class="dn-palet" id="palet" aria-label="Yang bisa ditaruh"></div>
+    <label class="dn-nama" id="nama-tanda-kotak" hidden>
+      <span class="kecil" id="nama-tanda-judul">Nama penanda</span>
+      <input id="nama-tanda" maxlength="30" placeholder="Meja kasir, Tangga, Tiang…" autocomplete="off">
+      <small class="redup" id="nama-tanda-ket">Tulis namanya, lalu tarik kotak di denah.</small>
+    </label>
+  </div>
+  <div class="dn-kanan" id="kanan">
     <div class="dn-kanvas" id="kanvas" role="application" aria-label="Denah, tarik untuk menaruh kotak"></div>
     <div class="baris" style="margin-top:10px;gap:8px;display:flex;flex-wrap:wrap;align-items:center">
       <button class="tombol utama" type="button" id="simpan">Simpan denah</button>
       <button class="tombol" type="button" id="lepas" hidden>Lepas dari denah</button>
-      <span class="kecil redup" id="ket">{% if ruang_pilih %}Pintu boleh lebih dari satu. Rak yang belum masuk ruangan ini: atur ruangannya dulu di halaman Rak.{% else %}Bagian bawah denah = sisi depan/jalan masuk.{% endif %}</span>
+      <span class="kecil redup" id="ket">{% if ruang_pilih %}Pintu dan penanda boleh lebih dari satu. Rak yang belum masuk ruangan ini: atur ruangannya dulu di halaman Rak.{% else %}Bagian bawah denah = sisi depan/jalan masuk.{% endif %}</span>
     </div>
   </div>
 </div>
@@ -41,30 +52,48 @@
 (() => {
   const D = JSON.parse(document.getElementById('data-denah').textContent);
   const kanvas = document.getElementById('kanvas'), palet = document.getElementById('palet');
-  const SEL = Math.max(22, Math.min(34, Math.floor(Math.min(720, innerWidth - 300) / D.kolom)));
+  // Ukuran petak dari lebar area kerja (sudah tanpa menu samping) dikurangi daftar di kiri.
+  const lebarKanan = document.querySelector('.dn-kerja').clientWidth - 246;
+  const SEL = Math.max(22, Math.min(34, Math.floor(Math.min(720, lebarKanan) / D.kolom)));
   kanvas.style.gridTemplateColumns = `repeat(${D.kolom}, ${SEL}px)`;
   kanvas.style.gridTemplateRows = `repeat(${D.baris}, ${SEL}px)`;
   kanvas.style.backgroundSize = `${SEL}px ${SEL}px`;
+  // Kolom kanan selebar denah saja; keterangan panjang dibungkus, bukan mendorong denah ke bawah daftar.
+  document.getElementById('kanan').style.minWidth = (SEL * D.kolom + 2) + 'px';
   const kunci = x => x.t + ':' + x.id;
   const barang = D.barang.slice();
-  if (D.mode === 'ruang') barang.push({t: 'pintu', id: '', nama: 'Pintu'});
+  // Pintu & penanda (meja, tangga…) boleh banyak: kuncinya nomor urut, "…:baru" = mau menambah satu lagi.
+  const BANYAK = ['pintu', 'tanda'];
+  if (D.mode === 'ruang') barang.push({t: 'pintu', id: '', nama: 'Pintu'}, {t: 'tanda', id: '', nama: '+ Penanda (meja, tangga…)'});
   const letak = new Map();
-  let nPintu = 0;
-  D.letak.forEach(x => letak.set(x.t === 'pintu' ? 'pintu:' + (nPintu++) : kunci(x), {...x}));
+  const nomor = {pintu: 0, tanda: 0};
+  D.letak.forEach(x => letak.set(BANYAK.includes(x.t) ? x.t + ':' + (nomor[x.t]++) : kunci(x), {...x}));
   let pilih = barang[0] ? kunci(barang[0]) : null, berubah = false;
+  const jenisK = k => (k || '').split(':')[0];
+  const kotakNama = document.getElementById('nama-tanda-kotak'), inNama = document.getElementById('nama-tanda');
 
-  const nama = k => { if (k.startsWith('pintu:')) return 'Pintu'; const b = barang.find(x => kunci(x) === k); return b ? b.nama : k; };
+  const nama = k => {
+    if (k.startsWith('pintu:')) return 'Pintu';
+    if (k.startsWith('tanda:')) return (letak.get(k) || {}).nama || '';
+    const b = barang.find(x => kunci(x) === k); return b ? b.nama : k;
+  };
   const jenis = k => { const b = barang.find(x => kunci(x) === k); return b ? b.jenis || '' : ''; };
 
   function gambarPalet(){
     palet.replaceChildren(...barang.map(b => {
       const k = kunci(b), el = document.createElement('button'); el.type = 'button';
-      const sudah = b.t === 'pintu' ? [...letak.keys()].filter(x => x.startsWith('pintu:')).length : letak.has(k);
+      const banyak = BANYAK.includes(b.t);
+      const sudah = banyak ? [...letak.keys()].filter(x => jenisK(x) === b.t).length : letak.has(k);
       const n = document.createElement('span'); n.textContent = b.nama;
-      const s = document.createElement('small'); s.textContent = b.t === 'pintu' ? (sudah ? sudah + ' di denah' : 'tarik untuk tambah') : (sudah ? '✓ di denah' : 'belum');
+      const s = document.createElement('small'); s.textContent = banyak ? (sudah ? sudah + ' di denah' : 'tarik untuk tambah') : (sudah ? '✓ di denah' : 'belum');
       el.append(n, s); el.classList.toggle('sudah', !!sudah);
-      el.classList.toggle('aktif', b.t === 'pintu' ? pilih === 'pintu:baru' : pilih === k);
-      el.addEventListener('click', () => { pilih = b.t === 'pintu' ? 'pintu:baru' : k; gambar(); });
+      el.classList.toggle('aktif', banyak ? pilih === b.t + ':baru' : pilih === k);
+      el.addEventListener('click', () => {
+        pilih = banyak ? b.t + ':baru' : k;
+        if (b.t === 'tanda') inNama.value = '';
+        gambar();
+        if (b.t === 'tanda') inNama.focus();
+      });
       return el;
     }));
   }
@@ -81,7 +110,22 @@
     });
     kanvas.replaceChildren(...isi);
     document.getElementById('lepas').hidden = !(pilih && letak.has(pilih));
+    // Kotak nama: muncul saat menambah penanda baru atau memilih penanda yang sudah ada (ganti nama).
+    const tanda = jenisK(pilih) === 'tanda';
+    kotakNama.hidden = !tanda;
+    if (tanda) {
+      const baru = pilih === 'tanda:baru';
+      document.getElementById('nama-tanda-judul').textContent = baru ? 'Nama penanda baru' : 'Ganti nama penanda';
+      document.getElementById('nama-tanda-ket').textContent = baru ? 'Tulis namanya, lalu tarik kotak di denah.'
+        : 'Tarik ulang di denah untuk memindah. "+ Penanda" untuk menambah yang lain.';
+      if (!baru && document.activeElement !== inNama) inNama.value = (letak.get(pilih) || {}).nama || '';
+    }
   }
+  inNama.addEventListener('input', () => {
+    if (!letak.has(pilih) || jenisK(pilih) !== 'tanda') return;
+    letak.get(pilih).nama = inNama.value.trim(); berubah = true;
+    const el = kanvas.querySelector(`.dn-blok[data-k="${pilih}"]`); if (el) el.textContent = inNama.value.trim();
+  });
 
   // Tarik kotak: titik awal -> titik akhir (sel). Ketuk kotak yang ada = pilih kotak itu.
   let awal = null, pratinjau = null;
@@ -95,6 +139,7 @@
     const blok = e.target.closest('.dn-blok');
     if (blok && blok.dataset.k !== pilih) { pilih = blok.dataset.k; gambar(); return; }
     if (!pilih) return;
+    if (pilih === 'tanda:baru' && !inNama.value.trim()) { kabar('Tulis nama penandanya dulu (misal Meja kasir, Tangga).', true); inNama.focus(); return; }
     awal = sel(e); kanvas.setPointerCapture(e.pointerId);
     pratinjau = document.createElement('div'); pratinjau.className = 'dn-pratinjau'; kanvas.append(pratinjau);
     const r = kotak(awal, awal); pratinjau.style.gridColumn = `${r.x + 1} / span 1`; pratinjau.style.gridRow = `${r.y + 1} / span 1`;
@@ -109,17 +154,23 @@
     const r = kotak(awal, sel(e)); awal = null;
     if (pratinjau) { pratinjau.remove(); pratinjau = null; }
     let k = pilih;
-    if (k === 'pintu:baru') { k = 'pintu:' + (nPintu++); }
-    const t = k.split(':')[0], id = k.slice(t.length + 1);
-    letak.set(k, {t, id: t === 'pintu' ? '' : (t === 'ruang' ? +id : id), ...r});
-    if (t !== 'pintu') {
+    const t = jenisK(k);
+    if (k.endsWith(':baru')) k = t + ':' + (nomor[t]++);
+    const id = k.slice(t.length + 1);
+    if (t === 'tanda') letak.set(k, {t, id: '', nama: (letak.get(k) || {}).nama || inNama.value.trim(), ...r});
+    else letak.set(k, {t, id: t === 'pintu' ? '' : (t === 'ruang' ? +id : id), ...r});
+    if (t === 'pintu') pilih = 'pintu:baru';
+    else if (t === 'tanda') pilih = k;            // tetap terpilih: bisa langsung ganti nama / tarik ulang
+    else {
       // otomatis pindah ke yang belum ditaruh berikutnya
-      const berikut = barang.find(b => b.t !== 'pintu' && !letak.has(kunci(b)));
+      const berikut = barang.find(b => !BANYAK.includes(b.t) && !letak.has(kunci(b)));
       pilih = berikut ? kunci(berikut) : k;
-    } else pilih = 'pintu:baru';
+    }
     berubah = true; gambar();
   });
-  document.getElementById('lepas').addEventListener('click', () => { letak.delete(pilih); berubah = true; gambar(); });
+  document.getElementById('lepas').addEventListener('click', () => {
+    const t = jenisK(pilih); letak.delete(pilih); if (BANYAK.includes(t)) pilih = t + ':baru'; berubah = true; gambar();
+  });
 
   document.getElementById('simpan').addEventListener('click', async () => {
     const isi = [...letak.values()];

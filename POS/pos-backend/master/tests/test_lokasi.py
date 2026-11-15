@@ -768,9 +768,17 @@ class HitungPosisiTest(Dasar):
         self.assertContains(self.client.get(url_r), "Rak C")
         r = self.client.post(url_r, json.dumps({"blok": [
             {"t": "rak", "id": "C", "x": 0, "y": 2, "w": 2, "h": 6}, {"t": "area", "id": "R1-TEMP", "x": 10, "y": 2, "w": 3, "h": 3},
-            {"t": "pintu", "id": "", "x": 6, "y": 15, "w": 3, "h": 1}]}), content_type="application/json")
+            {"t": "pintu", "id": "", "x": 6, "y": 15, "w": 3, "h": 1},
+            {"t": "tanda", "id": "", "nama": "  Meja   kasir ", "x": 12, "y": 10, "w": 3, "h": 2},
+            {"t": "tanda", "id": "", "nama": "Tangga", "x": 14, "y": 0, "w": 2, "h": 4}]}), content_type="application/json")
         self.assertEqual(r.json(), {"ok": True})
-        self.assertEqual(len(Ruang.objects.get(pk=r1.pk).denah["blok"]), 3)
+        blok = Ruang.objects.get(pk=r1.pk).denah["blok"]
+        self.assertEqual(len(blok), 5)
+        self.assertEqual([b["nama"] for b in blok if b["t"] == "tanda"], ["Meja kasir", "Tangga"])
+        r = self.client.post(url_r, json.dumps({"blok": [{"t": "tanda", "id": "", "nama": " ", "x": 0, "y": 0, "w": 1, "h": 1}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 409)                                  # penanda wajib bernama
+        self.assertEqual(len(Ruang.objects.get(pk=r1.pk).denah["blok"]), 5)
         r = self.client.post(url_r, json.dumps({"blok": [{"t": "rak", "id": "GA-1", "x": 0, "y": 0, "w": 1, "h": 1}]}),
                              content_type="application/json")
         self.assertEqual(r.status_code, 409)                                  # rak bukan isi ruangan ini

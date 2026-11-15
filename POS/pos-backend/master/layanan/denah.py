@@ -1,8 +1,9 @@
 """Denah dilihat dari atas (14 Nov 2026).
 
 - Denah lokasi: letak tiap ruangan (Ruang.x/y/w/h) di petak LOKASI_KOLOM x LOKASI_BARIS.
-- Denah ruangan: Ruang.denah = {"blok": [{"t": "rak"|"area"|"pintu", "id": induk/kode/"", "x", "y", "w", "h"}]}
-  di petak RUANG_KOLOM x RUANG_BARIS. "rak" menunjuk rak induk (A, TK1), "area" menunjuk kode area lantai/sementara.
+- Denah ruangan: Ruang.denah = {"blok": [{"t": "rak"|"area"|"pintu"|"tanda", "id": induk/kode/"", "x", "y", "w", "h"}]}
+  di petak RUANG_KOLOM x RUANG_BARIS. "rak" menunjuk rak induk (A, TK1), "area" menunjuk kode area lantai/sementara,
+  "tanda" = penanda bebas bernama (meja kasir, tangga, tiang; 15 Nov 2026) dengan kunci tambahan "nama".
 Hanya gambar penunjuk arah: tidak mengubah stok atau kode rak apa pun.
 """
 from django.db import transaction
@@ -13,6 +14,7 @@ from master.models import Rak, Ruang
 
 LOKASI_KOLOM, LOKASI_BARIS = 24, 24
 RUANG_KOLOM, RUANG_BARIS = 16, 16
+NAMA_TANDA = 30
 
 
 def _kotak(d, kolom, baris):
@@ -51,6 +53,11 @@ def simpan_ruang(pengguna, ruang, blok):
         x, y, w, h = _kotak(d, RUANG_KOLOM, RUANG_BARIS)
         if t == "pintu":
             hasil.append({"t": "pintu", "id": "", "x": x, "y": y, "w": w, "h": h})
+        elif t == "tanda":
+            nama = layanan.rapikan_teks(str(d.get("nama") or ""))[:NAMA_TANDA]
+            if not nama:
+                raise Tolak("Ada penanda tanpa nama. Isi namanya dulu (misal Meja kasir, Tangga).")
+            hasil.append({"t": "tanda", "id": "", "nama": nama, "x": x, "y": y, "w": w, "h": h})
         elif t in ("rak", "area") and (d.get("id") in induk or d.get("id") in tunggal):
             hasil.append({"t": t, "id": d["id"], "x": x, "y": y, "w": w, "h": h})
         else:
