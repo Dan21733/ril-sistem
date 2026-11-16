@@ -142,6 +142,9 @@ def simpan_entri(pengguna, t, entri):
                 if v.pk not in boleh:
                     raise Tolak(f"{v.item_name} di luar lingkup tugas ini.")
                 kode = kode_rak_baru(e.get("rak"))
+                if kode and kode not in rak_sini:
+                    from master.layanan.rak import kode_terkini
+                    kode = kode_terkini(kode)          # tablet masih memegang kode lama (rak diganti kodenya)
                 rak, rak_baru = rak_sini.get(kode), ""
                 if kode and rak is None:
                     if Rak.objects.filter(pk=kode).exists():

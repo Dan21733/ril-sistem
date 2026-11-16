@@ -102,13 +102,44 @@ def _dipakai(kode):
     return hasil
 
 
-def _tugas_hitung_jalan(kode):
-    """Tugas hitung yang masih dikerjakan di lokasi rak ini: kode kotak jangan diganti selama itu,
-    karena tablet karyawan bisa masih menyimpan kode lama di antreannya."""
-    from master.models import Tiket
-    lokasi = set(Rak.objects.filter(kode__in=kode).values_list("tempat_id", flat=True))
-    return [t for t in Tiket.objects.filter(jenis="hitung", status="terbuka")
-            if (t.saring or {}).get("lokasi") in lokasi or set((t.saring or {}).get("rak") or []) & set(kode)]
+def kode_terkini(kode):
+    """Kode rak sekarang untuk kode yang mungkin sudah diganti (A-3 -> A-3-1 -> TK4-3-1)."""
+    from master.models import RakGanti
+    kode = str(kode or "")
+    for _ in range(8):
+        if not kode or Rak.objects.filter(pk=kode).exists():
+            return kode
+        g = RakGanti.objects.filter(lama=kode).first()
+        if g is None:
+            return kode
+        kode = g.baru
+    return kode
+
+
+def peta_ganti(hari=30):
+    """{kode lama: kode sekarang} untuk ganti kode beberapa hari terakhir (dipakai tablet saat Perbarui)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from master.models import RakGanti
+    lama = RakGanti.objects.filter(waktu__gte=timezone.now() - timedelta(days=hari)).values_list("lama", flat=True)
+    return {k: kode_terkini(k) for k in set(lama) if not Rak.objects.filter(pk=k).exists()}
+
+
+def _catat_ganti(peta, induk_lama="", induk_baru=""):
+    """Sesudah kode kotak diganti: simpan jejaknya dan perbarui lingkup tugas hitung yang menyebut kode lama."""
+    from master.models import RakGanti, Tiket
+    if not peta:
+        return
+    ganti = dict(peta)
+    RakGanti.objects.bulk_create([RakGanti(lama=a, baru=b) for a, b in peta])
+    for t in Tiket.objects.filter(jenis="hitung"):
+        s = t.saring or {}
+        rak = s.get("rak") or []
+        if any(k in ganti or (induk_lama and k == f"induk:{induk_lama}") for k in rak):
+            s["rak"] = [f"induk:{induk_baru}" if induk_lama and k == f"induk:{induk_lama}" else ganti.get(k, k) for k in rak]
+            Tiket.objects.filter(pk=t.pk).update(saring=s)
 
 
 def _ganti_kode(lama, baru, induk=None):
@@ -132,10 +163,9 @@ def ganti_kode(pengguna, lama, baru):
     - Rak baris x kolom (induk): semua kotaknya ikut, TK3-2-1 jadi TK4-2-1.
     - Rak tunggal / area: kodenya saja.
     Barang, rak tambahan, hitungan, usulan tugas, denah ruangan, dan lingkup tugas hitung ikut ke kode baru.
-    Ditolak selama tugas hitung masih dikerjakan di lokasinya (tablet bisa masih memegang kode lama).
+    Boleh saat tugas hitung jalan: kode lama dari tablet diarahkan ke kode baru (RakGanti).
     Mengembalikan daftar (kode lama, kode baru).
     """
-    from master.models import Tiket
     lama = str(lama or "").strip()
     baru = kode_induk(baru)
     grup = list(Rak.objects.filter(induk=lama).order_by("kode")) if lama else []
@@ -161,11 +191,6 @@ def ganti_kode(pengguna, lama, baru):
         bentrok.add(f"rak {baru}")
     if bentrok:
         raise Tolak("Kode sudah dipakai: " + ", ".join(sorted(bentrok)[:5]) + ". Pilih kode lain.")
-    jalan = _tugas_hitung_jalan(kode_lama)
-    if jalan:
-        raise Tolak(f"Tugas hitung #{jalan[0].id} masih dikerjakan di lokasi rak ini. Minta karyawan kirim "
-                    "tugasnya dulu (tidak perlu tunggu ACC), lalu ganti kodenya.")
-    ganti = dict(peta)
     with transaction.atomic():
         # Lewat nama sementara dulu supaya tukar kode (A ke B, B ke A) atau A ke A-1 tidak bentrok di tengah jalan.
         for i, (a, _) in enumerate(peta):
@@ -181,12 +206,7 @@ def ganti_kode(pengguna, lama, baru):
                     ubah = True
             if ubah:
                 ru.save(update_fields=["denah"])
-        for t in Tiket.objects.filter(jenis="hitung"):
-            s = t.saring or {}
-            rak = s.get("rak") or []
-            if any(k in ganti or k == f"induk:{lama}" for k in rak):
-                s["rak"] = [f"induk:{baru}" if k == f"induk:{lama}" else ganti.get(k, k) for k in rak]
-                Tiket.objects.filter(pk=t.pk).update(saring=s)
+        _catat_ganti(peta, lama if grup else "", baru if grup else "")
         layanan.catat(pengguna, aksi="ubah", objek="rak", kolom="kode", lama=lama, baru=baru,
                       catatan=f"{len(peta)} kotak" if grup else "")
     return peta
@@ -234,11 +254,6 @@ def ubah_ukuran(pengguna, *, induk, baris, kolom, nama="", tempat=None, pic=None
         if isi:
             raise Tolak("Kotak ini masih berisi barang atau hitungan: " + ", ".join(isi[:6])
                         + ". Pindahkan barangnya dulu, baru rak bisa diperkecil.")
-    if ganti and _tugas_hitung_jalan([lama for lama, _ in ganti]):
-        t = _tugas_hitung_jalan([lama for lama, _ in ganti])[0]
-        raise Tolak(f"Kode kotak rak {induk} perlu diganti (A-3 jadi A-3-1), tapi tugas hitung #{t.id} masih dikerjakan "
-                    "di lokasi ini. Minta karyawan kirim tugas itu dulu (tidak perlu tunggu ACC), lalu ulangi. "
-                    "Hitungan yang sudah masuk ikut pindah ke kode baru.")
     kode_baru = [r.kode for r in rencana] + [b for _, b in ganti]
     lama_semua = {r.kode for r in ada}
     bentrok = set(Rak.objects.filter(kode__in=kode_baru).exclude(kode__in=lama_semua).values_list("kode", flat=True))
@@ -253,6 +268,7 @@ def ubah_ukuran(pengguna, *, induk, baris, kolom, nama="", tempat=None, pic=None
             _ganti_kode(lama, f"~{lama}"[:20])
         for lama, baru in ganti:
             _ganti_kode(f"~{lama}"[:20], baru)
+        _catat_ganti(ganti)
         Rak.objects.bulk_create(rencana)
         if rencana or ganti or hapus:
             layanan.catat(pengguna, aksi="ubah" if ada else "tambah", objek="rak", kolom="rak",

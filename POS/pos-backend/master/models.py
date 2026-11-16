@@ -139,6 +139,18 @@ class Ruang(models.Model):
         return self.nama
 
 
+class RakGanti(models.Model):
+    """Jejak ganti kode rak (16 Nov 2026): tablet yang masih memegang kode lama tetap tercatat ke kode baru,
+    jadi ganti kode / ubah ukuran tidak perlu menunggu tugas hitung selesai."""
+    lama = models.CharField(max_length=20, db_index=True)
+    baru = models.CharField(max_length=20)
+    waktu = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_rak_ganti"
+        ordering = ["-waktu", "-id"]
+
+
 class Rak(models.Model):
     kode = models.CharField(max_length=20, primary_key=True)
     nama = models.CharField(max_length=100)

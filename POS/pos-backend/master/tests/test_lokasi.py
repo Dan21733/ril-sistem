@@ -669,21 +669,28 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(d["hitungan"], [{"varian": self.kecil.id, "rak": "GA-1", "jumlah": 3}])
         self.assertNotIn("in_stock", r.content.decode())
 
-    def test_ganti_kode_rak_ditahan_selama_tugas_terbuka(self):
-        from master.layanan import opname, rak as svc_rak
+    def test_ganti_kode_rak_saat_tugas_terbuka(self):
+        """16 Nov 2026: ubah ukuran / ganti kode boleh saat karyawan menghitung; kode lama dari tablet diarahkan."""
+        from master.layanan import rak as svc_rak
         from master.models import OpnameRak
         for b in (1, 2):
             Rak.objects.create(kode=f"K-{b}", nama="Rak K", tempat=self.ga, induk="K", baris=b, kolom=1)
         t = self._tugas()
         self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "K-1", "jumlah": "3"}])
-        # rak 1 kolom ditambah kolom: kode K-1 jadi K-1-1, ditahan selama tablet masih bekerja
-        with self.assertRaisesMessage(Tolak, "kirim tugas itu dulu"):
-            svc_rak.ubah_ukuran(self.admin, induk="K", baris=2, kolom=2)
-        svc_rak.ubah_ukuran(self.admin, induk="K", baris=3, kolom=1)      # tambah baris saja: boleh
-        opname.kirim_tugas(self.gudang, t)
-        svc_rak.ubah_ukuran(self.admin, induk="K", baris=3, kolom=2)      # sudah dikirim: boleh, tanpa tunggu ACC
-        self.assertFalse(Rak.objects.filter(kode="K-1").exists())
-        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t).rak_id, "K-1-1")
+        svc_rak.ubah_ukuran(self.admin, induk="K", baris=2, kolom=2)       # K-1 jadi K-1-1 walau tugas terbuka
+        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t, rak_id="K-1-1").jumlah, 3)
+        svc_rak.ganti_kode(self.admin, "K", "TK9")                         # K-1-1 jadi TK9-1-1
+        # tablet belum diperbarui: masih kirim kode lama K-1 dan K-2 -> tercatat di kode sekarang, bukan rak baru
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "K-1", "jumlah": "5"},
+                        {"kunci": "2", "varian": self.kecil.id, "rak": "K-2", "jumlah": "2"}])
+        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t, rak_id="TK9-1-1").jumlah, 5)
+        self.assertEqual(OpnameRak.objects.get(baris__opname__tiket=t, rak_id="TK9-2-1").jumlah, 2)
+        self.assertFalse(OpnameRak.objects.filter(baris__opname__tiket=t).exclude(rak_baru="").exists())
+        # tombol Perbarui di tablet: rak terbaru + peta kode lama
+        d = self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?data=1").json()
+        self.assertIn("TK9-2-2", [r["kode"] for r in d["rak"]])
+        self.assertEqual(d["ganti"]["K-1"], "TK9-1-1")
+        self.assertIn("denah", d)
 
     def test_ganti_kode_rak(self):
         from master.layanan import opname, rak as svc_rak
@@ -696,8 +703,6 @@ class HitungPosisiTest(Dasar):
         Ruang.objects.filter(pk=r1.pk).update(denah={"blok": [{"t": "rak", "id": "C", "x": 0, "y": 0, "w": 2, "h": 4}]})
         t = self._tugas(rak=["C-1-1", "GA-2"])
         self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "C-1-1", "jumlah": "3"}])
-        with self.assertRaisesMessage(Tolak, "kirim tugasnya dulu"):     # tugas masih dikerjakan
-            svc_rak.ganti_kode(self.admin, "C", "TK4")
         opname.kirim_tugas(self.gudang, t)
         Rak.objects.create(kode="E-1-1", nama="E", tempat=self.ga, induk="E", baris=1, kolom=1)
         with self.assertRaisesMessage(Tolak, "sudah dipakai"):

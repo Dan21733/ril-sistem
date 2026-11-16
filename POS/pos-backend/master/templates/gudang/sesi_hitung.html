@@ -301,6 +301,32 @@
    * Otomatis juga saat tablet dibuka lagi setelah lebih dari 10 menit.
    */
   let terakhirSegar = Date.now();
+  // Daftar rak & denah terbaru (16 Nov 2026): rak baru atau kode yang diganti pemilik saat tugas jalan.
+  // Rak yang sedang dipilih tetap terpilih; kalau kodenya diganti, pindah ke kode barunya.
+  function gantiRak(d){
+    const sel = $('rak'), pilih = (d.ganti || {})[sel.value] || sel.value;
+    const baru = sel.querySelector('option[value="__baru"]');
+    [...sel.options].forEach(o => { if (o.dataset.r !== undefined) o.remove(); });
+    d.rak.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.kode; o.dataset.r = '';
+      Object.assign(o.dataset, {induk: r.induk || '', baris: r.baris || '', kolom: r.kolom || '', ruang: r.ruang || '',
+        ruangUrut: r.ruang_urut === '' || r.ruang_urut == null ? '' : r.ruang_urut, jenis: r.jenis || 'rak',
+        lebar: r.lebar || 1, tinggi: r.tinggi || 1, label: r.label || r.kode,
+        tempat: d.ada_tugas ? (r.tugas ? 'Rak tugas ini' : 'Rak lain') : '', nama: r.nama !== r.kode ? (r.nama || '') : ''});
+      o.textContent = 'Rak ' + r.kode + (r.nama && r.nama !== r.kode ? ' · ' + r.nama : '');
+      sel.insertBefore(o, baru);
+    });
+    // Antrean yang belum terkirim dengan kode lama ikut pindah ke kode baru (server juga mengarahkannya).
+    const g = d.ganti || {}, antriBaru = {};
+    Object.values(antri).forEach(e => { if (g[e.rak]) { e.rak = g[e.rak]; e.kunci = kunci(e.varian, e.rak); } antriBaru[e.kunci] = e; });
+    antri = antriBaru; simpanLokal(KUNCI, antri);
+    rakBaruSimpan.forEach(k => tambahRak(k));      // rak baru ketikan karyawan (belum ada di master) tetap ada
+    sel.value = [...sel.options].some(o => o.value === pilih) ? pilih : '';
+    rakTadi = sel.value; simpanLokal(KUNCI_RAK, sel.value);
+    if (window.pilihRak) { pilihRak.gantiDenah(d.denah); pilihRak.segarkan(sel); }
+    if (sel.value !== pilih && pilih) kabar('Rak ' + pilih + ' sudah tidak ada. Pilih rak lagi.', true);
+  }
   async function segarkanBarang(diam){
     const tombol = $('segarkan'); tombol.disabled = true;
     try {
@@ -313,6 +339,7 @@
         b.cari = normal([b.n, b.v, b.b, b.c, b.a, b.r].join(' ')); b.nama = normal(b.n); barang.push(b);
       });
       perId.clear(); barang.forEach(b => perId.set(b.i, b));
+      if (d.rak) gantiRak(d);
       hitung.clear();
       d.hitungan.forEach(h => hitung.set(kunci(h.varian, h.rak), teks(h.jumlah, perId.get(h.varian))));
       Object.values(antri).forEach(e => e.hapus ? hitung.delete(e.kunci) : hitung.set(e.kunci, e.jumlah));

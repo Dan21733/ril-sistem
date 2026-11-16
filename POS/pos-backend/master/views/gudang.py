@@ -205,21 +205,27 @@ def tiket_hitung(request, tiket_id):
         except Tolak as tolak:
             messages.error(request, str(tolak))
         return redirect("gudang:tiket_hitung", t.id)
-    if request.GET.get("data") == "1":
-        # Tombol "Perbarui barang" di tablet: data terbaru tanpa memuat ulang halaman.
-        return JsonResponse({"barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
-                             "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t)})
     lokasi = opname.lokasi_tugas(t)
     rak_tugas = set((t.saring or {}).get("rak") or [])
+    # Rak lingkup tugas didahulukan (tab "Rak tugas ini" di pemilih rak), sisanya di "Rak lain".
+    daftar_rak = [{"kode": r.kode, "nama": r.nama, "induk": r.induk, "baris": r.baris, "kolom": r.kolom,
+                   "ruang": r.ruang.nama if r.ruang_id else "", "ruang_urut": r.ruang.urutan if r.ruang_id else "",
+                   "jenis": r.jenis, "lebar": r.lebar, "tinggi": r.tinggi, "label": svc_rak.label_lengkap(r),
+                   "tugas": r.kode in rak_tugas}
+                  for r in sorted(svc_sesi.rak_lokasi(lokasi), key=lambda r: (r.kode not in rak_tugas, svc_rak.urut(r)))]
+    if request.GET.get("data") == "1":
+        # Tombol "Perbarui barang" di tablet: barang, hitungan, rak, dan denah terbaru tanpa memuat ulang halaman
+        # (16 Nov 2026: rak baru / kode rak yang diganti pemilik saat tugas jalan langsung terlihat).
+        from master.layanan.denah import data_pemilih
+        return JsonResponse({"barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
+                             "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
+                             "rak": daftar_rak, "ada_tugas": bool(rak_tugas), "denah": data_pemilih(),
+                             "ganti": svc_rak.peta_ganti()})
     return render(request, "gudang/sesi_hitung.html", {
         "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
         "barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
         "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
-        # Rak lingkup tugas didahulukan (tab "Rak tugas ini" di pemilih rak), sisanya di "Rak lain".
-        "daftar_rak": [{"kode": r.kode, "nama": r.nama, "induk": r.induk, "baris": r.baris, "kolom": r.kolom,
-                        "ruang": r.ruang.nama if r.ruang_id else "", "ruang_urut": r.ruang.urutan if r.ruang_id else "", "jenis": r.jenis, "lebar": r.lebar,
-                        "tinggi": r.tinggi, "label": svc_rak.label_lengkap(r)}
-                       for r in sorted(svc_sesi.rak_lokasi(lokasi), key=lambda r: (r.kode not in rak_tugas, svc_rak.urut(r)))],
+        "daftar_rak": daftar_rak,
         "rak_tugas": rak_tugas,
         "boleh_rak_baru": not t.sesi_id,
         "pindah_rak": not t.sesi_id and opname.perbarui_posisi(t),

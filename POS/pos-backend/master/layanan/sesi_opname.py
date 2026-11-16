@@ -126,6 +126,9 @@ def simpan(pengguna, t, entri):
             if v is None or not v.aktif:
                 raise Tolak("Barang tidak ditemukan atau sudah nonaktif.")
             kode = str(e.get("rak") or "")
+            if kode and kode not in rak_boleh:
+                from master.layanan.rak import kode_terkini
+                kode = kode_terkini(kode)              # kode lama dari tablet (rak diganti kodenya)
             rak = rak_boleh.get(kode) if kode else None
             if kode and rak is None:
                 raise Tolak(f"Rak {kode} bukan rak di {lokasi.nama}.")

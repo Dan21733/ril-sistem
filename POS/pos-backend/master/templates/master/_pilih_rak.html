@@ -384,7 +384,9 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
   }
 
   const semua = akar => (akar.querySelectorAll ? akar : document).querySelectorAll('select[data-pilih-rak]').forEach(pasang);
-  window.pilihRak = {segarkan, pasang, semua};
+  // Denah baru dari server (tombol Perbarui di tablet, 16 Nov 2026).
+  const gantiDenah = d => { DENAH = d || {}; };
+  window.pilihRak = {segarkan, pasang, semua, gantiDenah};
   const mulai = () => {
     semua(document);
     new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {

@@ -198,7 +198,7 @@ def ringkasan_lokasi():
     for t in Rak.objects.exclude(tempat=None).values_list("tempat_id", flat=True):
         rak[t] += 1
     hasil = []
-    for l in Lokasi.objects.all():
+    for l in Lokasi.objects.order_by("-aktif", "urutan", "id"):     # nonaktif paling bawah (16 Nov 2026)
         hasil.append({"lokasi": l, "unit": unit.get(l.id, 0), "varian": varian.get(l.id, 0), "rak": rak.get(l.id, 0)})
     return hasil
 
