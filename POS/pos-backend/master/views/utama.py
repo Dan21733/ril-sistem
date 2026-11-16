@@ -1136,7 +1136,7 @@ def rak(request):
             baru = r.induk or r.kode
             rinci = f": {len(peta)} kotak (mis. {peta[0][0]} jadi {peta[0][1]})" if r.induk else ""
             messages.success(request, f"Kode {kode} diganti jadi {baru}{rinci}. Barang, hitungan, dan denahnya ikut.")
-            return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}" + (f"&buka={r.induk}" if r.induk else ""))
+            return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}&buka={r.induk or r.kode}")
         elif aksi in ("gabung", "pisah"):
             try:
                 if aksi == "gabung":
@@ -1213,7 +1213,7 @@ def rak(request):
             # Rak dipindah ke lokasi lain: ikut pindah ke tab lokasi itu supaya kelihatan tersimpan.
             r = Rak.objects.filter(kode=kode).first()
             if r is not None:
-                return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}" + (f"&buka={r.induk}" if r.induk else ""))
+                return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}&buka={r.induk or r.kode}")
         return redirect(request.get_full_path())
 
     from master.models import Lokasi
@@ -1244,11 +1244,18 @@ def rak(request):
     tanpa = [e for e in entri if not e["rak"][0].ruang_id or e["rak"][0].ruang_id not in {ru.id for ru in daftar_ruang}]
     if tanpa:
         bagian.append({"ruang": None, "entri": tanpa})
+    for e in entri:
+        # Kunci panel kanan (16 Nov 2026): rak berkotak = kode induk, rak tunggal/area = kodenya.
+        e["kunci"] = e["grup"] or e["rak"][0].kode
+        if e["grup"]:
+            e["campur"] = [n for n, k in (("nama", not e["nama"]), ("ruangan", e["ruang_id"] == "__tetap"),
+                                          ("PIC", e["pic_id"] == "__tetap"), ("langsung", e["langsung_campur"])) if k]
     return render(request, "master/rak.html", {
         "bagian": bagian, "daftar_ruang": daftar_ruang,
         "menu": "rak", "daftar": entri, "daftar_lokasi": daftar_lokasi, "daftar_pic": penerima_boleh(),
         "tanpa_rak": VarianInfo.objects.filter(rak__isnull=True, sampah__isnull=True).count(),
         "tab": tab, "aktif": aktif, "total_rak": sum(per_lokasi.values()),
+        "ruang_terisi": {bg["ruang"].id for bg in bagian if bg["ruang"]}, "jenis_pilihan": Rak.JENIS,
     })
 
 

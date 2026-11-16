@@ -85,7 +85,7 @@ class LokasiTest(Dasar):
         # Halaman rak per lokasi (13 Nov 2026): satu lokasi sekali tampil, simpan pindah ke tab lokasi barunya.
         r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
                              {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.toko.id})
-        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.toko.id}", fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.toko.id}&buka=TK-02", fetch_redirect_response=False)
         r = self.client.get(reverse("master:rak") + f"?lokasi={self.toko.id}")
         self.assertContains(r, "Rak Toko Kanan")
         self.assertNotContains(r, "Rak Hardware")
@@ -94,7 +94,7 @@ class LokasiTest(Dasar):
         self.assertNotContains(r, "Rak Toko Kanan")
         r = self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}",
                              {"aksi": "simpan", "kode": "TK-02", "nama": "Rak Toko Kanan", "tempat": self.gb.id})
-        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}", fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("master:rak") + f"?lokasi={self.gb.id}&buka=TK-02", fetch_redirect_response=False)
         # Rak bertingkat sekaligus: TK1 x 3 -> TK1-1..TK1-3; tambah jadi 5 hanya membuat TK1-4, TK1-5.
         self.client.post(reverse("master:rak"), {"aksi": "bertingkat", "kode": "tk1", "tingkat": "3",
                                                  "nama": "Rak Toko Kanan", "tempat": self.toko.id})
@@ -106,8 +106,8 @@ class LokasiTest(Dasar):
         self.assertEqual(Rak.objects.get(kode="TK1-5").tempat, self.toko)
         # Rak bertingkat tampil dikelompokkan, dan bisa diubah sekaligus.
         r = self.client.get(reverse("master:rak") + f"?lokasi={self.toko.id}")
-        self.assertContains(r, 'data-grup="TK1"')
-        self.assertContains(r, 'data-anak="TK1"', count=6)          # 5 kotak + gambar rak
+        self.assertContains(r, 'data-panel="TK1"', count=1)          # satu panel untuk seluruh rak (16 Nov 2026)
+        self.assertContains(r, 'data-kotak="TK1-', count=5)          # 5 kotak di gambar, tanpa daftar kotak dobel
         self.client.post(reverse("master:rak") + f"?lokasi={self.toko.id}", {
             "aksi": "simpan_grup", "kode": "TK1", "kode_grup": [f"TK1-{i}" for i in range(1, 6)],
             "nama": "Rak Dekat Tangga", "tempat": "__tetap", "pic": "__tetap", "langsung": "1"})
@@ -755,7 +755,9 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(svc_rak.label_lengkap(area), "Ruang keramik · Keramik sisi kiri")
         self.assertEqual(svc_rak.label_lengkap(Rak.objects.get(kode="A-2-1")), "Ruangan 1 · Rak A · baris 2 · kolom 1")
         r = self.client.get(url)
-        self.assertContains(r, "<b>Ruangan 1</b>")
+        self.assertContains(r, "<summary><span>Ruangan 1</span>")         # daftar kiri per ruangan (16 Nov 2026)
+        self.assertContains(r, 'data-panel="A"')                           # panel kanan rak berkotak
+        self.assertContains(r, 'data-panel="RK-KIRI"')
         self.assertContains(r, "Area sementara")
         # ruangan lokasi lain tidak bisa dipakai
         self.client.post(url, {"aksi": "simpan", "kode": "GA-1", "nama": "GA-1", "tempat": self.toko.id, "ruang": r1.id})
