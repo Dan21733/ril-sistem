@@ -1,7 +1,7 @@
 {% extends "master/base.html" %}{% load master_tags %}
 {% block judul %}Rak{% endblock %}
 {% block isi %}
-<h2>Rak</h2>
+<div class="kepala-halaman"><h2>Rak</h2>{% if 'kelola_rak' in hak %}<button type="button" class="tombol utama" data-buka-laci="laci-tambah">Tambah rak / area</button>{% endif %}</div>
 <style>
 .chip-jenis{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;background:#e6f2ee;color:#0b5b45}.chip-jenis.jenis-sementara{background:#fde8e8;color:#9b1c1c}
 .atur-ruang{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.atur-ruang form{display:flex;gap:6px;align-items:center;margin:0}.atur-ruang input{width:150px}
@@ -74,10 +74,10 @@
   {% for bg in bagian %}
   <details class="rk-ru" open><summary><span>{% if bg.ruang %}{{ bg.ruang.nama }}{% else %}Tanpa ruangan{% endif %}</span><span class="n">{{ bg.entri|length }}</span></summary>
     {% for e in bg.entri %}<button type="button" class="rk-item" data-buka="{{ e.kunci }}" data-cari="{{ e.kunci|lower }} {% if e.grup %}{{ e.nama|lower }}{% else %}{{ e.rak.0.nama|lower }}{% endif %}"><span class="kd">{{ e.kunci }}</span><span class="ket">{% if e.grup %}{{ e.n_baris }}{% if e.n_kolom > 1 %}×{{ e.n_kolom }}{% else %} tingkat{% endif %}{% elif e.rak.0.jenis != "rak" %}{{ e.rak.0.get_jenis_display|lower }}{% else %}{{ e.rak.0.nama }}{% endif %} · {% if e.grup %}{{ e.jumlah }}{% else %}{{ e.rak.0.jumlah }}{% endif %} var</span></button>{% endfor %}
-    {% if bg.ruang and 'kelola_rak' in hak %}<button type="button" class="rk-tambah" data-tambah-ruang="{{ bg.ruang.id }}">+ Rak / area</button>{% endif %}
+    {% if bg.ruang and 'kelola_rak' in hak %}<button type="button" class="rk-tambah" data-buka-laci="laci-tambah" data-isi='{"ruang": "{{ bg.ruang.id }}"}'>+ Rak / area</button>{% endif %}
   </details>
   {% endfor %}
-  {% for ru in daftar_ruang %}{% if ru.id not in ruang_terisi %}<details class="rk-ru kosong"><summary><span>{{ ru.nama }}</span><span class="n">kosong</span></summary>{% if 'kelola_rak' in hak %}<button type="button" class="rk-tambah" data-tambah-ruang="{{ ru.id }}">+ Rak / area</button>{% endif %}</details>{% endif %}{% endfor %}
+  {% for ru in daftar_ruang %}{% if ru.id not in ruang_terisi %}<details class="rk-ru kosong"><summary><span>{{ ru.nama }}</span><span class="n">kosong</span></summary>{% if 'kelola_rak' in hak %}<button type="button" class="rk-tambah" data-buka-laci="laci-tambah" data-isi='{"ruang": "{{ ru.id }}"}'>+ Rak / area</button>{% endif %}</details>{% endif %}{% endfor %}
 </nav>
 
 <div>
@@ -155,7 +155,7 @@
 {% endfor %}
 </div>
 </div>
-{% else %}<div class="kartu redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.{% if daftar_ruang and 'kelola_rak' in hak %} {% for ru in daftar_ruang %}<button type="button" class="rk-tambah" data-tambah-ruang="{{ ru.id }}">+ di {{ ru.nama }}</button>{% endfor %}{% endif %}</div>{% endif %}
+{% else %}<div class="kartu redup" style="padding:22px;text-align:center">Belum ada rak{% if aktif %} di {{ aktif.nama }}{% endif %}.{% if daftar_ruang and 'kelola_rak' in hak %} {% for ru in daftar_ruang %}<button type="button" class="rk-tambah" data-buka-laci="laci-tambah" data-isi='{"ruang": "{{ ru.id }}"}'>+ di {{ ru.nama }}</button>{% endfor %}{% endif %}</div>{% endif %}
 <script>
 // Ganti kode rak yang salah ketik (15 Nov 2026): tanya kode baru, kotak/barang/hitungan/denah ikut.
 document.addEventListener('submit', e => {
@@ -189,12 +189,6 @@ document.addEventListener('submit', e => {
     item.forEach(b => b.hidden = !!q && !b.dataset.cari.includes(q));
     if (q) document.querySelectorAll('.rk-ru').forEach(d => d.open = true);
   });
-  // "+ Rak / area" di ruangan: ruangan terisi di form tambah, lalu ke sana (form tambah disatukan di tahap 2).
-  document.querySelectorAll('[data-tambah-ruang]').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('.form-tambah select[name=ruang]').forEach(s => s.value = b.dataset.tambahRuang);
-    const f = document.getElementById('form-tingkat');
-    f.scrollIntoView({behavior: 'smooth', block: 'center'}); f.kode.focus({preventScroll: true});
-  }));
   // Gabung / pisah kotak (14 Nov 2026): mode pilih di gambar rak; kotak dicentang lalu dikirim sebagai daftar.
   document.querySelectorAll('.form-gabung').forEach(f => {
     const g = document.querySelector(`.gambar-rak[data-rak="${CSS.escape(f.dataset.rak)}"]`);
@@ -226,31 +220,58 @@ document.addEventListener('submit', e => {
 })();
 </script>
 {% if 'kelola_rak' in hak %}
-<h3>Tambah rak</h3>
-<form method="post" class="kartu baris form-tambah" id="form-tingkat">{% csrf_token %}<input type="hidden" name="aksi" value="grid">
-  <div style="width:110px"><label>Kode rak</label><input type="text" name="kode" maxlength="14" required placeholder="A" style="text-transform:uppercase" autocomplete="off"></div>
-  <div style="width:90px"><label>Baris</label><input type="text" name="baris" value="5" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" aria-describedby="contoh-tingkat"></div>
-  <div style="width:90px"><label>Kolom</label><input type="text" name="kolom" value="1" required inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" aria-describedby="contoh-tingkat"></div>
-  <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required placeholder="mis. Rak dekat tangga"></div>
-  <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
-  <div style="width:150px"><label>Ruangan</label><select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}">{{ ru.nama }}</option>{% endfor %}</select></div>
-  <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
-  <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
-  <div><button class="tombol utama" type="submit">Buat</button></div>
-  <div style="flex-basis:100%">
-    <p class="kecil redup" style="margin:0" id="contoh-tingkat"></p>
-    <div id="pratinjau-rak"></div>
+<aside class="laci" id="laci-tambah" hidden aria-label="Tambah rak atau area">
+<form method="post" id="form-tambah">{% csrf_token %}<input type="hidden" name="aksi" value="grid"><input type="hidden" name="jenis" value="rak"><input type="hidden" name="baru" value="1">
+  <input type="hidden" name="tempat" value="{% if aktif.lokasi %}{{ aktif.lokasi.id }}{% endif %}">
+  <div class="laci-kepala"><h3>Tambah rak / area</h3><button type="button" class="tombol kecil" data-tutup-laci aria-label="Tutup">×</button></div>
+  <div class="laci-isi">
+    <p class="kecil redup" style="margin-top:0">Lokasi: <b>{% if aktif.lokasi %}{{ aktif.nama }}{% else %}tanpa lokasi{% endif %}</b> · ganti lewat pilihan Lokasi di atas halaman.</p>
+    <fieldset class="pilih-jenis" style="border:0;padding:0;margin:0 0 12px;display:grid;gap:6px">
+      <legend class="kecil redup" style="margin-bottom:4px">Jenis</legend>
+      <label><input type="radio" name="jenis_tambah" value="grid" checked> <b>Rak berkotak</b> <span class="kecil redup">baris × kolom, tiap kotak punya kode</span></label>
+      <label><input type="radio" name="jenis_tambah" value="rak"> <b>Rak satu tempat</b> <span class="kecil redup">tanpa kotak, mis. rak kecil / gantungan</span></label>
+      <label><input type="radio" name="jenis_tambah" value="lantai"> <b>Area lantai</b> <span class="kecil redup">tumpukan yang posisinya berubah-ubah (mis. keramik)</span></label>
+      <label><input type="radio" name="jenis_tambah" value="sementara"> <b>Area sementara</b> <span class="kecil redup">barang baru yang belum sempat disusun</span></label>
+    </fieldset>
+    <label class="isian">Kode<input type="text" name="kode" maxlength="20" required autocomplete="off" style="text-transform:uppercase" placeholder="A"></label>
+    <div class="hanya-grid" style="display:flex;gap:10px">
+      <label class="isian" style="flex:1">Baris<input type="text" name="baris" value="5" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2"></label>
+      <label class="isian" style="flex:1">Kolom<input type="text" name="kolom" value="1" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2"></label>
+    </div>
+    <label class="isian">Nama<input type="text" name="nama" required placeholder="mis. Rak dekat tangga"></label>
+    <label class="isian">Ruangan<select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}">{{ ru.nama }}</option>{% endfor %}</select></label>
+    <label class="isian">PIC<select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></label>
+    <label class="isian bukan-grid" hidden>Keterangan<input type="text" name="keterangan"></label>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><input type="checkbox" name="langsung" value="1"> Langsung <span class="kecil redup">(barang display diambil sendiri, tidak masuk Siapkan)</span></label>
+    <div class="hanya-grid"><p class="kecil redup" style="margin:0" id="contoh-tingkat"></p><div id="pratinjau-rak"></div></div>
+  </div>
+  <div class="laci-kaki">
+    <button class="tombol utama" type="submit">Simpan</button>
+    <button class="tombol" type="button" data-tutup-laci>Batal</button>
+    <span class="petunjuk">Enter simpan · Ctrl+Enter simpan &amp; tambah lagi</span>
   </div>
 </form>
+</aside>
 <script>
 (() => {
-  const f = document.getElementById('form-tingkat'), c = document.getElementById('contoh-tingkat'), g = document.getElementById('pratinjau-rak');
+  const f = document.getElementById('form-tambah'), c = document.getElementById('contoh-tingkat'), g = document.getElementById('pratinjau-rak');
   const angka = (v, maks) => Math.min(maks, Math.max(1, parseInt(v, 10) || 1));
+  const jenis = () => f.querySelector('[name=jenis_tambah]:checked').value;
+  const atur = () => {
+    const j = jenis(), grid = j === 'grid';
+    f.aksi.value = grid ? 'grid' : 'simpan';
+    f.jenis.value = grid ? 'rak' : j;
+    f.querySelectorAll('.hanya-grid').forEach(x => x.hidden = !grid);
+    f.querySelectorAll('.bukan-grid').forEach(x => x.hidden = grid);
+    f.kode.maxLength = grid ? 14 : 20;
+    f.kode.placeholder = grid ? 'A' : (j === 'rak' ? 'mis. R2-KIRI' : 'mis. S2-KIRI');
+    f.nama.placeholder = grid ? 'mis. Rak dekat tangga' : (j === 'sementara' ? 'mis. Area bongkar' : 'mis. Keramik sisi kiri');
+    if (grid) tulis();
+  };
   const tulis = () => {
     const d = (f.kode.value.replace(/\s+/g, '') || 'A').toUpperCase(), nb = angka(f.baris.value, 20), nk = angka(f.kolom.value, 20);
     const kode = (b, k) => nk === 1 ? `${d}-${b}` : `${d}-${b}-${k}`;
-    c.textContent = `${nb * nk} kotak. Baris dihitung dari bawah (baris 1 = dekat lantai), kolom dari kiri saat menghadap rak. `
-      + `Contoh: ${kode(1, 1)} = ${nk === 1 ? `baris 1` : `baris 1 kolom 1`}. Kotak yang sudah ada dilewati, jadi ini juga untuk menambah baris/kolom.`;
+    c.textContent = `${nb * nk} kotak. Baris dihitung dari bawah (baris 1 = dekat lantai), kolom dari kiri saat menghadap rak. Kotak yang sudah ada dilewati, jadi ini juga untuk menambah baris/kolom.`;
     const sel = [];
     for (let b = nb; b >= 1; b--) {
       const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = 'B' + b; sel.push(sb);
@@ -259,26 +280,16 @@ document.addEventListener('submit', e => {
     const kosong = document.createElement('div'); kosong.className = 'sb';
     const lantai = document.createElement('div'); lantai.className = 'lantai'; lantai.textContent = 'lantai';
     const kotak = document.createElement('div'); kotak.className = 'gambar-rak';
-    kotak.style.gridTemplateColumns = `auto repeat(${nk}, minmax(62px, 1fr))`;
+    kotak.style.gridTemplateColumns = `auto repeat(${nk}, minmax(54px, 1fr))`;
     kotak.append(...sel, kosong, lantai);
     g.replaceChildren(kotak);
   };
-  f.addEventListener('input', tulis); tulis();
+  f.addEventListener('input', () => { if (jenis() === 'grid') tulis(); });
+  f.addEventListener('change', e => { if (e.target.name === 'jenis_tambah') atur(); });
+  document.getElementById('laci-tambah').addEventListener('laci-buka', atur);
+  atur();
 })();
 </script>
-<h3>Tambah satu rak / area</h3>
-<p class="kecil redup" style="margin:-4px 0 8px"><b>Area lantai</b> = tumpukan yang posisinya berubah-ubah (mis. keramik): cukup satu per ruangan atau per sisi. <b>Area sementara</b> = tempat barang baru yang belum sempat disusun.</p>
-<form method="post" class="kartu baris form-tambah">{% csrf_token %}<input type="hidden" name="aksi" value="simpan">
-  <div style="width:150px"><label>Jenis</label><select name="jenis"><option value="rak">Rak</option><option value="lantai">Area lantai</option><option value="sementara">Area sementara</option></select></div>
-  <div style="width:120px"><label>Kode</label><input type="text" name="kode" maxlength="20" required placeholder="mis. R2-KIRI"></div>
-  <div style="flex:1;min-width:180px"><label>Nama</label><input type="text" name="nama" required></div>
-  <div style="width:170px"><label>Lokasi</label><select name="tempat"><option value="">-</option>{% for l in daftar_lokasi %}<option value="{{ l.id }}" {% if aktif.lokasi and aktif.lokasi.id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
-  <div style="width:150px"><label>PIC</label><select name="pic"><option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}">{{ u.first_name|default:u.username }}</option>{% endfor %}</select></div>
-  <div><label>Langsung</label><input type="checkbox" name="langsung" value="1"></div>
-  <div style="width:150px"><label>Ruangan</label><select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}">{{ ru.nama }}</option>{% endfor %}</select></div>
-  <div style="flex:2;min-width:200px"><label>Keterangan</label><input type="text" name="keterangan"></div>
-  <div><button class="tombol utama" type="submit">Tambah</button></div>
-</form>
-<p class="kecil redup"><b>Langsung</b> = barang display yang diambil pembeli/pelayan sendiri, tidak masuk daftar Siapkan (kecuali nota borongan, lihat Tim gudang). <b>PIC</b> kosong = ikut PIC lokasinya; isi kalau satu lokasi dipegang beberapa orang.</p>
+<p class="kecil redup" style="margin-top:16px"><b>Langsung</b> = barang display yang diambil pembeli/pelayan sendiri, tidak masuk daftar Siapkan (kecuali nota borongan, lihat Tim gudang). <b>PIC</b> kosong = ikut PIC lokasinya; isi kalau satu lokasi dipegang beberapa orang.</p>
 {% endif %}
 {% endblock %}

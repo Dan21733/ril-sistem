@@ -736,6 +736,25 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(set(Rak.objects.filter(induk="K").values_list("kode", "ruang_id")),
                          {("K-1-1", r1.id), ("K-2-1", r1.id), ("K-1-2", r1.id), ("K-2-2", r1.id)})
 
+    def test_panel_tambah_rak(self):
+        """17 Nov 2026: satu panel Tambah rak/area; kode dobel ditolak, Ctrl+Enter kembali ke panel."""
+        self.client.force_login(self.admin)
+        url = reverse("master:rak")
+        r = self.client.get(url + f"?lokasi={self.ga.id}")
+        self.assertContains(r, 'id="laci-tambah"')
+        self.assertContains(r, 'data-buka-laci="laci-tambah"')
+        r = self.client.post(url, {"aksi": "simpan", "baru": "1", "kode": "GA-1", "nama": "Timpa", "tempat": self.ga.id, "jenis": "lantai"}, follow=True)
+        self.assertContains(r, "Kode GA-1 sudah dipakai")
+        self.assertEqual(Rak.objects.get(kode="GA-1").nama, "GA-1")              # tidak tertimpa
+        r = self.client.post(url, {"aksi": "simpan", "baru": "1", "lanjut": "1", "kode": "GA-KIRI", "nama": "Keramik kiri",
+                                   "tempat": self.ga.id, "jenis": "lantai"})
+        self.assertEqual(Rak.objects.get(kode="GA-KIRI").jenis, "lantai")
+        self.assertIn("tambah=laci-tambah", r["Location"]); self.assertIn("isi_jenis_tambah=lantai", r["Location"])
+        r = self.client.post(url, {"aksi": "grid", "baru": "1", "lanjut": "1", "kode": "M", "baris": "2", "kolom": "2",
+                                   "nama": "Rak M", "tempat": self.ga.id})
+        self.assertEqual(Rak.objects.filter(induk="M").count(), 4)
+        self.assertIn("isi_jenis_tambah=grid", r["Location"]); self.assertIn("isi_kolom=2", r["Location"])
+
     def test_ruangan_dan_area(self):
         from master.layanan import rak as svc_rak
         from master.models import Ruang

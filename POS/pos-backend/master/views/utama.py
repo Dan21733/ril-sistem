@@ -1021,6 +1021,14 @@ def _sel_gambar(rs, n_baris, n_kolom):
     return {"kotak": hasil + kosong, "label": label}
 
 
+def _rak_lanjut(lokasi, post, jenis):
+    """Ctrl+Enter di panel Tambah rak/area: kembali dengan panel terbuka, ruangan/PIC/jenis tetap (17 Nov 2026)."""
+    from urllib.parse import urlencode
+    isi = {"isi_jenis_tambah": jenis, "isi_ruang": post.get("ruang") or "", "isi_pic": post.get("pic") or "",
+           "isi_baris": post.get("baris") or "", "isi_kolom": post.get("kolom") or ""}
+    return f"{reverse('master:rak')}?lokasi={lokasi}&tambah=laci-tambah&" + urlencode({k: v for k, v in isi.items() if v})
+
+
 def _kelompok_rak(daftar):
     """Rak baris x kolom dikelompokkan per rak induk (A-1-1 .. A-6-4 = rak A); rak tunggal tetap sendiri.
 
@@ -1070,6 +1078,10 @@ def rak(request):
                 messages.error(request, "Kode dan nama rak wajib diisi.")
             elif len(kode) > 20:
                 messages.error(request, "Kode rak maksimal 20 karakter.")
+            elif request.POST.get("baru") == "1" and (Rak.objects.filter(kode__iexact=kode).exists()
+                                                      or Rak.objects.filter(induk__iexact=kode).exists()):
+                # Panel Tambah: jangan menimpa rak yang sudah ada diam-diam (17 Nov 2026).
+                messages.error(request, f"Kode {kode} sudah dipakai rak lain. Pilih kode lain.")
             else:
                 from master.layanan.pembelian import penerima_boleh
                 from master.models import Lokasi
@@ -1110,6 +1122,8 @@ def rak(request):
                                  + (f" {ada} kotak sudah ada, dilewati." if ada else ""))
             else:
                 messages.info(request, f"Semua kotak rak {induk} sudah ada.")
+            if request.POST.get("lanjut") == "1":
+                return redirect(_rak_lanjut(tempat.pk if tempat else "tanpa", request.POST, "grid"))
             return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}&buka={induk}")
         elif aksi == "ukuran":
             # Ubah ukuran rak yang sudah ada (14 Nov 2026): tambah/kurangi baris dan kolom.
@@ -1213,6 +1227,8 @@ def rak(request):
             # Rak dipindah ke lokasi lain: ikut pindah ke tab lokasi itu supaya kelihatan tersimpan.
             r = Rak.objects.filter(kode=kode).first()
             if r is not None:
+                if request.POST.get("lanjut") == "1" and request.POST.get("baru") == "1":
+                    return redirect(_rak_lanjut(r.tempat_id or "tanpa", request.POST, r.jenis))
                 return redirect(f"{reverse('master:rak')}?lokasi={r.tempat_id or 'tanpa'}&buka={r.induk or r.kode}")
         return redirect(request.get_full_path())
 

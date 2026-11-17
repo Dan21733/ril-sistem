@@ -167,6 +167,23 @@ html[data-ukuran="110"] body{zoom:1.1}
 .laci-barang[hidden],.laci-latar[hidden]{display:none!important}
 @keyframes laci-masuk{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
 </style>
+<style>
+/* Panel samping "Tambah …" (17 Nov 2026, rancangan-pola-tambah-master): satu pola untuk semua halaman master.
+   Pakai: <aside class="laci" id="x" hidden aria-label="…"> … <form> … </aside>, tombol data-buka-laci="x".
+   Enter di isian = simpan & selesai; Ctrl+Enter = simpan & tambah lagi (form dikirim dengan lanjut=1). */
+.laci-latar{position:fixed;inset:0;background:rgba(20,16,12,.35);z-index:40}
+.laci{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--kartu,#fff);z-index:41;box-shadow:-8px 0 24px rgba(0,0,0,.15);
+  display:flex;flex-direction:column}
+.laci[hidden],.laci-latar[hidden],.laci [hidden]{display:none!important}
+.laci-kepala{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--garis)}
+.laci-kepala h3{margin:0;flex:1;font-size:20px}
+.laci-isi{padding:16px 20px;overflow:auto;flex:1}
+.laci-isi label.isian{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--redup);margin-bottom:12px}
+.laci-kaki{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--garis)}
+.laci-kaki .petunjuk{font-size:12px;color:var(--redup)}
+.kepala-halaman{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.kepala-halaman h2{margin-bottom:4px}
+</style>
 </head>
 <body>
 <div class="rangka">
@@ -576,5 +593,48 @@ document.addEventListener("submit", function (e) {
 {% include "master/_tanya.html" %}
 {% include "master/_pilih_rak.html" %}
 {% include "master/_rentang.html" %}
+<script>
+/* Panel samping (laci): buka/tutup, Esc, Ctrl+Enter = simpan & tambah lagi. */
+(() => {
+  let latar = null, aktif = null;
+  const tutup = () => { if (!aktif) return; aktif.hidden = true; latar.hidden = true; document.body.style.overflow = ''; aktif = null; };
+  window.bukaLaci = (id, isi = {}) => {
+    const l = document.getElementById(id); if (!l) return;
+    if (!latar) { latar = document.createElement('div'); latar.className = 'laci-latar'; latar.hidden = true; latar.addEventListener('click', tutup); document.body.append(latar); }
+    Object.entries(isi).forEach(([k, v]) => l.querySelectorAll(`[name="${k}"]`).forEach(i => {
+      if (i.type === 'radio') i.checked = i.value === String(v); else i.value = v;
+      i.dispatchEvent(new Event('change', {bubbles: true}));
+    }));
+    aktif = l; l.hidden = false; latar.hidden = false; document.body.style.overflow = 'hidden';
+    const f = l.querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),select,textarea');
+    if (f) setTimeout(() => f.focus(), 30);
+    l.dispatchEvent(new Event('laci-buka'));
+  };
+  window.tutupLaci = tutup;
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-buka-laci]');
+    if (b) { e.preventDefault(); let isi = {}; try { isi = JSON.parse(b.dataset.isi || '{}'); } catch (x) {} bukaLaci(b.dataset.bukaLaci, isi); return; }
+    if (e.target.closest('[data-tutup-laci]')) tutup();
+  });
+  document.addEventListener('keydown', e => {
+    if (!aktif) return;
+    if (e.key === 'Escape') { tutup(); return; }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      const f = e.target.closest && e.target.closest('form') || aktif.querySelector('form'); if (!f || !aktif.contains(f)) return;
+      e.preventDefault();
+      let h = f.querySelector('input[name=lanjut]'); if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'lanjut'; f.append(h); }
+      h.value = '1'; f.requestSubmit();
+    }
+  });
+  // ?tambah=<id laci> sesudah "simpan & tambah lagi": buka lagi panelnya dengan isian yang dikirim server.
+  document.addEventListener('DOMContentLoaded', () => {
+    const q = new URLSearchParams(location.search), id = q.get('tambah'); if (!id) return;
+    const isi = {}; q.forEach((v, k) => { if (k.startsWith('isi_')) isi[k.slice(4)] = v; });
+    bukaLaci(id, isi);
+    q.delete('tambah'); [...q.keys()].filter(k => k.startsWith('isi_')).forEach(k => q.delete(k));
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+  });
+})();
+</script>
 </body>
 </html>
