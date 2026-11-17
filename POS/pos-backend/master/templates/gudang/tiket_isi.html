@@ -35,7 +35,7 @@
 {% if hasil %}
 <div class="daftar">{% for v in hasil %}
   <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
-    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id }}{% else %}belum ada rak{% endif %}{% if lihat_stok %} · Toko {{ v.toko|qty:v }}{% for nama, n in v.per %}{% if n %} · {{ nama }} {{ n|qty:v }}{% endif %}{% endfor %}{% endif %}</span></div>
+    <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id|rak_pendek }}{% else %}belum ada rak{% endif %}{% if lihat_stok %} · Toko {{ v.toko|qty:v }}{% for nama, n in v.per %}{% if n %} · {{ nama }} {{ n|qty:v }}{% endif %}{% endfor %}{% endif %}</span></div>
     {% if boleh_pindah %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="pindah"><input type="hidden" name="varian_id" value="{{ v.id }}">
       <select name="dari" style="flex:1 1 140px;min-width:0">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">dari {{ l.nama }}</option>{% endfor %}</select>
       <select name="ke" style="flex:1 1 140px;min-width:0">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if forloop.counter == 2 %}selected{% endif %}>ke {{ l.nama }}</option>{% endfor %}</select>
@@ -51,8 +51,8 @@
 
 <h3>Usulan ({{ baris|length }})</h3>
 <div class="daftar">{% for b in baris %}
-  <div class="brs"><div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode }}{% endif %}</b>
-    <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah|qty:b.varian }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}ganti rak ke {{ b.rak.kode|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
+  <div class="brs"><div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode|rak_pendek }}{% endif %}</b>
+    <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah|qty:b.varian }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}ganti rak ke {{ b.rak.kode|rak_pendek|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
     {% if t.bisa_diisi %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}</div>
 {% empty %}<div class="brs redup">Belum ada usulan.</div>{% endfor %}</div>
 

@@ -431,8 +431,15 @@ def daftar_buka():
                 v = b.varian
                 b.rak_teks = ""
                 if v is not None:
-                    raks = ([v.rak_id] if v.rak_id else []) + [r.rak_id for r in v.tempat_rak.all() if r.rak_id != v.rak_id]
-                    b.rak_teks = ", ".join(raks)
+                    b.raks = ([v.rak_id] if v.rak_id else []) + [r.rak_id for r in v.tempat_rak.all() if r.rak_id != v.rak_id]
+    # Kode rak yang dilihat karyawan (17 Nov 2026): GST-KC1-1-2 -> KC1-1-2, sekali query untuk semua nota.
+    from master.layanan.rak import peta_pendek
+    semua_baris = [b for s in daftar for t in s.daftar_tugas for b in t.daftar_baris]
+    semua = [k for b in semua_baris for k in getattr(b, "raks", [])]
+    pendek = peta_pendek(semua) if semua else {}
+    for b in semua_baris:
+        if getattr(b, "raks", None):
+            b.rak_teks = ", ".join(pendek.get(k, k) for k in b.raks)
     return daftar
 
 

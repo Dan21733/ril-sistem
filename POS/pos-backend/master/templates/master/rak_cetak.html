@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Cetak rak · {% if lokasi %}{{ lokasi.nama }}{% else %}Tanpa lokasi{% endif %}</title>
+<style>
+@page{size:A4;margin:10mm}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#111;margin:0;background:#eee}
+.alat{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:2}
+.alat a,.alat button{font:inherit;font-size:15px;padding:8px 14px;border:1px solid #bbb;border-radius:8px;background:#fff;color:#111;text-decoration:none;cursor:pointer}
+.alat a.aktif{background:#b5531f;border-color:#b5531f;color:#fff}.alat .utama{background:#b5531f;border-color:#b5531f;color:#fff}
+.alat .ket{color:#666;font-size:13px}
+.hal{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:10mm;box-shadow:0 1px 4px rgba(0,0,0,.15);page-break-after:always;break-after:page}
+.kosong-semua{max-width:600px;margin:40px auto;background:#fff;padding:24px;border-radius:10px;text-align:center;color:#555}
+/* Peta rak */
+.peta-kepala{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid #111;padding-bottom:6px;margin-bottom:8px}
+.peta-kepala .besar{font-size:44pt;font-weight:800;line-height:1}.peta-kepala .ket{font-size:12pt;color:#333}
+table.peta{width:100%;border-collapse:collapse;font-size:11pt}
+table.peta td{border:1px solid #444;padding:4px 6px;vertical-align:top}
+table.peta td.cell{width:28mm;font-size:16pt;font-weight:800;white-space:nowrap}
+table.peta td.tulis{height:7mm}
+/* Label cell */
+.label-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(4,1fr);gap:0;height:277mm}
+.label{border:1px dashed #999;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4mm}
+.label .kode{font-size:54pt;font-weight:800;line-height:1}.label .kecil{font-size:11pt;color:#333;margin-top:3mm}
+/* Kartu barang */
+.kartu-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;height:277mm}
+.kartu{border:1px dashed #999;padding:5mm;display:flex;flex-direction:column}
+.kartu .nama{font-size:15pt;font-weight:800;line-height:1.15;min-height:12mm}
+.kartu .tempat{font-size:11pt;margin:2mm 0 3mm}.kartu .tempat b{font-size:16pt}
+table.catat{width:100%;border-collapse:collapse;font-size:9pt;flex:1}
+table.catat th,table.catat td{border:1px solid #444;padding:1mm 2mm}
+table.catat th{background:#eee}
+@media print{body{background:#fff}.alat{display:none}.hal{margin:0;box-shadow:none;width:auto;min-height:0;padding:0}}
+</style></head><body>
+<div class="alat">
+  <a href="?jenis=peta&{{ dasar }}" class="{% if jenis == 'peta' %}aktif{% endif %}">Peta rak</a>
+  <a href="?jenis=label&{{ dasar }}" class="{% if jenis == 'label' %}aktif{% endif %}">Label cell</a>
+  <a href="?jenis=kartu&{{ dasar }}" class="{% if jenis == 'kartu' %}aktif{% endif %}">Kartu barang</a>
+  <button type="button" class="utama" onclick="print()">Cetak</button>
+  <span class="ket">{% if lokasi %}{{ lokasi.nama }}{% else %}Tanpa lokasi{% endif %}{% if pilih %} · rak {{ pilih }}{% endif %} ·
+    {% if jenis == 'peta' %}{{ kelompok|length }} lembar{% elif jenis == 'label' %}{{ label|length }} label, {{ halaman_label|length }} lembar{% else %}{{ kartu|length }} kartu, {{ halaman_kartu|length }} lembar{% endif %}.
+    Kode yang dicetak = kode yang dilihat karyawan. Tidak ada stok atau harga.</span>
+</div>
+
+{% if jenis == 'peta' %}
+{% for g in kelompok %}
+<section class="hal">
+  <div class="peta-kepala"><span class="besar">{{ g.pendek }}</span><span class="ket">{{ g.nama }}<br>{{ g.lokasi }}{% if g.ruang %} · {{ g.ruang }}{% endif %}</span></div>
+  <table class="peta">
+    {% for c in g.cell %}
+      {% for b in c.barang %}<tr>{% if forloop.first %}<td class="cell" rowspan="{{ c.barang|length|add:3 }}">{{ c.kode }}</td>{% endif %}<td>{{ b }}</td></tr>{% endfor %}
+      {% for x in baris_kosong %}<tr>{% if forloop.first and not c.barang %}<td class="cell" rowspan="3">{{ c.kode }}</td>{% endif %}<td class="tulis"></td></tr>{% endfor %}
+    {% endfor %}
+  </table>
+</section>
+{% empty %}<div class="kosong-semua">Belum ada rak di sini.</div>{% endfor %}
+
+{% elif jenis == 'label' %}
+{% for hal in halaman_label %}
+<section class="hal"><div class="label-grid">
+  {% for l in hal %}<div class="label"><span class="kode">{{ l.kode }}</span><span class="kecil">{{ l.nama }} · {{ l.lokasi }}</span></div>{% endfor %}
+</div></section>
+{% empty %}<div class="kosong-semua">Belum ada rak di sini.</div>{% endfor %}
+
+{% else %}
+{% for hal in halaman_kartu %}
+<section class="hal"><div class="kartu-grid">
+  {% for k in hal %}<div class="kartu">
+    <div class="nama">{{ k.barang }}</div>
+    <div class="tempat">Tempat: <b>{{ k.cell }}</b> · {{ k.lokasi }}{% if k.ruang %} · {{ k.ruang }}{% endif %}</div>
+    <table class="catat"><tr><th style="width:22%">Tanggal</th><th>Masuk</th><th>Keluar</th><th style="width:22%">Paraf</th></tr>
+      {% for x in baris_kartu %}<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>{% endfor %}</table>
+  </div>{% endfor %}
+</div></section>
+{% empty %}<div class="kosong-semua">Belum ada barang yang tercatat di rak ini. Kartu barang dibuat dari barang yang sudah punya rak; sambil menunggu, cetak <b>Peta rak</b> untuk ditulis tangan.</div>{% endfor %}
+{% endif %}
+</body></html>

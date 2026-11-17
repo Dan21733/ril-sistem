@@ -138,3 +138,12 @@ def denah_pemilih():
         return ""
     teks = json.dumps(data).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return format_html('<script type="application/json" id="data-denah-rak">{}</script>', mark_safe(teks))
+
+
+@register.filter
+def rak_pendek(kode):
+    """Kode rak lengkap -> kode yang dilihat karyawan (17 Nov 2026): GST-KC1-1-2 -> KC1-1-2."""
+    if not kode:
+        return kode
+    from master.layanan.rak import peta_pendek
+    return peta_pendek([kode]).get(kode, kode)

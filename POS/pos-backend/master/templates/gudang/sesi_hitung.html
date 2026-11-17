@@ -30,7 +30,7 @@
   <div class="sh-baris">
     <select data-pilih-rak class="sh-rak" id="rak" data-lokasi="{% if lokasi %}{{ lokasi.nama }}{% endif %}" aria-label="Rak tempat menghitung">
       <option value="">Tanpa rak / tidak tahu</option>
-      {% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-label="{{ r.label }}" data-tempat="{% if rak_tugas %}{% if r.kode in rak_tugas %}Rak tugas ini{% else %}Rak lain{% endif %}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">Rak {{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+      {% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-label="{{ r.label }}" data-tempat="{% if rak_tugas %}{% if r.kode in rak_tugas %}Rak tugas ini{% else %}Rak lain{% endif %}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}" data-pendek="{{ r.pendek }}" data-pendek-induk="{{ r.pendek_induk }}">Rak {{ r.pendek }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
       {% if boleh_rak_baru %}<option value="__baru">+ Rak baru…</option>{% endif %}
     </select>
     <span class="sh-status" id="status">Tersimpan</span>
@@ -100,6 +100,8 @@
 
   const rakSel = $('rak');
   // Rak baru (diketik karyawan, belum ada di master): tambahkan ke pilihan, ditandai "baru".
+  // Kode yang dilihat karyawan (17 Nov 2026): GST-KC1-1-2 -> KC1-1-2. Nilai yang dikirim tetap kode lengkap.
+  const pendek = k => (k && rakSel.querySelector(`option[value="${CSS.escape(k)}"]`)?.dataset.pendek) || k;
   function tambahRak(kode){
     if ([...rakSel.options].some(o => o.value === kode)) return;
     const o = document.createElement('option'); o.value = kode; o.textContent = 'Rak ' + kode + ' · baru (dibuat saat ACC)';
@@ -190,7 +192,7 @@
       a.addEventListener('click', e => { e.preventDefault(); $('cari').value = ''; tampil(); });
       ket.append(a);
     }
-    const grup = x => urut === 'rak' ? (x.r ? 'Rak ' + x.r + (rakBaru(x.r) ? ' (baru)' : '') : 'Tanpa rak')
+    const grup = x => urut === 'rak' ? (x.r ? 'Rak ' + pendek(x.r) + (rakBaru(x.r) ? ' (baru)' : '') : 'Tanpa rak')
       : urut === 'kat' ? (x.b.c || 'Tanpa kategori') : urut === 'merek' ? (x.b.b || 'Tanpa merek')
       : ((x.b.n || '?').trim()[0] || '?').toUpperCase();
     const per = new Map();
@@ -206,7 +208,7 @@
         const d = document.createElement('div'); d.className = 'brs sh-k';
         const nm = document.createElement('div'); nm.className = 'nama';
         const bb = document.createElement('b'); bb.textContent = nama(b); nm.append(bb);
-        if (urut !== 'rak'){ const ch = document.createElement('span'); ch.className = 'chip-rak' + (rakBaru(r) ? ' baru' : ''); ch.textContent = r ? 'Rak ' + r : 'Tanpa rak'; nm.append(ch); }
+        if (urut !== 'rak'){ const ch = document.createElement('span'); ch.className = 'chip-rak' + (rakBaru(r) ? ' baru' : ''); ch.textContent = r ? 'Rak ' + pendek(r) : 'Tanpa rak'; nm.append(ch); }
         const sub = [urut !== 'merek' ? b.b : '', urut !== 'kat' ? b.c : '', b.r && b.r !== r ? 'biasa di rak ' + b.r : ''].filter(Boolean).join(' · ');
         if (sub){ const s2 = document.createElement('div'); s2.className = 'redup kecil'; s2.textContent = sub; nm.append(s2); }
         const g2 = gagal[kunci(b.i, r)]; if (g2){ const x = document.createElement('div'); x.className = 'sh-gagal'; x.textContent = g2; nm.append(x); }
@@ -313,8 +315,9 @@
       Object.assign(o.dataset, {induk: r.induk || '', baris: r.baris || '', kolom: r.kolom || '', ruang: r.ruang || '',
         ruangUrut: r.ruang_urut === '' || r.ruang_urut == null ? '' : r.ruang_urut, jenis: r.jenis || 'rak',
         lebar: r.lebar || 1, tinggi: r.tinggi || 1, label: r.label || r.kode,
-        tempat: d.ada_tugas ? (r.tugas ? 'Rak tugas ini' : 'Rak lain') : '', nama: r.nama !== r.kode ? (r.nama || '') : ''});
-      o.textContent = 'Rak ' + r.kode + (r.nama && r.nama !== r.kode ? ' · ' + r.nama : '');
+        tempat: d.ada_tugas ? (r.tugas ? 'Rak tugas ini' : 'Rak lain') : '', nama: r.nama !== r.kode ? (r.nama || '') : '',
+        pendek: r.pendek || r.kode, pendekInduk: r.pendek_induk || ''});
+      o.textContent = 'Rak ' + (r.pendek || r.kode) + (r.nama && r.nama !== r.kode ? ' · ' + r.nama : '');
       sel.insertBefore(o, baru);
     });
     // Antrean yang belum terkirim dengan kode lama ikut pindah ke kode baru (server juga mengarahkannya).
@@ -325,7 +328,7 @@
     sel.value = [...sel.options].some(o => o.value === pilih) ? pilih : '';
     rakTadi = sel.value; simpanLokal(KUNCI_RAK, sel.value);
     if (window.pilihRak) { pilihRak.gantiDenah(d.denah); pilihRak.segarkan(sel); }
-    if (sel.value !== pilih && pilih) kabar('Rak ' + pilih + ' sudah tidak ada. Pilih rak lagi.', true);
+    if (sel.value !== pilih && pilih) kabar('Rak ' + pendek(pilih) + ' sudah tidak ada. Pilih rak lagi.', true);
   }
   async function segarkanBarang(diam){
     const tombol = $('segarkan'); tombol.disabled = true;

@@ -7,7 +7,7 @@
   <div class="daftar" style="margin-top:8px">
     {% for p in k.baris %}
     <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ p.item_name }}{% if p.variant != "N/A" %} / {{ p.variant }}{% endif %}</b>
-      <span class="redup kecil">ambil <b>{{ p.jumlah|qty:p.varian }}</b> dari {{ p.lokasi.nama }}{% if p.varian.rak_id %} · rak {{ p.varian.rak_id }}{% endif %}</span></div>
+      <span class="redup kecil">ambil <b>{{ p.jumlah|qty:p.varian }}</b> dari {{ p.lokasi.nama }}{% if p.varian.rak_id %} · rak {{ p.varian.rak_id|rak_pendek }}{% endif %}</span></div>
       <div style="flex-basis:100%;display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
         <input class="angka" type="text" name="diambil_{{ p.id }}" value="{{ p.jumlah|qty_isi:p.varian }}" data-minta="{{ p.jumlah|qty_isi:p.varian }}" inputmode="{% if p.varian|berkoma %}decimal{% else %}numeric{% endif %}" style="width:90px" title="Jumlah yang benar-benar diambil">
         <select name="lokasi_{{ p.id }}" style="flex:1;min-width:120px">{% for l in gudang %}<option value="{{ l.id }}" {% if l.id == p.lokasi_id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>

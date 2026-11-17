@@ -736,6 +736,53 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(set(Rak.objects.filter(induk="K").values_list("kode", "ruang_id")),
                          {("K-1-1", r1.id), ("K-2-1", r1.id), ("K-1-2", r1.id), ("K-2-2", r1.id)})
 
+    def test_kode_pendek_karyawan(self):
+        """17 Nov 2026: karyawan melihat kode tanpa awalan lokasi (GST-KC1-1-2 -> KC1-1-2), bisa diganti pemilik."""
+        from master.layanan import rak as svc_rak
+        svc_rak.buat(self.admin, induk="GST-KC1", nama="Rak KC1", baris=2, kolom=2, tempat=self.ga)
+        r = Rak.objects.get(kode="GST-KC1-1-2")
+        self.assertEqual(svc_rak.kode_pendek(r), "KC1-1-2")
+        self.assertEqual(svc_rak.label(r), "Rak KC1 · baris 1 · kolom 2")
+        self.assertEqual(svc_rak.kode_pendek(Rak.objects.get(kode="GA-1")), "1")
+        Rak.objects.create(kode="TK1", nama="TK1", tempat=self.ga)
+        self.assertEqual(svc_rak.kode_pendek(Rak.objects.get(kode="TK1")), "TK1")
+        self.client.force_login(self.admin)
+        url = reverse("master:rak") + f"?lokasi={self.ga.id}"
+        kode_grup = list(Rak.objects.filter(induk="GST-KC1").values_list("kode", flat=True))
+        # kode karyawan bentrok dengan kode pendek rak lain di lokasi yang sama -> ditolak
+        r = self.client.post(url, {"aksi": "simpan_grup", "kode": "GST-KC1", "kode_grup": kode_grup, "tempat": "__tetap",
+                                   "pic": "__tetap", "nama": "Rak KC1", "kode_karyawan": "tk1"}, follow=True)
+        self.assertContains(r, "Kode karyawan TK1 sudah dipakai")
+        self.client.post(url, {"aksi": "simpan_grup", "kode": "GST-KC1", "kode_grup": kode_grup, "tempat": "__tetap",
+                               "pic": "__tetap", "nama": "Rak KC1", "kode_karyawan": "b2"})
+        self.assertEqual(svc_rak.kode_pendek(Rak.objects.get(kode="GST-KC1-2-1")), "B2-2-1")
+        self.assertEqual(Rak.objects.get(kode="GST-KC1-1-1").pic_id, None)
+        # tablet: pilihan rak menampilkan kode pendek, nilai tetap kode lengkap
+        t = self._tugas()
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:tiket_hitung", args=[t.id]))
+        self.assertContains(r, 'value="GST-KC1-2-1"'); self.assertContains(r, 'data-pendek="B2-2-1"')
+        self.assertContains(r, ">Rak B2-2-1")
+
+    def test_cetak_rak(self):
+        """17 Nov 2026: peta rak / label cell / kartu barang memakai kode pendek, tanpa stok/harga."""
+        from master.layanan import rak as svc_rak
+        svc_rak.buat(self.admin, induk="GST-KC1", nama="Rak KC1", baris=2, kolom=2, tempat=self.ga)
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="GST-KC1-2-1", modal_rata=987111)
+        self.client.force_login(self.admin)
+        url = reverse("master:rak_cetak") + f"?lokasi={self.ga.id}&rak=GST-KC1"
+        r = self.client.get(url + "&jenis=peta")
+        self.assertContains(r, '<span class="besar">KC1</span>'); self.assertContains(r, "KC1-2-1"); self.assertContains(r, "Palu / Kecil")
+        self.assertNotContains(r, "GST-KC1-2-1"); self.assertNotContains(r, "987")
+        r = self.client.get(url + "&jenis=label")
+        self.assertContains(r, '<span class="kode">KC1-', count=4)
+        r = self.client.get(url + "&jenis=kartu")
+        self.assertContains(r, '<div class="nama">Palu / Kecil</div>', count=1); self.assertContains(r, "<b>KC1-2-1</b>")
+        r = self.client.get(reverse("master:rak_cetak") + f"?lokasi={self.ga.id}")
+        self.assertContains(r, 'class="peta-kepala"', count=3)                 # GA-1, GA-2, KC1
+        self.client.force_login(self.gudang)
+        self.assertNotEqual(self.client.get(url).status_code, 200)              # karyawan gudang tidak boleh
+
     def test_panel_tambah_rak(self):
         """17 Nov 2026: satu panel Tambah rak/area; kode dobel ditolak, Ctrl+Enter kembali ke panel."""
         self.client.force_login(self.admin)

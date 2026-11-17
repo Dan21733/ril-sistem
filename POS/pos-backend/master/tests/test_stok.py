@@ -439,7 +439,7 @@ class GudangTest(Dasar):
         self.assertIn(po.nomor, isi)
         isi = self._bersih(self.client.get(reverse("gudang:datang_detail", args=[po.id])))
         self.assertIn("Palu / Kecil", isi)
-        self.assertIn("TK-01", isi)
+        self.assertIn("rak 01", isi)              # kode pendek untuk karyawan (TK-01 -> 01, 17 Nov 2026)
         self.assertNotIn('value="10"', isi)       # jumlah pesanan tidak ditampilkan (terima buta)
         isi = self._bersih(self.client.get(reverse("gudang:tiket_hitung", args=[t.id]) + "?q=palu"))
         self.assertIn('"n": "Palu", "v": "Kecil"', isi)

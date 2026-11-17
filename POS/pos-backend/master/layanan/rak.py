@@ -292,11 +292,46 @@ def urut(r):
     return (alami, r.baris or 0, r.kolom or 0, r.kode)
 
 
+def pendek_dasar(r):
+    """Kode rak/area untuk karyawan (17 Nov 2026): kode karyawan kalau diisi, kalau tidak kode tanpa awalan lokasi
+    (GST-KC1 -> KC1, AT3-3 -> 3, GST-LA -> LA, TK1 -> TK1)."""
+    if r.kode_karyawan:
+        return r.kode_karyawan
+    dasar = r.induk or r.kode
+    return dasar.split("-", 1)[1] if "-" in dasar and dasar.split("-", 1)[1] else dasar
+
+
+def cek_kode_karyawan(nilai, tempat_id, kecuali):
+    """Rapikan + cek kode karyawan: unik per lokasi (dibandingkan dengan kode pendek rak lain di lokasi itu).
+    `kecuali` = kode kotak milik rak yang sedang diubah. Mengembalikan kode (boleh kosong = otomatis)."""
+    import re
+    nilai = re.sub(r"\s+", "", str(nilai or "")).upper()
+    if not nilai:
+        return ""
+    if len(nilai) > 20 or not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-/]*", nilai):
+        raise Tolak("Kode karyawan hanya huruf, angka, titik, strip (maks 20).")
+    for r in Rak.objects.filter(tempat_id=tempat_id).exclude(kode__in=kecuali):
+        if pendek_dasar(r).upper() == nilai:
+            raise Tolak(f"Kode karyawan {nilai} sudah dipakai rak {r.induk or r.kode} di lokasi ini.")
+    return nilai
+
+
+def kode_pendek(r):
+    """Kode kotak untuk karyawan: GST-KC1-1-2 -> KC1-1-2."""
+    dasar = r.induk or r.kode
+    return pendek_dasar(r) + (r.kode[len(dasar):] if r.kode.startswith(dasar) else "")
+
+
+def peta_pendek(kode_list):
+    """{kode lengkap: kode pendek} untuk banyak kode sekaligus (template gudang)."""
+    return {r.kode: kode_pendek(r) for r in Rak.objects.filter(kode__in=[k for k in set(kode_list) if k])}
+
+
 def label(r):
-    """Untuk karyawan: "Rak A · baris 3 · kolom 2" (kolom tidak disebut untuk rak 1 kolom, kode A-3)."""
+    """Untuk karyawan: "Rak KC1 · baris 3 · kolom 2" (kolom tidak disebut untuk rak 1 kolom). Pakai kode pendek."""
     if not r.induk or not r.baris:
-        return f"Rak {r.kode}"
-    return f"Rak {r.induk} · baris {r.baris}" + (f" · kolom {r.kolom}" if r.kode == f"{r.induk}-{r.baris}-{r.kolom}" else "")
+        return f"Rak {kode_pendek(r)}"
+    return f"Rak {pendek_dasar(r)} · baris {r.baris}" + (f" · kolom {r.kolom}" if r.kode == f"{r.induk}-{r.baris}-{r.kolom}" else "")
 
 
 def pilihan_tugas():

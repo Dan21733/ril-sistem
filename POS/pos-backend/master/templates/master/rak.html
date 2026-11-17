@@ -64,6 +64,7 @@
     </div>
   </div></details>
   {% if daftar_ruang %}<a class="tombol kecil" href="{% url 'master:denah' aktif.lokasi.id %}">Susun denah ›</a>{% endif %}
+  {% if aktif.n %}<a class="tombol kecil" href="{% url 'master:rak_cetak' %}?lokasi={{ aktif.lokasi.id }}" target="_blank" rel="noopener">Cetak semua rak ›</a>{% endif %}
   {% endif %}
   {% elif aktif %}<span class="redup kecil">Rak ini belum punya lokasi: pilih lewat Lainnya › Pindah lokasi.</span>{% endif %}
 </div>{% endif %}
@@ -73,7 +74,7 @@
   <input type="search" id="cari-rak" placeholder="Cari kode atau nama" aria-label="Cari rak">
   {% for bg in bagian %}
   <details class="rk-ru" open><summary><span>{% if bg.ruang %}{{ bg.ruang.nama }}{% else %}Tanpa ruangan{% endif %}</span><span class="n">{{ bg.entri|length }}</span></summary>
-    {% for e in bg.entri %}<button type="button" class="rk-item" data-buka="{{ e.kunci }}" data-cari="{{ e.kunci|lower }} {% if e.grup %}{{ e.nama|lower }}{% else %}{{ e.rak.0.nama|lower }}{% endif %}"><span class="kd">{{ e.kunci }}</span><span class="ket">{% if e.grup %}{{ e.n_baris }}{% if e.n_kolom > 1 %}×{{ e.n_kolom }}{% else %} tingkat{% endif %}{% elif e.rak.0.jenis != "rak" %}{{ e.rak.0.get_jenis_display|lower }}{% else %}{{ e.rak.0.nama }}{% endif %} · {% if e.grup %}{{ e.jumlah }}{% else %}{{ e.rak.0.jumlah }}{% endif %} var</span></button>{% endfor %}
+    {% for e in bg.entri %}<button type="button" class="rk-item" data-buka="{{ e.kunci }}" data-cari="{{ e.kunci|lower }} {% if e.grup %}{{ e.nama|lower }}{% else %}{{ e.rak.0.nama|lower }}{% endif %}"><span class="kd">{{ e.kunci }}</span>{% if e.pendek != e.kunci %}<span class="ket" title="Kode yang dilihat karyawan">→ {{ e.pendek }}</span>{% endif %}<span class="ket">{% if e.grup %}{{ e.n_baris }}{% if e.n_kolom > 1 %}×{{ e.n_kolom }}{% else %} tingkat{% endif %}{% elif e.rak.0.jenis != "rak" %}{{ e.rak.0.get_jenis_display|lower }}{% else %}{{ e.rak.0.nama }}{% endif %} · {% if e.grup %}{{ e.jumlah }}{% else %}{{ e.rak.0.jumlah }}{% endif %} var</span></button>{% endfor %}
     {% if bg.ruang and 'kelola_rak' in hak %}<button type="button" class="rk-tambah" data-buka-laci="laci-tambah" data-isi='{"ruang": "{{ bg.ruang.id }}"}'>+ Rak / area</button>{% endif %}
   </details>
   {% endfor %}
@@ -84,7 +85,7 @@
 {% for e in daftar %}
 <section class="rk-panel" data-panel="{{ e.kunci }}" hidden aria-label="Rak {{ e.kunci }}">
 {% if e.grup %}
-  <div class="rk-kepala"><h3>{{ e.grup }}</h3><span class="redup">{{ e.nama|default:"nama beda-beda" }} · {{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · {{ e.jumlah|ribuan }} varian</span></div>
+  <div class="rk-kepala"><h3>{{ e.grup }}</h3>{% if e.pendek != e.grup %}<span class="chip-jenis" title="Kode yang dilihat karyawan">karyawan: {{ e.pendek }}</span>{% endif %}<a class="tombol kecil" style="margin-left:auto;order:9" href="{% url 'master:rak_cetak' %}?lokasi={{ e.tempat_id|default_if_none:'' }}&rak={{ e.grup|urlencode }}" target="_blank" rel="noopener">Cetak rak ini ›</a><span class="redup">{{ e.nama|default:"nama beda-beda" }} · {{ e.n_baris }} baris{% if e.n_kolom > 1 %} × {{ e.n_kolom }} kolom{% endif %} · {{ e.jumlah|ribuan }} varian</span></div>
   <div class="gambar-rak" data-rak="{{ e.grup }}" style="grid-template-columns:auto repeat({{ e.n_kolom }}, minmax(62px, 1fr));grid-template-rows:repeat({{ e.n_baris }}, minmax(44px, auto)) auto">
     {% for l in e.sel.label %}<div class="sb" style="grid-row:{{ l.baris_css }};grid-column:1">{{ l.teks }}</div>{% endfor %}
     {% for x in e.sel.kotak %}{% if x.r %}<a href="{% url 'master:barang' %}?rak={{ x.r.kode|urlencode }}" data-kotak="{{ x.r.kode }}" data-gabung="{% if x.gabung %}1{% endif %}" class="{% if x.r.jumlah %}isi{% endif %}{% if x.gabung %} gabungan{% endif %}" title="{{ x.r.kode }}" style="grid-row:{{ x.baris_css }} / span {{ x.tinggi }};grid-column:{{ x.kolom_css }} / span {{ x.lebar }}"><b>{{ x.r.kode }}</b><span>{{ x.r.jumlah }} varian</span></a>{% else %}<div class="kosong redup kecil" style="grid-row:{{ x.baris_css }};grid-column:{{ x.kolom_css }}">-</div>{% endif %}{% endfor %}
@@ -96,6 +97,7 @@
   <form method="post" data-tanya="Simpan untuk semua {{ e.rak|length }} kotak rak {{ e.grup }}?">{% csrf_token %}<input type="hidden" name="aksi" value="simpan_grup"><input type="hidden" name="kode" value="{{ e.grup }}"><input type="hidden" name="tempat" value="__tetap">{% for k in e.kode %}<input type="hidden" name="kode_grup" value="{{ k }}">{% endfor %}
     <div class="rk-isian">
       <label>Nama<input type="text" name="nama" value="{{ e.nama }}" {% if not e.nama %}placeholder="nama beda-beda"{% endif %}></label>
+      <label title="Kosong = otomatis: kode tanpa awalan lokasi">Kode karyawan<input type="text" name="kode_karyawan" value="{{ e.kode_karyawan }}" placeholder="otomatis: {{ e.pendek }}" maxlength="20" style="text-transform:uppercase" autocomplete="off"></label>
       <label>Ruangan<select name="ruang">{% if e.ruang_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}" {% if e.ruang_id == ru.id %}selected{% endif %}>{{ ru.nama }}</option>{% endfor %}</select></label>
       <label>PIC<select name="pic">{% if e.pic_id == "__tetap" %}<option value="__tetap" selected>beda-beda</option>{% endif %}<option value="">ikut lokasi</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if e.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></label>
       <label title="Barang display: tidak masuk daftar Siapkan">Langsung<select name="langsung">{% if e.langsung_campur %}<option value="__tetap" selected>campur</option>{% endif %}<option value="1" {% if e.langsung and not e.langsung_campur %}selected{% endif %}>ya</option><option value="0" {% if not e.langsung and not e.langsung_campur %}selected{% endif %}>tidak</option></select></label>
@@ -132,6 +134,7 @@
   <form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="simpan"><input type="hidden" name="kode" value="{{ r.kode }}"><input type="hidden" name="tempat" value="{{ r.tempat_id|default_if_none:'' }}"><input type="hidden" name="lokasi" value="{{ r.lokasi }}">
     <div class="rk-isian">
       <label>Nama<input type="text" name="nama" value="{{ r.nama }}" required></label>
+      <label title="Kosong = otomatis: kode tanpa awalan lokasi">Kode karyawan<input type="text" name="kode_karyawan" value="{{ r.kode_karyawan }}" placeholder="otomatis: {{ e.pendek }}" maxlength="20" style="text-transform:uppercase" autocomplete="off"></label>
       <label>Jenis<select name="jenis">{% for k, n in jenis_pilihan %}<option value="{{ k }}" {% if r.jenis == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
       <label>Ruangan<select name="ruang"><option value="">-</option>{% for ru in daftar_ruang %}<option value="{{ ru.id }}" {% if r.ruang_id == ru.id %}selected{% endif %}>{{ ru.nama }}</option>{% endfor %}</select></label>
       <label>PIC<select name="pic"><option value="">ikut lokasi{% if r.tempat.pic %} ({{ r.tempat.pic.first_name|default:r.tempat.pic.username }}){% endif %}</option>{% for u in daftar_pic %}<option value="{{ u.id }}" {% if r.pic_id == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>{% endfor %}</select></label>

@@ -1089,6 +1089,13 @@ def rak(request):
                 pic = {u.pk: u for u in penerima_boleh()}.get(int(request.POST.get("pic") or 0)
                                                                if (request.POST.get("pic") or "").isdigit() else 0)
                 ubah_lain = {"ruang": svc_rak.ruang_untuk(tempat, request.POST.get("ruang"))}
+                if "kode_karyawan" in request.POST:
+                    try:
+                        ubah_lain["kode_karyawan"] = svc_rak.cek_kode_karyawan(
+                            request.POST.get("kode_karyawan"), tempat.pk if tempat else None, [kode])
+                    except Tolak as tolak:
+                        messages.error(request, str(tolak))
+                        return redirect(f"{reverse('master:rak')}?lokasi={tempat.pk if tempat else 'tanpa'}&buka={kode}")
                 if request.POST.get("jenis") in dict(Rak.JENIS):
                     ubah_lain["jenis"] = request.POST.get("jenis")
                 _, dibuat = Rak.objects.update_or_create(kode=kode, defaults={**ubah_lain,
@@ -1184,6 +1191,14 @@ def rak(request):
                 ubah["ruang"] = svc_rak.ruang_untuk(tempat_baru, request.POST.get("ruang"))
             elif "tempat" in ubah:
                 ubah["ruang"] = None          # pindah lokasi: ruangan lama tidak berlaku
+            if "kode_karyawan" in request.POST and kode_grup:
+                contoh = Rak.objects.filter(kode__in=kode_grup).first()
+                tempat_id = ubah["tempat"].pk if ubah.get("tempat") else (None if "tempat" in ubah else contoh.tempat_id)
+                try:
+                    ubah["kode_karyawan"] = svc_rak.cek_kode_karyawan(request.POST.get("kode_karyawan"), tempat_id, kode_grup)
+                except Tolak as tolak:
+                    messages.error(request, str(tolak))
+                    return redirect(f"{reverse('master:rak')}?lokasi={request.GET.get('lokasi', '')}&buka={kode}")
             n = Rak.objects.filter(kode__in=kode_grup).update(**ubah) if kode_grup else 0
             layanan.catat(request.user, aksi="ubah", objek="rak", kolom="rak",
                           baru=f"{kode} ({n} tingkat): " + ", ".join(sorted(ubah)))
@@ -1263,6 +1278,8 @@ def rak(request):
     for e in entri:
         # Kunci panel kanan (16 Nov 2026): rak berkotak = kode induk, rak tunggal/area = kodenya.
         e["kunci"] = e["grup"] or e["rak"][0].kode
+        e["pendek"] = svc_rak.pendek_dasar(e["rak"][0])          # yang dilihat karyawan (17 Nov 2026)
+        e["kode_karyawan"] = e["rak"][0].kode_karyawan
         if e["grup"]:
             e["campur"] = [n for n, k in (("nama", not e["nama"]), ("ruangan", e["ruang_id"] == "__tetap"),
                                           ("PIC", e["pic_id"] == "__tetap"), ("langsung", e["langsung_campur"])) if k]

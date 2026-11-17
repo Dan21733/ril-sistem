@@ -85,7 +85,8 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
     [...sel.options].forEach(o => {
       if (o.dataset.r !== undefined) rak.push({kode: o.value, nama: o.dataset.nama || '', tempat: o.dataset.tempat || '',
         induk: o.dataset.induk || '', baris: +(o.dataset.baris || 0), kolom: +(o.dataset.kolom || 0),
-        ruang: o.dataset.ruang || '', ruangUrut: o.dataset.ruangUrut === undefined || o.dataset.ruangUrut === '' ? 9999 : +o.dataset.ruangUrut, jenis: o.dataset.jenis || 'rak', lebar: +(o.dataset.lebar || 1), tinggi: +(o.dataset.tinggi || 1), o});
+        ruang: o.dataset.ruang || '', ruangUrut: o.dataset.ruangUrut === undefined || o.dataset.ruangUrut === '' ? 9999 : +o.dataset.ruangUrut, jenis: o.dataset.jenis || 'rak', lebar: +(o.dataset.lebar || 1), tinggi: +(o.dataset.tinggi || 1),
+        pendek: o.dataset.pendek || o.value, pendekInduk: o.dataset.pendekInduk || '', o});
       else lain.push(o);
     });
     return {rak, lain};
@@ -226,7 +227,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         return b;
       };
       const judulGrup = g => {
-        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = 'Rak ' + g.dasar;
+        const n = document.createElement('div'); n.className = 'pr-nama'; n.textContent = 'Rak ' + (g.item[0].pendekInduk || g.dasar);
         const namaUnik = [...new Set(g.item.map(x => x.nama).filter(Boolean))];
         const nk = Math.max(...g.item.map(x => x.k + x.lb - 1)), nb = Math.max(...g.item.map(x => x.b + x.tg - 1));
         const sub = [namaUnik.length === 1 ? namaUnik[0] : '', nk > 1 ? `${nb} baris × ${nk} kolom` : '',
@@ -249,7 +250,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         baris.push(gambarDenah(dl.ukuran_ruang[0], dr.blok.map(b => b.t === 'pintu' ? {...b, nama: 'pintu', kelas: 'dk-pintu', klik: false}
           : b.t === 'tanda' ? {...b, nama: b.nama || '', kelas: 'dk-tanda', klik: false}
           : b.t === 'area' || kodeArea.has(b.id) ? {...b, nama: namaArea[b.id] || b.id, kelas: 'dk-area dk-' + (jenisArea[b.id] || 'lantai')}
-          : {...b, nama: 'Rak ' + b.id, kelas: 'dk-rak'}),
+          : {...b, nama: 'Rak ' + ((rak.find(x => x.induk === b.id) || {}).pendekInduk || b.id), kelas: 'dk-rak'}),
           k => {
             if (k.kelas.includes('dk-area')) { pilih(sel, k.id); return; }
             const g = [...grup.values()].find(g => g.dasar === k.id);
@@ -263,7 +264,7 @@ tr:hover td .pr-tombol.sel,td .pr-tombol.sel:focus{border-color:var(--garis-kuat
         const d = document.createElement('div'); d.className = 'pr-area';
         area.sort((a, b) => (a.jenis === 'sementara') - (b.jenis === 'sementara') || alami(a.kode, b.kode)).forEach(x => {
           const b = document.createElement('button'); b.type = 'button'; b.className = 'pr-area-' + x.jenis;
-          const n = document.createElement('b'); n.textContent = x.nama || x.kode;
+          const n = document.createElement('b'); n.textContent = x.nama || x.pendek;
           const k = document.createElement('small'); k.textContent = (x.jenis === 'sementara' ? 'Area sementara' : 'Area lantai')
             + (q && x.ruang ? ' · ' + x.ruang : '');
           b.append(n, k); b.setAttribute('aria-label', (x.jenis === 'sementara' ? 'Area sementara ' : 'Area lantai ') + (x.nama || x.kode));

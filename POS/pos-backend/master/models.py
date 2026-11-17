@@ -178,6 +178,9 @@ class Rak(models.Model):
     jenis = models.CharField(max_length=10, choices=JENIS, default="rak")
     lebar = models.PositiveSmallIntegerField(default=1)
     tinggi = models.PositiveSmallIntegerField(default=1)
+    # Kode yang dilihat karyawan (17 Nov 2026): kosong = otomatis, kode lengkap tanpa awalan lokasi
+    # (GST-KC1-1-2 tampil KC1-1-2). Diisi per rak (semua kotak sama), unik per lokasi.
+    kode_karyawan = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "master_rak"
