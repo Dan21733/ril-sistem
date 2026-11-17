@@ -764,6 +764,33 @@ class HitungPosisiTest(Dasar):
         self.assertContains(r, 'value="GST-KC1-2-1"'); self.assertContains(r, 'data-pendek="B2-2-1"')
         self.assertContains(r, ">Rak B2-2-1")
 
+    def test_ganti_lokasi_dan_atur_rak_hitungan(self):
+        """17 Nov 2026: tugas salah lokasi dipindah oleh pemilik; hitungan diatur raknya tanpa karyawan."""
+        from master.layanan import opname
+        from master.models import Opname, OpnameRak
+        t = self._tugas()                                              # lokasi Gudang A
+        self._kirim(t, [{"kunci": "1", "varian": self.kecil.id, "rak": "GA-1", "jumlah": "4"},
+                        {"kunci": "2", "varian": self.kecil.id, "rak": "GA-2", "jumlah": "2"}])
+        opname.kirim_tugas(self.gudang, t)
+        op = Opname.objects.get(tiket=t)
+        b = op.baris.get()
+        self.assertEqual((b.hitung, b.stok_saat_hitung), (6, 7))
+        Rak.objects.create(kode="TK-9", nama="TK-9", tempat=self.toko)
+        self.client.force_login(self.admin)
+        url = reverse("master:opname_detail", args=[op.id])
+        r = self.client.get(url)
+        self.assertContains(r, 'value="ganti_lokasi"'); self.assertContains(r, 'value="atur_rak"')
+        r = self.client.post(url, {"aksi": "ganti_lokasi", "lokasi": self.toko.id}, follow=True)
+        self.assertContains(r, "2 hitungan jadi")
+        op.refresh_from_db(); b.refresh_from_db(); t.refresh_from_db()
+        self.assertEqual((op.lokasi_id, t.saring["lokasi"], b.hitung, b.stok_saat_hitung), (self.toko.id, self.toko.id, 6, 3))
+        self.assertEqual(list(b.per_rak.values_list("rak_id", "jumlah")), [(None, 6)])     # digabung jadi "tanpa rak"
+        r = self.client.post(url, {"aksi": "atur_rak", "rak": "GA-1", "pilih": [b.id]}, follow=True)
+        self.assertContains(r, "Pilih rak tujuan di lokasi tugas ini")                    # rak lokasi lain ditolak
+        self.client.post(url, {"aksi": "atur_rak", "rak": "TK-9", "pilih": [b.id]})
+        self.assertEqual(list(OpnameRak.objects.filter(baris=b).values_list("rak_id", "jumlah")), [("TK-9", 6)])
+        b.refresh_from_db(); self.assertEqual(b.hitung, 6)
+
     def test_cetak_rak(self):
         """17 Nov 2026: peta rak / label cell / kartu barang memakai kode pendek, tanpa stok/harga."""
         from master.layanan import rak as svc_rak

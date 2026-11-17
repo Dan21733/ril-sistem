@@ -361,6 +361,87 @@ def kembalikan_tugas(pengguna, op, *, hak, jam=4, alasan=""):
     return t
 
 
+def _boleh_atur(op, hak):
+    if "opname" not in hak:
+        raise Tolak("Akun ini tidak boleh memutuskan opname.")
+    t = op.tiket
+    if t is None or t.sesi_id:
+        raise Tolak("Hanya hitungan dari tugas hitung biasa yang bisa diatur di sini.")
+    if op.status not in ("draf", "diajukan") or t.status not in ("dikirim", "terbuka"):
+        raise Tolak("Opname ini sudah diputuskan.")
+    return t
+
+
+def ganti_lokasi(pengguna, op, lokasi, *, hak):
+    """Tugas salah lokasi (17 Nov 2026): pindahkan tugas + hitungannya ke lokasi lain sebelum ACC.
+
+    Stok sistem pembanding diambil ulang dari lokasi baru (selisih dihitung terhadap lokasi yang benar).
+    Rak hitungan yang bukan milik lokasi baru dilepas (jadi "tanpa rak") supaya bisa diatur ulang lewat
+    `atur_rak`; lingkup rak tugas dikosongkan karena rak lokasi lama tidak berlaku.
+    """
+    from master.layanan.lokasi import stok_di
+    from master.models import Tiket
+    t = _boleh_atur(op, hak)
+    if lokasi is None or not lokasi.aktif:
+        raise Tolak("Pilih lokasi tujuan yang aktif.")
+    if lokasi.pk == op.lokasi_id:
+        raise Tolak("Tugas ini sudah di lokasi itu.")
+    lama = op.lokasi.nama if op.lokasi_id else "-"
+    with transaction.atomic():
+        op.lokasi = lokasi
+        op.save(update_fields=["lokasi"])
+        s = dict(t.saring or {})
+        s["lokasi"] = lokasi.pk
+        s.pop("rak", None)
+        Tiket.objects.filter(pk=t.pk).update(saring=s)
+        punya_stok = op.toko.stok_di_kasir if op.toko_id else True
+        lepas = 0
+        for b in op.baris.select_related("varian").prefetch_related("per_rak__rak"):
+            OpnameBaris.objects.filter(pk=b.pk).update(stok_saat_hitung=(stok_di(b.varian, lokasi) or 0) if punya_stok else 0)
+            rows = [r for r in b.per_rak.all() if r.rak_id and r.rak and r.rak.tempat_id != lokasi.pk]
+            for r in rows:
+                # gabung ke baris "tanpa rak" barang ini
+                kosong = b.per_rak.filter(rak__isnull=True, rak_baru="").exclude(pk=r.pk).first()
+                if kosong:
+                    kosong.jumlah += r.jumlah
+                    kosong.save(update_fields=["jumlah"])
+                    r.delete()
+                else:
+                    r.rak = None
+                    r.save(update_fields=["rak"])
+                lepas += 1
+        layanan.catat(pengguna, objek="opname", kolom="lokasi", lama=lama, baru=lokasi.nama,
+                      catatan=f"Opname #{op.id} / tugas #{t.id}" + (f", {lepas} hitungan dilepas dari rak lokasi lama" if lepas else ""))
+    return lepas
+
+
+def atur_rak(pengguna, op, baris_ids, kode_rak, *, hak):
+    """Pemilik memindahkan hitungan barang yang dipilih ke satu rak/cell di lokasi tugas (17 Nov 2026).
+
+    Semua rincian rak barang itu digabung jadi satu baris di rak tujuan (jumlah total tidak berubah).
+    Barang yang belum punya rincian rak (hitungan lama sebelum ada konsep rak) ikut dibuatkan.
+    """
+    from master.models import Rak
+    _boleh_atur(op, hak)
+    from django.db.models import Q
+    rak = Rak.objects.filter(Q(tempat_id=op.lokasi_id) | Q(tempat__isnull=True), pk=kode_rak).first()
+    if rak is None:
+        raise Tolak("Pilih rak tujuan di lokasi tugas ini.")
+    ids = [int(x) for x in baris_ids if str(x).isdigit()]
+    if not ids:
+        raise Tolak("Centang dulu barang yang mau dipindah raknya.")
+    n = 0
+    with transaction.atomic():
+        for b in op.baris.filter(pk__in=ids):
+            total = b.hitung
+            b.per_rak.all().delete()
+            OpnameRak.objects.create(baris=b, rak=rak, jumlah=total, waktu=timezone.now())
+            n += 1
+        layanan.catat(pengguna, objek="opname", kolom="rak", baru=rak.kode,
+                      catatan=f"Opname #{op.id}: {n} barang dipindah ke rak {rak.kode}")
+    return n
+
+
 def _tutup_tiket(op, status, pengguna, alasan=""):
     """Tugas hitung ikut selesai/ditolak bersama opnamenya."""
     t = op.tiket

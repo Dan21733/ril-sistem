@@ -47,6 +47,38 @@
 <p class="redup kecil">Yang diterapkan adalah selisihnya, bukan angka hitungannya. Jadi kalau ada penjualan sesudah barang dihitung, "Jadi" = stok sekarang + selisih, dan penjualan itu tidak ikut terhapus.</p>
 {% if op.status == "diajukan" %}<div style="margin-top:14px"><button class="tombol utama" type="submit">ACC yang dicentang</button> <span class="redup kecil">Yang tidak dicentang dibiarkan, stoknya tidak berubah.</span></div>{% endif %}
 </form>
+{% if boleh_atur %}
+<div class="kartu" style="margin:14px 0">
+  <b>Atur tugas ini</b> <span class="kecil redup">— untuk tugas yang salah lokasi atau hitungan yang belum / salah rak. Karyawan tidak perlu mengulang.</span>
+  {% if op.status == "diajukan" %}
+  <form method="post" id="form-atur-rak" class="baris" style="gap:8px;align-items:center;margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="atur_rak">
+    <span>Barang yang <b>dicentang</b> di tabel dipindah ke rak</span>
+    <select name="rak" data-pilih-rak data-lokasi="{% if op.lokasi_id %}{{ op.lokasi.nama }}{% endif %}" required aria-label="Rak tujuan" style="min-width:220px"><option value="">pilih rak / cell…</option>
+      {% for r in rak_atur %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang_id %}{{ r.ruang.nama }}{% endif %}" data-ruang-urut="{% if r.ruang_id %}{{ r.ruang.urutan }}{% endif %}" data-jenis="{{ r.jenis }}" data-lebar="{{ r.lebar }}" data-tinggi="{{ r.tinggi }}" data-label="{{ r.kode }}{% if r.ruang_id %} · {{ r.ruang.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.nama and r.nama != r.kode %} · {{ r.nama }}{% endif %}</option>{% endfor %}
+    </select>
+    <button class="tombol" type="submit">Pindahkan</button>
+    <span class="kecil redup">Semua rincian rak barang itu digabung ke rak tujuan; jumlahnya tetap.</span>
+  </form>
+  {% endif %}
+  <form method="post" class="baris" style="gap:8px;align-items:center;margin-top:10px" data-tanya="Pindahkan tugas ini ke lokasi lain? Stok pembanding diambil ulang dari lokasi baru; hitungan di rak lokasi lama jadi tanpa rak.">{% csrf_token %}<input type="hidden" name="aksi" value="ganti_lokasi">
+    <span>Lokasi tugas: <b>{% if op.lokasi_id %}{{ op.lokasi.nama }}{% else %}-{% endif %}</b> → </span>
+    <select name="lokasi" required aria-label="Lokasi tujuan" style="width:auto"><option value="">pilih lokasi…</option>{% for l in lokasi_lain %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select>
+    <button class="tombol" type="submit">Ganti lokasi</button>
+  </form>
+</div>
+<script>
+(() => {
+  // Atur rak memakai centang yang sama dengan tabel ACC.
+  const f = document.getElementById('form-atur-rak'); if (!f) return;
+  f.addEventListener('submit', e => {
+    f.querySelectorAll('input[name=pilih]').forEach(x => x.remove());
+    const dipilih = [...document.querySelectorAll('#form-acc input[name=pilih]:checked')];
+    if (!dipilih.length) { e.preventDefault(); alert('Centang dulu barang di tabel.'); return; }
+    dipilih.forEach(c => { const h = document.createElement('input'); h.type = 'hidden'; h.name = 'pilih'; h.value = c.value; f.append(h); });
+  });
+})();
+</script>
+{% endif %}
 
 {% endif %}
 {% if op.status == "diajukan" and op.tiket_id and not op.tiket.sesi_id %}

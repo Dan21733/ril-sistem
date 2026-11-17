@@ -40,6 +40,16 @@ def detail(request, opname_id):
                 messages.success(request, f"Tugas #{t.id} dibuka lagi untuk karyawan, angka yang sudah dihitung tetap ada. "
                                           f"Batas: {timezone.localtime(t.batas):%d %b %H.%M}.")
                 return redirect("master:opname")
+            elif request.POST.get("aksi") == "ganti_lokasi":
+                from master.models import Lokasi
+                lok = Lokasi.objects.filter(pk=request.POST.get("lokasi") or 0).first()
+                n = svc.ganti_lokasi(request.user, op, lok, hak=hak_pengguna(request.user))
+                messages.success(request, f"Tugas dipindah ke {lok.nama}. Stok pembanding diambil ulang dari lokasi itu."
+                                 + (f" {n} hitungan jadi \"tanpa rak\": atur raknya di bawah." if n else ""))
+            elif request.POST.get("aksi") == "atur_rak":
+                n = svc.atur_rak(request.user, op, request.POST.getlist("pilih"), request.POST.get("rak"),
+                                 hak=hak_pengguna(request.user))
+                messages.success(request, f"{n} barang dipindah ke rak {request.POST.get('rak')}.")
             elif request.POST.get("aksi") == "tolak":
                 svc.tolak(request.user, op, request.POST.get("alasan"), hak=hak_pengguna(request.user))
                 messages.info(request, "Opname ditolak.")
@@ -48,7 +58,14 @@ def detail(request, opname_id):
         return redirect("master:opname_detail", opname_id=op.id)
     baris = svc.rincian(op)
     beda = [b for b in baris if b.selisih]
+    from master.layanan.sesi_opname import rak_lokasi
+    from master.layanan import rak as svc_rak
+    from master.models import Lokasi
+    boleh_atur = op.status in ("draf", "diajukan") and op.tiket_id and not op.tiket.sesi_id
     return render(request, "master/opname_detail.html", {
+        "boleh_atur": boleh_atur,
+        "lokasi_lain": Lokasi.objects.filter(aktif=True).exclude(pk=op.lokasi_id) if boleh_atur else [],
+        "rak_atur": sorted(rak_lokasi(op.lokasi), key=svc_rak.urut) if boleh_atur and op.lokasi_id else [],
         "menu": "opname", "op": op, "baris": baris, "jumlah_beda": len(beda),
         "punya_stok": op.toko is None or op.toko.stok_di_kasir,
         "pindah_rak": svc.perbarui_posisi(op.tiket) if op.tiket_id else False,
