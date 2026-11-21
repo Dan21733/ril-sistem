@@ -427,6 +427,11 @@ def tiket_isi(request, tiket_id):
                 svc_tiket.tambah_rak(request.user, t, varian_id=p.get("varian_id"), rak=p.get("rak"),
                                      catatan=p.get("catatan", ""))
                 messages.success(request, "Usulan ganti rak ditambahkan.")
+            elif aksi == "rak_banyak":
+                n = svc_tiket.tambah_rak_banyak(request.user, t, varian_ids=p.getlist("varian"), rak=p.get("rak"),
+                                                rak_dari=p.get("rak_dari", ""), catatan=p.get("catatan", ""))
+                messages.success(request, f"{n} barang masuk usulan pindah rak.")
+                return redirect(f"{request.path}#usulan")
             elif aksi == "rak_lokasi":
                 svc_tiket.tambah_rak_lokasi(request.user, t, rak=p.get("rak"), ke=p.get("ke"), catatan=p.get("catatan", ""))
                 messages.success(request, "Usulan pindah rak ditambahkan.")
@@ -446,12 +451,21 @@ def tiket_isi(request, tiket_id):
     # Jumlah stok tidak pernah ditampilkan di aplikasi gudang (keputusan pemilik 9 Nov 2026).
     lihat_stok = False
     gudang = []
+    from master.layanan import rak as svc_rak
+    daftar_rak = sorted(Rak.objects.select_related("tempat", "ruang"), key=svc_rak.urut)
+    for r in daftar_rak:
+        r.pendek = svc_rak.kode_pendek(r)          # yang dilihat karyawan (17 Nov 2026)
+        r.pendek_induk = svc_rak.pendek_dasar(r) if r.induk else ""
+    # Pindahkan isi cell (21 Nov 2026): ?asal=<kode> menampilkan barang di cell itu untuk dicentang.
+    asal = Rak.objects.filter(kode=request.GET.get("asal") or "").first() if t.bisa_diisi else None
+    isi_asal = svc_tiket.isi_cell(asal.kode) if asal else []
     return render(request, "gudang/tiket_isi.html", {
+        "asal": asal, "asal_kode": asal.kode if asal else "", "asal_pendek": svc_rak.kode_pendek(asal) if asal else "", "isi_asal": isi_asal,
         "menu": "tiket", "t": t, "cari": cari, "hasil": hasil, "terpotong": terpotong,
         "lihat_stok": lihat_stok, "gudang": gudang,
         "boleh_pindah": "ops_tiket_pindah" in hak, "boleh_rak": "ops_tiket_rak" in hak,
-        "baris": t.baris.select_related("varian", "rak", "dari", "ke"),
-        "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
+        "baris": t.baris.select_related("varian", "rak", "rak_dari", "dari", "ke"),
+        "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": daftar_rak,
         "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True).distinct()), key=kunci_alami),
     })
 

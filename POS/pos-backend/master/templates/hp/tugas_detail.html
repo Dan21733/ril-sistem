@@ -52,7 +52,7 @@
       {% if b.jenis == 'pindah' %}{{ b.dari.nama }}{% if t.bisa_diputus %} <span class="redup kecil">(ada {{ b.stok_asal|ribuan }})</span>{% endif %} →
         {% if t.bisa_diputus %}<select name="ke_{{ b.id }}" class="pilih-ke">{% for l in lokasi %}<option value="{{ l.id }}" {% if b.ke_id == l.id %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>
         <input class="nilai-usul" name="jumlah_{{ b.id }}" value="{{ b.jumlah }}" inputmode="numeric" style="width:70px">{% else %}{{ b.ke.nama }} · <b>{{ b.jumlah|ribuan }}</b>{% endif %}
-      {% elif b.jenis == 'rak' %}<s>rak {{ b.varian.rak.kode|default:"-" }}</s> → <b>rak {{ b.rak.kode|default:"(kosong)" }}</b>
+      {% elif b.jenis == 'rak' %}<s>rak {% if b.rak_dari_id %}{{ b.rak_dari_id }}{% else %}{{ b.varian.rak.kode|default:"-" }}{% endif %}</s> → <b>rak {{ b.rak.kode|default:"(kosong)" }}</b>
       {% else %}<s>{{ b.rak.tempat.nama|default:"-" }}</s> → <b>{{ b.ke.nama }}</b>{% endif %}
       </div>
       {% if not t.bisa_diputus and b.hasil %}<div class="sub">{% if b.diterapkan %}✓ Diterapkan{% else %}{{ b.hasil }}{% endif %}</div>{% endif %}

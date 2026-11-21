@@ -5,10 +5,32 @@
   <span class="redup kecil">{% if t.lingkup %}{{ t.lingkup }} · {% endif %}sampai {{ t.batas|date:"d M H:i" }} · {% if t.status == 'terbuka' and t.lewat_batas %}lewat batas{% else %}{{ t.get_status_display|lower }}{% endif %}</span></div>
 
 {% if t.bisa_diisi %}
+{% if boleh_rak %}<details class="kartu" id="isi-cell" {% if asal %}open{% endif %}><summary><b>Pindahkan isi cell</b> <span class="redup kecil">pilih cell, centang barang, pilih tujuan</span></summary>
+<form method="get" action="#isi-cell" style="margin-top:10px">
+  <label>Cell asal</label>
+  <select data-pilih-rak name="asal" onchange="this.form.submit()"><option value="">pilih cell…</option>{% include "gudang/_opsi_rak.html" with pilih=asal_kode %}</select>
+</form>
+{% if asal %}
+<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="rak_banyak"><input type="hidden" name="rak_dari" value="{{ asal.kode }}">
+  {% if isi_asal %}
+  <div class="baris" style="justify-content:space-between;align-items:center"><b>Isi cell {{ asal_pendek }} ({{ isi_asal|length }})</b>
+    <label class="kecil" style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" checked style="width:auto" onchange="this.closest('form').querySelectorAll('input[name=varian]').forEach(c => c.checked = this.checked)"> semua</label></div>
+  <div class="daftar">{% for v in isi_asal %}<label class="brs" style="gap:10px;font-weight:400"><input type="checkbox" name="varian" value="{{ v.id }}" checked style="width:22px;height:22px;flex:none">
+    <span class="nama">{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</span></label>{% endfor %}</div>
+  <div class="kartu" style="position:sticky;bottom:8px;margin-top:10px">
+  <label>Pindahkan yang dicentang ke cell</label>
+  <select data-pilih-rak name="rak" required><option value="">pilih cell tujuan…</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select>
+  <button class="tombol utama" type="submit" style="margin-top:8px;width:100%">Pindahkan yang dicentang</button>
+  </div>
+  {% else %}<p class="redup">Belum ada barang yang tercatat di cell {{ asal_pendek }}.</p>{% endif %}
+</form>
+{% endif %}
+</details>{% endif %}
+
 {% if boleh_pindah %}<details class="kartu"><summary><b>Pindah sekaligus (satu rak atau satu kategori)</b></summary>
 <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="massal">
   <div class="dua">
-    <div><label>Rak</label><select data-pilih-rak name="rak"><option value="">-</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>Rak</label><select data-pilih-rak name="rak"><option value="">-</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select></div>
     <div><label>atau kategori</label><select name="kategori"><option value="">-</option>{% for k in daftar_kategori %}<option>{{ k }}</option>{% endfor %}</select></div>
   </div>
   <div class="dua" style="margin-top:10px">
@@ -23,7 +45,7 @@
 {% if boleh_rak %}<details class="kartu"><summary><b>Pindahkan satu rak ke lokasi lain</b> (tanpa stok)</summary>
 <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="rak_lokasi">
   <div class="dua">
-    <div><label>Rak</label><select data-pilih-rak name="rak" required>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}">{{ r.kode }}{% if r.tempat %} · {{ r.tempat.nama }}{% endif %}</option>{% endfor %}</select></div>
+    <div><label>Rak</label><select data-pilih-rak name="rak" required>{% include "gudang/_opsi_rak.html" with pilih="" %}</select></div>
     <div><label>Ke</label><select name="ke">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
   </div>
   <div style="margin-top:10px"><button class="tombol" type="submit">Tambah ke usulan</button></div>
@@ -34,7 +56,7 @@
   <button class="tombol" type="submit">Cari</button></form>
 {% if hasil %}
 <div class="daftar">{% for v in hasil %}
-  <div class="brs" style="flex-wrap:wrap"><div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
+  <div class="brs" style="flex-wrap:wrap">{% if boleh_rak %}<input type="checkbox" name="varian" value="{{ v.id }}" form="form-banyak" aria-label="Pilih {{ v.item_name }}" style="width:22px;height:22px;flex:none">{% endif %}<div class="nama"><b>{{ v.item_name }}{% if v.variant != "N/A" %} / {{ v.variant }}{% endif %}</b>
     <span class="redup kecil">{% if v.rak_id %}rak {{ v.rak_id|rak_pendek }}{% else %}belum ada rak{% endif %}{% if lihat_stok %} · Toko {{ v.toko|qty:v }}{% for nama, n in v.per %}{% if n %} · {{ nama }} {{ n|qty:v }}{% endif %}{% endfor %}{% endif %}</span></div>
     {% if boleh_pindah %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="pindah"><input type="hidden" name="varian_id" value="{{ v.id }}">
       <select name="dari" style="flex:1 1 140px;min-width:0">{% for l in pilihan_lokasi %}<option value="{{ l.id }}">dari {{ l.nama }}</option>{% endfor %}</select>
@@ -42,17 +64,22 @@
       <input type="text" name="jumlah" inputmode="{% if v|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="jumlah{% if v|berkoma %} ({{ v|nama_satuan }}){% endif %}" style="width:90px" required>
       <button class="tombol kecil" type="submit">Usulkan pindah</button></form>{% endif %}
     {% if boleh_rak %}<form method="post" style="flex-basis:100%;display:flex;gap:6px;margin-top:6px">{% csrf_token %}<input type="hidden" name="aksi" value="rak"><input type="hidden" name="varian_id" value="{{ v.id }}">
-      <select data-pilih-rak name="rak" style="flex:1"><option value="">tanpa rak</option>{% for r in daftar_rak %}<option value="{{ r.kode }}" data-r data-induk="{{ r.induk }}" data-baris="{% if r.baris %}{{ r.baris }}{% endif %}" data-kolom="{% if r.kolom %}{{ r.kolom }}{% endif %}" data-ruang="{% if r.ruang %}{% if r.ruang.nama %}{{ r.ruang.nama }}{% else %}{{ r.ruang }}{% endif %}{% endif %}" data-ruang-urut="{% if r.ruang %}{% if r.ruang.urutan is not None %}{{ r.ruang.urutan }}{% else %}{{ r.ruang_urut }}{% endif %}{% endif %}" data-jenis="{{ r.jenis|default:'rak' }}" data-lebar="{{ r.lebar|default:1 }}" data-tinggi="{{ r.tinggi|default:1 }}" data-tempat="{% if r.tempat %}{{ r.tempat.nama }}{% endif %}" data-nama="{% if r.nama != r.kode %}{{ r.nama }}{% endif %}" {% if v.rak_id == r.kode %}selected{% endif %}>rak {{ r.kode }}</option>{% endfor %}</select>
+      <select data-pilih-rak name="rak" style="flex:1"><option value="">tanpa rak</option>{% include "gudang/_opsi_rak.html" with pilih=v.rak_id %}</select>
       <button class="tombol kecil" type="submit">Usulkan ganti rak</button></form>{% endif %}
   </div>{% endfor %}</div>
+{% if boleh_rak %}<form method="post" id="form-banyak" class="kartu" style="position:sticky;bottom:8px;margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="rak_banyak">
+  <label>Barang yang <b>dicentang</b> dipindah ke cell</label>
+  <select data-pilih-rak name="rak" required><option value="">pilih cell tujuan…</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select>
+  <button class="tombol utama" type="submit" style="margin-top:8px;width:100%">Pindahkan yang dicentang</button>
+</form>{% endif %}
 {% if terpotong %}<p class="redup kecil">Hanya 80 barang pertama yang tampil. Persempit pencariannya.</p>{% endif %}
 {% elif cari %}<p class="redup">Tidak ada barang yang cocok.</p>{% endif %}
 {% endif %}
 
-<h3>Usulan ({{ baris|length }})</h3>
+<h3 id="usulan">Usulan ({{ baris|length }})</h3>
 <div class="daftar">{% for b in baris %}
   <div class="brs"><div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode|rak_pendek }}{% endif %}</b>
-    <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah|qty:b.varian }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}ganti rak ke {{ b.rak.kode|rak_pendek|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
+    <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah|qty:b.varian }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}{% if b.rak_dari %}dari {{ b.rak_dari.kode|rak_pendek }} {% endif %}ganti rak ke {{ b.rak.kode|rak_pendek|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
     {% if t.bisa_diisi %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}</div>
 {% empty %}<div class="brs redup">Belum ada usulan.</div>{% endfor %}</div>
 

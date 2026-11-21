@@ -764,6 +764,35 @@ class HitungPosisiTest(Dasar):
         self.assertContains(r, 'value="GST-KC1-2-1"'); self.assertContains(r, 'data-pendek="B2-2-1"')
         self.assertContains(r, ">Rak B2-2-1")
 
+    def test_pindah_isi_cell(self):
+        """21 Nov 2026: karyawan pindahkan isi satu cell / hasil cari yang dicentang; ACC pemilik menerapkan."""
+        from master.layanan import tiket as svc_tiket
+        from master.models import Tiket, TiketBaris, VarianRak
+        Rak.objects.create(kode="GA-9", nama="GA-9", tempat=self.ga)
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="GA-1")
+        from datetime import timedelta
+        besar = self.info("Palu", "Besar")
+        self.besar = besar
+        VarianRak.objects.create(varian=besar, rak_id="GA-1")                  # besar: utama GA-2, tambahan GA-1
+        VarianInfo.objects.filter(pk=besar.pk).update(rak_id="GA-2")
+        t = svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="Rapikan rak", jenis="lokasi", hak=SEMUA_HAK,
+                           batas=timezone.now() + timedelta(hours=1))
+        self.assertEqual({v.pk for v in svc_tiket.isi_cell("GA-1")}, {self.kecil.pk, besar.pk})
+        self.client.force_login(self.gudang)
+        url = reverse("gudang:tiket_isi", args=[t.id])
+        r = self.client.get(url + "?asal=GA-1")
+        self.assertContains(r, 'name="varian" value="%d" checked' % self.kecil.pk)
+        self.client.post(url, {"aksi": "rak_banyak", "rak_dari": "GA-1", "rak": "GA-9", "varian": [self.kecil.pk, self.besar.pk]})
+        self.client.post(url, {"aksi": "rak_banyak", "rak_dari": "GA-1", "rak": "GA-2", "varian": [self.kecil.pk]})  # ganti tujuan, tidak dobel
+        self.assertEqual(TiketBaris.objects.filter(tiket=t).count(), 2)
+        svc_tiket.kirim(self.gudang, t, "")
+        t.refresh_from_db()
+        svc_tiket.terapkan(self.admin, t, {"pilih": [str(b.id) for b in t.baris.all()]}, hak=SEMUA_HAK)
+        self.kecil.refresh_from_db(); self.besar.refresh_from_db()
+        self.assertEqual(self.kecil.rak_id, "GA-2")                             # rak utama pindah
+        self.assertEqual(self.besar.rak_id, "GA-2")                             # rak utama tetap
+        self.assertEqual(list(VarianRak.objects.filter(varian=self.besar).values_list("rak_id", flat=True)), ["GA-9"])
+
     def test_ganti_lokasi_dan_atur_rak_hitungan(self):
         """17 Nov 2026: tugas salah lokasi dipindah oleh pemilik; hitungan diatur raknya tanpa karyawan."""
         from master.layanan import opname

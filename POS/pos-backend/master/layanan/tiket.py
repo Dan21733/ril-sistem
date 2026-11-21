@@ -198,8 +198,24 @@ def _terapkan_baris(pengguna, t, b, data, hak):
             b.ke = baca(data.get(f"ke_{b.id}"))
         pindah(pengguna, b.varian, dari=b.dari, ke=b.ke, jumlah=b.jumlah, catatan=catatan, hak=hak | {"kelola_lokasi"})
     elif b.jenis == "rak":
-        layanan.ubah_varian(pengguna, b.varian, "kode_rak", b.rak_id if b.rak else "", hak=hak | {"ubah_info"},
-                            catatan=catatan)
+        from master.models import VarianRak
+        v = b.varian
+        tambahan = (VarianRak.objects.filter(varian=v, rak_id=b.rak_dari_id).first()
+                    if b.rak_dari_id and v.rak_id != b.rak_dari_id else None)
+        if tambahan is not None:
+            # Barang ada di cell asal sebagai rak tambahan: pindahkan rak tambahan itu saja.
+            if b.rak_id == v.rak_id or VarianRak.objects.filter(varian=v, rak_id=b.rak_id).exists():
+                tambahan.delete()
+            else:
+                tambahan.rak_id = b.rak_id
+                tambahan.save(update_fields=["rak"])
+            layanan.catat(pengguna, objek="barang", item_name=v.item_name, variant=v.variant, kolom="rak tambahan",
+                          lama=b.rak_dari_id, baru=b.rak_id or "", catatan=catatan)
+        else:
+            layanan.ubah_varian(pengguna, v, "kode_rak", b.rak_id if b.rak else "", hak=hak | {"ubah_info"},
+                                catatan=catatan)
+            if b.rak_id:
+                VarianRak.objects.filter(varian=v, rak_id=b.rak_id).delete()   # jangan jadi utama + tambahan sekaligus
     elif b.jenis == "rak_lokasi":
         lama = b.rak.tempat.nama if b.rak.tempat else "-"
         b.rak.tempat = b.ke
@@ -299,6 +315,44 @@ def tambah_rak(pengguna, t, *, varian_id, rak, catatan=""):
     if rak and rak_obj is None:
         raise Tolak(f"Rak {rak} belum terdaftar.")
     return TiketBaris.objects.create(tiket=t, jenis="rak", varian=info, rak=rak_obj, catatan=rapikan_teks(catatan)[:300])
+
+
+def isi_cell(kode):
+    """Barang yang tercatat di satu cell/rak: rak utama + rak tambahan (aktif, bukan sampah), urut nama."""
+    from master.models import VarianRak
+    ids = set(VarianInfo.objects.filter(rak_id=kode).values_list("pk", flat=True))
+    ids |= set(VarianRak.objects.filter(rak_id=kode).values_list("varian_id", flat=True))
+    return list(VarianInfo.objects.filter(pk__in=ids, aktif=True, sampah__isnull=True).order_by("item_name", "variant"))
+
+
+def tambah_rak_banyak(pengguna, t, *, varian_ids, rak, rak_dari="", catatan=""):
+    """Usulan ganti rak untuk banyak barang sekaligus (21 Nov 2026): isi satu cell atau hasil cari yang dicentang.
+
+    Satu barang + cell asal hanya satu usulan: kalau diusulkan lagi, tujuannya yang diganti (bukan dobel).
+    """
+    _harus_lokasi(pengguna, t, HAK_RAK)
+    ke = Rak.objects.filter(kode=rak).first() if rak else None
+    if ke is None:
+        raise Tolak("Pilih rak / cell tujuan.")
+    dari = Rak.objects.filter(kode=rak_dari).first() if rak_dari else None
+    if dari is not None and dari.pk == ke.pk:
+        raise Tolak("Cell tujuan sama dengan cell asal.")
+    ids = [int(x) for x in varian_ids if str(x).isdigit()]
+    barang = list(VarianInfo.objects.filter(pk__in=ids, sampah__isnull=True))
+    if not barang:
+        raise Tolak("Centang dulu barang yang mau dipindah.")
+    catatan = rapikan_teks(catatan)[:300]
+    n = 0
+    with transaction.atomic():
+        for v in barang:
+            b = TiketBaris.objects.filter(tiket=t, jenis="rak", varian=v, rak_dari=dari).first()
+            if b:
+                b.rak, b.catatan = ke, catatan or b.catatan
+                b.save(update_fields=["rak", "catatan"])
+            else:
+                TiketBaris.objects.create(tiket=t, jenis="rak", varian=v, rak=ke, rak_dari=dari, catatan=catatan)
+            n += 1
+    return n
 
 
 def tambah_rak_lokasi(pengguna, t, *, rak, ke, catatan=""):

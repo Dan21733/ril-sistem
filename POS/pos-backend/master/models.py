@@ -1044,6 +1044,9 @@ class TiketBaris(models.Model):
     jenis = models.CharField(max_length=12, choices=JENIS)
     varian = models.ForeignKey(VarianInfo, null=True, blank=True, on_delete=models.PROTECT, related_name="tiket")
     rak = models.ForeignKey(Rak, null=True, blank=True, on_delete=models.PROTECT, related_name="tiket")
+    # Ganti rak dari cell tertentu (21 Nov 2026): kalau barang itu di cell asal sebagai rak TAMBAHAN,
+    # yang dipindah rak tambahannya, rak utama tetap. Kosong = ganti rak utama (cara lama).
+    rak_dari = models.ForeignKey(Rak, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     dari = models.ForeignKey(Lokasi, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     ke = models.ForeignKey(Lokasi, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     jumlah = models.IntegerField(null=True, blank=True)
