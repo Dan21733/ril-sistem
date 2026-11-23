@@ -421,6 +421,26 @@ def tambah_rak_banyak(pengguna, t, *, varian_ids, rak, rak_dari="", catatan=""):
     return n
 
 
+def ganti_tujuan(pengguna, t, *, baris_ids, rak):
+    """Ganti cell tujuan banyak usulan rak sekaligus (23 Nov 2026): salah set rak 1, harusnya rak 2.
+
+    Hanya baris jenis "rak" di tiket ini. Mengembalikan jumlah baris yang diganti."""
+    _harus_lokasi(pengguna, t, HAK_RAK)
+    ke = Rak.objects.filter(kode=rak).first() if rak else None
+    if ke is None:
+        raise Tolak("Pilih rak / cell tujuan yang baru.")
+    ids = [int(x) for x in baris_ids if str(x).isdigit()]
+    baris = list(TiketBaris.objects.filter(tiket=t, jenis="rak", pk__in=ids).select_related("varian"))
+    if not baris:
+        raise Tolak("Centang dulu usulan ganti rak yang mau diubah tujuannya.")
+    if any(b.rak_dari_id == ke.kode for b in baris):
+        raise Tolak("Ada usulan yang cell asalnya sama dengan tujuan baru. Hilangkan centangnya.")
+    cek_rak_beku({ke.kode})
+    with transaction.atomic():
+        TiketBaris.objects.filter(pk__in=[b.pk for b in baris]).update(rak=ke)
+    return len(baris)
+
+
 def tukar_cell(pengguna, t, *, a, b, catatan=""):
     """Usulan tukar isi dua cell (23 Nov 2026): isi A → B dan isi B → A, diterapkan saat ACC.
 

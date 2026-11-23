@@ -482,6 +482,10 @@ def tiket_isi(request, tiket_id):
                                                 rak_dari=p.get("rak_dari", ""), catatan=p.get("catatan", ""))
                 messages.success(request, f"{n} barang masuk usulan pindah rak.")
                 return redirect(f"{request.path}#usulan")
+            elif aksi == "ganti_tujuan":
+                n = svc_tiket.ganti_tujuan(request.user, t, baris_ids=p.getlist("baris"), rak=p.get("rak", ""))
+                messages.success(request, f"Tujuan {n} usulan diganti.")
+                return redirect(f"{request.path}#usulan")
             elif aksi == "tukar_cell":
                 n, dua = svc_tiket.tukar_cell(request.user, t, a=p.get("rak_dari", ""), b=p.get("rak", ""))
                 messages.success(request, f"{n} barang masuk usulan tukar cell."
@@ -520,6 +524,7 @@ def tiket_isi(request, tiket_id):
         "lihat_stok": lihat_stok, "gudang": gudang,
         "boleh_pindah": "ops_tiket_pindah" in hak, "boleh_rak": "ops_tiket_rak" in hak,
         "baris": t.baris.select_related("varian", "rak", "rak_dari", "dari", "ke"),
+        "ada_usulan_rak": t.baris.filter(jenis="rak").exists(),
         "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": daftar_rak,
         "daftar_kategori": sorted(set(Item.objects.values_list("category", flat=True).distinct()), key=kunci_alami),
     })

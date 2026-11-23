@@ -848,6 +848,17 @@ class HitungPosisiTest(Dasar):
         r = self.client.post(url, {"aksi": "tukar_cell", "rak_dari": "GA-1", "rak": "GA-2"}, follow=True)
         self.assertContains(r, "2 barang masuk usulan tukar cell. 1 barang ada di kedua cell")
         self.assertFalse(TiketBaris.objects.filter(tiket=t, varian=besar).exists())
+        # Salah tujuan: centang semua usulan, ganti tujuan sekaligus, lalu kembalikan.
+        ids = list(TiketBaris.objects.filter(tiket=t).values_list("pk", flat=True))
+        r = self.client.get(url)
+        self.assertContains(r, "Pilih semua usulan ganti rak"); self.assertContains(r, 'value="ganti_tujuan"')
+        r = self.client.post(url, {"aksi": "ganti_tujuan", "baris": ids, "rak": "GA-9"}, follow=True)
+        self.assertContains(r, "Tujuan 2 usulan diganti")
+        self.assertEqual(set(TiketBaris.objects.filter(tiket=t).values_list("rak_id", flat=True)), {"GA-9"})
+        r = self.client.post(url, {"aksi": "ganti_tujuan", "baris": ids, "rak": "GA-1"}, follow=True)
+        self.assertContains(r, "cell asalnya sama dengan tujuan baru")
+        for b in TiketBaris.objects.filter(tiket=t):
+            svc_tiket.ganti_tujuan(self.gudang, t, baris_ids=[b.id], rak="GA-2" if b.rak_dari_id == "GA-1" else "GA-1")
         svc_tiket.kirim(self.gudang, t, "")
         t.refresh_from_db()
         svc_tiket.terapkan(self.admin, t, {"pilih": [str(b.id) for b in t.baris.all()]}, hak=SEMUA_HAK)

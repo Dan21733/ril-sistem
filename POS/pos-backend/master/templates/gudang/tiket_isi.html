@@ -82,11 +82,17 @@
 {% endif %}
 
 <h3 id="usulan">Usulan ({{ baris|length }})</h3>
+{% if t.bisa_diisi and boleh_rak and ada_usulan_rak %}<label class="kecil" style="display:flex;gap:8px;align-items:center;margin:0 0 6px;font-weight:400"><input type="checkbox" style="width:22px;height:22px" onchange="document.querySelectorAll('input[name=baris][form=form-tujuan]').forEach(c => c.checked = this.checked)"> Pilih semua usulan ganti rak</label>{% endif %}
 <div class="daftar">{% for b in baris %}
-  <div class="brs"><div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode|rak_pendek }}{% endif %}</b>
+  <div class="brs">{% if t.bisa_diisi and boleh_rak and b.jenis == 'rak' %}<input type="checkbox" name="baris" value="{{ b.id }}" form="form-tujuan" aria-label="Pilih usulan {{ b.varian.item_name }}" style="width:22px;height:22px;flex:none">{% endif %}<div class="nama"><b>{% if b.varian %}{{ b.varian.item_name }}{% if b.varian.variant != "N/A" %} / {{ b.varian.variant }}{% endif %}{% else %}Rak {{ b.rak.kode|rak_pendek }}{% endif %}</b>
     <span class="redup kecil">{% if b.jenis == 'pindah' %}{{ b.jumlah|qty:b.varian }} dari {{ b.dari.nama }} ke {{ b.ke.nama }}{% elif b.jenis == 'rak' %}{% if b.rak_dari %}dari {{ b.rak_dari.kode|rak_pendek }} {% endif %}ganti rak ke {{ b.rak.kode|rak_pendek|default:"(kosong)" }}{% else %}rak pindah ke {{ b.ke.nama }}{% endif %}{% if b.hasil %} · {{ b.hasil }}{% endif %}</span></div>
     {% if t.bisa_diisi %}<form method="post">{% csrf_token %}<input type="hidden" name="aksi" value="hapus"><input type="hidden" name="id" value="{{ b.id }}"><button class="tombol kecil bahaya" type="submit">Hapus</button></form>{% endif %}</div>
 {% empty %}<div class="brs redup">Belum ada usulan.</div>{% endfor %}</div>
+{% if t.bisa_diisi and boleh_rak and ada_usulan_rak %}<form method="post" id="form-tujuan" class="kartu" style="position:sticky;bottom:8px;margin-top:10px">{% csrf_token %}<input type="hidden" name="aksi" value="ganti_tujuan">
+  <label>Usulan yang <b>dicentang</b> diganti tujuannya ke cell</label>
+  <select data-pilih-rak name="rak" required><option value="">pilih cell tujuan baru…</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select>
+  <button class="tombol utama" type="submit" style="margin-top:8px;width:100%">Ganti tujuan</button>
+</form>{% endif %}
 
 {% if t.bisa_diisi and baris %}
 <form method="post" class="alat" style="margin-top:14px" data-tanya="Kirim tugas ini ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
