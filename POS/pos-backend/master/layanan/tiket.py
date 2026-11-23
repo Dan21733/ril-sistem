@@ -249,6 +249,7 @@ def _terapkan_baris(pengguna, t, b, data, hak):
     elif b.jenis == "rak":
         from master.models import VarianRak
         v = b.varian
+        cek_rak_beku({b.rak_id, b.rak_dari_id} if b.rak_dari_id else {b.rak_id, v.rak_id})
         tambahan = (VarianRak.objects.filter(varian=v, rak_id=b.rak_dari_id).first()
                     if b.rak_dari_id and v.rak_id != b.rak_dari_id else None)
         if tambahan is not None:
@@ -266,6 +267,7 @@ def _terapkan_baris(pengguna, t, b, data, hak):
             if b.rak_id:
                 VarianRak.objects.filter(varian=v, rak_id=b.rak_id).delete()   # jangan jadi utama + tambahan sekaligus
     elif b.jenis == "rak_lokasi":
+        cek_rak_beku({b.rak_id})
         lama = b.rak.tempat.nama if b.rak.tempat else "-"
         b.rak.tempat = b.ke
         b.rak.save(update_fields=["tempat"])
@@ -355,6 +357,19 @@ def tambah_massal(pengguna, t, *, dari, ke, rak=None, kategori=None, ikut_rak=Fa
     return len(isi)
 
 
+def cek_rak_beku(kode):
+    """Tolak usulan / ACC yang menyentuh rak yang sudah selesai dihitung di sesi opname berjalan (23 Nov 2026)."""
+    from master.models import RakSelesai
+    kode = {k for k in kode if k}
+    if not kode:
+        return
+    x = RakSelesai.objects.filter(sesi__status="buka", rak_id__in=kode).select_related("rak", "sesi").first()
+    if x is not None:
+        from master.layanan.rak import kode_pendek
+        raise Tolak(f"Rak {kode_pendek(x.rak)} sedang dibekukan: sudah selesai dihitung di {x.sesi.nama}. "
+                    "Tunggu opname di-ACC, atau pemilik membuka lagi rak itu.")
+
+
 def tambah_rak(pengguna, t, *, varian_id, rak, catatan=""):
     _harus_lokasi(pengguna, t, HAK_RAK)
     info = VarianInfo.objects.filter(pk=varian_id or 0, sampah__isnull=True).first()
@@ -363,6 +378,7 @@ def tambah_rak(pengguna, t, *, varian_id, rak, catatan=""):
     rak_obj = Rak.objects.filter(kode=rak).first() if rak else None
     if rak and rak_obj is None:
         raise Tolak(f"Rak {rak} belum terdaftar.")
+    cek_rak_beku({rak, info.rak_id})
     return TiketBaris.objects.create(tiket=t, jenis="rak", varian=info, rak=rak_obj, catatan=rapikan_teks(catatan)[:300])
 
 
@@ -390,6 +406,7 @@ def tambah_rak_banyak(pengguna, t, *, varian_ids, rak, rak_dari="", catatan=""):
     barang = list(VarianInfo.objects.filter(pk__in=ids, sampah__isnull=True))
     if not barang:
         raise Tolak("Centang dulu barang yang mau dipindah.")
+    cek_rak_beku({ke.kode, rak_dari} | ({v.rak_id for v in barang} if dari is None else set()))
     catatan = rapikan_teks(catatan)[:300]
     n = 0
     with transaction.atomic():
@@ -404,11 +421,40 @@ def tambah_rak_banyak(pengguna, t, *, varian_ids, rak, rak_dari="", catatan=""):
     return n
 
 
+def tukar_cell(pengguna, t, *, a, b, catatan=""):
+    """Usulan tukar isi dua cell (23 Nov 2026): isi A → B dan isi B → A, diterapkan saat ACC.
+
+    Barang yang tercatat di kedua cell tidak diusulkan (setelah ditukar tetap di dua cell itu juga);
+    kalau ikut diusulkan dua arah, ACC akan menghapus salah satu tempatnya.
+    """
+    _harus_lokasi(pengguna, t, HAK_RAK)
+    ra = Rak.objects.filter(kode=a).first() if a else None
+    rb = Rak.objects.filter(kode=b).first() if b else None
+    if ra is None or rb is None:
+        raise Tolak("Pilih dua cell yang mau ditukar.")
+    if ra.pk == rb.pk:
+        raise Tolak("Pilih cell yang berbeda.")
+    isi_a = {v.pk for v in isi_cell(ra.kode)}
+    isi_b = {v.pk for v in isi_cell(rb.kode)}
+    dua = isi_a & isi_b
+    if not (isi_a | isi_b) - dua:
+        raise Tolak("Kedua cell kosong (atau isinya sama), tidak ada yang ditukar.")
+    catatan = rapikan_teks(catatan) or f"Tukar isi {ra.kode} ⇄ {rb.kode}"
+    n = 0
+    with transaction.atomic():
+        if isi_a - dua:
+            n += tambah_rak_banyak(pengguna, t, varian_ids=list(isi_a - dua), rak=rb.kode, rak_dari=ra.kode, catatan=catatan)
+        if isi_b - dua:
+            n += tambah_rak_banyak(pengguna, t, varian_ids=list(isi_b - dua), rak=ra.kode, rak_dari=rb.kode, catatan=catatan)
+    return n, len(dua)
+
+
 def tambah_rak_lokasi(pengguna, t, *, rak, ke, catatan=""):
     _harus_lokasi(pengguna, t, HAK_RAK)
     rak_obj = Rak.objects.filter(kode=rak).first()
     if rak_obj is None:
         raise Tolak("Pilih rak.")
+    cek_rak_beku({rak_obj.kode})
     ke = baca(ke)
     if ke.jenis != "gudang" and ke.pk != lokasi_toko().pk:
         raise Tolak("Lokasi tidak dikenal.")

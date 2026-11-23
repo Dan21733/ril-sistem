@@ -158,7 +158,7 @@ class SesiOpnameTest(Dasar):
         self.assertEqual(set(palu), {"i", "n", "v", "b", "c", "a", "r", "s", "k", "l"})   # tanpa stok/harga/modal
         r = self.client.post(url, json.dumps({"entri": [{"kunci": "k1", "varian": self.kecil.id, "rak": "A3", "jumlah": "4"}]}),
                              content_type="application/json")
-        self.assertEqual(r.json(), {"ok": ["k1"], "gagal": []})
+        self.assertEqual((r.json()["ok"], r.json()["gagal"]), (["k1"], []))
         r = self.client.post(url, {"aksi": "kirim", "dihitung_oleh": "Andi"})
         self.assertEqual(Tiket.objects.get(pk=a.pk).status, "dikirim")
         # Setelah dikirim tidak bisa diisi lagi.
@@ -182,6 +182,46 @@ class SesiOpnameTest(Dasar):
         self.assertEqual(Tiket.objects.filter(sesi=self.sesi).count(), 2)
         self.assertRedirects(r, url, fetch_redirect_response=False)
         self.assertEqual(self.client.get(reverse("master:opname")).status_code, 200)
+
+    def test_rak_selesai_dibekukan(self):
+        """23 Nov 2026: rak yang ditandai selesai tidak bisa dihitung tugas lain atau dipindah sampai ACC."""
+        from master.models import RakSelesai
+        a, b = self._tugas(self.gudang, self.ga), self._tugas(self.gudang2, self.ga)
+        self.client.force_login(self.gudang)
+        url = reverse("gudang:tiket_hitung", args=[a.id])
+        self.assertContains(self.client.get(url), 'id="rak-selesai"')
+        r = self.client.post(url, json.dumps({"entri": [{"kunci": "k1", "varian": self.kecil.id, "rak": "A3", "jumlah": "4"}],
+                                              "selesai": [{"rak": "A3", "ya": True}, {"rak": "P1", "ya": True}]}),
+                             content_type="application/json").json()
+        self.assertEqual((r["ok"], r["selesai_ok"], [g["rak"] for g in r["selesai_gagal"]]), (["k1"], ["A3"], ["P1"]))
+        self.assertEqual(r["selesai"], {"A3": {"oleh": self.gudang.first_name or "gudang", "milik": True}})
+        # Tugas lain: hitungan di A3 ditolak, rak lain tetap bisa; tidak bisa membuka tandaan orang lain.
+        hasil = self._isi(self.gudang2, b, (self.kecil, "A3", "1"), (self.kecil, "A7", "6"))
+        self.assertEqual([g["kunci"] for g in hasil["gagal"]], [f"{self.kecil.id}|A3"])
+        self.assertIn("sudah selesai dihitung", hasil["gagal"][0]["pesan"])
+        with self.assertRaises(Tolak):
+            svc.tandai_rak(self.gudang2, b, "A3", False)
+        self.assertEqual(svc.peta_selesai(b)["A3"]["milik"], False)
+        # Yang menandai masih bisa koreksi sendiri.
+        self.assertEqual(self._isi(self.gudang, a, (self.kecil, "A3", "5"))["gagal"], [])
+        # Usulan pindah rak yang menyentuh A3 ditolak selama sesi buka.
+        t = tiket.buka(self.admin, untuk=self.gudang, tujuan="Rapikan", jenis="lokasi", hak=SEMUA_HAK,
+                       batas=timezone.now() + timedelta(hours=1))
+        with self.assertRaises(Tolak):
+            tiket.tambah_rak_banyak(self.gudang, t, varian_ids=[self.kecil.id], rak="A7", rak_dari="A3")
+        # Kemajuan + pemilik membuka lagi.
+        k = svc.kemajuan_rak(self.sesi)
+        self.assertEqual([(x["lokasi"].kode, len(x["selesai"]), x["total"]) for x in k], [("GA", 1, 2)])
+        self.client.force_login(self.admin)
+        surl = reverse("master:opname_sesi", args=[self.sesi.id])
+        self.assertContains(self.client.get(surl + "?tab=rak"), "1</b> dari 2 rak selesai")
+        self.client.post(surl, {"aksi": "buka_rak", "rak": "A3", "tab": "rak"})
+        self.assertFalse(RakSelesai.objects.exists())
+        self.assertEqual(self._isi(self.gudang2, b, (self.kecil, "A3", "1"))["gagal"], [])
+        # Setelah sesi selesai, rak tidak beku lagi.
+        svc.tandai_rak(self.gudang, a, "A7")
+        self.sesi.status = "batal"; self.sesi.save()
+        tiket.tambah_rak_banyak(self.gudang, t, varian_ids=[self.kecil.id], rak="A3", rak_dari="A7")
 
     def test_satu_sesi_saja(self):
         with self.assertRaises(Tolak):

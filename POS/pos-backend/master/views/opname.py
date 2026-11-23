@@ -119,6 +119,9 @@ def sesi_detail(request, sesi_id):
                 else:
                     svc_tiket.batalkan(request.user, t, hak=hak)
                     messages.info(request, f"Tugas #{t.id} dibatalkan; hitungannya tidak dipakai.")
+            elif aksi == "buka_rak":
+                svc_sesi.buka_rak(request.user, sesi, p.get("rak", ""), hak=hak)
+                messages.info(request, "Rak dibuka lagi; bisa dihitung dan dipindah lagi.")
             elif aksi == "hapus_hitungan":
                 svc_sesi.hapus_hitungan(request.user, sesi, p.get("id"), hak=hak)
                 messages.info(request, "Hitungan dibuang.")
@@ -170,6 +173,10 @@ def sesi_detail(request, sesi_id):
         tab = konteks["tab"]
         from master.models import SesiHarga
         konteks["jumlah_draf"] = SesiHarga.objects.filter(sesi=sesi).count()
+        from master.models import RakSelesai
+        konteks["rak_selesai_n"] = RakSelesai.objects.filter(sesi=sesi).count()
+        if tab == "rak":
+            konteks["kemajuan"] = svc_sesi.kemajuan_rak(sesi)
         if tab == "ulang":
             urut = sorted(r["baris"], key=lambda b: (-(b["nilai_awal"] or 0), b["v"].item_name))
             konteks.update(urut=urut if request.GET.get("semua") else urut[:300], urut_total=len(urut),

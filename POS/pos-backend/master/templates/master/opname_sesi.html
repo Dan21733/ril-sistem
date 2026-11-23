@@ -31,6 +31,7 @@ input.isian-baris{width:120px;max-width:120px;text-align:right;padding:7px 10px;
 
 <div class="tab-hal">
   <a href="?" class="{% if not tab %}aktif{% endif %}">Tugas</a>
+  <a href="?tab=rak" class="{% if tab == 'rak' %}aktif{% endif %}">Rak selesai<span class="n">{{ rak_selesai_n }}</span></a>
   <a href="?tab=konflik" class="{% if tab == 'konflik' %}aktif{% endif %}">Dihitung dua kali<span class="n {% if r.konflik %}awas{% endif %}">{{ r.konflik|length }}</span></a>
   <a href="?tab=belum" class="{% if tab == 'belum' %}aktif{% endif %}">Belum dihitung<span class="n {% if r.belum %}awas{% endif %}">{{ r.belum|length }}</span></a>
   <a href="?tab=tak" class="{% if tab == 'tak' %}aktif{% endif %}">Tidak ditemukan, stok 0<span class="n">{{ r.tak_ditemukan|length }}</span></a>
@@ -66,6 +67,19 @@ input.isian-baris{width:120px;max-width:120px;text-align:right;padding:7px 10px;
     <button class="tombol kecil" type="submit">{% if sesi.alasan_wajib %}Jadikan tidak wajib{% else %}Jadikan wajib{% endif %}</button>
     <span class="kecil redup">Matikan untuk opname pemutihan (hampir semua baris selisih).</span></form>
 </div>
+
+{% elif tab == 'rak' %}
+<p class="redup kecil">Karyawan menandai rak di tablet setelah selesai menghitung. Rak yang selesai dibekukan sampai sesi di-ACC: tugas lain tidak bisa menghitung di rak itu dan usulan pindah rak / isi cell yang menyentuhnya ditolak. Buka lagi kalau rak itu perlu dihitung orang lain.</p>
+{% for k in kemajuan %}<div class="kartu" style="margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap"><b>{{ k.lokasi.nama }}</b><span><b>{{ k.selesai|length }}</b> dari {{ k.total }} rak selesai ({{ k.persen }}%)</span></div>
+  <div style="height:8px;border-radius:999px;background:var(--garis);margin:8px 0 10px;overflow:hidden"><div style="height:100%;width:{{ k.persen }}%;background:var(--baik)"></div></div>
+  {% if k.belum %}<div class="kecil"><span class="redup">Belum:</span> {% for r in k.belum %}<span class="label" style="margin:2px">{{ r.pendek }}</span>{% endfor %}</div>{% endif %}
+  {% if k.selesai %}<div class="gulir" style="margin-top:8px"><table>
+    <tr><th>Rak</th><th>Ditandai oleh</th><th>Waktu</th><th></th></tr>
+    {% for r in k.selesai %}<tr><td><b>{{ r.pendek }}</b>{% if r.pendek != r.kode %} <span class="redup kecil">{{ r.kode }}</span>{% endif %}</td><td>{{ r.selesai.oleh }}{% if r.selesai.tiket_id %} <span class="redup kecil">#{{ r.selesai.tiket_id }}</span>{% endif %}</td><td>{{ r.selesai.waktu|date:"d M H:i" }}</td>
+      <td><form method="post" data-tanya="Buka lagi rak {{ r.pendek }}? Rak ini bisa dihitung dan dipindah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="buka_rak"><input type="hidden" name="tab" value="rak"><input type="hidden" name="rak" value="{{ r.kode }}"><button class="tombol kecil" type="submit">Buka lagi</button></form></td></tr>{% endfor %}
+  </table></div>{% endif %}
+</div>{% empty %}<p class="redup">Belum ada tugas dengan lokasi di sesi ini.</p>{% endfor %}
 
 {% elif tab == 'konflik' %}
 <p class="sub">Tempat yang sama (barang + lokasi + rak) dihitung lebih dari satu tugas. Tidak dijumlah otomatis karena bisa jadi dua orang menghitung barang yang sama. Buang yang salah; kalau memang dua tumpukan berbeda, minta satu orang menghitung ulang dengan rak yang benar.</p>

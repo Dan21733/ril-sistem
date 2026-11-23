@@ -19,6 +19,8 @@
 .sh-k .nama{min-width:0}.sh-k .chip-rak{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--aksen-lembut,#e8eefc);color:var(--aksen);margin-left:6px;white-space:nowrap}
 .sh-k input.angka{width:84px;min-height:40px}.sh-k .hapus{min-width:40px;min-height:40px;border:0;background:none;color:var(--bahaya);font-size:20px;cursor:pointer}
 .sh-k .baru{color:var(--awas)}
+.sh-selesai[hidden]{display:none}.sh-selesai{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:14px}
+.sh-selesai .tombol{min-height:44px}.sh-selesai .ok{color:var(--baik);font-weight:600}.sh-selesai .lain{color:var(--awas);font-weight:600}
 .sh-k .pindah{min-height:40px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;font-size:13px;padding:0 10px;cursor:pointer;white-space:nowrap}
 </style>
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
@@ -35,6 +37,7 @@
     </select>
     <span class="sh-status" id="status">Tersimpan</span>
   </div>
+  {% if t.sesi_id %}<div class="sh-selesai" id="rak-selesai" hidden></div>{% endif %}
   {% if boleh_rak_baru %}<div class="sh-rakbaru" id="rakbaru" hidden>
     <input type="text" id="rakbaru-kode" maxlength="20" placeholder="Kode rak baru, mis. C3" autocomplete="off" aria-label="Kode rak baru">
     <button type="button" class="tombol utama" id="rakbaru-ok">Pakai</button><button type="button" class="tombol" id="rakbaru-batal">Batal</button>
@@ -73,6 +76,7 @@
 </form>
 {{ barang|json_script:"data-barang" }}
 {{ hitungan|json_script:"data-hitungan" }}
+{{ selesai|json_script:"data-selesai" }}
 <script>
 (() => {
   const TIKET = {{ t.id }}, KUNCI = 'sesi-hitung-' + TIKET, KUNCI_RAK = KUNCI + '-rak', KUNCI_URUT = 'hitung-urut';
@@ -99,6 +103,38 @@
   Object.values(antri).forEach(e => e.hapus ? hitung.delete(e.kunci) : hitung.set(e.kunci, e.jumlah));
 
   const rakSel = $('rak');
+  /*
+   * Rak selesai dihitung (23 Nov 2026, hanya sesi opname): rak yang ditandai dibekukan sampai ACC; tugas lain
+   * tidak bisa menghitung di situ. Antrean sendiri (rak -> ya/tidak) supaya tetap jalan tanpa sinyal.
+   */
+  const SESI = {{ t.sesi_id|yesno:"true,false" }}, KUNCI_SELESAI = KUNCI + '-selesai';
+  let selesai = JSON.parse(document.getElementById('data-selesai').textContent) || {};
+  let antriSelesai = bacaLokal(KUNCI_SELESAI, {});
+  function keadaanSelesai(r){
+    if (r in antriSelesai) return antriSelesai[r] ? {milik: true} : null;
+    return selesai[r] ? {milik: selesai[r].milik, oleh: selesai[r].oleh} : null;
+  }
+  function tandaiOpsiSelesai(){
+    if (!SESI) return;
+    [...rakSel.options].forEach(o => {
+      if (o.dataset.r === undefined || !o.value) return;
+      const asli = o.dataset.teks || (o.dataset.teks = o.textContent), k = keadaanSelesai(o.value);
+      o.textContent = asli + (k ? ' ✓ selesai' : '');
+    });
+  }
+  function tampilSelesai(){
+    const kotak = $('rak-selesai'); if (!kotak) return;
+    const r = rakSel.value;
+    if (!r || !rakSel.querySelector(`option[value="${CSS.escape(r)}"][data-r]`)) { kotak.hidden = true; return; }
+    const k = keadaanSelesai(r), p = pendek(r);
+    kotak.hidden = false; kotak.replaceChildren();
+    const tulis = (kelas, t) => { const s = document.createElement('span'); s.className = kelas; s.textContent = t; kotak.append(s); };
+    const tombol = (t, ya) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tombol' + (ya ? ' utama' : '');
+      b.textContent = t; b.addEventListener('click', () => { antriSelesai[r] = ya; simpanLokal(KUNCI_SELESAI, antriSelesai); tampilSelesai(); tandaiOpsiSelesai(); tandai(); kirim(); }); kotak.append(b); };
+    if (!k) tombol('✓ Rak ' + p + ' selesai dihitung', true);
+    else if (k.milik) { tulis('ok', '✓ Rak ' + p + ' sudah kamu tandai selesai'); tombol('Buka lagi', false); }
+    else tulis('lain', 'Rak ' + p + ' sudah selesai dihitung oleh ' + k.oleh + '. Jangan hitung di rak ini; kalau perlu, minta pemilik membuka lagi.');
+  }
   // Rak baru (diketik karyawan, belum ada di master): tambahkan ke pilihan, ditandai "baru".
   // Kode yang dilihat karyawan (17 Nov 2026): GST-KC1-1-2 -> KC1-1-2. Nilai yang dikirim tetap kode lengkap.
   const pendek = k => (k && rakSel.querySelector(`option[value="${CSS.escape(k)}"]`)?.dataset.pendek) || k;
@@ -287,7 +323,7 @@
   }
 
   function tandai(teks){
-    const n = Object.keys(antri).length, s = $('status');
+    const n = Object.keys(antri).length + Object.keys(antriSelesai).length, s = $('status');
     s.className = 'sh-status' + (teks === 'mati' ? ' mati' : n ? ' antri' : '');
     s.textContent = teks === 'mati' ? `Tanpa sinyal · ${n} menunggu` : n ? `${n} menunggu terkirim` : 'Semua tersimpan';
     $('tombol-kirim').disabled = n > 0;
@@ -327,6 +363,8 @@
     rakBaruSimpan.forEach(k => tambahRak(k));      // rak baru ketikan karyawan (belum ada di master) tetap ada
     sel.value = [...sel.options].some(o => o.value === pilih) ? pilih : '';
     rakTadi = sel.value; simpanLokal(KUNCI_RAK, sel.value);
+    if (d.selesai) selesai = d.selesai;
+    tandaiOpsiSelesai(); tampilSelesai();
     if (window.pilihRak) { pilihRak.gantiDenah(d.denah); pilihRak.segarkan(sel); }
     if (sel.value !== pilih && pilih) kabar('Rak ' + pendek(pilih) + ' sudah tidak ada. Pilih rak lagi.', true);
   }
@@ -363,11 +401,12 @@
 
   async function kirim(){
     const entri = Object.values(antri).slice(0, 400);
-    if (!entri.length || mengirim) { tandai(); return; }
+    const kirimSelesai = SESI ? Object.entries(antriSelesai).map(([rak, ya]) => ({rak, ya})) : [];
+    if ((!entri.length && !kirimSelesai.length) || mengirim) { tandai(); return; }
     mengirim = true;
     try {
       const r = await fetch(location.pathname, {method: 'POST', redirect: 'manual', credentials: 'same-origin',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({entri})});
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({entri, selesai: kirimSelesai})});
       if (r.type === 'opaqueredirect' || r.status === 302){ kabar('Sesi login habis. Masuk lagi; hitungan tetap tersimpan di tablet ini.', true); tandai('mati'); return; }
       const d = await r.json().catch(() => ({}));
       if (!r.ok){ kabar(d.pesan || 'Gagal menyimpan.', true); tandai(); return; }
@@ -375,6 +414,14 @@
       (d.gagal || []).forEach(g => { gagal[g.kunci] = g.pesan; terkirim.add(g.kunci); });
       entri.forEach(e => { if (terkirim.has(e.kunci) && antri[e.kunci] === e) delete antri[e.kunci]; });
       simpanLokal(KUNCI, antri);
+      if (SESI && d.selesai){
+        // Yang sudah dijawab server (berhasil atau ditolak) keluar dari antrean, kecuali diubah lagi sementara itu.
+        kirimSelesai.forEach(x => { if (antriSelesai[x.rak] === x.ya) delete antriSelesai[x.rak]; });
+        simpanLokal(KUNCI_SELESAI, antriSelesai);
+        selesai = d.selesai;
+        (d.selesai_gagal || []).forEach(g => kabar(g.pesan, true));
+        tandaiOpsiSelesai(); tampilSelesai();
+      }
       tandai();
       if ((d.gagal || []).length) tampil();
       if (Object.keys(antri).length) setTimeout(kirim, 300);
@@ -388,7 +435,7 @@
     if (rakSel.value === '__baru'){
       rakSel.value = rakTadi; if (window.pilihRak) pilihRak.segarkan(rakSel); $('rakbaru').hidden = false; $('rakbaru-kode').value = ''; $('rakbaru-kode').focus(); return;
     }
-    rakTadi = rakSel.value; simpanLokal(KUNCI_RAK, rakSel.value); tampil();
+    rakTadi = rakSel.value; simpanLokal(KUNCI_RAK, rakSel.value); tampil(); tampilSelesai();
   });
   if ($('rakbaru')){
     const pakai = () => {
@@ -415,6 +462,7 @@
   }, true);
   window.addEventListener('online', kirim);
   setInterval(kirim, 20000);
+  tandaiOpsiSelesai(); tampilSelesai();
   tandai(); tampil(); kirim();
 })();
 </script>

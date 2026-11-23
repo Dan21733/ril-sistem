@@ -26,8 +26,8 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, rapikan_teks
-from master.models import (AlasanSelisih, HitungTempat, Lokasi, PeriksaUlang, Rak, SesiHarga, SesiHasil, SesiOpname,
-                           Tiket, VarianInfo, VarianRak)
+from master.models import (AlasanSelisih, HitungTempat, Lokasi, PeriksaUlang, Rak, RakSelesai, SesiHarga, SesiHasil,
+                           SesiOpname, Tiket, VarianInfo, VarianRak)
 
 BATAS_KIRIM = 500
 KUNCI_RAWAN = "opname_kategori_rawan"
@@ -117,6 +117,7 @@ def simpan(pengguna, t, entri):
     ok, gagal = [], []
     sekarang = timezone.now()
     oleh = pengguna.first_name or pengguna.username
+    beku = {x.rak_id: x for x in RakSelesai.objects.filter(sesi=t.sesi).exclude(tiket=t)}
     for e in entri:
         kunci = str((e or {}).get("kunci", ""))[:80] if isinstance(e, dict) else ""
         try:
@@ -132,6 +133,10 @@ def simpan(pengguna, t, entri):
             rak = rak_boleh.get(kode) if kode else None
             if kode and rak is None:
                 raise Tolak(f"Rak {kode} bukan rak di {lokasi.nama}.")
+            if rak is not None and rak.kode in beku:
+                from master.layanan.rak import kode_pendek
+                raise Tolak(f"Rak {kode_pendek(rak)} sudah selesai dihitung oleh {beku[rak.kode].oleh}. "
+                            "Minta pemilik membuka lagi kalau memang perlu dihitung.")
             kunci_baris = {"sesi": t.sesi, "tiket": t, "varian": v, "lokasi": lokasi, "rak": rak}
             if e.get("hapus"):
                 HitungTempat.objects.filter(**kunci_baris).delete()
@@ -159,6 +164,78 @@ def kirim(pengguna, t, dihitung_oleh=""):
     t.save()
     layanan.catat(pengguna, objek="tiket", kolom="status", baru=f"Tugas hitung #{t.id} dikirim: {n} hitungan")
     return n
+
+
+# ---------------------------------------------------------------------------
+# Rak selesai dihitung (23 Nov 2026): rak dibekukan sampai sesi di-ACC
+# ---------------------------------------------------------------------------
+
+
+def peta_selesai(t):
+    """Untuk tablet: {kode rak: {"oleh", "milik"}} rak yang sudah selesai di sesi tugas ini."""
+    if not t.sesi_id:
+        return {}
+    return {x.rak_id: {"oleh": x.oleh, "milik": x.tiket_id == t.id}
+            for x in RakSelesai.objects.filter(sesi_id=t.sesi_id)}
+
+
+def tandai_rak(pengguna, t, kode, ya=True):
+    """Karyawan menandai / membuka lagi rak tempat ia menghitung. Membuka lagi hanya rak tandaan tugas sendiri."""
+    from master.layanan.opname import lokasi_tugas
+    from master.layanan.rak import kode_pendek, kode_terkini
+    from master.layanan.tiket import _harus_bisa_diisi
+    _harus_bisa_diisi(pengguna, t)
+    if t.sesi is None or t.sesi.status != "buka":
+        raise Tolak("Rak selesai hanya untuk tugas sesi opname yang masih berjalan.")
+    lokasi = lokasi_tugas(t)
+    rak_boleh = {r.kode: r for r in rak_lokasi(lokasi)}
+    kode = str(kode or "")
+    rak = rak_boleh.get(kode) or rak_boleh.get(kode_terkini(kode))
+    if rak is None:
+        raise Tolak("Pilih rak yang terdaftar di lokasi tugas ini.")
+    ada = RakSelesai.objects.filter(sesi=t.sesi, rak=rak).first()
+    if ya:
+        if ada and ada.tiket_id != t.id:
+            raise Tolak(f"Rak {kode_pendek(rak)} sudah ditandai selesai oleh {ada.oleh}.")
+        if not ada:
+            RakSelesai.objects.create(sesi=t.sesi, rak=rak, lokasi=lokasi, tiket=t,
+                                      oleh=pengguna.first_name or pengguna.username)
+    elif ada:
+        if ada.tiket_id != t.id:
+            raise Tolak(f"Rak {kode_pendek(rak)} ditandai {ada.oleh}; hanya pemilik yang bisa membuka lagi.")
+        ada.delete()
+    return rak
+
+
+def buka_rak(pengguna, sesi, kode, *, hak):
+    """Pemilik membuka lagi rak yang sudah ditandai selesai (mis. perlu dihitung ulang orang lain)."""
+    _harus_buka(sesi, hak)
+    n, _ = RakSelesai.objects.filter(sesi=sesi, rak_id=kode).delete()
+    if not n:
+        raise Tolak("Rak itu belum ditandai selesai.")
+    layanan.catat(pengguna, objek="opname", kolom="rak selesai", lama=kode, baru="dibuka lagi",
+                  catatan=f"Sesi opname #{sesi.id}")
+
+
+def kemajuan_rak(sesi):
+    """Per lokasi tugas sesi: rak selesai vs belum, untuk memantau 3-5 hari opname."""
+    from master.layanan.opname import lokasi_tugas
+    from master.layanan.rak import kode_pendek, urut
+    selesai = {x.rak_id: x for x in RakSelesai.objects.filter(sesi=sesi)}
+    lokasi = {}
+    for t in Tiket.objects.filter(sesi=sesi).exclude(status__in=["batal", "ditolak"]):
+        lok = lokasi_tugas(t)
+        if lok is not None:
+            lokasi[lok.pk] = lok
+    hasil = []
+    for lok in sorted(lokasi.values(), key=lambda x: x.nama):
+        rak = sorted(Rak.objects.filter(tempat=lok).select_related("ruang"), key=urut)
+        for r in rak:
+            r.pendek, r.selesai = kode_pendek(r), selesai.get(r.kode)
+        sudah = [r for r in rak if r.selesai]
+        hasil.append({"lokasi": lok, "total": len(rak), "selesai": sudah, "belum": [r for r in rak if not r.selesai],
+                      "persen": round(100 * len(sudah) / len(rak)) if rak else 0})
+    return hasil
 
 
 def kembalikan(pengguna, t, *, hak, jam=4):

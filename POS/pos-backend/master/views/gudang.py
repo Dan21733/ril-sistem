@@ -184,9 +184,22 @@ def tiket_hitung(request, tiket_id):
         if request.content_type == "application/json":
             try:
                 isi = json.loads(request.body or b"{}")
-                entri = isi.get("entri")
-                hasil = svc_sesi.simpan(request.user, t, entri) if t.sesi_id else \
-                    opname.simpan_entri(request.user, t, entri)
+                entri, minta_selesai = isi.get("entri"), (isi.get("selesai") or []) if t.sesi_id else []
+                if entri or not minta_selesai:
+                    hasil = svc_sesi.simpan(request.user, t, entri) if t.sesi_id else \
+                        opname.simpan_entri(request.user, t, entri)
+                else:
+                    hasil = {"ok": [], "gagal": []}
+                # Rak selesai dihitung (23 Nov 2026): antrean terpisah {rak, ya}; jawabannya peta terbaru.
+                if t.sesi_id:
+                    hasil["selesai_ok"], hasil["selesai_gagal"] = [], []
+                    for x in minta_selesai[:50]:
+                        try:
+                            svc_sesi.tandai_rak(request.user, t, x.get("rak"), bool(x.get("ya")))
+                            hasil["selesai_ok"].append(x.get("rak"))
+                        except Tolak as tolak:
+                            hasil["selesai_gagal"].append({"rak": x.get("rak"), "pesan": str(tolak)})
+                    hasil["selesai"] = svc_sesi.peta_selesai(t)
             except (ValueError, AttributeError):
                 return JsonResponse({"pesan": "Isi kiriman tidak terbaca."}, status=400)
             except Tolak as tolak:
@@ -221,13 +234,14 @@ def tiket_hitung(request, tiket_id):
         return JsonResponse({"barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
                              "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
                              "rak": daftar_rak, "ada_tugas": bool(rak_tugas), "denah": data_pemilih(),
-                             "ganti": svc_rak.peta_ganti()})
+                             "ganti": svc_rak.peta_ganti(), "selesai": svc_sesi.peta_selesai(t)})
     return render(request, "gudang/sesi_hitung.html", {
         "menu": "tiket", "t": t, "lokasi": lokasi, "lingkup_teks": opname.lingkup_teks(t),
         "barang": svc_sesi.barang_tablet(t) if t.bisa_diisi else [],
         "hitungan": svc_sesi.hitungan_tugas(t) if t.sesi_id else opname.hitungan_tablet(t),
         "daftar_rak": daftar_rak,
         "rak_tugas": rak_tugas,
+        "selesai": svc_sesi.peta_selesai(t),
         "boleh_rak_baru": not t.sesi_id,
         "pindah_rak": not t.sesi_id and opname.perbarui_posisi(t),
     })
@@ -467,6 +481,11 @@ def tiket_isi(request, tiket_id):
                 n = svc_tiket.tambah_rak_banyak(request.user, t, varian_ids=p.getlist("varian"), rak=p.get("rak"),
                                                 rak_dari=p.get("rak_dari", ""), catatan=p.get("catatan", ""))
                 messages.success(request, f"{n} barang masuk usulan pindah rak.")
+                return redirect(f"{request.path}#usulan")
+            elif aksi == "tukar_cell":
+                n, dua = svc_tiket.tukar_cell(request.user, t, a=p.get("rak_dari", ""), b=p.get("rak", ""))
+                messages.success(request, f"{n} barang masuk usulan tukar cell."
+                                 + (f" {dua} barang ada di kedua cell, tidak perlu dipindah." if dua else ""))
                 return redirect(f"{request.path}#usulan")
             elif aksi == "rak_lokasi":
                 svc_tiket.tambah_rak_lokasi(request.user, t, rak=p.get("rak"), ke=p.get("ke"), catatan=p.get("catatan", ""))

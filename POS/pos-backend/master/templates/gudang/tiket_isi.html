@@ -24,6 +24,11 @@
   </div>
   {% else %}<p class="redup">Belum ada barang yang tercatat di cell {{ asal_pendek }}.</p>{% endif %}
 </form>
+<form method="post" class="kartu" style="margin-top:10px" data-tanya="Tukar semua isi cell {{ asal_pendek }} dengan cell yang dipilih?">{% csrf_token %}<input type="hidden" name="aksi" value="tukar_cell"><input type="hidden" name="rak_dari" value="{{ asal.kode }}">
+  <label>Atau <b>tukar semua isi</b> cell {{ asal_pendek }} dengan cell</label>
+  <select data-pilih-rak name="rak" required><option value="">pilih cell…</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select>
+  <button class="tombol" type="submit" style="margin-top:8px;width:100%">Tukar isi dua cell</button>
+</form>
 {% endif %}
 </details>{% endif %}
 

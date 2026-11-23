@@ -1662,6 +1662,26 @@ class PeriksaUlang(models.Model):
         constraints = [models.UniqueConstraint(fields=["sesi", "varian", "lokasi"], name="master_periksa_ulang_unik")]
 
 
+class RakSelesai(models.Model):
+    """Rak yang ditandai "selesai dihitung" dalam sesi opname (23 Nov 2026).
+
+    Selama sesi buka, rak ini dibekukan: tugas lain tidak bisa menambah hitungan di rak itu (mencegah dihitung
+    dua kali) dan usulan pindah rak / isi cell yang menyentuhnya ditolak. Yang menandai boleh membuka lagi
+    sebelum tugasnya dikirim; sesudahnya hanya pemilik. Lepas sendiri saat sesi di-ACC / dibatalkan.
+    """
+    sesi = models.ForeignKey(SesiOpname, on_delete=models.CASCADE, related_name="rak_selesai")
+    rak = models.ForeignKey(Rak, on_delete=models.CASCADE, related_name="+")
+    lokasi = models.ForeignKey(Lokasi, on_delete=models.PROTECT, related_name="+")
+    tiket = models.ForeignKey(Tiket, null=True, blank=True, on_delete=models.SET_NULL, related_name="rak_selesai")
+    oleh = models.CharField(max_length=150)
+    waktu = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "master_rak_selesai"
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["sesi", "rak"], name="master_rak_selesai_unik")]
+
+
 class SesiHarga(models.Model):
     """Draf modal / harga jual / floor baru dari sesi opname, diterapkan sekaligus saat ACC.
 

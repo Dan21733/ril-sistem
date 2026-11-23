@@ -825,6 +825,38 @@ class HitungPosisiTest(Dasar):
         self.assertEqual(self.besar.rak_id, "GA-2")                             # rak utama tetap
         self.assertEqual(list(VarianRak.objects.filter(varian=self.besar).values_list("rak_id", flat=True)), ["GA-9"])
 
+    def test_tukar_isi_cell(self):
+        """23 Nov 2026: tukar isi dua cell sekaligus; barang yang ada di kedua cell tidak diusulkan."""
+        from datetime import timedelta
+        from master.layanan import tiket as svc_tiket
+        from master.models import TiketBaris, VarianRak
+        Rak.objects.create(kode="GA-9", nama="GA-9", tempat=self.ga)
+        VarianInfo.objects.filter(pk=self.kecil.pk).update(rak_id="GA-1")
+        besar = self.info("Palu", "Besar")                                     # utama GA-2 + tambahan GA-1
+        VarianInfo.objects.filter(pk=besar.pk).update(rak_id="GA-2")
+        VarianRak.objects.create(varian=besar, rak_id="GA-1")
+        sedang = self.info("Kikir")                                             # utama GA-2 + tambahan GA-9
+        VarianInfo.objects.filter(pk=sedang.pk).update(rak_id="GA-2")
+        VarianRak.objects.create(varian=sedang, rak_id="GA-9")
+        t = svc_tiket.buka(self.admin, untuk=self.gudang, tujuan="Rapikan rak", jenis="lokasi", hak=SEMUA_HAK,
+                           batas=timezone.now() + timedelta(hours=1))
+        self.client.force_login(self.gudang)
+        url = reverse("gudang:tiket_isi", args=[t.id])
+        self.assertContains(self.client.get(url + "?asal=GA-1"), 'value="tukar_cell"')
+        r = self.client.post(url, {"aksi": "tukar_cell", "rak_dari": "GA-1", "rak": "GA-1"}, follow=True)
+        self.assertContains(r, "Pilih cell yang berbeda")
+        r = self.client.post(url, {"aksi": "tukar_cell", "rak_dari": "GA-1", "rak": "GA-2"}, follow=True)
+        self.assertContains(r, "2 barang masuk usulan tukar cell. 1 barang ada di kedua cell")
+        self.assertFalse(TiketBaris.objects.filter(tiket=t, varian=besar).exists())
+        svc_tiket.kirim(self.gudang, t, "")
+        t.refresh_from_db()
+        svc_tiket.terapkan(self.admin, t, {"pilih": [str(b.id) for b in t.baris.all()]}, hak=SEMUA_HAK)
+        for v in (self.kecil, besar, sedang):
+            v.refresh_from_db()
+        self.assertEqual((self.kecil.rak_id, besar.rak_id, sedang.rak_id), ("GA-2", "GA-2", "GA-1"))
+        self.assertEqual(list(VarianRak.objects.filter(varian=besar).values_list("rak_id", flat=True)), ["GA-1"])
+        self.assertEqual(list(VarianRak.objects.filter(varian=sedang).values_list("rak_id", flat=True)), ["GA-9"])
+
     def test_ganti_lokasi_dan_atur_rak_hitungan(self):
         """17 Nov 2026: tugas salah lokasi dipindah oleh pemilik; hitungan diatur raknya tanpa karyawan."""
         from master.layanan import opname
