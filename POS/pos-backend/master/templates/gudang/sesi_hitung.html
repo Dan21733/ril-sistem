@@ -21,6 +21,9 @@
 .sh-k .baru{color:var(--awas)}
 .sh-selesai[hidden]{display:none}.sh-selesai{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:14px}
 .sh-selesai .tombol{min-height:44px}.sh-selesai .ok{color:var(--baik);font-weight:600}.sh-selesai .lain{color:var(--awas);font-weight:600}
+.sh-k .pilih{width:24px;height:24px;flex:none;margin:0}.sh-grup label{display:flex;gap:8px;align-items:center;cursor:pointer}.sh-grup input{width:20px;height:20px;margin:0}
+.sh-bar[hidden]{display:none}.sh-bar{position:sticky;bottom:8px;z-index:6;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--latar);border:2px solid var(--aksen);box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.sh-bar b{flex:1 1 auto}.sh-bar .tombol{min-height:44px}
 .sh-k .pindah{min-height:40px;border:1px solid var(--garis-kuat);border-radius:8px;background:#fff;font:inherit;font-size:13px;padding:0 10px;cursor:pointer;white-space:nowrap}
 </style>
 <div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Tugas</a><h2>#{{ t.id }} · {{ t.tujuan }}</h2>
@@ -66,8 +69,12 @@
   <button type="button" class="tombol kecil" data-urut="az">A–Z</button>
   <button type="button" class="tombol kecil" data-urut="kat">Kategori</button>
   <button type="button" class="tombol kecil" data-urut="merek">Merek</button>
+  <button type="button" class="tombol kecil" id="pilih-semua" style="margin-left:auto">Pilih semua</button>
 </div>
 <div class="daftar" id="sudah"></div>
+<div class="sh-bar" id="bar-pilih" hidden><b id="n-pilih">0 dipilih</b>
+  <button type="button" class="tombol utama" id="pindah-pilih">Pindah ke rak…</button>
+  <button type="button" class="tombol" id="batal-pilih">Batal</button></div>
 <p class="redup kecil" id="ket-sudah">Belum ada. Barang yang kamu isi masuk ke sini, bisa diubah atau dihapus.</p>
 
 <form method="post" class="alat" id="form-kirim" style="margin-top:14px" data-tanya="Kirim hitungan tugas ini ke pemilik? Setelah dikirim tidak bisa diubah lagi.">{% csrf_token %}<input type="hidden" name="aksi" value="kirim">
@@ -209,6 +216,22 @@
   }
 
   // Keranjang: semua yang sudah dihitung, bisa diurutkan per rak / A-Z / kategori / merek; tiap baris bisa diubah/dihapus.
+  /*
+   * Pilih banyak (23 Nov 2026): centang beberapa hitungan (atau "Pilih semua" / satu kelompok) lalu pindah
+   * ke satu rak sekaligus. Kunci = "varian|rak", sama seperti hitungan.
+   */
+  const terpilih = new Set();
+  function tandaiPilih(){
+    [...terpilih].forEach(k => { if (!hitung.has(k)) terpilih.delete(k); });
+    $('n-pilih').textContent = terpilih.size + ' dipilih';
+    $('bar-pilih').hidden = !terpilih.size;
+    $('pilih-semua').textContent = terpilih.size && terpilih.size === tampilSudah.kunci.length ? 'Batal pilih' : 'Pilih semua';
+    document.querySelectorAll('#sudah input.pilih').forEach(c => { c.checked = terpilih.has(c.dataset.k); });
+    document.querySelectorAll('#sudah .sh-grup input').forEach(c => {
+      const ks = JSON.parse(c.dataset.k); c.checked = ks.length > 0 && ks.every(k => terpilih.has(k));
+    });
+  }
+
   function tampilSudah(){
     const isi = [], baris2 = [];
     // Kotak cari ikut menyaring daftar ini (14 Nov 2026): cek ulang "sanpolo" tanpa menggulir 60 barang.
@@ -239,9 +262,16 @@
       const kepala = document.createElement('div'); kepala.className = 'sh-grup';
       const a = document.createElement('span'); a.textContent = g;
       const c = document.createElement('span'); c.className = 'redup'; c.textContent = new Set(xs.map(x => x.b.i)).size + ' barang';
-      kepala.append(a, c); isi.push(kepala);
+      const lg = document.createElement('label'); const cg = document.createElement('input'); cg.type = 'checkbox';
+      cg.dataset.k = JSON.stringify(xs.map(x => kunci(x.b.i, x.r))); cg.setAttribute('aria-label', 'Pilih semua di ' + g);
+      cg.addEventListener('change', () => { JSON.parse(cg.dataset.k).forEach(k => cg.checked ? terpilih.add(k) : terpilih.delete(k)); tandaiPilih(); });
+      lg.append(cg, a);
+      kepala.append(lg, c); isi.push(kepala);
       xs.forEach(({b, r, n}) => {
         const d = document.createElement('div'); d.className = 'brs sh-k';
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'pilih'; cb.dataset.k = kunci(b.i, r);
+        cb.setAttribute('aria-label', 'Pilih ' + nama(b));
+        cb.addEventListener('change', () => { cb.checked ? terpilih.add(cb.dataset.k) : terpilih.delete(cb.dataset.k); tandaiPilih(); });
         const nm = document.createElement('div'); nm.className = 'nama';
         const bb = document.createElement('b'); bb.textContent = nama(b); nm.append(bb);
         if (urut !== 'rak'){ const ch = document.createElement('span'); ch.className = 'chip-rak' + (rakBaru(r) ? ' baru' : ''); ch.textContent = r ? 'Rak ' + pendek(r) : 'Tanpa rak'; nm.append(ch); }
@@ -257,10 +287,12 @@
         const pd = document.createElement('button'); pd.type = 'button'; pd.className = 'pindah'; pd.textContent = 'Pindah rak';
         pd.setAttribute('aria-label', 'Pindahkan hitungan ' + nama(b) + ' ke rak lain');
         pd.addEventListener('click', () => pindahRak(b, r, d));
-        d.append(nm, inp, pd, h); isi.push(d);
+        d.append(cb, nm, inp, pd, h); isi.push(d);
       });
     });
     $('sudah').replaceChildren(...isi);
+    tampilSudah.kunci = baris2.map(x => kunci(x.b.i, x.r));
+    tandaiPilih();
     const semuaId = [...hitung.keys()].map(k => +k.split('|')[0]).filter(i => perId.has(i));
     const nBarang = new Set(semuaId).size;
     $('n-barang').textContent = nBarang;
@@ -274,6 +306,57 @@
    * sudah dihitung, jumlahnya digabung. Memakai pemilih rak yang sama (denah, ruangan, kotak).
    */
   let pindahSel = null;
+  const namaRak = ke => ke ? (rakSel.querySelector(`option[value="${CSS.escape(ke)}"]`)?.dataset.label || 'Rak ' + ke) : 'Tanpa rak';
+  // Satu hitungan pindah rak; kalau di rak tujuan sudah ada, jumlahnya digabung.
+  function pindahSatu(b, dari, ke){
+    const n = hitung.get(kunci(b.i, dari));
+    const ada = hitung.get(kunci(b.i, ke));
+    const angkaK = t => parseFloat(String(t).replace(',', '.')) || 0;
+    let jadi = n;
+    if (ada !== undefined) {
+      const tot = angkaK(ada) + angkaK(n);
+      jadi = b.k > 1 ? String(Math.round(tot * 1000) / 1000).replace('.', ',') : String(Math.round(tot));
+    }
+    ubah(b, '', dari); ubah(b, jadi, ke);
+    return {jadi, gabung: ada !== undefined};
+  }
+  // Pemilih rak untuk yang dicentang: select tersembunyi di bilah bawah, pemilih denah yang sama.
+  function pindahBanyak(){
+    if (!terpilih.size) return;
+    const bar = $('bar-pilih');
+    bar.querySelector('.pilih-wadah')?.remove();
+    const s = document.createElement('select'); s.setAttribute('data-pilih-rak', ''); s.setAttribute('aria-label', 'Rak tujuan');
+    s.dataset.lokasi = rakSel.dataset.lokasi || '';
+    const kosong = document.createElement('option'); kosong.value = '__pilih'; kosong.textContent = 'pilih rak tujuan…'; s.append(kosong);
+    [...rakSel.options].filter(o => o.value !== '__baru').forEach(o => s.append(o.cloneNode(true)));
+    s.value = '__pilih';
+    const wadah = document.createElement('span'); wadah.className = 'pilih-wadah';
+    wadah.style.cssText = 'position:absolute;visibility:hidden;width:1px;height:1px;overflow:hidden';
+    bar.style.position = 'sticky'; wadah.append(s); bar.append(wadah);
+    const jalan = () => {
+      const ke = s.value; if (ke === '__pilih') return;
+      let n = 0, gabung = 0;
+      [...terpilih].forEach(k => {
+        const [v, dari] = k.split('|'); const b = perId.get(+v);
+        if (!b || dari === ke || !hitung.has(k)) return;
+        if (pindahSatu(b, dari, ke).gabung) gabung++;
+        n++;
+      });
+      terpilih.clear(); wadah.remove(); tampil();
+      kabar(`${n} hitungan dipindah ke ${namaRak(ke)}` + (gabung ? `, ${gabung} digabung dengan yang sudah ada.` : '.'));
+    };
+    s.addEventListener('change', jalan);
+    if (!window.pilihRak) { wadah.style.cssText = ''; return; }   // tanpa pemilih denah: pakai select biasa
+    window.pilihRak.pasang(s);
+    setTimeout(() => s.nextElementSibling.click(), 0);
+  }
+  $('pindah-pilih').addEventListener('click', pindahBanyak);
+  $('batal-pilih').addEventListener('click', () => { terpilih.clear(); tandaiPilih(); });
+  $('pilih-semua').addEventListener('click', () => {
+    const semua = tampilSudah.kunci || [];
+    if (terpilih.size && terpilih.size === semua.length) terpilih.clear(); else semua.forEach(k => terpilih.add(k));
+    tandaiPilih();
+  });
   function pindahRak(b, dari, baris){
     if (pindahSel) { pindahSel.nextElementSibling?.remove(); pindahSel.remove(); }
     const s = document.createElement('select'); s.setAttribute('data-pilih-rak', ''); s.setAttribute('aria-label', 'Rak tujuan');
@@ -287,17 +370,8 @@
     s.addEventListener('change', () => {
       const ke = s.value;
       if (ke === dari) return;
-      const n = hitung.get(kunci(b.i, dari));
-      const ada = hitung.get(kunci(b.i, ke));
-      const angkaK = t => parseFloat(String(t).replace(',', '.')) || 0;
-      let jadi = n;
-      if (ada !== undefined) {
-        const tot = angkaK(ada) + angkaK(n);
-        jadi = b.k > 1 ? String(Math.round(tot * 1000) / 1000).replace('.', ',') : String(Math.round(tot));
-      }
-      ubah(b, '', dari); ubah(b, jadi, ke); tampil();
-      const nmRak = ke ? (rakSel.querySelector(`option[value="${CSS.escape(ke)}"]`)?.dataset.label || 'Rak ' + ke) : 'Tanpa rak';
-      kabar(`${nama(b)} dipindah ke ${nmRak}` + (ada !== undefined ? ` (digabung, jadi ${jadi}).` : '.'));
+      const {jadi, gabung} = pindahSatu(b, dari, ke); tampil();
+      kabar(`${nama(b)} dipindah ke ${namaRak(ke)}` + (gabung ? ` (digabung, jadi ${jadi}).` : '.'));
     });
     // Ditunda: klik tombol "Pindah rak" yang sedang berjalan jangan sampai langsung menutup panelnya lagi.
     setTimeout(() => s.nextElementSibling.click(), 0);
