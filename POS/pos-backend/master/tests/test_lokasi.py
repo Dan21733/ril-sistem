@@ -764,6 +764,38 @@ class HitungPosisiTest(Dasar):
         self.assertContains(r, 'value="GST-KC1-2-1"'); self.assertContains(r, 'data-pendek="B2-2-1"')
         self.assertContains(r, ">Rak B2-2-1")
 
+    def test_ajukan_tugas(self):
+        """21 Nov 2026: karyawan mengajukan tugas; baru bisa dikerjakan setelah pemilik menerima."""
+        from datetime import timedelta
+        from master.layanan import tiket as svc_tiket
+        from master.models import Tiket
+        self.client.force_login(self.gudang)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "Ajukan tugas")
+        r = self.client.post(reverse("gudang:ajukan"), {"jenis": "hitung", "lokasi": self.ga.id, "rak": ["GA-1"], "alasan": ""}, follow=True)
+        self.assertContains(r, "Tulis alasannya")
+        self.client.post(reverse("gudang:ajukan"), {"jenis": "hitung", "lokasi": self.ga.id, "rak": ["GA-1"], "alasan": "stok palu kelihatan kurang"})
+        t = Tiket.objects.get(status="diajukan")
+        self.assertEqual((t.untuk_id, t.jenis, t.saring["rak"], t.saring["inisiatif"]), (self.gudang.id, "hitung", ["GA-1"], True))
+        self.assertFalse(t.bisa_diisi)
+        r = self.client.get(reverse("gudang:tiket"))
+        self.assertContains(r, "menunggu jawaban pemilik"); self.assertContains(r, "stok palu kelihatan kurang")
+        self.assertNotEqual(self.client.get(reverse("gudang:tiket_hitung", args=[t.id])).status_code, 500)
+        # pemilik: muncul di ACC HP, lalu diterima dari master
+        from master.layanan import acc_hp
+        self.assertIn(f"tugas:{t.id}", [x["kunci"] for x in acc_hp.daftar(self.admin)])
+        self.client.force_login(self.admin)
+        url = reverse("master:tiket_detail", args=[t.id])
+        self.assertContains(self.client.get(url), "Pengajuan dari")
+        batas = (timezone.localtime() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+        self.client.post(url, {"aksi": "terima", "batas": batas})
+        t.refresh_from_db()
+        self.assertEqual(t.status, "terbuka"); self.assertTrue(t.bisa_diisi)
+        # pengajuan lain ditolak
+        t2 = svc_tiket.ajukan(self.gudang, jenis="lokasi", lokasi=self.ga.id, alasan="rak GA berantakan")
+        svc_tiket.tolak(self.admin, t2, "nanti saja", hak=SEMUA_HAK)
+        t2.refresh_from_db(); self.assertEqual(t2.status, "ditolak")
+
     def test_pindah_isi_cell(self):
         """21 Nov 2026: karyawan pindahkan isi satu cell / hasil cari yang dicentang; ACC pemilik menerapkan."""
         from master.layanan import tiket as svc_tiket

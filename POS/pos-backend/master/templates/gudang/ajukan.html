@@ -1,0 +1,17 @@
+{% extends "gudang/base.html" %}
+{% block judul %}Ajukan tugas{% endblock %}
+{% block isi %}
+<div class="judul-hal"><a class="kecil" href="{% url 'gudang:tiket' %}">‹ Kembali</a><h2>Ajukan tugas</h2>
+  <span class="redup kecil">Pemilik yang memutuskan. Kalau diterima, tugasnya muncul di halaman Tugas.</span></div>
+<form method="post" class="kartu" style="display:grid;gap:14px">{% csrf_token %}
+  <div><label>Mau mengerjakan apa?</label>
+    <div style="display:grid;gap:8px;margin-top:6px">
+      {% if "hitung" in jenis_boleh %}<label class="brs" style="gap:10px;font-weight:400"><input type="radio" name="jenis" value="hitung" checked style="width:22px;height:22px;flex:none"> <span><b>Hitung barang</b><br><span class="redup kecil">stok kelihatan beda / belum pernah dihitung</span></span></label>{% endif %}
+      {% if "lokasi" in jenis_boleh %}<label class="brs" style="gap:10px;font-weight:400"><input type="radio" name="jenis" value="lokasi" {% if "hitung" not in jenis_boleh %}checked{% endif %} style="width:22px;height:22px;flex:none"> <span><b>Rapikan rak</b><br><span class="redup kecil">pindahkan barang ke cell yang benar</span></span></label>{% endif %}
+    </div></div>
+  <div><label>Di mana?</label><select name="lokasi" required>{% for l in pilihan_lokasi %}<option value="{{ l.id }}">{{ l.nama }}</option>{% endfor %}</select></div>
+  <div><label>Rak (boleh kosong)</label><select data-pilih-rak name="rak"><option value="">semua / belum tahu</option>{% include "gudang/_opsi_rak.html" with pilih="" %}</select></div>
+  <div><label>Kenapa?</label><input type="text" name="alasan" required maxlength="300" placeholder="mis. rak KC1 berantakan, keran 1/2 kelihatan kurang"></div>
+  <button class="tombol utama" type="submit" style="width:100%">Kirim pengajuan</button>
+</form>
+{% endblock %}

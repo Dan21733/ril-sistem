@@ -112,6 +112,15 @@ def daftar(user):
 
     if "kelola_lokasi" in hak:
         from master.models import Tiket
+        for t in Tiket.objects.filter(status="diajukan").select_related("untuk")[:30]:
+            # Pengajuan tugas dari karyawan (21 Nov 2026): terima = tugas terbuka, tolak = selesai.
+            hasil.append({
+                "kunci": f"tugas:{t.id}", "jenis": "tugas", "id": t.id, "toko": kasir,
+                "label": "Pengajuan tugas", "judul": t.tujuan,
+                "sub": f"{t.untuk.first_name or t.untuk.username}: {t.lingkup}", "nilai": None,
+                "waktu": t.dibuka_waktu, "putus": False,
+                "url": reverse("hp:tugas_detail", args=[t.id]),
+            })
         for t in Tiket.objects.filter(status="dikirim").exclude(jenis="hitung").select_related("untuk")[:30]:
             hasil.append({
                 "kunci": f"tugas:{t.id}", "jenis": "tugas", "id": t.id, "toko": kasir,

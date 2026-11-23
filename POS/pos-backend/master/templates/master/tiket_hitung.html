@@ -3,6 +3,7 @@
 {% block isi %}
 <p class="kecil"><a href="{% url 'master:tiket' %}">Tugas karyawan</a> /</p>
 <h2>Tugas #{{ t.id }} · hitung stok</h2>
+{% include "master/_tiket_pengajuan.html" %}
 {% include "master/_ringkasan_tugas.html" %}
 {% if t.status == 'terbuka' %}
 <div class="pesan info">{% if t.lewat_batas %}Batas waktu lewat. {{ jumlah }} barang sempat dihitung tapi belum dikirim.{% else %}Kepala gudang masih menghitung ({{ jumlah }} barang sejauh ini). Hasilnya muncul di Stok opname setelah dikirim.{% endif %}</div>

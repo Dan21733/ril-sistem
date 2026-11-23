@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.http import HttpResponse
+from datetime import timedelta
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.db.models import Exists, F, IntegerField, OuterRef, Subquery, Sum, Value
@@ -303,10 +304,10 @@ def tiket_daftar(request, baru=False):
     for t in daftar:
         t.jumlah_usulan = (len(t.usulan.all()) if t.jenis == "barang" else t.hitungan.count() if t.sesi_id else
                            (t.opname.baris.count() if t.jenis == "hitung" and hasattr(t, "opname") else len(t.baris.all())))
-    acc = [t for t in daftar if t.status == "dikirim"]
+    acc = [t for t in daftar if t.status in ("dikirim", "diajukan")]      # termasuk pengajuan karyawan (21 Nov 2026)
     jalan = [t for t in daftar if t.status == "terbuka" and not t.lewat_batas]
     lewat = [t for t in daftar if t.status == "terbuka" and t.lewat_batas]
-    selesai = [t for t in daftar if t.status not in ("dikirim", "terbuka")][:40]
+    selesai = [t for t in daftar if t.status not in ("dikirim", "terbuka", "diajukan")][:40]
     kelompok = [("Menunggu ACC kamu", acc, "Tidak ada yang menunggu ACC."),
                 ("Sedang dikerjakan", jalan, "Tidak ada tugas yang sedang berjalan.")]
     if lewat:
@@ -341,6 +342,9 @@ def tiket_detail(request, tiket_id):
                 ok, gagal = svc_tiket.terapkan(request.user, t, request.POST, hak=hak)
                 (messages.warning if gagal else messages.success)(
                     request, f"{ok} usulan diterapkan." + (f" {gagal} gagal, lihat kolom hasil." if gagal else ""))
+            elif aksi == "terima":
+                svc_tiket.terima_pengajuan(request.user, t, batas=request.POST.get("batas"), hak=hak)
+                messages.success(request, "Pengajuan diterima. Tugasnya sudah terbuka untuk karyawan.")
             elif aksi == "tolak":
                 svc_tiket.tolak(request.user, t, request.POST.get("alasan"), hak=hak)
                 messages.info(request, "Tiket ditolak.")
@@ -355,6 +359,7 @@ def tiket_detail(request, tiket_id):
         if b.jenis == "pindah":
             b.stok_asal = svc.stok_di(b.varian, b.dari)
     return render(request, "master/tiket_detail.html", {
+        "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
         "menu": "tiket", "t": t, "baris": baris, "pilihan_lokasi": svc.pilihan(),
     })
 
@@ -394,6 +399,9 @@ def _tiket_hitung_detail(request, t, hak):
             if aksi == "teruskan":
                 op = svc_opname.teruskan_tugas(request.user, t, hak=hak)
                 return redirect("master:opname_detail", opname_id=op.id)
+            elif aksi == "terima":
+                svc_tiket.terima_pengajuan(request.user, t, batas=request.POST.get("batas"), hak=hak)
+                messages.success(request, "Pengajuan diterima. Tugasnya sudah terbuka untuk karyawan.")
             elif aksi == "tolak":
                 svc_tiket.tolak(request.user, t, request.POST.get("alasan"), hak=hak)
                 messages.info(request, "Tugas ditolak.")
@@ -406,6 +414,7 @@ def _tiket_hitung_detail(request, t, hak):
     if op is not None and op.status != "draf":
         return redirect("master:opname_detail", opname_id=op.id)
     return render(request, "master/tiket_hitung.html", {
+        "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M"),
         "menu": "tiket", "t": t, "op": op, "jumlah": op.baris.count() if op else 0,
         "lingkup_teks": svc_opname.lingkup_teks(t), "ringkas": _ringkasan_tugas(t),
     })
@@ -422,6 +431,9 @@ def _tiket_barang_detail(request, t, hak):
                 ok, gagal, tolak = svc_barang.terapkan(request.user, t, request.POST, hak=hak)
                 (messages.warning if gagal else messages.success)(
                     request, f"{ok} usulan diterapkan, {tolak} tidak di-ACC." + (f" {gagal} gagal, lihat kolom hasil." if gagal else ""))
+            elif aksi == "terima":
+                svc_tiket.terima_pengajuan(request.user, t, batas=request.POST.get("batas"), hak=hak)
+                messages.success(request, "Pengajuan diterima. Tugasnya sudah terbuka untuk karyawan.")
             elif aksi == "tolak":
                 svc_tiket.tolak(request.user, t, request.POST.get("alasan"), hak=hak)
                 messages.info(request, "Tiket ditolak.")

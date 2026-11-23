@@ -7,7 +7,7 @@
   lalu ACC baris yang dipilih. Baru saat itu stok per lokasi dan rak berubah.
 - Total stok (kasir) tidak pernah berubah lewat tiket.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -131,10 +131,59 @@ def buka(pengguna, *, untuk, tujuan, batas, lingkup="", hak, jenis="lokasi", izi
     return t
 
 
+def ajukan(pengguna, *, jenis, lokasi, rak=(), alasan):
+    """Karyawan mengajukan tugas sendiri (21 Nov 2026): inisiatif hitung / rapikan rak.
+
+    Hasilnya tiket berstatus "diajukan" untuk dirinya sendiri; belum bisa dikerjakan sampai pemilik menerima
+    (keputusan lama: karyawan tidak bisa apa-apa tanpa tiket — pengajuan hanya permintaan tiket).
+    """
+    from master.akun.akses import hak_pengguna
+    from master.models import Lokasi
+    from master.layanan.rak import uraikan
+    hak_saya = hak_pengguna(pengguna)
+    if jenis not in ("hitung", "lokasi") or jenis not in jenis_untuk(hak_saya):
+        raise Tolak("Akun ini tidak bisa mengajukan tugas jenis itu.")
+    alasan = rapikan_teks(alasan)[:300]
+    if not alasan:
+        raise Tolak("Tulis alasannya, mis. 'rak KC1 berantakan' atau 'stok keran kelihatan beda'.")
+    l = Lokasi.objects.filter(pk=lokasi if str(lokasi or "").isdigit() else 0, aktif=True).first()
+    if l is None:
+        raise Tolak("Pilih lokasinya.")
+    if Tiket.objects.filter(untuk=pengguna, status="diajukan").count() >= 5:
+        raise Tolak("Masih ada 5 pengajuan yang belum dijawab pemilik. Tunggu dulu.")
+    rak_ada = set(Rak.objects.values_list("kode", flat=True))
+    kode = sorted({r for r in uraikan(rak) if r in rak_ada}) if rak else []
+    saring = {"lokasi": l.pk, "rak": kode, "inisiatif": True}
+    if jenis == "hitung":
+        saring.update({"kategori": [], "posisi": True})
+    judul = ("Hitung" if jenis == "hitung" else "Rapikan rak") + f" {l.nama}" + (f" ({len(kode)} rak)" if kode else "")
+    t = Tiket.objects.create(untuk=pengguna, tujuan=judul, lingkup=alasan, dibuka_oleh=pengguna.username,
+                             batas=timezone.now() + timedelta(days=1), jenis=jenis, saring=saring,
+                             status="diajukan")
+    layanan.catat(pengguna, aksi="tambah", objek="tiket", kolom="pengajuan",
+                  baru=f"Tiket #{t.id} diajukan {pengguna.username}: {judul}", catatan=alasan)
+    return t
+
+
+def terima_pengajuan(pengguna, t, *, batas, hak):
+    """Pemilik menerima pengajuan karyawan: tiket jadi terbuka dengan batas waktu dari pemilik."""
+    if HAK_BUKA not in hak or (t.jenis == "hitung" and "opname" not in hak):
+        raise Tolak("Akun ini tidak boleh membuka tugas ini.")
+    if t.status != "diajukan":
+        raise Tolak("Pengajuan ini sudah dijawab.")
+    batas = _waktu(batas, "Batas waktu")
+    if batas is None or batas <= timezone.now():
+        raise Tolak("Isi batas waktu di masa depan.")
+    t.status, t.batas, t.dibuka_oleh = "terbuka", batas, pengguna.username
+    t.save(update_fields=["status", "batas", "dibuka_oleh"])
+    layanan.catat(pengguna, objek="tiket", kolom="status",
+                  baru=f"Pengajuan #{t.id} diterima, sampai {timezone.localtime(batas):%d-%m %H:%M}")
+
+
 def batalkan(pengguna, t, *, hak):
     if HAK_BUKA not in hak:
         raise Tolak("Akun ini tidak boleh membatalkan tiket.")
-    if t.status not in ("terbuka", "dikirim"):
+    if t.status not in ("diajukan", "terbuka", "dikirim"):
         raise Tolak("Tiket ini sudah diputuskan.")
     t.status = "batal"
     t.diputus_oleh, t.diputus_waktu = pengguna.username, timezone.now()
@@ -148,7 +197,7 @@ def tolak(pengguna, t, alasan, *, hak):
     alasan = rapikan_teks(alasan)[:300]
     if not alasan:
         raise Tolak("Isi alasan penolakan.")
-    if not t.bisa_diputus:
+    if not t.bisa_diputus and t.status != "diajukan":
         raise Tolak("Tiket ini belum dikirim atau sudah diputuskan.")
     t.status = "ditolak"
     t.diputus_oleh, t.diputus_waktu, t.catatan_putusan = pengguna.username, timezone.now(), alasan

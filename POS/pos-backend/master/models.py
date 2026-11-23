@@ -987,7 +987,8 @@ class Tiket(models.Model):
     Di luar tiket yang terbuka (dan sebelum batas waktunya), admin tidak bisa
     menginput apa pun. Semua isian baru berlaku setelah di-ACC pemilik.
     """
-    STATUS = [("terbuka", "Terbuka"), ("dikirim", "Menunggu ACC"), ("selesai", "Selesai"),
+    # "diajukan" (21 Nov 2026): tugas yang diajukan karyawan sendiri; belum bisa dikerjakan sampai pemilik menerima.
+    STATUS = [("diajukan", "Diajukan karyawan"), ("terbuka", "Terbuka"), ("dikirim", "Menunggu ACC"), ("selesai", "Selesai"),
               ("ditolak", "Ditolak"), ("batal", "Dibatalkan")]
     JENIS = [("lokasi", "Pindah lokasi dan rak"), ("barang", "Data barang"), ("hitung", "Hitung stok")]
     IZIN_BARANG = [("harga", "Harga jual dan floor"), ("alias", "Alias"), ("aktif", "Aktif / nonaktif")]

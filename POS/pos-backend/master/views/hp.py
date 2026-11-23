@@ -646,6 +646,9 @@ def tugas_detail(request, tiket_id):
             elif aksi == "terapkan" and t.jenis == "lokasi":
                 ok, gagal = svc_tiket.terapkan(request.user, t, request.POST, hak=hak)
                 pesan = f"{ok} usulan diterapkan." + (f" {gagal} gagal, lihat keterangannya." if gagal else "")
+            elif aksi == "terima":
+                svc_tiket.terima_pengajuan(request.user, t, batas=request.POST.get("batas"), hak=hak)
+                pesan = "Pengajuan diterima. Tugasnya sudah terbuka untuk karyawan."
             elif aksi == "teruskan" and t.jenis == "hitung":
                 from master.layanan import opname as svc_opname
                 svc_opname.teruskan_tugas(request.user, t, hak=hak)
@@ -661,7 +664,9 @@ def tugas_detail(request, tiket_id):
             return _jawab(pesan=pesan)
         except Tolak as e:
             return _jawab(False, str(e), 400)
-    isi = {"tab": "tugas", "t": t, "ringkas": _ringkasan_tugas(t), "lihat_modal": "lihat_modal" in hak, "baris": []}
+    from datetime import timedelta
+    isi = {"tab": "tugas", "t": t, "ringkas": _ringkasan_tugas(t), "lihat_modal": "lihat_modal" in hak, "baris": [],
+           "batas_awal": (timezone.localtime() + timedelta(hours=4)).strftime("%Y-%m-%dT%H:00")}
     if t.jenis == "barang":
         isi["baris"] = svc_barang.rincian(t, lihat_modal="lihat_modal" in hak)
     elif t.jenis == "lokasi":

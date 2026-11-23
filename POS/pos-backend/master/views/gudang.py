@@ -303,6 +303,8 @@ def tiket(request):
     semua = _tiket_saya(request.user, 40)
     return render(request, "gudang/tiket.html", {
         "menu": "tiket", "aktif": [t for t in semua if t.bisa_diisi],
+        "diajukan": [t for t in semua if t.status == "diajukan"],
+        "boleh_ajukan": bool({"hitung", "lokasi"} & set(svc_tiket_jenis(hak))),
         "terjadwal": sorted([t for t in semua if t.belum_mulai], key=lambda t: t.mulai),
         "ada_riwayat": any(not t.bisa_diisi and not t.belum_mulai for t in semua),
         "jumlah_ambil_tugas": jumlah_ambil, "pesanan": pesanan,
@@ -327,13 +329,47 @@ def _tiket_saya(user, batas):
     return semua
 
 
+def svc_tiket_jenis(hak):
+    from master.layanan.tiket import jenis_untuk
+    return [j for j in jenis_untuk(hak)]
+
+
+@perlu("gudang")
+def ajukan(request):
+    """Karyawan mengajukan tugas sendiri (21 Nov 2026): hitung / rapikan rak, menunggu ACC pemilik."""
+    from master.akun.akses import hak_pengguna
+    from master.layanan import lokasi as svc_lokasi
+    from master.layanan import rak as svc_rak
+    from master.layanan import tiket as svc_tiket
+    hak = hak_pengguna(request.user)
+    jenis_boleh = [j for j in ("hitung", "lokasi") if j in svc_tiket_jenis(hak)]
+    if not jenis_boleh:
+        raise PermissionDenied("Akun ini tidak bisa mengajukan tugas.")
+    if request.method == "POST":
+        try:
+            t = svc_tiket.ajukan(request.user, jenis=request.POST.get("jenis"), lokasi=request.POST.get("lokasi"),
+                                 rak=request.POST.getlist("rak"), alasan=request.POST.get("alasan"))
+            messages.success(request, f"Pengajuan #{t.id} terkirim. Tunggu jawaban pemilik; tugasnya muncul di sini kalau diterima.")
+            return redirect("gudang:tiket")
+        except Tolak as tolak:
+            messages.error(request, str(tolak))
+    daftar_rak = sorted(Rak.objects.select_related("tempat", "ruang"), key=svc_rak.urut)
+    for r in daftar_rak:
+        r.pendek = svc_rak.kode_pendek(r)
+        r.pendek_induk = svc_rak.pendek_dasar(r) if r.induk else ""
+    return render(request, "gudang/ajukan.html", {
+        "menu": "tiket", "jenis_boleh": jenis_boleh, "pilihan_lokasi": svc_lokasi.pilihan(), "daftar_rak": daftar_rak,
+    })
+
+
 @perlu("gudang")
 def riwayat(request):
     """Tugas yang sudah selesai, ditolak, dibatalkan, atau lewat batas."""
     from master.akun.akses import hak_pengguna
     if not hak_pengguna(request.user) & HAK_TUGAS:
         return render(request, "gudang/kosong.html", {"menu": "riwayat"})
-    lain = [t for t in _tiket_saya(request.user, 120) if not t.bisa_diisi and not t.belum_mulai][:80]
+    lain = [t for t in _tiket_saya(request.user, 120)
+            if not t.bisa_diisi and not t.belum_mulai and t.status != "diajukan"][:80]
     return render(request, "gudang/riwayat.html", {"menu": "riwayat", "lain": lain})
 
 

@@ -1,0 +1,12 @@
+{% if t.status == 'diajukan' %}
+<div class="kartu" style="margin:12px 0;border-color:var(--aksen)">
+  <b>Pengajuan dari {{ t.untuk.first_name|default:t.untuk.username }}</b> <span class="kecil redup">{{ t.dibuka_waktu|date:"d M H:i" }}</span>
+  <p style="margin:6px 0 10px">“{{ t.lingkup }}”</p>
+  <form method="post" class="baris" style="gap:8px;align-items:center" data-tanya="Terima pengajuan ini? Tugasnya langsung terbuka untuk karyawan.">{% csrf_token %}<input type="hidden" name="aksi" value="terima">
+    <label class="kecil">Batas waktu <input type="datetime-local" name="batas" value="{{ batas_awal }}" required></label>
+    <button class="tombol utama" type="submit">Terima</button></form>
+  <form method="post" class="baris" style="gap:8px;align-items:center;margin-top:8px">{% csrf_token %}<input type="hidden" name="aksi" value="tolak">
+    <input type="text" name="alasan" placeholder="Alasan tolak" required aria-label="Alasan tolak" style="max-width:320px">
+    <button class="tombol bahaya" type="submit">Tolak</button></form>
+</div>
+{% endif %}

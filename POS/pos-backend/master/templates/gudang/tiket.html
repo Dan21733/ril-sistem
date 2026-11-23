@@ -23,6 +23,12 @@
 <div class="kartu redup" style="text-align:center;padding:20px 14px;grid-column:1/-1">Belum ada tugas.</div>
 {% endif %}
 </div>
+{% if boleh_ajukan %}<p style="margin:14px 0 0"><a class="tombol" href="{% url 'gudang:ajukan' %}">+ Ajukan tugas</a> <span class="redup kecil">lihat rak berantakan atau stok aneh? ajukan, pemilik yang memutuskan</span></p>{% endif %}
+{% if diajukan %}
+<h3 style="margin:18px 0 8px">Pengajuanmu, menunggu jawaban pemilik</h3>
+<div class="daftar">{% for t in diajukan %}<div class="brs"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>
+  <span class="redup kecil">{{ t.lingkup }}</span></div><span class="label">menunggu</span></div>{% endfor %}</div>
+{% endif %}
 {% if terjadwal %}
 <h3 style="margin:18px 0 8px">Tugas berikutnya</h3>
 <div class="daftar">{% for t in terjadwal %}<div class="brs"><div class="nama"><b>#{{ t.id }} · {{ t.tujuan }}</b>

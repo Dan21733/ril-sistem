@@ -23,6 +23,17 @@
   {% for judul, isi, kosong in ringkas.lingkup %}<div class="sel"><div class="utama">{{ judul }}</div><span class="nilai" style="white-space:normal;max-width:65%">{% if isi %}{{ isi|join:", " }}{% else %}{{ kosong }}{% endif %}</span></div>{% endfor %}
 </div>
 
+{% if t.status == 'diajukan' %}
+<div class="kepala-grup"><h2>Pengajuan dari karyawan</h2></div>
+<div class="grup">
+  <div class="sel"><div class="utama">Alasan</div><span class="nilai" style="white-space:normal;max-width:65%">{{ t.lingkup }}</span></div>
+</div>
+<p class="ket-grup" style="margin:8px 4px">Terima = tugasnya terbuka untuk {{ t.untuk.first_name|default:t.untuk.username }} sampai batas waktu di bawah. Hasil kerjanya tetap lewat ACC seperti biasa.</p>
+<label class="ket-grup" style="margin:8px 4px;display:block">Batas waktu<input type="datetime-local" id="batas-terima" value="{{ batas_awal }}" style="display:block;width:100%;margin-top:4px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--garis)"></label>
+<button type="button" class="tombol penuh" id="terima">Terima pengajuan</button>
+<button type="button" class="tombol merah penuh" style="margin-top:8px" data-aksi="tolak">Tolak</button>
+<button type="button" class="tombol abu penuh" id="batal" style="margin:16px 0">Batalkan</button>
+{% else %}
 {% if t.jenis == 'hitung' %}
 <div class="kepala-grup"><h2>Hitungan</h2></div>
 <div class="grup">
@@ -95,6 +106,7 @@
 </form>
 {% endif %}
 {% if t.status == 'terbuka' %}<button type="button" class="tombol abu penuh" id="batal" style="margin:16px 0">Batalkan tugas</button>{% endif %}
+{% endif %}
 <div style="height:16px"></div>
 {% endblock %}
 {% block skrip %}
@@ -117,6 +129,12 @@ document.getElementById('terapkan')?.addEventListener('click', () => {
 });
 document.querySelectorAll('[data-aksi=tolak]').forEach(b => b.addEventListener('click', async () => { const a = await tanya('Tolak tugas ini?', {ya: 'Tolak', bahaya: true, isian: 'Alasan'}); if (a !== false) kirimAksi('tolak', {alasan: a || 'Ditolak'}); }));
 document.querySelector('[data-aksi=teruskan]')?.addEventListener('click', async () => { if (await tanya('Teruskan hitungan ke Stok opname untuk diperiksa?', {ya: 'Teruskan'})) kirimAksi('teruskan'); });
+(() => {
+  const b = document.getElementById('batas-terima'); if (!b) return;
+  document.getElementById('terima').addEventListener('click', async () => {
+    if (await tanya('Terima pengajuan ini? Tugasnya langsung terbuka untuk karyawan.', {ya: 'Terima'})) kirimAksi('terima', {batas: b.value});
+  });
+})();
 document.getElementById('batal')?.addEventListener('click', async () => { if (await tanya('Batalkan tugas ini?', {ya: 'Batalkan tugas', bahaya: true})) kirimAksi('batal'); });
 </script>
 {% endblock %}

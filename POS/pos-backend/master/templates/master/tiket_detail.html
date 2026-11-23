@@ -3,6 +3,7 @@
 {% block isi %}
 <p class="kecil"><a href="{% url 'master:tiket' %}">Tugas pindah barang</a> /</p>
 <h2>Tiket #{{ t.id }} · {{ t.untuk.username }}</h2>
+{% include "master/_tiket_pengajuan.html" %}
 <p class="sub">{{ t.tujuan }}{% if t.lingkup %} · {{ t.lingkup }}{% endif %}<br>
   Dibuka {{ t.dibuka_oleh }}, {{ t.dibuka_waktu|date:"d M Y H:i" }} · batas {{ t.batas|date:"d M Y H:i" }} · <b>{{ t.get_status_display }}</b>{% if t.status == 'terbuka' and t.lewat_batas %} (lewat batas){% endif %}
   {% if t.dikirim_waktu %}<br>Dikirim {{ t.dikirim_waktu|date:"d M Y H:i" }}{% if t.catatan_admin %}: “{{ t.catatan_admin }}”{% endif %}{% endif %}
