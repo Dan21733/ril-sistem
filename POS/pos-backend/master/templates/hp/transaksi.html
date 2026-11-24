@@ -37,7 +37,7 @@ details.nota[open]>summary{background:var(--isi)}
 <div class="grup">
   {% for n in h.nota %}
   <details class="nota">
-    <summary class="sel panah"><div class="utama"><div class="nama">{{ n.transaction_time|date:"H:i" }} · {{ n.transaction_id|default:"tanpa nomor" }}</div>
+    <summary class="sel panah"><div class="utama"><div class="nama">{{ n.transaction_time|date:"H:i" }} · {{ n.transaction_id|default:"tanpa nomor" }}{% if n.toko_nama %} <span class="label" title="Nota toko titipan; kasir & rekening sama">{{ n.toko_nama }}</span>{% endif %}</div>
       <div class="sub">{{ n.kasir }} · {{ n.metode }}{% if n.pembeli %} · {{ n.pembeli }}{% endif %} · {{ n.baris|length }} barang</div></div>
       <div class="nilai"><b style="color:var(--teks)">{{ n.total_amount|rupiah }}</b>{% if n.laba is not None %}<div class="kecil {% if n.laba < 0 %}turun{% else %}naik{% endif %}">laba {{ n.laba|rupiah }}</div>{% endif %}</div></summary>
     <div class="isi-nota">

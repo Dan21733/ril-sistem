@@ -6,6 +6,8 @@
 <p class="sub kecil">Klik barang di daftar kiri untuk melihatnya sebagai referensi tanpa menutup formulir ini.</p>
 
 <div id="ref" class="ref" hidden></div>
+{% if toko_titipan %}<div class="pesan warning" style="margin-bottom:12px"><b>Kamu sedang di toko {{ toko_titipan.nama }} (titipan).</b> Barang yang ditambah di sini bisa jadi milik {{ toko_titipan.nama }}: penjualannya masuk laporan dan setoran mereka, bukan tokomu.
+  <div style="margin-top:8px;max-width:420px"><label for="bb-pemilik">Pemilik barang ini</label><select id="bb-pemilik" data-isi="pemilik" required><option value="">— pilih pemilik barang —</option><option value="titipan">{{ toko_titipan.nama }} (barang titipan)</option><option value="sendiri">{{ toko_utama.nama|default:"Toko sendiri" }} (barang toko sendiri)</option></select></div></div>{% endif %}
 
 <div class="bb-atas">
   <div class="bb-nama"><label for="bb-nama">Nama barang</label><input type="text" id="bb-nama" data-isi="item_name" autocomplete="off">

@@ -15,7 +15,8 @@ def nota_transfer(mulai, selesai, toko):
     from master.models import BuktiDicek
     from pos.models import PaymentProof
 
-    nota, _ = laporan.ambil(mulai, selesai, toko=toko, metode="bank_transfer")
+    # Rekening satu: transfer untuk nota toko titipan juga dicek di sini (24 Nov 2026).
+    nota, _ = laporan.ambil_gabung(mulai, selesai, toko=toko, metode="bank_transfer")
     nota = [n for n in nota if not n.get("manual")]
     bukti = {}
     for b in PaymentProof.objects.filter(sync_id__in=[n["sync_id"] for n in nota]).order_by("uploaded_at"):

@@ -138,6 +138,37 @@ def ambil(mulai, selesai, *, kasir=None, metode=None, perangkat=None, toko=None,
     return nota, baris
 
 
+def toko_gabung(toko):
+    """Toko itu + toko titipan yang menumpang di dalamnya (24 Nov 2026).
+
+    Laporan HARIAN toko utama menggabungkan penjualan titipan, karena kasir, laci, dan rekeningnya satu
+    (nota titipan sempat terlewat waktu menghitung). Laporan detail tetap per toko."""
+    if toko is None:
+        return [None]
+    return [toko] + list(toko.titipan.filter(aktif=True))
+
+
+def ambil_gabung(mulai, selesai, *, toko=None, **kw):
+    """Seperti ambil(), tetapi nota toko titipan ikut; nota titipan membawa `toko_nama`."""
+    semua_nota, semua_baris = [], []
+    for t in toko_gabung(toko):
+        nota, baris = ambil(mulai, selesai, toko=t, **kw)
+        if t is not None and t != toko:
+            for n in nota:
+                n["toko_nama"] = t.nama
+        semua_nota += nota
+        semua_baris += baris
+    semua_nota.sort(key=lambda n: n["transaction_time"], reverse=True)
+    return semua_nota, semua_baris
+
+
+def ambil_kembali_gabung(mulai, selesai, *, toko=None, **kw):
+    hasil = []
+    for t in toko_gabung(toko):
+        hasil += ambil_kembali(mulai, selesai, toko=t, **kw)
+    return hasil
+
+
 def _modal_titipan(nota, baris):
     """Barang titipan: modal = harga terjual - potongan toko yang berlaku pada tanggal nota."""
     from decimal import Decimal, ROUND_HALF_UP

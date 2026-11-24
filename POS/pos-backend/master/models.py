@@ -222,6 +222,8 @@ class VarianInfo(models.Model):
     # Modal terakhir tetap di item.cost_amount (tabel POS). Modal rata-rata
     # disimpan di sini; sampai barang masuk dicatat, nilainya sama dengan modal terakhir.
     modal_rata = models.IntegerField(null=True, blank=True)
+    # Berat kira-kira per satuan jual (kg), diingat dari faktur pembelian terakhir untuk membagi ongkir (24 Nov 2026).
+    berat = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     # Jual per satuan dengan kelipatan (6 Nov 2026), mis. fiber per meter kelipatan 10 cm:
     # satuan="m", kelipatan=10 -> stok, jumlah nota, dan harga di tabel POS disimpan per 0,1 m
     # (bilangan bulat), semua layar menampilkannya per meter. Kosong/1 = barang biasa per buah.
@@ -440,6 +442,17 @@ class Pembelian(models.Model):
     # False: dibayar sendiri ke ekspedisi, hanya masuk modal.
     ongkir = models.BigIntegerField(default=0)
     ongkir_ke_supplier = models.BooleanField(default=True)
+    # 24 Nov 2026: ongkos bongkar (selalu dibayar sendiri, tidak ikut hutang) dan cara membagi ongkir + bongkar
+    # ke tiap barang. Modal per satuan = harga barang + bagian ongkir + bagian bongkar; bagiannya tersimpan per baris.
+    CARA_BAGI = [
+        ("nilai", "Menurut nilai barang"),
+        ("berat", "Menurut berat"),
+        ("rata", "Rata per jumlah barang (mis. per koli)"),
+        ("manual", "Isi sendiri per barang"),
+    ]
+    bongkar = models.BigIntegerField(default=0)
+    cara_bagi = models.CharField(max_length=10, choices=CARA_BAGI, default="nilai")
+    nomor_surat_jalan = models.CharField(max_length=60, blank=True, default="")
     # Terima buta oleh gudang: id baris yang jumlahnya beda dari pesanan dan sedang
     # diminta dihitung ulang (gudang tidak tahu angka pesanannya).
     hitung_ulang = models.JSONField(default=list, blank=True)
@@ -502,6 +515,10 @@ class PembelianBaris(models.Model):
     ppn = models.BigIntegerField(default=0)
     modal_satuan = models.IntegerField(default=0)
     ongkir = models.BigIntegerField(default=0)
+    bongkar = models.BigIntegerField(default=0)
+    # Isian untuk membagi ongkir: berat kg per satuan (cara "berat") atau ongkir baris ini (cara "manual").
+    berat = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    ongkir_isi = models.BigIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "master_pembelian_baris"

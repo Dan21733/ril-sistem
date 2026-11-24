@@ -52,7 +52,7 @@
   <tr class="{% if not b.aktif %}nonaktif{% endif %}">
     <td><a href="{% url 'master:barang' %}?buka={{ b.item_id }}&q={{ b.item_name|urlencode }}">{{ b.item_name }}</a></td>
     <td>{{ b.variant|varian }}{% if b.akhiran %} <span class="label">per {{ b.satuan }}</span>{% endif %}<span class="masalah-teks">{% for m in b.masalah %}{{ m.label }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></td>
-    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal terakhir" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}</td>
+    {% if 'lihat_modal' in hak %}<td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="cost_amount" nilai=b.cost_amount label="Modal terakhir" %}{% else %}{{ b.cost_amount|ribuan }}{% endif %}{% if b.rincian and b.rincian.kirim %}<div class="kecil redup" title="Pembelian terakhir {{ b.rincian.nomor }} ({{ b.rincian.tanggal|date:'d M Y' }}): harga barang + bagian ongkir & bongkar">{{ b.rincian.barang|ribuan }} + kirim {{ b.rincian.kirim|ribuan }}</div>{% endif %}</td>
     <td class="angka">{% if 'ubah_modal' in hak %}{% include "master/_sel.html" with kolom="modal_rata" nilai=b.modal_rata label="Modal rata" %}{% else %}{{ b.modal_rata|ribuan }}{% endif %}</td>{% endif %}
     <td class="angka">{% include "master/_sel.html" with kolom="min_price" nilai=b.min_price label="Floor" %}</td>
     <td class="angka">{% include "master/_sel.html" with kolom="max_price" nilai=b.max_price label="Harga jual" %}</td>

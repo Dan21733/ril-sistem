@@ -394,11 +394,12 @@ def barang_baru(request):
         except (ValueError, UnicodeDecodeError):
             return JsonResponse({"ok": False, "pesan": "Permintaan tidak dikenali."}, status=400)
         try:
-            from master.layanan.toko import toko_aktif
+            from master.layanan.toko import pemilik_barang_baru, toko_aktif
+            pemilik = pemilik_barang_baru(toko_aktif(request), data.get("pemilik"))
             item_info = layanan.tambah_barang(
                 request.user, hak=hak, item_name=data.get("item_name"), category=data.get("category"),
                 brand=data.get("brand"), alias=data.get("alias"),
-                varian=[v for v in data["varian"] if isinstance(v, dict)], toko=toko_aktif(request))
+                varian=[v for v in data["varian"] if isinstance(v, dict)], toko=pemilik)
         except layanan.Tolak as tolak:
             return JsonResponse({"ok": False, "pesan": str(tolak), "baris": getattr(tolak, "baris", None)}, status=400)
         n = Item.objects.filter(item_name=item_info.item_name).count()
@@ -414,7 +415,11 @@ def barang_baru(request):
                              "id": ada.id if ada else None, "nama": ada.item_name if ada else ""})
     if request.GET.get("panel") != "1":
         return redirect(f"{reverse('master:barang')}?baru=1")
+    from master.layanan.toko import toko_aktif, utama as toko_utama
+    titipan = toko_aktif(request)
     return render(request, "master/_barang_baru.html", {
+        "toko_titipan": titipan if titipan is not None and titipan.titip_di_id else None,
+        "toko_utama": toko_utama(),
         "daftar_kategori": sorted({k for k in _milik(request).values_list("category", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_brand": sorted({k for k in _milik(request).values_list("brand", flat=True).distinct() if k}, key=kunci_alami),
         "daftar_rak": Rak.objects.select_related("tempat", "ruang"),
@@ -691,6 +696,12 @@ def harga(request):
 
     halaman = halaman_alami(qs, KOLOM_NILAI, PER_HALAMAN_HARGA, request.GET.get("hal"), _cari(request))
     barang = _lengkapi(list(halaman.object_list), hak)   # urutan dari halaman_alami (nama cocok dulu)
+    if "lihat_modal" in hak:
+        # 24 Nov 2026: rincian modal dari pembelian terakhir (harga barang + ongkir & bongkar per satuan).
+        from master.layanan.pembelian import rincian_modal
+        rincian = rincian_modal({(b["item_name"], b["variant"]) for b in barang})
+        for b in barang:
+            b["rincian"] = rincian.get((b["item_name"], b["variant"]))
     return render(request, "master/harga.html", {
         "menu": "harga",
         "barang": barang,

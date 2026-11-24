@@ -22,7 +22,7 @@
 {% for n in nota %}
 <div class="grup" style="margin-bottom:12px">
   <div class="sel"><div class="utama">
-    <div class="nama">{{ n.transaction_id|default:"(nomor belum ada)" }} <span class="redup">· {{ n.transaction_time|date:"d M H.i" }}</span></div>
+    <div class="nama">{{ n.transaction_id|default:"(nomor belum ada)" }}{% if n.toko_nama %} <span class="label" title="Nota toko titipan; kasir & rekening sama">{{ n.toko_nama }}</span>{% endif %} <span class="redup">· {{ n.transaction_time|date:"d M H.i" }}</span></div>
     <div class="sub">{{ n.kasir }}</div></div>
     <span class="nilai" style="color:var(--teks)"><b>{% if n.rincian_bayar %}{{ n.bayar.bank_transfer|rupiah }}{% else %}{{ n.total_amount|rupiah }}{% endif %}</b></span></div>
   {% if n.bukti %}

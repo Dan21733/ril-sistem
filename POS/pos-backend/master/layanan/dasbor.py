@@ -101,8 +101,8 @@ def penjualan(toko, hak):
     hari_ini = timezone.localdate()
     awal = min(hari_ini.replace(day=1), hari_ini - timedelta(days=7))
     mulai, selesai = laporan.rentang(awal, hari_ini)
-    nota, baris = laporan.ambil(mulai, selesai, toko=toko)
-    kembali = laporan.ambil_kembali(mulai, selesai, toko=toko)
+    nota, baris = laporan.ambil_gabung(mulai, selesai, toko=toko)   # titipan ikut (24 Nov)
+    kembali = laporan.ambil_kembali_gabung(mulai, selesai, toko=toko)
     omzet, laba, jumlah = _bersih_per_hari(nota, kembali)
     zona = timezone.get_current_timezone()
     lihat_modal = "lihat_modal" in hak
@@ -209,8 +209,8 @@ def periode(toko, hak, awal, akhir):
     panjang = (akhir - awal).days + 1
     sebelum_awal = awal - timedelta(days=panjang)
     mulai, selesai = laporan.rentang(sebelum_awal, akhir)
-    nota, baris = laporan.ambil(mulai, selesai, toko=toko)
-    kembali = laporan.ambil_kembali(mulai, selesai, toko=toko)
+    nota, baris = laporan.ambil_gabung(mulai, selesai, toko=toko)   # titipan ikut (24 Nov)
+    kembali = laporan.ambil_kembali_gabung(mulai, selesai, toko=toko)
     omzet, laba, jumlah = _bersih_per_hari(nota, kembali)
     hari = [awal + timedelta(days=i) for i in range(panjang)]
     lalu = [sebelum_awal + timedelta(days=i) for i in range(panjang)]

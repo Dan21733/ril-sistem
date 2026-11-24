@@ -252,7 +252,7 @@ def detail(request, po_id):
         "pembayaran": po.pembayaran.all() if po.status == "diterima" else [],
         "foto": list(po.foto.all()),
         "daftar_retur": daftar_retur, "bisa_retur": any(h.get("boleh_retur") for h in hasil["baris"]),
-        "mode_ppn": Pembelian.MODE_PPN, "cara_bayar": Pembayaran.CARA,
+        "mode_ppn": Pembelian.MODE_PPN, "cara_bagi": Pembelian.CARA_BAGI, "cara_bayar": Pembayaran.CARA,
         "hari_ini": timezone.localdate(),
         "tarif_sekarang": svc.tarif_pada(tanggal),
         "terlambat": bool(po.status == "diterima" and po.sisa > 0 and po.jatuh_tempo and po.jatuh_tempo < timezone.localdate()),

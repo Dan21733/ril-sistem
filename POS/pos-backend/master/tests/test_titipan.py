@@ -92,15 +92,34 @@ class TitipanTest(Dasar):
         self.assertNotIn("Palu", isi)
         self.assertIn("DB X Brand", isi)
 
-    def test_barang_baru_saat_toko_titipan_aktif_menjadi_milik_titipan(self):
+    def test_barang_baru_saat_toko_titipan_aktif_wajib_pilih_pemilik(self):
+        """24 Nov 2026: di toko titipan pemilik barang baru wajib dipilih (kasus Valarie Platinum)."""
         import json
         self.client.post(reverse("master:pilih_toko"), {"toko": self.brand.pk, "next": "/"})
-        r = self.client.post(reverse("master:barang_baru"), json.dumps({
-            "item_name": "Wastafel Brand", "category": "Sanitary",
-            "varian": [{"variant": "", "min_price": "", "max_price": "250000", "in_stock": "0"}]}),
-            content_type="application/json").json()
-        self.assertTrue(r["ok"])
+        self.assertContains(self.client.get(reverse("master:barang_baru") + "?panel=1"), 'data-isi="pemilik"')
+
+        def tambah(nama, url="master:barang_baru", **lain):
+            return self.client.post(reverse(url), json.dumps({
+                "item_name": nama, "category": "Sanitary",
+                "varian": [{"variant": "", "min_price": "", "max_price": "250000", "in_stock": "0"}], **lain}),
+                content_type="application/json").json()
+        r = tambah("Wastafel Brand")
+        self.assertFalse(r["ok"]); self.assertIn("Pilih dulu pemilik", r["pesan"])
+        self.assertTrue(tambah("Wastafel Brand", pemilik="titipan")["ok"])
         self.assertEqual(ItemInfo.objects.get(item_name="Wastafel Brand").toko, self.brand)
+        self.assertTrue(tambah("Granit Sendiri", pemilik="sendiri")["ok"])
+        self.assertIsNone(ItemInfo.objects.get(item_name="Granit Sendiri").toko)
+        # HP: aturan yang sama.
+        from master.tests.test_hp import masuk_hp
+        masuk_hp(self.client, self.admin)
+        self.client.post(reverse("master:pilih_toko"), {"toko": self.brand.pk, "next": "/"})
+        self.assertFalse(tambah("Keran HP", url="hp:barang_tambah").get("ok"))
+        tambah("Keran HP", url="hp:barang_tambah", pemilik="sendiri")
+        self.assertIsNone(ItemInfo.objects.get(item_name="Keran HP").toko)
+        # Toko sendiri: tidak ditanya.
+        self.client.post(reverse("master:pilih_toko"), {"toko": self.brand.titip_di_id, "next": "/"})
+        self.assertNotContains(self.client.get(reverse("master:barang_baru") + "?panel=1"), 'data-isi="pemilik"')
+        self.assertTrue(tambah("Paku Biasa")["ok"])
 
     # ---- impor ----
 
@@ -282,6 +301,17 @@ class TitipanTest(Dasar):
         self.assertEqual({n["sync_id"] for n in nota_b}, {brand})
         h = titipan.hitung(self.brand, timezone.localdate(), timezone.localdate())
         self.assertEqual((h["total"]["jual"], h["total"]["disetor"]), (67500, 60750))
+        # 24 Nov 2026: laporan harian toko utama menggabungkan nota titipan (kasir, laci, rekening satu).
+        gabung, _ = laporan.ambil_gabung(mulai, selesai, toko=self.t1)
+        tanda = {n["sync_id"]: n.get("toko_nama") for n in gabung}
+        self.assertEqual((tanda[sendiri], tanda[brand]), (None, "DB X Brand"))
+        from master.layanan import dasbor
+        from master.akun.akses import SEMUA_HAK
+        self.assertEqual(dasbor.penjualan(self.t1, SEMUA_HAK)["hari"]["omzet"],
+                         sum(n["item_amount"] for n in nota_t1) + 67500)
+        from master.tests.test_hp import masuk_hp
+        masuk_hp(self.client, self.admin)
+        self.assertContains(self.client.get(reverse("hp:transaksi")), "DB X Brand")
 
     def test_katalog_kasir_membawa_pemilik_dan_kop_toko_titipan(self):
         from pos import piutang_kasir

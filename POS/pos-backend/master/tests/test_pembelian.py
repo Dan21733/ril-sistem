@@ -295,6 +295,56 @@ class ReturOngkirTest(Dasar):
         po = self._acc()
         self.assertEqual((po.ongkir, po.baris.get().modal_satuan, po.total), (0, 1000, 10000))
 
+    def _datang_biaya(self, baris, per_baris=None, **lain):
+        """Barang datang dengan isian ongkir per baris: per_baris {nama varian: {"berat": .., "ongkir": ..}}."""
+        po = self._po(baris)
+        isi = {}
+        for b in po.baris.all():
+            for k, v in (per_baris or {}).get(b.variant, {}).items():
+                isi[f"{k}_{b.id}"] = v
+        return self._datang(po, mode="tanpa", **isi, **lain)
+
+    def test_ongkir_bongkar_dibagi_menurut_berat_dan_berat_diingat(self):
+        """24 Nov 2026: besi 8 (1 kg) x10 dan besi 10 (2 kg) x10 -> ongkir & bongkar dibagi 1/3 : 2/3."""
+        from master.layanan import pembelian as svc
+        baris = (("Palu", "Kecil", 10, 1000), ("Palu", "Besar", 10, 3000))
+        po = self._datang_biaya(baris, {"Kecil": {"berat": "1"}, "Besar": {"berat": "2"}}, ongkir="90.000",
+                                bongkar="30.000", cara_bagi="berat", nomor_surat_jalan="SJ-7")
+        self.assertEqual((po.cara_bagi, po.bongkar, po.nomor_surat_jalan), ("berat", 30000, "SJ-7"))
+        po = svc.acc(self.admin, po)
+        kecil, besar = po.baris.get(variant="Kecil"), po.baris.get(variant="Besar")
+        self.assertEqual((kecil.ongkir, kecil.bongkar, besar.ongkir, besar.bongkar), (30000, 10000, 60000, 20000))
+        self.assertEqual((kecil.modal_satuan, besar.modal_satuan), (5000, 11000))
+        self.assertEqual(svc.hitung(po)["total"], 40000 + 90000)          # bongkar tidak ikut hutang
+        self.assertEqual((self.info("Palu", "Kecil").berat, self.info("Palu", "Besar").berat), (1, 2))
+        r = svc.rincian_modal({("Palu", "Kecil"), ("Palu", "Besar")})
+        self.assertEqual((r[("Palu", "Kecil")]["barang"], r[("Palu", "Kecil")]["kirim"]), (1000, 4000))
+        self.client.force_login(self.admin)
+        h = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
+        self.assertContains(h, "Ongkos bongkar"); self.assertContains(h, "SJ-7"); self.assertContains(h, "1.000 + kirim 4.000")
+        self.assertContains(self.client.get(reverse("master:harga") + "?q=Palu"), "1.000 + kirim 4.000")
+        # Pembelian berikutnya: berat terisi otomatis dari yang diingat.
+        po2 = self._po(baris)
+        self.assertContains(self.client.get(reverse("master:pembelian_detail", args=[po2.id])), 'placeholder="kg" value="2"')
+
+    def test_ongkir_berat_kosong_ditolak_saat_acc(self):
+        from master.layanan import pembelian as svc
+        po = self._datang_biaya((("Palu", "Kecil", 10, 1000), ("Palu", "Besar", 10, 3000)), {"Kecil": {"berat": "1"}},
+                                ongkir="9.000", cara_bagi="berat")
+        with self.assertRaises(svc.Tolak):
+            svc.acc(self.admin, po)
+
+    def test_ongkir_rata_dan_manual(self):
+        from master.layanan import pembelian as svc
+        baris = (("Palu", "Kecil", 10, 1000), ("Palu", "Besar", 30, 3000))
+        po = svc.acc(self.admin, self._datang_biaya(baris, ongkir="4.000", cara_bagi="rata"))
+        self.assertEqual([b.ongkir for b in po.baris.order_by("variant")], [3000, 1000])   # Besar 30, Kecil 10
+        po = self._datang_biaya(baris, {"Kecil": {"ongkir": "5.000"}, "Besar": {"ongkir": "15.000"}},
+                                ongkir="999", bongkar="4.000", cara_bagi="manual")
+        self.assertEqual(po.ongkir, 20000)                                                # total = isian per baris
+        po = svc.acc(self.admin, po)
+        self.assertEqual([(b.ongkir, b.bongkar) for b in po.baris.order_by("variant")], [(15000, 3000), (5000, 1000)])
+
     def test_retur_mengurangi_stok_hutang_dan_mengembalikan_modal_rata(self):
         from master.layanan import pembelian as svc
         from master.models import MutasiStok

@@ -25,7 +25,7 @@ from pos.models import Item
 
 from master.layanan import inti as layanan
 from master.layanan.inti import Tolak, baca_angka, rapikan_teks
-from master.layanan.satuan import baca_harga_qty, baca_qty
+from master.layanan.satuan import baca_harga_qty, baca_qty, satuan_dari
 from master.models import (
     MutasiStok,
     Pembayaran,
@@ -78,36 +78,120 @@ def hitung(po, *, tarif=None, toko_pkp=None):
         toko_pkp = po.toko_pkp if po.status == "diterima" else _toko(po).pkp_pada(tanggal)
     baris = []
     total_dpp = total_ppn = 0
-    for b in po.baris.all():
+    for b in po.baris.select_related("varian"):
         qty = b.jumlah_terima if b.jumlah_terima is not None else b.jumlah_pesan
         dpp, ppn = pisah_pajak(b.harga * qty, po.mode_ppn, tarif)
         # PKP boleh mengkreditkan PPN berfaktur, jadi PPN bukan modal. Belum PKP: PPN ikut modal.
         dasar_modal = dpp if toko_pkp else dpp + ppn
         baris.append({"objek": b, "qty": qty, "dpp": dpp, "ppn": ppn, "jumlah": dpp + ppn, "dasar_modal": dasar_modal,
-                      "ongkir": 0, "berubah": b.jumlah_terima is not None and b.jumlah_terima != b.jumlah_pesan})
+                      "ongkir": 0, "bongkar": 0,
+                      "berubah": b.jumlah_terima is not None and b.jumlah_terima != b.jumlah_pesan})
         total_dpp += dpp
         total_ppn += ppn
-    _bagi_ongkir(baris, po.ongkir or 0)
+    kurang_berat = _bagi_biaya(baris, po)
     for h in baris:
-        h["modal_satuan"] = int(round((h["dasar_modal"] + h["ongkir"]) / h["qty"])) if h["qty"] > 0 else 0
+        kirim = h["ongkir"] + h["bongkar"]
+        h["kirim"] = kirim
+        h["modal_satuan"] = int(round((h["dasar_modal"] + kirim) / h["qty"])) if h["qty"] > 0 else 0
+        h["modal_barang"] = int(round(h["dasar_modal"] / h["qty"])) if h["qty"] > 0 else 0
+        h["kirim_satuan"] = h["modal_satuan"] - h["modal_barang"]
     ongkir_hutang = (po.ongkir or 0) if po.ongkir_ke_supplier else 0
     return {"baris": baris, "total_dpp": total_dpp, "total_ppn": total_ppn, "ongkir": po.ongkir or 0,
+            "bongkar": po.bongkar or 0, "kurang_berat": kurang_berat,
             "ongkir_hutang": ongkir_hutang, "total": total_dpp + total_ppn + ongkir_hutang,
             "tarif": tarif, "toko_pkp": toko_pkp}
 
 
-def _bagi_ongkir(baris, ongkir):
-    """Bagi ongkir ke baris yang datang, sebanding nilainya. Sisa pembulatan masuk baris terakhir."""
-    kena = [h for h in baris if h["qty"] > 0]
-    if not ongkir or not kena:
+def _bobot(h, cara):
+    """Dasar pembagian satu baris. Jumlah dihitung per satuan jual (fiber 12,5 m = 12,5), bukan per kelipatan."""
+    b = h["objek"]
+    k = satuan_dari(b)[1] or 1
+    jumlah = Decimal(h["qty"]) / k
+    if cara == "berat":
+        return jumlah * b.berat if b.berat else Decimal(0)
+    if cara == "rata":
+        return jumlah
+    if cara == "manual":
+        return Decimal(b.ongkir_isi or 0)
+    return Decimal(h["dasar_modal"])
+
+
+def _bagi(kena, total, bobot, kunci):
+    """Bagi `total` sebanding bobot. Sisa pembulatan masuk baris terakhir yang berbobot."""
+    berbobot = [(h, w) for h, w in zip(kena, bobot) if w > 0]
+    if not total or not berbobot:
         return
-    kunci = "dasar_modal" if sum(h["dasar_modal"] for h in kena) > 0 else "qty"
-    dasar = sum(h[kunci] for h in kena)
+    dasar = sum(w for _, w in berbobot)
     terpakai = 0
-    for h in kena[:-1]:
-        h["ongkir"] = int(round(Decimal(ongkir) * h[kunci] / dasar))
-        terpakai += h["ongkir"]
-    kena[-1]["ongkir"] = ongkir - terpakai
+    for h, w in berbobot[:-1]:
+        h[kunci] = int(round(Decimal(total) * w / dasar))
+        terpakai += h[kunci]
+    berbobot[-1][0][kunci] = total - terpakai
+
+
+def _bagi_biaya(baris, po):
+    """Bagi ongkir dan bongkar ke baris yang datang menurut cara pilihan (24 Nov 2026).
+
+    nilai: sebanding nilai barang (cara lama). berat: berat kg per satuan x jumlah. rata: per jumlah barang.
+    manual: ongkir per baris diisi sendiri (total ongkir = jumlahnya); bongkar dibagi sebanding ongkir itu.
+    Baris tanpa bobot (mis. berat belum diisi) tidak kebagian; dikembalikan supaya bisa diperingatkan.
+    Kalau tidak ada satu pun bobot, kembali ke cara nilai supaya ongkir tidak hilang dari modal.
+    """
+    kena = [h for h in baris if h["qty"] > 0]
+    if not kena:
+        return []
+    cara = po.cara_bagi or "nilai"
+    bobot = [_bobot(h, cara) for h in kena]
+    kurang = [h["objek"] for h, w in zip(kena, bobot) if w <= 0] if cara == "berat" else []
+    if cara == "manual":
+        for h in kena:
+            h["ongkir"] = int(h["objek"].ongkir_isi or 0)
+    if not any(w > 0 for w in bobot):
+        bobot = [_bobot(h, "nilai") for h in kena]
+        if not any(w > 0 for w in bobot):
+            bobot = [Decimal(h["qty"]) for h in kena]
+    if cara != "manual":
+        _bagi(kena, po.ongkir or 0, bobot, "ongkir")
+    _bagi(kena, po.bongkar or 0, bobot, "bongkar")
+    return kurang
+
+
+def _isi_biaya(po, data):
+    """Baca isian ongkir, bongkar, cara bagi, surat jalan, dan berat / ongkir per baris dari form faktur."""
+    def angka(nama):
+        n = baca_angka(data.get(nama), boleh_kosong=True) or 0
+        if n < 0:
+            raise Tolak("Ongkir dan bongkar tidak boleh minus.")
+        return n
+    cara = data.get("cara_bagi") or "nilai"
+    if cara not in dict(Pembelian.CARA_BAGI):
+        raise Tolak("Pilih cara membagi ongkir.")
+    total_manual = 0
+    for b in po.baris.all():
+        ubah = []
+        if f"berat_{b.id}" in data:
+            teks = (data.get(f"berat_{b.id}") or "").strip().replace(",", ".")
+            try:
+                berat = Decimal(teks) if teks else None
+            except Exception:
+                raise Tolak(f"Berat {b.item_name} tidak terbaca.") from None
+            if berat is not None and berat < 0:
+                raise Tolak(f"Berat {b.item_name} tidak boleh minus.")
+            b.berat = berat
+            ubah.append("berat")
+        if f"ongkir_{b.id}" in data:
+            b.ongkir_isi = baca_angka(data.get(f"ongkir_{b.id}"), boleh_kosong=True)
+            if b.ongkir_isi is not None and b.ongkir_isi < 0:
+                raise Tolak("Ongkir tidak boleh minus.")
+            ubah.append("ongkir_isi")
+        if ubah:
+            b.save(update_fields=ubah)
+        total_manual += b.ongkir_isi or 0
+    po.cara_bagi = cara
+    po.ongkir = total_manual if cara == "manual" else angka("ongkir")
+    po.bongkar = angka("bongkar")
+    po.ongkir_ke_supplier = data.get("ongkir_tagihan") != "terpisah"
+    po.nomor_surat_jalan = rapikan_teks(data.get("nomor_surat_jalan"))[:60]
 
 
 def _nomor_baru(tanggal):
@@ -345,9 +429,6 @@ def catat_datang(pengguna, po, data):
     if mode != "tanpa" and tarif_pada(tanggal_faktur or tanggal_terima) is None:
         raise Tolak("Tarif PPN untuk tanggal itu belum diisi di Pengaturan.")
     catatan = rapikan_teks(data.get("catatan_terima"))
-    ongkir = baca_angka(data.get("ongkir"), boleh_kosong=True) or 0
-    if ongkir < 0:
-        raise Tolak("Ongkir tidak boleh minus.")
     with transaction.atomic():
         ada_beda = False
         ada_isi = False
@@ -372,8 +453,7 @@ def catat_datang(pengguna, po, data):
         po.jatuh_tempo = baca_tanggal(data.get("jatuh_tempo"), label="Jatuh tempo")
         po.mode_ppn = mode
         po.nomor_faktur_pajak = rapikan_teks(data.get("nomor_faktur_pajak"))[:60]
-        po.ongkir = ongkir
-        po.ongkir_ke_supplier = data.get("ongkir_tagihan") != "terpisah"
+        _isi_biaya(po, data)
         po.save()
         layanan.catat(pengguna, sumber="pembelian", objek="pembelian", kolom="status",
                       lama="Dipesan", baru="Menunggu ACC", catatan=po.nomor)
@@ -490,6 +570,24 @@ def _buat_lanjutan(pengguna, po, sisa):
     return baru
 
 
+def rincian_modal(pasangan):
+    """Modal dari pembelian terakhir yang di-ACC, dipisah: harga barang vs ongkir + bongkar (per satuan simpan).
+
+    pasangan: kumpulan (item_name, variant). Hasil {(item_name, variant): {"barang", "kirim", "nomor", "tanggal"}}."""
+    nama = {n for n, _ in pasangan}
+    hasil = {}
+    qs = (PembelianBaris.objects.filter(item_name__in=nama, pembelian__status="diterima", jumlah_terima__gt=0)
+          .select_related("pembelian").order_by("-pembelian__tanggal_terima", "-id"))
+    for b in qs:
+        kunci = (b.item_name, b.variant)
+        if kunci in hasil or kunci not in pasangan:
+            continue
+        kirim = int(round(((b.ongkir or 0) + (b.bongkar or 0)) / b.jumlah_terima))
+        hasil[kunci] = {"barang": b.modal_satuan - kirim, "kirim": kirim, "nomor": b.pembelian.nomor,
+                        "tanggal": b.pembelian.tanggal_terima}
+    return hasil
+
+
 def lengkapi_faktur(pengguna, po, data):
     """Sebelum ACC: pemilik mengisi atau membetulkan harga dan data faktur. Jumlah datang tidak diubah di sini."""
     _harus(po, "menunggu")
@@ -510,8 +608,7 @@ def lengkapi_faktur(pengguna, po, data):
         po.jatuh_tempo = baca_tanggal(data.get("jatuh_tempo"), label="Jatuh tempo")
         po.mode_ppn = mode
         po.nomor_faktur_pajak = rapikan_teks(data.get("nomor_faktur_pajak"))[:60]
-        po.ongkir = baca_angka(data.get("ongkir"), boleh_kosong=True) or 0
-        po.ongkir_ke_supplier = data.get("ongkir_tagihan") != "terpisah"
+        _isi_biaya(po, data)
         po.save()
 
 
@@ -556,12 +653,19 @@ def acc(pengguna, po, sisa=None):
             raise Tolak("Tarif PPN untuk tanggal faktur belum diisi di Pengaturan.")
         toko_pkp = _toko(po).pkp_pada(tanggal)
         hasil = hitung(po, tarif=tarif, toko_pkp=toko_pkp)
+        if hasil["kurang_berat"] and (po.ongkir or po.bongkar):
+            raise Tolak("Ongkir dibagi menurut berat, tapi berat belum diisi untuk: "
+                        + ", ".join(f"{b.item_name} {b.variant}".strip() for b in hasil["kurang_berat"][:5])
+                        + ". Isi beratnya atau ganti cara bagi.")
         ubah_stok = stok_ikut(po)
 
         for h in hasil["baris"]:
             b, qty = h["objek"], h["qty"]
             b.dpp, b.ppn, b.modal_satuan, b.ongkir = h["dpp"], h["ppn"], h["modal_satuan"], h["ongkir"]
-            b.save(update_fields=["dpp", "ppn", "modal_satuan", "ongkir"])
+            b.bongkar = h["bongkar"]
+            b.save(update_fields=["dpp", "ppn", "modal_satuan", "ongkir", "bongkar"])
+            if b.berat:   # diingat untuk faktur berikutnya
+                VarianInfo.objects.filter(pk=b.varian_id).exclude(berat=b.berat).update(berat=b.berat)
             if qty <= 0 or not ubah_stok:
                 continue
             info = VarianInfo.objects.select_for_update().get(pk=b.varian_id)

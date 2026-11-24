@@ -353,8 +353,9 @@ def transaksi(request):
     kode, awal, akhir, judul = _periode(request)
     mulai, selesai = laporan.rentang(awal, akhir)
     toko = toko_aktif(request)
-    nota, _ = laporan.ambil(mulai, selesai, toko=toko)
-    kembali = laporan.ambil_kembali(mulai, selesai, toko=toko)
+    # 24 Nov 2026: nota toko titipan ikut (kasir & laci satu); ditandai nama tokonya.
+    nota, _ = laporan.ambil_gabung(mulai, selesai, toko=toko)
+    kembali = laporan.ambil_kembali_gabung(mulai, selesai, toko=toko)
     per_metode = defaultdict(lambda: [0, 0])
     for n in nota:
         per_metode[n["metode"]][0] += 1
@@ -431,7 +432,11 @@ def barang(request):
                 ket = svc_cari.keterangan_harga(harga, r["max_price"], r["min_price"])
                 d["ket_harga"] = f"{r['variant']}: {ket}" if r["variant"] != "N/A" else ket
     hak = hak_pengguna(request.user)
+    from master.layanan.toko import toko_aktif, utama as toko_utama
+    titipan = toko_aktif(request)
     return _tampil(request, "hp/barang.html", {
+        "toko_titipan": titipan if titipan is not None and titipan.titip_di_id else None,
+        "toko_utama": toko_utama(),
         "tab": "barang", "q": q, "daftar": daftar, "harga_cari": harga,
         "boleh_tambah": {"ubah_info", "ubah_harga"} <= hak, "lihat_modal": "lihat_modal" in hak,
         "daftar_kategori": sorted({k for k in Item.objects.values_list("category", flat=True).distinct() if k}, key=kunci_alami)
@@ -530,13 +535,13 @@ def barang_tambah(request):
     """Barang baru dari HP (JSON): nama, kategori, brand, satu atau beberapa varian (10 Nov 2026)."""
     from django.urls import reverse
 
-    from master.layanan.toko import toko_aktif
+    from master.layanan.toko import pemilik_barang_baru, toko_aktif
     d = _json_badan(request)
     varian = [v for v in d.get("varian") or [] if isinstance(v, dict)]
     try:
         info = layanan.tambah_barang(request.user, hak=hak_pengguna(request.user), item_name=d.get("item_name"),
                                      category=d.get("category"), brand=d.get("brand"), alias=d.get("alias"),
-                                     varian=varian, toko=toko_aktif(request))
+                                     varian=varian, toko=pemilik_barang_baru(toko_aktif(request), d.get("pemilik")))
     except Tolak as e:
         return _jawab(False, str(e), 400, baris=getattr(e, "baris", None))
     return _jawab(pesan=f"'{info.item_name}' ditambahkan.", url=reverse("hp:barang_detail", args=[info.pk]))

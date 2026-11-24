@@ -68,11 +68,12 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 <form method="post" class="kartu" id="form-datang">{% csrf_token %}<input type="hidden" name="aksi" value="datang">
   <p style="margin-top:0">Isi jumlah yang benar-benar datang dan harga seperti tertulis di faktur. Stok dan hutang baru berubah setelah di-ACC.</p>
   <div class="gulir" style="margin-bottom:16px"><table>
-    <tr><th>Barang</th><th>Varian</th><th class="angka">Dipesan</th><th class="angka">Datang</th><th class="angka">Harga satuan di faktur</th>{% if pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
+    <tr><th>Barang</th><th>Varian</th><th class="angka">Dipesan</th><th class="angka">Datang</th><th class="angka">Harga satuan di faktur</th><th class="angka kol-berat" title="Berat kira-kira per satuan, untuk membagi ongkir">Berat (kg)</th><th class="angka kol-manual">Ongkir baris</th>{% if pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
     {% for h in hasil.baris %}
     <tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}</td><td class="angka redup">{{ h.objek.jumlah_pesan|qty:h.objek }}</td>
       <td class="angka"><input class="kotak" style="width:90px" name="terima_{{ h.objek.id }}" value="{{ h.objek.jumlah_pesan|qty_isi:h.objek }}" data-pesan="{{ h.objek.jumlah_pesan|qty_isi:h.objek }}" inputmode="numeric"></td>
       <td class="angka"><input class="kotak" name="harga_{{ h.objek.id }}" value="{{ h.objek.harga|harga_qty:h.objek|ribuan }}" inputmode="numeric" title="{% if h.objek|berkoma %}harga per {{ h.objek|nama_satuan }}{% endif %}"></td>
+      {% include "master/_po_biaya_sel.html" with b=h.objek %}
       {% if pilihan_lokasi %}<td><select name="lokasi_{{ h.objek.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if h.objek.lokasi_id == l.id or not h.objek.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>
     {% endfor %}
   </table></div>
@@ -83,8 +84,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
     <div><label>Jatuh tempo</label><input type="date" name="jatuh_tempo"></div>
     <div><label>PPN di faktur</label><select name="mode_ppn">{% for k, l in mode_ppn %}<option value="{{ k }}" {% if po.mode_ppn == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
     <div><label>Nomor faktur pajak (kalau ada)</label><input type="text" name="nomor_faktur_pajak"></div>
-    <div><label>Ongkir (kosongkan kalau tidak ada)</label><input type="text" name="ongkir" inputmode="numeric" value="{% if po.ongkir %}{{ po.ongkir|ribuan }}{% endif %}"></div>
-    <div><label>Ongkir dibayar ke</label><select name="ongkir_tagihan"><option value="supplier">Supplier, ikut di faktur ini</option><option value="terpisah" {% if not po.ongkir_ke_supplier %}selected{% endif %}>Ekspedisi/sopir, dibayar sendiri</option></select></div>
+    {% include "master/_po_biaya.html" %}
   </div>
   <div style="margin-top:16px"><label>Catatan perubahan (wajib kalau jumlah datang beda dari pesanan)</label><input type="text" name="catatan_terima" placeholder="mis. semen kurang 5 sak, menyusul minggu depan"></div>
   <div style="margin-top:16px"><button class="tombol utama" type="submit">Catat barang datang</button></div>
@@ -147,6 +147,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
   <div><div class="redup kecil">Barang datang</div>{{ po.tanggal_terima|date:"d M Y" }} · dicatat {{ po.diterima_oleh }}</div>
   <div><div class="redup kecil">Faktur</div>{{ po.nomor_faktur|default:"-" }}{% if po.tanggal_faktur %} · {{ po.tanggal_faktur|date:"d M Y" }}{% endif %}</div>
   <div><div class="redup kecil">Jatuh tempo</div><span style="color:{% if terlambat %}var(--bahaya){% endif %}">{{ po.jatuh_tempo|date:"d M Y"|default:"-" }}{% if terlambat %} (lewat){% endif %}</span></div>
+  {% if po.nomor_surat_jalan %}<div><div class="redup kecil">Surat jalan</div>{{ po.nomor_surat_jalan }}</div>{% endif %}
   <div><div class="redup kecil">PPN di faktur</div>{{ po.get_mode_ppn_display }}{% if po.mode_ppn != "tanpa" %} · {{ hasil.tarif|floatformat:"-2" }}%{% endif %}{% if po.nomor_faktur_pajak %}<br><span class="kecil redup">Faktur pajak {{ po.nomor_faktur_pajak }}</span>{% endif %}</div>
   {% if po.acc_oleh %}<div><div class="redup kecil">ACC</div>{{ po.acc_waktu|date:"d M Y H:i" }} · {{ po.acc_oleh }}</div>{% endif %}
 </div>
@@ -157,14 +158,16 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
   <tr><th>Barang</th><th>Varian</th><th class="angka">Dipesan</th><th class="angka" title="Hitungan pertama gudang, sebelum hitung ulang">Hitungan 1</th><th class="angka">Datang</th><th class="angka">Harga di faktur</th><th class="angka">Sebelum PPN</th><th class="angka">PPN</th><th class="angka">Jumlah</th><th class="angka" title="Yang masuk ke modal terakhir">Modal per satuan</th></tr>
   {% for h in hasil.baris %}
   <tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}{% if pilihan_lokasi and po.status != "dibuat" %}<div class="kecil redup">di {{ h.objek.lokasi.nama|default:"Toko" }}</div>{% endif %}</td><td class="angka redup">{% if h.objek.di_luar_pesanan %}<span class="label awas" title="Dicatat gudang, tidak ada di pesanan">tidak dipesan</span>{% else %}{{ h.objek.jumlah_pesan }}{% endif %}</td>
-    <td class="angka redup">{% if h.objek.jumlah_hitung1 is not None and h.objek.jumlah_hitung1 != h.qty %}<s>{{ h.objek.jumlah_hitung1|qty:h.objek }}</s>{% else %}{{ h.objek.jumlah_hitung1|default_if_none:"-"|qty:h.objek }}{% endif %}</td>
+    <td class="angka redup">{% if h.objek.jumlah_hitung1 is not None and h.objek.jumlah_hitung1 != h.qty %}<s>{{ h.objek.jumlah_hitung1|qty:h.objek }}</s>{% elif h.objek.jumlah_hitung1 is None %}-{% else %}{{ h.objek.jumlah_hitung1|qty:h.objek }}{% endif %}</td>
     <td class="angka">{% if h.berubah %}<b style="color:var(--bahaya)">{{ h.qty|qty:h.objek }}</b>{% else %}{{ h.qty|qty:h.objek }}{% endif %}</td>
-    <td class="angka">{{ h.objek.harga|harga_qty:h.objek|ribuan }}{{ h.objek|akhiran }}</td><td class="angka">{{ h.dpp|ribuan }}</td><td class="angka">{{ h.ppn|ribuan }}</td><td class="angka"><b>{{ h.jumlah|ribuan }}</b></td><td class="angka">{{ h.modal_satuan|ribuan }}</td></tr>
+    <td class="angka">{{ h.objek.harga|harga_qty:h.objek|ribuan }}{{ h.objek|akhiran }}</td><td class="angka">{{ h.dpp|ribuan }}</td><td class="angka">{{ h.ppn|ribuan }}</td><td class="angka"><b>{{ h.jumlah|ribuan }}</b></td><td class="angka">{{ h.modal_satuan|ribuan }}{% if h.kirim %}<div class="kecil redup" title="Harga barang + bagian ongkir & bongkar, per satuan">{{ h.modal_barang|ribuan }} + kirim {{ h.kirim_satuan|ribuan }}</div>{% endif %}</td></tr>
   {% endfor %}
   {% if hasil.ongkir %}<tr><td colspan="8">Ongkir <span class="redup kecil">· {% if po.ongkir_ke_supplier %}ditagih supplier, ikut hutang{% else %}dibayar sendiri ke ekspedisi, tidak ikut hutang{% endif %}</span></td><td class="angka">{{ hasil.ongkir|ribuan }}</td><td></td></tr>{% endif %}
+  {% if hasil.bongkar %}<tr><td colspan="8">Ongkos bongkar <span class="redup kecil">· dibayar sendiri, tidak ikut hutang</span></td><td class="angka">{{ hasil.bongkar|ribuan }}</td><td></td></tr>{% endif %}
   <tr><td colspan="6"><b>Total{% if hasil.ongkir and not po.ongkir_ke_supplier %} hutang ke supplier{% endif %}</b></td><td class="angka">{{ hasil.total_dpp|ribuan }}</td><td class="angka">{{ hasil.total_ppn|ribuan }}</td><td class="angka"><b>{{ hasil.total|ribuan }}</b></td><td></td></tr>
 </table></div>
-{% if hasil.ongkir %}<p class="redup kecil">Ongkir dibagi ke tiap barang menurut nilainya dan sudah termasuk di kolom modal per satuan.</p>{% endif %}
+{% if hasil.ongkir or hasil.bongkar %}<p class="redup kecil">Ongkir{% if hasil.bongkar %} dan bongkar{% endif %} dibagi ke tiap barang {{ po.get_cara_bagi_display|lower }} dan sudah termasuk di kolom modal per satuan (angka kecil: harga barang + bagian kirim).</p>
+{% if hasil.kurang_berat %}<div class="pesan warning">Dibagi menurut berat, tapi berat belum diisi untuk {% for b in hasil.kurang_berat %}{{ b.item_name }} {{ b.variant|varian }}{% if not forloop.last %}, {% endif %}{% endfor %}. Barang itu belum kebagian ongkir; ACC ditolak sampai beratnya diisi.</div>{% endif %}{% endif %}
 <p class="redup kecil">{% if hasil.toko_pkp %}Toko berstatus PKP pada tanggal ini: PPN tidak dihitung sebagai modal.{% else %}Toko belum PKP: PPN yang dibayar ikut menjadi modal.{% endif %}</p>
 {% endif %}
 
@@ -173,9 +176,10 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 <form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="faktur">
   <p style="margin-top:0">Periksa sebelum ACC. Kalau barang datang dicatat kepala gudang, harga masih harga pesanan dan data faktur masih kosong.</p>
   <div class="gulir" style="margin-bottom:16px"><table>
-    <tr><th>Barang</th><th>Varian</th><th class="angka">Datang</th><th class="angka">Harga satuan di faktur</th>{% if pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
+    <tr><th>Barang</th><th>Varian</th><th class="angka">Datang</th><th class="angka">Harga satuan di faktur</th><th class="angka kol-berat" title="Berat kira-kira per satuan, untuk membagi ongkir">Berat (kg)</th><th class="angka kol-manual">Ongkir baris</th>{% if pilihan_lokasi %}<th>Ditaruh di</th>{% endif %}</tr>
     {% for h in hasil.baris %}<tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}</td><td class="angka">{{ h.qty }}</td>
       <td class="angka"><input class="kotak" name="harga_{{ h.objek.id }}" value="{{ h.objek.harga|harga_qty:h.objek|ribuan }}" inputmode="numeric" title="{% if h.objek|berkoma %}harga per {{ h.objek|nama_satuan }}{% endif %}"></td>
+      {% include "master/_po_biaya_sel.html" with b=h.objek %}
       {% if pilihan_lokasi %}<td><select name="lokasi_{{ h.objek.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if h.objek.lokasi_id == l.id or not h.objek.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>{% endfor %}
   </table></div>
   <div class="kisi">
@@ -184,8 +188,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
     <div><label>Jatuh tempo</label><input type="date" name="jatuh_tempo" value="{{ po.jatuh_tempo|date:'Y-m-d' }}"></div>
     <div><label>PPN di faktur</label><select name="mode_ppn">{% for k, l in mode_ppn %}<option value="{{ k }}" {% if po.mode_ppn == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
     <div><label>Nomor faktur pajak (kalau ada)</label><input type="text" name="nomor_faktur_pajak" value="{{ po.nomor_faktur_pajak }}"></div>
-    <div><label>Ongkir (kosongkan kalau tidak ada)</label><input type="text" name="ongkir" inputmode="numeric" value="{% if po.ongkir %}{{ po.ongkir|ribuan }}{% endif %}"></div>
-    <div><label>Ongkir dibayar ke</label><select name="ongkir_tagihan"><option value="supplier">Supplier, ikut di faktur ini</option><option value="terpisah" {% if not po.ongkir_ke_supplier %}selected{% endif %}>Ekspedisi/sopir, dibayar sendiri</option></select></div>
+    {% include "master/_po_biaya.html" %}
   </div>
   <div style="margin-top:16px"><button class="tombol" type="submit">Simpan data faktur</button></div>
 </form></details>
@@ -274,4 +277,17 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 </form></details>
 {% endif %}
 {% endif %}
+<script>
+// Kolom berat / ongkir baris hanya tampil untuk cara bagi yang memakainya (24 Nov 2026).
+document.querySelectorAll('select[data-cara-bagi]').forEach(sel => {
+  const form = sel.closest('form');
+  const atur = () => {
+    const tampil = (pilih, ya) => form.querySelectorAll(pilih).forEach(e => { e.style.display = ya ? '' : 'none'; });
+    tampil('.kol-berat', sel.value === 'berat');
+    tampil('.kol-manual', sel.value === 'manual');
+    tampil('.po-ongkir-total', sel.value !== 'manual');   // cara manual: total ongkir = jumlah isian per baris
+  };
+  sel.addEventListener('change', atur); atur();
+});
+</script>
 {% endblock %}

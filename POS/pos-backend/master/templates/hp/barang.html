@@ -28,6 +28,8 @@
       <label class="isian"><span>Kategori</span><input id="b-kategori" list="dl-kategori" placeholder="pilih / ketik" autocomplete="off" style="text-align:right"></label>
       <label class="isian"><span>Brand</span><input id="b-brand" list="dl-brand" placeholder="boleh kosong" autocomplete="off" style="text-align:right"></label>
       <label class="isian"><span>Alias</span><input id="b-alias" placeholder="pisah koma, boleh kosong" autocomplete="off" style="text-align:right"></label>
+      {% if toko_titipan %}<p class="kecil" style="color:var(--awas,#b45309);margin:8px 0 4px"><b>Sedang di toko {{ toko_titipan.nama }} (titipan).</b> Pilih pemilik barangnya.</p>
+      <label class="isian"><span>Pemilik</span><select id="b-pemilik"><option value="">— pilih pemilik barang —</option><option value="titipan">{{ toko_titipan.nama }} (barang titipan)</option><option value="sendiri">{{ toko_utama.nama|default:"Toko sendiri" }} (barang toko sendiri)</option></select></label>{% endif %}
     </div>
     <datalist id="dl-kategori">{% for k in daftar_kategori %}<option value="{{ k }}">{% endfor %}</datalist>
     <datalist id="dl-brand">{% for k in daftar_brand %}<option value="{{ k }}">{% endfor %}</datalist>
@@ -78,7 +80,8 @@
     e.target.disabled = true;
     try {
       const d = await kirim("{% url 'hp:barang_tambah' %}", {item_name: nilai('b-nama'), category: nilai('b-kategori'),
-                                                            brand: nilai('b-brand'), alias: nilai('b-alias'), varian});
+                                                            brand: nilai('b-brand'), alias: nilai('b-alias'), varian,
+                                                            pemilik: document.getElementById('b-pemilik')?.value || ''});
       kabar(d.pesan); location.href = d.url;
     } catch (err) { kabar(err.message, true); e.target.disabled = false; }
   });

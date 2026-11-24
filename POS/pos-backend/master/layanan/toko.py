@@ -86,6 +86,20 @@ def utama():
     return Toko.objects.filter(stok_di_kasir=True).first() or Toko.objects.filter(aktif=True).first()
 
 
+def pemilik_barang_baru(toko, pilihan):
+    """Pemilik barang baru (24 Nov 2026). Di toko titipan pemilik wajib dipilih sendiri, karena toko aktif
+    tersimpan per akun: lupa pindah dari toko titipan membuat barang toko sendiri tercatat milik titipan
+    (kasus Valarie Platinum 31 Okt). Hasil: toko titipan, atau None = barang toko sendiri."""
+    if toko is None or not toko.titip_di_id:
+        return None
+    if pilihan == "titipan":
+        return toko
+    if pilihan == "sendiri":
+        return None
+    raise Tolak(f"Kamu sedang di toko {toko.nama} (titipan). Pilih dulu pemilik barang ini: "
+                f"barang titipan {toko.nama} atau barang toko sendiri.")
+
+
 def ambil(nilai, *, wajib=True):
     """Toko dari isian form. Kosong = toko utama (supaya tampilan satu toko tidak perlu memilih)."""
     if nilai in (None, ""):

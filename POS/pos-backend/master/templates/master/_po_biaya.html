@@ -1,0 +1,6 @@
+{% load master_tags %}{# Ongkir, bongkar, cara bagi, surat jalan (24 Nov 2026). Dipakai form barang datang dan form data faktur. #}
+<div><label>Nomor surat jalan</label><input type="text" name="nomor_surat_jalan" value="{{ po.nomor_surat_jalan }}"></div>
+<div class="po-ongkir-total"><label>Ongkir (kosongkan kalau tidak ada)</label><input type="text" name="ongkir" inputmode="numeric" value="{% if po.ongkir %}{{ po.ongkir|ribuan }}{% endif %}"></div>
+<div><label>Ongkir dibayar ke</label><select name="ongkir_tagihan"><option value="supplier">Supplier, ikut di faktur ini</option><option value="terpisah" {% if not po.ongkir_ke_supplier %}selected{% endif %}>Ekspedisi/sopir, dibayar sendiri</option></select></div>
+<div><label title="Upah bongkar yang dibayar per kiriman (kuli luar). Bongkar oleh karyawan bergaji jangan diisi: sudah jadi biaya toko.">Ongkos bongkar <span class="redup kecil">(dibayar sendiri)</span></label><input type="text" name="bongkar" inputmode="numeric" value="{% if po.bongkar %}{{ po.bongkar|ribuan }}{% endif %}" placeholder="kosong kalau karyawan sendiri"></div>
+<div><label>Ongkir &amp; bongkar dibagi</label><select name="cara_bagi" data-cara-bagi>{% for k, l in cara_bagi %}<option value="{{ k }}" {% if po.cara_bagi == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
