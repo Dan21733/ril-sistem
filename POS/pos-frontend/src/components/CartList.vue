@@ -350,6 +350,17 @@ const totalPrice = computed(() => {
 })
 
 /*
+ * Baris yang dijual di bawah pricelist (permintaan pemilik, 2026-11-24): di Konfirmasi Pesanan
+ * harga pricelist tampil dicoret di samping harga jual, supaya sales bisa menunjukkan potongannya
+ * ke pembeli dan menyalin harga sebelum potongan ke nota tulis tangan.
+ */
+function dipotong(item) {
+  const pricelist = Number(item.price)
+  const jual = Number(item.unit_price ?? item.price)
+  return Number.isFinite(pricelist) && Number.isFinite(jual) && jual < pricelist
+}
+
+/*
  * Total potongan dari pricelist (permintaan pemilik, 2026-11-06): selisih harga
  * pricelist (`price`) dengan harga jual (`unit_price`) dikali jumlah, hanya
  * yang dijual lebih murah. Ditampilkan supaya pembeli melihat hematnya.
@@ -1560,13 +1571,18 @@ async function completeTransaction() {
                         <span>
                           {{ teksJumlah(item.quantity, item) }}
                           ×
+                          <s v-if="dipotong(item)" class="harga-coret">{{ formatPrice(hargaPerSatuan(item.price, item)) }}</s>
                           {{ formatPrice(hargaPerSatuan(item.unit_price ?? item.price, item)) }}{{ akhiranSatuan(item) }}
                         </span>
                       </div>
 
-                      <strong class="confirmation-item-total">
-                        {{ formatPrice(Number(item.unit_price ?? item.price) * Number(item.quantity)) }}
-                      </strong>
+                      <div class="confirmation-item-total">
+                        <s v-if="dipotong(item)" class="harga-coret">{{ formatPrice(Number(item.price) * Number(item.quantity)) }}</s>
+                        <strong>{{ formatPrice(Number(item.unit_price ?? item.price) * Number(item.quantity)) }}</strong>
+                        <small v-if="dipotong(item)" class="potongan-baris">
+                          potong {{ formatPrice((Number(item.price) - Number(item.unit_price)) * Number(item.quantity)) }}
+                        </small>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3220,6 +3236,30 @@ async function completeTransaction() {
 /* ========================================
    RINGKASAN
 ======================================== */
+
+/* Harga pricelist dicoret + potongan per baris di Konfirmasi Pesanan (2026-11-24). */
+.confirmation-item-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.harga-coret {
+  color: var(--pos-text-muted);
+  font-weight: 400;
+}
+
+.confirmation-item-total .harga-coret {
+  font-size: 0.85em;
+}
+
+.potongan-baris {
+  color: var(--pos-success-text);
+  font-size: 0.8em;
+  font-weight: 600;
+}
 
 /* Potongan dari pricelist: warna sukses supaya terbaca sebagai keuntungan pembeli. */
 .summary-row.summary-potongan strong {
