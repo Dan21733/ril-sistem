@@ -1,0 +1,117 @@
+{# Panel "Barang baru" yang bisa dipasang di halaman mana pun (24 Nov 2026, dipakai PO).
+   Pakai: BarangBaru.buka({nama, harga, setelah: d => ...}); d = {id, nama} barang yang baru dibuat.
+   Isi formulir sama dengan Daftar barang / Nota tulis tangan (_barang_baru.html, ?panel=1). #}
+<style>
+.bb-atas{display:grid;gap:12px 14px;grid-template-columns:1fr 1fr;margin-bottom:14px}.bb-atas .bb-nama,.bb-atas .bb-alias{grid-column:1/-1}
+.bb-tabel th,.bb-tabel td{padding:4px 4px;vertical-align:middle}.bb-tabel input,.bb-tabel select{padding:8px 9px;min-width:0}
+.bb-tabel td:first-child{min-width:120px}.bb-tabel select{min-width:86px}.bb-tabel input.uang{text-align:right;width:100%;min-width:84px}
+#form-baru .label[hidden],#bb-ada[hidden]{display:none}.bb-tabel tr.salah td{background:var(--bahaya-lembut)}
+.bb-tabel input.salah,.bb-atas input.salah{border-color:var(--bahaya);color:var(--bahaya)}
+.pintas{font-size:12px;opacity:.7;margin-left:8px;font-weight:400}
+</style>
+<aside class="laci-barang" id="bb-laci" hidden></aside><div class="laci-latar" id="bb-latar" hidden></div>
+<script>
+window.BarangBaru = (function(){
+  const URL_BARU = "{% url 'master:barang_baru' %}", URL_DAFTAR = "{% url 'master:barang' %}";
+  const laci = document.getElementById('bb-laci'), latar = document.getElementById('bb-latar');
+  const $l = s => laci.querySelector(s), digit = v => String(v || '').replace(/\D/g, '');
+  let setelah = null, cekT = null;
+  function tutup(){ laci.hidden = true; latar.hidden = true; laci.innerHTML = ''; setelah = null; }
+  async function buka(opsi = {}){
+    setelah = opsi.setelah || null;
+    laci.hidden = false; latar.hidden = false; laci.innerHTML = '<p class="redup">Memuat...</p>';
+    try {
+      const r = await fetch(URL_BARU + '?panel=1'); if (!r.ok) throw 0;
+      laci.innerHTML = await r.text();
+      laci.querySelector('#form-baru > .sub')?.remove();
+      tambahBaris();
+      const nama = (opsi.nama || '').trim();
+      $l('#bb-nama').value = nama ? nama.charAt(0).toUpperCase() + nama.slice(1) : '';
+      if (opsi.harga) $l('#bb-tabel [data-k=max_price]').value = ribuan(opsi.harga);
+      if (nama) cekNama();
+      $l(nama ? '#bb-kategori' : '#bb-nama').focus();
+    } catch (x) { laci.innerHTML = '<p class="pesan error">Formulir tidak bisa dimuat.</p>'; }
+  }
+  const baris = () => [...$l('#bb-tabel tbody').rows];
+  function tambahBaris(){
+    const tb = $l('#bb-tabel tbody'), tr = $l('#bb-baris').content.firstElementChild.cloneNode(true);
+    const atas = tb.rows[tb.rows.length - 1];
+    if (atas) tr.querySelector('[data-k=kode_rak]').value = atas.querySelector('[data-k=kode_rak]').value;
+    tb.appendChild(tr); return tr;
+  }
+  function kosong(tr){
+    const v = k => (tr.querySelector('[data-k=' + k + ']') || {value: ''}).value.trim();
+    return !v('variant') && !v('min_price') && !v('max_price') && !v('cost_amount') && ['', '0'].includes(digit(v('in_stock')));
+  }
+  function cekNama(){
+    clearTimeout(cekT);
+    const nama = $l('#bb-nama').value.trim(), info = $l('#bb-ada');
+    if (!nama){ info.hidden = true; return; }
+    cekT = setTimeout(async () => {
+      try { const d = await (await fetch(URL_BARU + '?cek=' + encodeURIComponent(nama))).json();
+        if (laci.hidden) return;
+        info.hidden = !d.ada; info.innerHTML = '';
+        if (d.ada){ const t = document.createElement('span'); t.className = 'label bahaya'; t.textContent = '"' + d.nama + '" sudah ada.';
+          const a = document.createElement('a'); a.href = URL_DAFTAR + '?q=' + encodeURIComponent(d.nama); a.target = '_blank';
+          a.textContent = ' Tambah variannya di Daftar barang'; info.append(t, a); }
+      } catch (e) {}
+    }, 300);
+  }
+  function cekDaftar(input, jenis){
+    const opsi = [...document.getElementById('bb-dl-' + jenis).options].map(o => o.value);
+    const v = input.value.trim(), sama = opsi.find(o => o.toLowerCase() === v.toLowerCase());
+    if (sama && sama !== v) input.value = sama;
+    $l('[data-baru-label=' + jenis + ']').hidden = !v || !!sama;
+  }
+  async function simpan(){
+    const tombol = $l('[data-simpan-baru]'), galat = $l('#bb-galat');
+    baris().forEach(tr => tr.classList.remove('salah')); galat.hidden = true;
+    const terpakai = baris().filter(tr => !kosong(tr));
+    const data = {dari: 'pembelian', varian: terpakai.map(tr => Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])))};
+    laci.querySelectorAll('[data-isi]').forEach(i => { data[i.dataset.isi] = i.value.trim(); });
+    tombol.disabled = true;
+    try {
+      const d = await (await fetch(URL_BARU, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF}, body: JSON.stringify(data)})).json();
+      if (d.ok){ const f = setelah; tutup(); kabar('Barang "' + d.nama + '" ditambahkan.', false); if (f) f(d); return; }
+      galat.textContent = d.pesan || 'Belum tersimpan.'; galat.hidden = false;
+      if (d.baris !== null && d.baris !== undefined && terpakai[d.baris]){
+        terpakai[d.baris].classList.add('salah'); galat.textContent = 'Baris ' + (d.baris + 1) + ': ' + galat.textContent;
+        terpakai[d.baris].querySelector('input').focus();
+      }
+    } catch (e) { galat.textContent = 'Gagal menyimpan. Periksa koneksi lalu coba lagi.'; galat.hidden = false; }
+    tombol.disabled = false;
+  }
+  laci.addEventListener('input', e => {
+    const tr = e.target.closest('#bb-tabel tr');
+    if (tr && ['min_price', 'max_price'].includes(e.target.dataset.k)){
+      const f = tr.querySelector('[data-k=min_price]'), j = tr.querySelector('[data-k=max_price]');
+      const salah = digit(f.value) && digit(j.value) && Number(digit(f.value)) > Number(digit(j.value));
+      f.classList.toggle('salah', !!salah); j.classList.toggle('salah', !!salah); f.title = salah ? 'Floor di atas harga jual' : '';
+    }
+    if (e.target.id === 'bb-nama') cekNama();
+  });
+  laci.addEventListener('focusout', e => {
+    if (e.target.classList.contains('uang')){ const n = digit(e.target.value); e.target.value = n ? ribuan(Number(n)) : ''; }
+    if (e.target.id === 'bb-kategori') cekDaftar(e.target, 'kategori');
+    if (e.target.id === 'bb-brand') cekDaftar(e.target, 'brand');
+  });
+  laci.addEventListener('click', e => {
+    if (e.target.closest('[data-tutup-panel]')){ tutup(); return; }
+    if (e.target.closest('[data-tambah-baris]')) tambahBaris().querySelector('input').focus();
+    const h = e.target.closest('[data-hapus-baris]');
+    if (h){ const tr = h.closest('tr'); if (baris().length > 1) tr.remove(); else tr.querySelectorAll('input').forEach(i => i.value = i.dataset.k === 'in_stock' ? '0' : ''); }
+    if (e.target.closest('[data-simpan-baru]')) simpan();
+  });
+  laci.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); simpan(); return; }
+    if (e.key !== 'Enter' || !e.target.matches('input,select')) return;
+    e.preventDefault();
+    const urut = [...laci.querySelectorAll('[data-isi], #bb-tabel [data-k]')], i = urut.indexOf(e.target);
+    if (i === urut.length - 1){ tambahBaris().querySelector('input').focus(); return; }
+    if (i >= 0) urut[i + 1].focus();
+  });
+  latar.addEventListener('click', tutup);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !laci.hidden) tutup(); });
+  return {buka, tutup};
+})();
+</script>

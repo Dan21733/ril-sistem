@@ -55,7 +55,8 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 <h3>Tambah barang</h3>
 <form method="post" class="kartu" id="form-tambah">{% csrf_token %}<input type="hidden" name="aksi" value="tambah_baris"><input type="hidden" name="varian_id" id="varian-id">
   <div class="baris">
-    <div style="flex:3;min-width:260px"><label>Cari barang (nama, varian, brand, atau alias)</label><input type="text" id="cari-barang" autocomplete="off" placeholder="ketik minimal 2 huruf" autofocus><div id="hasil-cari"></div></div>
+    <div style="flex:3;min-width:260px"><label>Cari barang (nama, varian, brand, atau alias)</label><input type="text" id="cari-barang" autocomplete="off" placeholder="ketik minimal 2 huruf" autofocus><div id="hasil-cari"></div>
+      <button type="button" class="tombol kecil" id="po-barang-baru" style="margin-top:6px">+ Barang baru</button></div>
     <div style="width:120px"><label>Jumlah</label><input type="text" name="jumlah" id="tambah-jumlah" inputmode="decimal" required></div>
     <div style="width:170px"><label>Harga satuan</label><input type="text" name="harga" id="tambah-harga" inputmode="numeric" required></div>
     <div><button class="tombol utama" type="submit">Tambah</button></div>
@@ -112,12 +113,29 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
       if (kotak.value.trim().length < 2){ wadah.innerHTML = ''; return; }
       const r = await fetch("{% url 'master:pembelian_cari' %}?q=" + encodeURIComponent(kotak.value));
       hasil = (await r.json()).hasil;
-      wadah.innerHTML = hasil.length ? '' : '<div class="redup">Tidak ditemukan.</div>';
+      wadah.innerHTML = '';
+      if (!hasil.length){ const b = document.createElement('div'); b.dataset.baru = '1'; b.style.color = 'var(--aksen)'; b.style.fontWeight = '600';
+        b.textContent = 'Tidak ditemukan. + Buat barang baru "' + kotak.value.trim() + '"'; wadah.appendChild(b); }
       hasil.forEach((h, i) => { const d = document.createElement('div'); d.dataset.i = i;
         d.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  stok ' + (h.stok == null ? '-' : h.stok); wadah.appendChild(d); });
     }, 200);
   });
-  wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]); });
+  wadah.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (d) pilih(hasil[d.dataset.i]);
+    if (e.target.closest('[data-baru]')) barangBaru(); });
+  // 24 Nov 2026: barang yang belum ada bisa dibuat dari sini (panel sama dengan Daftar barang / nota tulis tangan),
+  // lalu langsung terpilih di baris PO.
+  function barangBaru(){
+    BarangBaru.buka({nama: kotak.value.trim(), setelah: async d => {
+      const r = await (await fetch("{% url 'master:pembelian_cari' %}?q=" + encodeURIComponent(d.nama))).json();
+      hasil = r.hasil.filter(h => h.nama === d.nama);
+      if (hasil.length === 1){ pilih(hasil[0]); return; }
+      kotak.value = d.nama; wadah.innerHTML = '';
+      hasil.forEach((h, i) => { const x = document.createElement('div'); x.dataset.i = i;
+        x.textContent = h.nama + (h.varian ? ' / ' + h.varian : '') + '  ·  stok ' + (h.stok == null ? '-' : h.stok); wadah.appendChild(x); });
+      kabar('Barang "' + d.nama + '" ditambahkan. Pilih variannya.', false); kotak.focus();
+    }});
+  }
+  document.getElementById('po-barang-baru').addEventListener('click', barangBaru);
   kotak.addEventListener('keydown', e => {
     const semua = [...wadah.querySelectorAll('[data-i]')]; if (!semua.length) return;
     let i = semua.findIndex(d => d.classList.contains('pilih'));
@@ -290,4 +308,5 @@ document.querySelectorAll('select[data-cara-bagi]').forEach(sel => {
   sel.addEventListener('change', atur); atur();
 });
 </script>
+{% if po.status == "dibuat" %}{% include "master/_barang_baru_laci.html" %}{% endif %}
 {% endblock %}

@@ -327,6 +327,22 @@ class ReturOngkirTest(Dasar):
         po2 = self._po(baris)
         self.assertContains(self.client.get(reverse("master:pembelian_detail", args=[po2.id])), 'placeholder="kg" value="2"')
 
+    def test_po_bisa_buat_barang_baru(self):
+        """24 Nov 2026: barang yang belum ada dibuat dari halaman PO (panel sama dengan nota tulis tangan)."""
+        import json
+        from master.models import ItemInfo
+        po = self._po((("Palu", "Kecil", 1, 1000),))
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
+        self.assertContains(r, 'id="po-barang-baru"'); self.assertContains(r, 'id="bb-laci"')
+        d = self.client.post(reverse("master:barang_baru"), json.dumps({
+            "dari": "pembelian", "item_name": "Keramik Kansas", "category": "Keramik",
+            "varian": [{"variant": "40x40", "min_price": "", "max_price": "75000", "in_stock": "0"}]}),
+            content_type="application/json").json()
+        self.assertTrue(d["ok"]); self.assertTrue(ItemInfo.objects.filter(item_name="Keramik Kansas").exists())
+        hasil = self.client.get(reverse("master:pembelian_cari") + "?q=Keramik Kansas").json()["hasil"]
+        self.assertEqual([(h["nama"], h["varian"]) for h in hasil], [("Keramik Kansas", "40x40")])
+
     def test_ongkir_berat_kosong_ditolak_saat_acc(self):
         from master.layanan import pembelian as svc
         po = self._datang_biaya((("Palu", "Kecil", 10, 1000), ("Palu", "Besar", 10, 3000)), {"Kecil": {"berat": "1"}},
