@@ -334,7 +334,7 @@ class ReturOngkirTest(Dasar):
         po = self._po((("Palu", "Kecil", 1, 1000),))
         self.client.force_login(self.admin)
         r = self.client.get(reverse("master:pembelian_detail", args=[po.id]))
-        self.assertContains(r, 'id="po-barang-baru"'); self.assertContains(r, 'id="bb-laci"')
+        self.assertContains(r, "Buat barang baru"); self.assertContains(r, 'id="bb-laci"')
         d = self.client.post(reverse("master:barang_baru"), json.dumps({
             "dari": "pembelian", "item_name": "Keramik Kansas", "category": "Keramik",
             "varian": [{"variant": "40x40", "min_price": "", "max_price": "75000", "in_stock": "0"}]}),
