@@ -74,7 +74,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
       <td class="angka"><input class="kotak" style="width:90px" name="terima_{{ h.objek.id }}" value="{{ h.objek.jumlah_pesan|qty_isi:h.objek }}" data-pesan="{{ h.objek.jumlah_pesan|qty_isi:h.objek }}" inputmode="numeric"></td>
       <td class="angka"><input class="kotak" name="harga_{{ h.objek.id }}" value="{{ h.objek.harga|harga_qty:h.objek|ribuan }}" inputmode="numeric" title="{% if h.objek|berkoma %}harga per {{ h.objek|nama_satuan }}{% endif %}"></td>
       {% include "master/_po_biaya_sel.html" with b=h.objek %}
-      {% if pilihan_lokasi %}<td><select name="lokasi_{{ h.objek.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if h.objek.lokasi_id == l.id or not h.objek.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>
+      {% if pilihan_lokasi %}{% include "master/_po_lokasi_sel.html" with b=h.objek %}{% endif %}</tr>
     {% endfor %}
   </table></div>
   <div class="kisi">
@@ -174,7 +174,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
 <div class="gulir"><table>
   <tr><th>Barang</th><th>Varian</th><th class="angka">Dipesan</th><th class="angka" title="Hitungan pertama gudang, sebelum hitung ulang">Hitungan 1</th><th class="angka">Datang</th><th class="angka">Harga di faktur</th><th class="angka">Sebelum PPN</th><th class="angka">PPN</th><th class="angka">Jumlah</th><th class="angka" title="Yang masuk ke modal terakhir">Modal per satuan</th></tr>
   {% for h in hasil.baris %}
-  <tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}{% if pilihan_lokasi and po.status != "dibuat" %}<div class="kecil redup">di {{ h.objek.lokasi.nama|default:"Toko" }}</div>{% endif %}</td><td class="angka redup">{% if h.objek.di_luar_pesanan %}<span class="label awas" title="Dicatat gudang, tidak ada di pesanan">tidak dipesan</span>{% else %}{{ h.objek.jumlah_pesan }}{% endif %}</td>
+  <tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}{% if pilihan_lokasi and po.status != "dibuat" %}<div class="kecil redup">di {{ h.objek.lokasi.nama|default:"Toko" }}{% if h.objek.jumlah_lokasi2 %} · {{ h.objek.jumlah_lokasi2|qty:h.objek }} di {{ h.objek.lokasi2.nama|default:"Toko" }}{% endif %}</div>{% endif %}</td><td class="angka redup">{% if h.objek.di_luar_pesanan %}<span class="label awas" title="Dicatat gudang, tidak ada di pesanan">tidak dipesan</span>{% else %}{{ h.objek.jumlah_pesan }}{% endif %}</td>
     <td class="angka redup">{% if h.objek.jumlah_hitung1 is not None and h.objek.jumlah_hitung1 != h.qty %}<s>{{ h.objek.jumlah_hitung1|qty:h.objek }}</s>{% elif h.objek.jumlah_hitung1 is None %}-{% else %}{{ h.objek.jumlah_hitung1|qty:h.objek }}{% endif %}</td>
     <td class="angka">{% if h.berubah %}<b style="color:var(--bahaya)">{{ h.qty|qty:h.objek }}</b>{% else %}{{ h.qty|qty:h.objek }}{% endif %}</td>
     <td class="angka">{{ h.objek.harga|harga_qty:h.objek|ribuan }}{{ h.objek|akhiran }}</td><td class="angka">{{ h.dpp|ribuan }}</td><td class="angka">{{ h.ppn|ribuan }}</td><td class="angka"><b>{{ h.jumlah|ribuan }}</b></td><td class="angka">{{ h.modal_satuan|ribuan }}{% if h.kirim %}<div class="kecil redup" title="Harga barang + bagian ongkir & bongkar, per satuan">{{ h.modal_barang|ribuan }} + kirim {{ h.kirim_satuan|ribuan }}</div>{% endif %}</td></tr>
@@ -197,7 +197,7 @@ td input.kotak{width:120px;text-align:right;padding:8px 10px;border:1px solid va
     {% for h in hasil.baris %}<tr><td>{{ h.objek.item_name }}</td><td>{{ h.objek.variant|varian }}</td><td class="angka">{{ h.qty }}</td>
       <td class="angka"><input class="kotak" name="harga_{{ h.objek.id }}" value="{{ h.objek.harga|harga_qty:h.objek|ribuan }}" inputmode="numeric" title="{% if h.objek|berkoma %}harga per {{ h.objek|nama_satuan }}{% endif %}"></td>
       {% include "master/_po_biaya_sel.html" with b=h.objek %}
-      {% if pilihan_lokasi %}<td><select name="lokasi_{{ h.objek.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if h.objek.lokasi_id == l.id or not h.objek.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></td>{% endif %}</tr>{% endfor %}
+      {% if pilihan_lokasi %}{% include "master/_po_lokasi_sel.html" with b=h.objek %}{% endif %}</tr>{% endfor %}
   </table></div>
   <div class="kisi">
     <div><label>Nomor faktur</label><input type="text" name="nomor_faktur" value="{{ po.nomor_faktur }}"></div>

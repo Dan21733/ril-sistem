@@ -238,6 +238,29 @@ class LokasiAlurTest(Dasar):
         self.assertEqual(MutasiStok.objects.get(jenis="beli", variant="Kecil").lokasi, self.ga)
         self.assertIsNone(MutasiStok.objects.get(jenis="beli", variant="Besar").lokasi)
 
+    def test_barang_datang_dibagi_dua_tempat(self):
+        """25 Nov 2026: 100 datang, 25 ditaruh di toko dan 75 di gudang, tanpa input barang dua kali."""
+        from master.layanan import pembelian as svc
+        from master.models import MutasiStok
+        po = svc.buat(self.admin, supplier_id=self.supplier.id, tanggal_pesan="2026-10-01")
+        svc.tambah_baris(po, varian_id=self.info("Palu", "Kecil").id, jumlah=100, harga=900)
+        b = po.baris.get()
+        self.client.force_login(self.admin)
+        url = reverse("master:pembelian_detail", args=[po.id])
+        self.assertContains(self.client.get(url), f'name="jumlah2_{b.id}"')
+        isi = {"aksi": "datang", f"terima_{b.id}": "100", f"harga_{b.id}": "900", "tanggal_terima": "2026-10-02",
+               "mode_ppn": "tanpa", f"lokasi_{b.id}": self.toko.id, f"jumlah2_{b.id}": "75", f"lokasi2_{b.id}": self.ga.id}
+        self.client.post(url, isi)
+        b.refresh_from_db()
+        self.assertEqual((b.lokasi_id, b.lokasi2_id, b.jumlah_lokasi2), (None, self.ga.id, 75))
+        po.refresh_from_db()
+        svc.acc(self.admin, po)
+        self.assertEqual(self._gudang(), {("Kecil", "GA"): 75})
+        self.assertEqual(Item.objects.get(item_name="Palu", variant="Kecil").in_stock, 110)
+        self.assertEqual(sorted((m.lokasi_id or 0, m.jumlah) for m in MutasiStok.objects.filter(jenis="beli")),
+                         [(0, 25), (self.ga.id, 75)])
+        self.assertContains(self.client.get(url), "75 di Gudang A")
+
     def test_opname_di_gudang_mengubah_gudang_dan_total(self):
         from master.layanan import lokasi
         from master.layanan import opname

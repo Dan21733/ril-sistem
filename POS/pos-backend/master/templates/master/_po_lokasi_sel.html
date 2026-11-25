@@ -1,0 +1,6 @@
+{% load master_tags %}{# Tempat barang datang: satu tempat, atau sebagian ke tempat kedua (25 Nov 2026). b = baris PO. #}
+<td><select name="lokasi_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.lokasi_id == l.id or not b.lokasi_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select>
+  <details class="po-bagi" {% if b.jumlah_lokasi2 %}open{% endif %}><summary class="kecil" style="cursor:pointer;color:var(--aksen);margin-top:4px">+ sebagian ke tempat lain</summary>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><input class="kotak" style="width:80px" name="jumlah2_{{ b.id }}" inputmode="{% if b|berkoma %}decimal{% else %}numeric{% endif %}" placeholder="jumlah" value="{% if b.jumlah_lokasi2 %}{{ b.jumlah_lokasi2|qty_isi:b }}{% endif %}" title="Jumlah yang ditaruh di tempat kedua; sisanya di tempat pertama">
+      <span class="kecil redup">ke</span><select name="lokasi2_{{ b.id }}">{% for l in pilihan_lokasi %}<option value="{{ l.id }}" {% if b.jumlah_lokasi2 and b.lokasi2_id == l.id or b.jumlah_lokasi2 and not b.lokasi2_id and l.jenis == 'toko' %}selected{% endif %}>{{ l.nama }}</option>{% endfor %}</select></div>
+  </details></td>

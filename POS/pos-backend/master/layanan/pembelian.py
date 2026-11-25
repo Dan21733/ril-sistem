@@ -223,7 +223,19 @@ def _isi_lokasi(po, b, data):
         nilai = data.get("lokasi_semua")
     lokasi = baca(nilai)
     b.lokasi = lokasi if lokasi.jenis == "gudang" else None
-    b.save(update_fields=["lokasi"])
+    # Sebagian ke tempat lain (25 Nov 2026): jumlah2_<id> + lokasi2_<id>. Kosong = semua di satu tempat.
+    teks = (data.get(f"jumlah2_{b.id}") or "").strip()
+    if teks:
+        b.jumlah_lokasi2 = baca_qty(teks, b, nama=b.item_name)
+        lok2 = baca(data.get(f"lokasi2_{b.id}"))
+        b.lokasi2 = lok2 if lok2.jenis == "gudang" else None
+        if b.jumlah_lokasi2 <= 0:
+            b.jumlah_lokasi2 = b.lokasi2 = None
+        elif b.lokasi2_id == b.lokasi_id:
+            raise Tolak(f"{b.item_name}: tempat kedua sama dengan tempat pertama.")
+    else:
+        b.jumlah_lokasi2 = b.lokasi2 = None
+    b.save(update_fields=["lokasi", "lokasi2", "jumlah_lokasi2"])
 
 
 def stok_ikut(po):
@@ -683,12 +695,20 @@ def acc(pengguna, po, sisa=None):
             rata_baru = int(round((dasar * rata_lama + qty * modal_baru) / (dasar + qty)))
 
             baris_item.update(in_stock=stok_lama + qty, cost_amount=modal_baru)
-            MutasiStok.objects.create(
-                pengguna=pengguna, nama_pengguna=pengguna.username, varian=info,
-                item_name=info.item_name, variant=info.variant, jenis="beli", jumlah=qty,
-                stok_sebelum=stok_lama, stok_sesudah=stok_lama + qty, catatan=po.nomor, lokasi=b.lokasi,
-            )
-            ubah_gudang(info, b.lokasi, qty)
+            # Dibagi ke dua tempat kalau diisi (25 Nov 2026); satu mutasi per tempat.
+            n2 = b.jumlah_lokasi2 or 0
+            if n2 >= qty:
+                raise Tolak(f"{b.item_name}: jumlah di tempat kedua ({n2}) harus kurang dari yang datang ({qty}).")
+            bagian = [(b.lokasi, qty - n2)] + ([(b.lokasi2, n2)] if n2 else [])
+            jalan = stok_lama
+            for lok, n in bagian:
+                MutasiStok.objects.create(
+                    pengguna=pengguna, nama_pengguna=pengguna.username, varian=info,
+                    item_name=info.item_name, variant=info.variant, jenis="beli", jumlah=n,
+                    stok_sebelum=jalan, stok_sesudah=jalan + n, catatan=po.nomor, lokasi=lok,
+                )
+                jalan += n
+                ubah_gudang(info, lok, n)
             if modal_lama != modal_baru:
                 layanan.catat(pengguna, sumber="pembelian", item_name=info.item_name, variant=info.variant,
                               kolom="cost_amount", lama=modal_lama, baru=modal_baru, catatan=po.nomor)

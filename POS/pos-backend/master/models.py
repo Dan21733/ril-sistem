@@ -506,6 +506,10 @@ class PembelianBaris(models.Model):
     harga = models.IntegerField()
     # Lokasi tempat barang ditaruh saat datang (null = Toko/display).
     lokasi = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.PROTECT, related_name="baris_beli")
+    # 25 Nov 2026: sebagian barang yang datang ditaruh di tempat lain (mis. 25 di toko, 75 di gudang).
+    # Kosong = semua di `lokasi`. lokasi2 kosong + jumlah_lokasi2 terisi = sebagian ke Toko (display).
+    lokasi2 = models.ForeignKey("Lokasi", null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    jumlah_lokasi2 = models.IntegerField(null=True, blank=True)
     # Hitungan pertama gudang (sebelum hitung ulang). Null = belum dihitung gudang.
     jumlah_hitung1 = models.IntegerField(null=True, blank=True)
     # Barang yang datang tapi tidak ada di pesanan (dicatat gudang, jumlah_pesan = 0).
