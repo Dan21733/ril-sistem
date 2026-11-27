@@ -27,6 +27,9 @@ def halaman(request):
             elif aksi == "gerak":
                 g = svc.catat_gerak(request.user, toko, request.POST)
                 messages.success(request, f"{g.get_jenis_display()} {svc.rp(g.jumlah)} tercatat.")
+            elif aksi == "cek":
+                c = svc.cek(request.user, toko, request.POST)
+                messages.success(request, "Hasil hitung disimpan. Selisih saat ini " + svc.rp(c.selisih) + ".")
             elif aksi == "batal":
                 svc.batal_gerak(request.user, request.POST.get("gerak_id"), request.POST.get("alasan"))
                 messages.success(request, "Catatan kas dibatalkan.")

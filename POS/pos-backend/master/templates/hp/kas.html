@@ -19,14 +19,17 @@
   <div><div class="lbl">Tunai di laci</div><div class="angka">{{ k.hitung.seharusnya|rupiah }}</div><div class="ket">dibuka {{ k.sesi.dibuka_waktu|date:"H.i" }} · {{ k.sesi.dibuka_oleh }}</div></div>
   <div><div class="lbl">Di luar laci</div><div class="angka">{{ k.hitung.transfer|add:k.hitung.edc|rupiah }}</div><div class="ket">transfer + EDC</div></div>
 </div>
-<div class="baris-tombol" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr">
-  <button class="tombol abu" data-buka-lembar="lembar-gerak">Catat uang keluar</button>
+<div class="baris-tombol" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+  <button class="tombol abu" data-buka-lembar="lembar-gerak">Uang keluar</button>
+  <button class="tombol abu" data-buka-lembar="lembar-cek">Cocokkan kas</button>
   <button class="tombol" data-buka-lembar="lembar-tutup">Tutup kas</button>
 </div>
 
 <div class="kepala-grup"><h2>Rincian</h2></div>
 <div class="grup">{% for label, n in k.rincian %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px;white-space:normal">{{ label }}</div></div><span class="nilai{% if n < 0 %} turun{% endif %}">{{ n|rupiah }}</span></div>{% endfor %}
   <div class="sel"><div class="utama"><div class="nama"><b>Seharusnya di laci</b></div></div><b class="nilai" style="color:var(--teks)">{{ k.hitung.seharusnya|rupiah }}</b></div></div>
+
+{% include "hp/_kas_cek.html" with cek=k.cek %}
 
 <div class="kepala-grup"><h2>Uang keluar &amp; modal</h2></div>
 <div class="grup">{% for g in k.gerak %}<div class="sel"{% if g.batal %} style="opacity:.5"{% endif %}><div class="utama"><div class="nama" style="font-size:15px">{{ g.kategori|default:g.get_jenis_display }}</div>
@@ -43,6 +46,18 @@
       <label class="isian"><span>Jumlah</span><input id="g-jumlah" inputmode="numeric" placeholder="0" data-uang></label>
       <label class="isian" id="baris-kategori"><span>Untuk</span><select id="g-kategori"><option value="">Pilih…</option>{% for x in kategori %}<option>{{ x }}</option>{% endfor %}</select></label>
       <label class="isian"><span>Keterangan</span><input id="g-ket" placeholder="opsional"></label>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="lembar" id="lembar-cek" aria-label="Cocokkan kas">
+  <div class="pegangan"></div>
+  <div class="kepala"><button data-tutup type="button">Batal</button><b>Cocokkan kas</b><button class="kanan" id="tombol-cek" type="button">Simpan</button></div>
+  <div class="badan">
+    <p class="ket-grup" style="margin:0 4px 10px">Hitung semua uang di laci sekarang. Kas tidak ditutup; hasilnya disimpan supaya kelihatan selisih muncul di jam berapa.</p>
+    <div class="grup">
+      <label class="isian"><span>Uang di laci</span><input id="c-uang" inputmode="numeric" placeholder="0" data-uang></label>
+      <label class="isian"><span>Catatan</span><input id="c-catatan" placeholder="opsional"></label>
     </div>
   </div>
 </dialog>
@@ -124,6 +139,11 @@
     s.className = 'nilai'; s.style.color = beda === 0 ? 'var(--hijau)' : 'var(--merah)';
   }
   ['t-ambil', 't-sisa'].forEach(id => el(id)?.addEventListener('input', hitungTutup));
+  el('tombol-cek')?.addEventListener('click', e => {
+    const n = angka(nilai('c-uang'));
+    if (n === null) { kabar('Isi jumlah uang di laci.', true); return; }
+    aksi({aksi: 'cek', dihitung: n, catatan: nilai('c-catatan')}, e.currentTarget);
+  });
   el('tombol-tutup')?.addEventListener('click', async e => {
     const sisa = angka(nilai('t-sisa'));
     if (sisa === null) { kabar('Isi uang sisa di laci.', true); return; }

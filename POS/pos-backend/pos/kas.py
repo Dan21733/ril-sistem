@@ -353,6 +353,48 @@ def tutup(sesi_id, *, uang_sisa, oleh, dari, diambil=None, ambil_100=0, ambil_50
     return s
 
 
+def cek_laci(sesi_id, *, dihitung, oleh, dari, catatan=""):
+    """Simpan hasil hitung laci saat ini (pencocokan kas, 27 Nov 2026). Tidak mengubah sesi."""
+    s = KasSesi.objects.filter(pk=_uuid(sesi_id)).first()
+    if s is None or s.status != "buka":
+        raise KasDitolak("Kas belum dibuka atau sudah ditutup.")
+    if dihitung in (None, ""):
+        raise KasDitolak("Isi jumlah uang yang ada di laci sekarang.")
+    n = _int(dihitung, "Uang di laci")
+    sekarang = timezone.now()
+    r = hitung(s, akhir=sekarang)
+    r["tertunda"] = antrean_tertunda()
+    from .models import KasCek
+    return KasCek.objects.create(sesi=s, waktu=sekarang, dihitung=n, seharusnya=r["seharusnya"],
+                                 selisih=n - r["seharusnya"], rincian=r, oleh=oleh[:150], dari=dari[:20],
+                                 catatan=str(catatan or "")[:300])
+
+
+def daftar_cek(sesi):
+    """Pencocokan satu sesi, berurutan, plus tutup kas sebagai titik terakhir kalau sudah ditutup.
+
+    `perubahan` = selisih titik ini dikurangi selisih titik sebelumnya (buka kas = 0): uang yang hilang/lebih
+    di rentang itu. Seharusnya dihitung ulang dengan nota yang sudah masuk sekarang (nota tablet yang telat
+    terkirim ikut terhitung); `berubah` menandai kalau angkanya beda dari saat dicek.
+    """
+    from .models import KasCek
+    titik = []
+    for c in KasCek.objects.filter(sesi=sesi).order_by("waktu"):
+        kini = hitung(sesi, akhir=c.waktu)["seharusnya"]
+        titik.append({"jenis": "cek", "objek": c, "waktu": c.waktu, "dihitung": c.dihitung, "seharusnya": kini,
+                      "selisih": c.dihitung - kini, "berubah": kini != c.seharusnya, "seharusnya_lama": c.seharusnya,
+                      "oleh": c.oleh, "catatan": c.catatan, "tertunda": (c.rincian or {}).get("tertunda") or []})
+    if sesi.status == "ditutup" and sesi.ditutup_waktu:
+        titik.append({"jenis": "tutup", "waktu": sesi.ditutup_waktu, "dihitung": sesi.dihitung,
+                      "seharusnya": sesi.seharusnya, "selisih": sesi.selisih, "berubah": False,
+                      "oleh": sesi.ditutup_oleh, "catatan": sesi.catatan_tutup, "tertunda": []})
+    sebelum, mulai = 0, sesi.awal_hitung
+    for t in titik:
+        t["perubahan"], t["sejak"] = t["selisih"] - sebelum, mulai
+        sebelum, mulai = t["selisih"], t["waktu"]
+    return titik
+
+
 def acc(sesi_id, *, setuju, oleh, catatan=""):
     with transaction.atomic():
         s = KasSesi.objects.select_for_update().filter(pk=_uuid(sesi_id)).first()

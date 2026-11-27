@@ -86,6 +86,7 @@ def ringkas(toko):
     if s is not None:
         hasil["rincian"] = rincian_baris(hasil["hitung"])
         hasil["gerak"] = inti.gerak_sesi(s)
+        hasil["cek"] = inti.daftar_cek(s)
     return hasil
 
 
@@ -127,6 +128,20 @@ def catat_gerak(pengguna, toko, data, dari="master"):
     return g
 
 
+def cek(pengguna, toko, data, dari="master"):
+    """Pencocokan kas di tengah sesi (27 Nov 2026)."""
+    if not punya_kas(toko):
+        raise Tolak("Kas hanya untuk toko yang memegang kasir.")
+    s = inti.sesi_buka(toko.pk)
+    if s is None:
+        raise Tolak("Kas belum dibuka.")
+    c = _jalankan(inti.cek_laci, s.pk, dihitung=data.get("dihitung"), catatan=data.get("catatan") or "",
+                  oleh=nama(pengguna), dari=dari)
+    layanan.catat(pengguna, aksi="tambah", objek="kas", kolom="cocokkan kas",
+                  baru=f"dihitung {rp(c.dihitung)}, seharusnya {rp(c.seharusnya)}, selisih {rp(c.selisih)}")
+    return c
+
+
 def batal_gerak(pengguna, gerak_id, alasan):
     g = _jalankan(inti.batal_gerak, gerak_id, oleh=nama(pengguna), alasan=alasan)
     layanan.catat(pengguna, aksi="hapus", objek="kas", kolom=g.get_jenis_display().lower(),
@@ -150,7 +165,7 @@ def detail(sesi_id):
         return None
     r = s.rincian if s.status == "ditutup" and s.rincian else inti.hitung(s)
     sekarang = inti.hitung(s) if s.status == "ditutup" else r
-    return {"s": s, "hitung": r, "rincian": rincian_baris(r), "gerak": inti.gerak_sesi(s),
+    return {"s": s, "hitung": r, "rincian": rincian_baris(r), "gerak": inti.gerak_sesi(s), "cek": inti.daftar_cek(s),
             # Nota yang masuk telat sesudah tutup (seharusnya jarang: tutup ditahan selama ada antrean).
             "berubah": s.status == "ditutup" and sekarang["seharusnya"] != r["seharusnya"],
             "sekarang": sekarang}

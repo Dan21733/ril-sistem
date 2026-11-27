@@ -58,6 +58,14 @@
     <button class="tombol" type="submit" style="margin-top:12px">Simpan</button>
   </form>
 
+  <form method="post" class="kartu">{% csrf_token %}<input type="hidden" name="aksi" value="cek">
+    <h3 style="margin-top:0">Cocokkan kas</h3>
+    <p class="redup kecil" style="margin-top:0">Hitung uang di laci kapan saja (tanpa tutup kas). Disimpan bersama angka seharusnya jam itu, jadi kelihatan selisihnya muncul di jam berapa.</p>
+    <label>Uang di laci sekarang</label><input type="text" name="dihitung" inputmode="numeric" required>
+    <label style="margin-top:10px">Catatan (boleh kosong)</label><input type="text" name="catatan" maxlength="300" placeholder="mis. hitung setelah makan siang">
+    <button class="tombol" type="submit" style="margin-top:12px">Simpan hitungan</button>
+  </form>
+
   <form method="post" class="kartu" data-tanya="Tutup kas sekarang? Angka dibekukan dan menunggu ACC." data-tanya-ya="Tutup kas">{% csrf_token %}<input type="hidden" name="aksi" value="tutup"><input type="hidden" name="sesi_id" value="{{ k.sesi.id }}">
     <h3 style="margin-top:0">Tutup kas</h3>
     <p class="redup kecil" style="margin-top:0">Hitung semua uang di laci, lalu isi yang diambil dan yang ditinggal.</p>
@@ -70,6 +78,9 @@
     <button class="tombol utama" type="submit" style="margin-top:12px">Tutup kas</button>
   </form>
 </div>
+
+<h3>Pencocokan kas sesi ini</h3>
+{% include "master/_kas_cek.html" with cek=k.cek %}
 
 <h3>Uang keluar &amp; modal sesi ini</h3>
 <div class="gulir"><table><tr><th>Waktu</th><th>Jenis</th><th>Kategori</th><th>Keterangan</th><th class="angka">Jumlah</th><th>Oleh</th><th></th></tr>

@@ -1,0 +1,6 @@
+{% load master_tags %}{# Pencocokan kas di HP (27 Nov 2026). #}
+<div class="kepala-grup"><h2>Pencocokan kas</h2></div>
+<div class="grup">{% for t in cek %}<div class="sel"><div class="utama"><div class="nama" style="font-size:15px">{{ t.sejak|date:"H.i" }} – {{ t.waktu|date:"H.i" }}{% if t.jenis == "tutup" %} · tutup kas{% endif %}</div>
+  <div class="sub" style="white-space:normal">dihitung {{ t.dihitung|rupiah }} · seharusnya {{ t.seharusnya|rupiah }} · {{ t.oleh }}{% if t.tertunda %} · ada nota belum terkirim{% endif %}{% if t.catatan %} · {{ t.catatan }}{% endif %}</div></div>
+  <div class="nilai"><b{% if t.perubahan < 0 %} class="turun"{% endif %}{% if t.perubahan == 0 %} style="color:var(--hijau)"{% endif %}>{% if t.perubahan == 0 %}cocok{% else %}{{ t.perubahan|rupiah }}{% endif %}</b><div class="kecil redup">di rentang ini</div></div></div>
+  {% empty %}<div class="kosong">Belum ada. Hitung laci kapan saja lewat "Cocokkan kas".</div>{% endfor %}</div>

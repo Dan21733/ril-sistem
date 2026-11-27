@@ -548,6 +548,27 @@ class KasSesi(models.Model):
         return self.diambil + self.uang_sisa
 
 
+class KasCek(models.Model):
+    """Pencocokan kas di tengah sesi (27 Nov 2026): uang di laci dihitung kapan saja dan disimpan bersama
+    angka seharusnya saat itu. Selisih yang BERUBAH di antara dua pencocokan menunjukkan rentang waktu
+    (dan nota di dalamnya) tempat selisih muncul, tanpa harus menghitung dari pagi sampai sore sekaligus."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    sesi = models.ForeignKey(KasSesi, on_delete=models.CASCADE, related_name="cek")
+    waktu = models.DateTimeField(default=timezone.now, db_index=True)
+    dihitung = models.IntegerField()
+    seharusnya = models.IntegerField()
+    selisih = models.IntegerField()
+    rincian = models.JSONField(default=dict, blank=True)
+    oleh = models.CharField(max_length=150, blank=True, default="")
+    dari = models.CharField(max_length=20, blank=True, default="")
+    catatan = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        db_table = "kas_cek"
+        ordering = ["waktu"]
+
+
 class KasGerak(models.Model):
     """Uang keluar/masuk laci di luar nota: uang keluar, tambah modal, cadangan.
 

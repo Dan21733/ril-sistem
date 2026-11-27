@@ -1,0 +1,13 @@
+{% load master_tags %}{# Daftar pencocokan kas satu sesi (27 Nov 2026). cek = pos.kas.daftar_cek(sesi). #}
+{% if cek %}<div class="gulir"><table>
+<tr><th>Rentang</th><th class="angka">Dihitung</th><th class="angka">Seharusnya</th><th class="angka">Selisih</th><th class="angka" title="Selisih yang muncul di rentang ini saja">Berubah di rentang ini</th><th>Oleh</th></tr>
+{% for t in cek %}<tr>
+  <td>{{ t.sejak|date:"H:i" }} – {{ t.waktu|date:"H:i" }}{% if t.jenis == "tutup" %} <span class="label">tutup kas</span>{% endif %}{% if t.catatan %}<div class="kecil redup">{{ t.catatan }}</div>{% endif %}</td>
+  <td class="angka">{{ t.dihitung|ribuan }}</td>
+  <td class="angka">{{ t.seharusnya|ribuan }}{% if t.berubah %}<div class="kecil redup" title="Nota yang telat terkirim ikut terhitung sekarang">saat dicek {{ t.seharusnya_lama|ribuan }}</div>{% endif %}{% if t.tertunda %}<div class="kecil" style="color:var(--awas)">saat itu ada nota belum terkirim</div>{% endif %}</td>
+  <td class="angka">{{ t.selisih|ribuan }}</td>
+  <td class="angka"><b style="color:{% if t.perubahan < 0 %}var(--bahaya){% elif t.perubahan > 0 %}var(--awas){% else %}var(--baik){% endif %}">{% if t.perubahan == 0 %}cocok{% else %}{{ t.perubahan|ribuan }}{% endif %}</b></td>
+  <td class="kecil redup">{{ t.oleh }}</td></tr>{% endfor %}
+</table></div>
+<p class="redup kecil">Baca kolom "Berubah di rentang ini": angka minus = uang kurang muncul di antara dua hitungan itu, jadi cukup periksa nota dan uang keluar di jam tersebut.</p>
+{% else %}<p class="redup">Belum ada pencocokan di sesi ini.</p>{% endif %}

@@ -155,6 +155,46 @@ class HitungKasTest(_KasDasar):
                 waktu=dulu).gerak_id, oleh="D", alasan="salah")
 
 
+
+
+class CocokkanKasTest(_KasDasar):
+    def test_pencocokan_menunjukkan_rentang_selisih(self):
+        """27 Nov 2026: hitung laci kapan saja; selisih yang berubah antar hitungan = rentang sumber masalah."""
+        from master.tests.test_hp import masuk_hp
+        jam = lambda h: timezone.now() - datetime.timedelta(hours=h)
+        s = kas.buka(self.toko.id, modal=100000, cadangan_lengkap=True, oleh="Daniel", dari="master")
+        KasSesi.objects.filter(pk=s.pk).update(awal_hitung=jam(6))
+        s.refresh_from_db()
+        self._jual(50000, waktu=jam(5))
+        with patch("django.utils.timezone.now", return_value=jam(4)):
+            c1 = kas.cek_laci(s.id, dihitung=150000, oleh="Daniel", dari="master")     # cocok
+        self._jual(30000, waktu=jam(3))
+        with patch("django.utils.timezone.now", return_value=jam(2)):
+            c2 = kas.cek_laci(s.id, dihitung=170000, oleh="Daniel", dari="master")     # kurang 10rb
+        self.assertEqual((c1.selisih, c2.seharusnya, c2.selisih), (0, 180000, -10000))
+        self._jual(20000, waktu=jam(1))
+        self.client.force_login(self.admin)
+        r = self.client.post("/master/kas/", {"aksi": "cek", "dihitung": "190.000"}, follow=True)
+        self.assertContains(r, "Selisih saat ini \u2212Rp10.000")                       # tidak berubah sejak c2
+        self.assertEqual([t["perubahan"] for t in kas.daftar_cek(s)], [0, -10000, 0])
+        self.assertContains(r, "Pencocokan kas sesi ini")
+        # Nota telat terkirim dengan jam sebelum c1: seharusnya c1 dihitung ulang, tanda "saat dicek".
+        self._jual(5000, waktu=jam(4.5))
+        d = kas.daftar_cek(s)
+        self.assertEqual((d[0]["selisih"], d[0]["berubah"], d[1]["perubahan"]), (-5000, True, -10000))
+        # Tutup kas jadi titik terakhir; HP juga bisa mencocokkan.
+        masuk_hp(self.client, self.admin)
+        r = self.client.post("/hp/kas/", {"aksi": "cek", "dihitung": 195000}, content_type="application/json")
+        self.assertTrue(r.json()["ok"], r.json())
+        self.assertContains(self.client.get("/hp/kas/"), "Pencocokan kas")
+        s = kas.tutup(s.id, diambil=0, uang_sisa=195000, oleh="Daniel", dari="master", paksa=True)
+        d = kas.daftar_cek(s)
+        self.assertEqual((d[-1]["jenis"], d[-1]["perubahan"]), ("tutup", 0))
+        self.assertContains(self.client.get(f"/master/kas/{s.id}/"), "tutup kas")
+        with self.assertRaises(kas.KasDitolak):
+            kas.cek_laci(s.id, dihitung=1, oleh="x", dari="master")
+
+
 @override_settings(ROOT_URLCONF="config.urls",
                    CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache",
                                        "LOCATION": "kas-kasir"}})

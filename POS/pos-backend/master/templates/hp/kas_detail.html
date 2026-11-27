@@ -39,6 +39,8 @@
   <div class="sel"><div class="utama"><div class="nama"><b>Seharusnya di laci</b></div></div><b class="nilai">{{ hitung.seharusnya|rupiah }}</b></div></div>
 <p class="ket-grup">Di luar laci: transfer {{ hitung.transfer|rupiah }} · EDC {{ hitung.edc|rupiah }}.</p>
 
+{% include "hp/_kas_cek.html" %}
+
 <div class="kepala-grup"><h2>Uang keluar &amp; modal</h2></div>
 <div class="grup">{% for g in gerak %}<div class="sel"{% if g.batal %} style="opacity:.5"{% endif %}><div class="utama"><div class="nama" style="font-size:15px">{{ g.kategori|default:g.get_jenis_display }}{% if g.keterangan %} <span class="redup">· {{ g.keterangan }}</span>{% endif %}</div>
   <div class="sub">{{ g.waktu|date:"H.i" }} · {{ g.oleh }}{% if g.batal %} · batal{% endif %}</div></div><span class="nilai">{{ g.jumlah|rupiah }}</span></div>

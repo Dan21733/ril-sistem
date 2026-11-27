@@ -1142,6 +1142,9 @@ def kas(request):
             if aksi == "batal":
                 svc.batal_gerak(request.user, d.get("gerak_id"), d.get("alasan"))
                 return _jawab(pesan="Catatan dibatalkan.")
+            if aksi == "cek":
+                c = svc.cek(request.user, toko, d, dari="hp")
+                return _jawab(pesan="Hasil hitung disimpan. Selisih saat ini " + svc.rp(c.selisih) + ".")
         except Tolak as e:
             return _jawab(False, str(e), 400)
         return _jawab(False, "Permintaan tidak dikenali.", 400)
